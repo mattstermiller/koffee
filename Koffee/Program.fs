@@ -1,14 +1,25 @@
-﻿module Program
+﻿module Koffee.Program
 
-let assemblyName = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name
+open System.Windows
+open System.IO
+open FSharp.Desktop.UI
 
-let getXamlResource xaml = 
-  sprintf "/%s;component/%s" assemblyName xaml
-  |> fun nme -> System.Uri(nme, System.UriKind.Relative)
-  |> System.Windows.Application.LoadComponent
-  :?> _
-
-let mainWindow : System.Windows.Window = getXamlResource "MainWindow.xaml"
+let loadNodes path =
+    let pathToNode nodeType path =
+        {Name = Path.GetFileName path; Path = path; Type = nodeType}
+    Seq.append
+        (Directory.EnumerateDirectories path |> Seq.map (pathToNode "Folder"))
+        (Directory.EnumerateFiles path |> Seq.map (pathToNode "File"))
+    |> Seq.toList
 
 [<System.STAThread>]
-do System.Windows.Application().Run(mainWindow) |> ignore
+do
+    let model = MainModel.Create()
+    let window = MainWindow()
+    let view = MainView(window)
+    let controller = MainController(loadNodes)
+    let mvc = Mvc(model, view, controller)
+    use eventLoop = mvc.Start()
+
+    let app = Application()
+    app.Run window |> ignore

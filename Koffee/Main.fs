@@ -6,17 +6,19 @@ open FSharp.Desktop.UI
 
 // MODEL
 
+type Path = Path of string
+
 type Node = {
     Name: string
     Type: string
-    Path: string
+    Path: Path
 }
 
 [<AbstractClass>]
 type MainModel() =
     inherit Model()
 
-    abstract Path: string with get, set
+    abstract Path: Path with get, set
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
 
@@ -31,20 +33,34 @@ type MainEvents =
 
 // VIEW
 
+open System.Windows.Controls
+
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
 type MainView(window: MainWindow) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
+    let addCol propName =
+        let col = DataGridTextColumn()
+        col.Binding <- Binding(propName)
+        window.NodeList.Columns.Add col
+
     override this.SetBindings (model: MainModel) =
         Binding.OfExpression <@
-            window.PathTextBox.Text <- model.Path
             window.NodeList.ItemsSource <- model.Nodes
             window.NodeList.SelectedIndex <- model.Cursor
         @>
 
+        window.NodeList.AutoGenerateColumns <- false
+        addCol "Name"
+        addCol "Type"
+
+        let pathBinding = Binding("Path")
+        pathBinding.Converter <- ValueConverters.DiscriminatedUnionValue()
+        window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
+
     override this.EventStreams = [
-        window.PathTextBox.TextChanged |> Observable.map (fun _ -> PathChanged)
+        window.PathBox.TextChanged |> Observable.map (fun _ -> PathChanged)
         window.KeyDown
             |> Observable.map this.KeyToEvent
             |> Observable.filter (fun e -> e.IsSome)
@@ -65,9 +81,9 @@ type MainView(window: MainWindow) =
 // CONTROLLER
 
 type IPathService =
-    abstract root: string with get
-    abstract parent: string -> string
-    abstract nodes: string -> Node list
+    abstract root: Path with get
+    abstract parent: Path -> Path
+    abstract nodes: Path -> Node list
 
 type MainController(path: IPathService) =
     let nav offset (model: MainModel) =

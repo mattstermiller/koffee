@@ -1,17 +1,18 @@
 ﻿module Koffee.FileSys
 
 open System.IO
+open Koffee
 
 type PathService() =
     interface IPathService with
-        override x.root = @"C:\"
+        override x.root = Path @"C:\"
 
-        override x.parent path = Path.GetDirectoryName path
+        override x.parent (Path path) = Path.GetDirectoryName path |> Path
 
-        override x.nodes path =
+        override x.nodes (Path path) =
             let pathToNode nodeType path = {
                 Name = Path.GetFileName path
-                Path = path
+                Path = Path path
                 Type = nodeType
             }
             Seq.append

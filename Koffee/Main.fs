@@ -4,7 +4,13 @@ open System.Windows.Data
 open System.Windows.Input
 open FSharp.Desktop.UI
 
-type Node = {Name: string; Type: string; Path: string}
+// MODEL
+
+type Node = {
+    Name: string
+    Type: string
+    Path: string
+}
 
 [<AbstractClass>]
 type MainModel() =
@@ -22,6 +28,8 @@ type MainEvents =
     | PathChanged
     | OpenSelected
     | OpenParent
+
+// VIEW
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
@@ -54,26 +62,36 @@ type MainView(window: MainWindow) =
             | _ -> evt.Handled <- false; None
         else None
 
-open System.IO
+// CONTROLLER
 
-type MainController(loadNodes: string -> Node list) =
-    let noop (m: MainModel) = ()
+type IPathService =
+    abstract root: string with get
+    abstract parent: string -> string
+    abstract nodes: string -> Node list
 
+type MainController(path: IPathService) =
     let nav offset (model: MainModel) =
         model.Cursor <- model.Cursor + offset
 
     let openPath (model: MainModel) =
-        model.Nodes <- loadNodes model.Path; model.Cursor <- 0
+        model.Nodes <- path.nodes model.Path
+        model.Cursor <- 0
+
+    let selectedPath (model: MainModel) =
+        model.Path <- model.SelectedNode.Path
+
+    let parentPath (model: MainModel) =
+        model.Path <- path.parent model.Path
 
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
-            model.Path <- @"C:\"
-            model.Nodes <- loadNodes model.Path
+            model.Path <- path.root
+            model.Nodes <- path.nodes model.Path
             model.Cursor <- 0
 
         member this.Dispatcher = function
             | NavUp -> Sync (nav -1)
             | NavDown -> Sync (nav 1)
             | PathChanged -> Sync openPath
-            | OpenSelected -> Sync (fun model -> model.Path <- model.SelectedNode.Path)
-            | OpenParent -> Sync (fun model -> model.Path <- Path.GetDirectoryName model.Path)
+            | OpenSelected -> Sync selectedPath
+            | OpenParent -> Sync parentPath

@@ -58,6 +58,7 @@
     <None Include="App.config" />
     <Resource Include="MainWindow.xaml" />
     <Compile Include="Main.fs" />
+    <Compile Include="FileSys.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
   </ItemGroup>

@@ -58,7 +58,9 @@
     <None Include="App.config" />
     <Resource Include="MainWindow.xaml" />
     <Compile Include="ValueConverters.fs" />
-    <Compile Include="Main.fs" />
+    <Compile Include="MainModel.fs" />
+    <Compile Include="MainView.fs" />
+    <Compile Include="MainController.fs" />
     <Compile Include="FileSys.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />

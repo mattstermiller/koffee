@@ -5,17 +5,31 @@ open Koffee
 
 type PathService() =
     interface IPathService with
-        override x.root = Path @"C:\"
+        override this.root = this.root
+        override this.parent path = this.parent path
+        override this.nodes path = this.nodes path
 
-        override x.parent (Path path) = Path.GetDirectoryName path |> Path
+    member this.winPath (Path path) =
+        path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
 
-        override x.nodes (Path path) =
-            let pathToNode nodeType path = {
-                Name = Path.GetFileName path
-                Path = Path path
-                Type = nodeType
-            }
-            Seq.append
-                (Directory.EnumerateDirectories path |> Seq.map (pathToNode "Folder"))
-                (Directory.EnumerateFiles path |> Seq.map (pathToNode "File"))
-            |> Seq.toList
+    member this.unixPath (path: string) =
+        "/" + path.Replace('\\', '/').Replace(":", "") |> Path
+
+    member this.root = Path "/c/"
+
+    member this.parent path =
+        match path with
+        | p when p = this.root -> p
+        | p -> p |> this.winPath |> Path.GetDirectoryName |> this.unixPath
+
+    member this.nodes path =
+        let pathToNode nodeType path = {
+            Name = Path.GetFileName path
+            Path = this.unixPath path
+            Type = nodeType
+        }
+        let wp = this.winPath path
+        Seq.append
+            (Directory.EnumerateDirectories wp |> Seq.map (pathToNode "Folder"))
+            (Directory.EnumerateFiles wp |> Seq.map (pathToNode "File"))
+        |> Seq.toList

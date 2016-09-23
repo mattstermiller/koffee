@@ -29,7 +29,8 @@ type MainController(path: IPathService) =
         model.Cursor <- 0
 
     member this.SelectedPath (model: MainModel) =
-        model.Path <- model.SelectedNode.Path
+        if model.SelectedNode.Type = Folder then
+            model.Path <- model.SelectedNode.Path
 
     member this.ParentPath (model: MainModel) =
         model.Path <- path.parent model.Path

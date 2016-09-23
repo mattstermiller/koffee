@@ -3,10 +3,11 @@
 open FSharp.Desktop.UI
 
 type Path = Path of string
+type NodeType = File | Folder
 
 type Node = {
     Name: string
-    Type: string
+    Type: NodeType
     Path: Path
 }
 

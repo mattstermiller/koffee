@@ -30,6 +30,6 @@ type PathService() =
         }
         let wp = this.winPath path
         Seq.append
-            (Directory.EnumerateDirectories wp |> Seq.map (pathToNode "Folder"))
-            (Directory.EnumerateFiles wp |> Seq.map (pathToNode "File"))
+            (Directory.EnumerateDirectories wp |> Seq.map (pathToNode NodeType.Folder))
+            (Directory.EnumerateFiles wp |> Seq.map (pathToNode NodeType.File))
         |> Seq.toList

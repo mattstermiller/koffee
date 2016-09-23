@@ -10,20 +10,24 @@ type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 type MainView(window: MainWindow) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
+    member this.AddColumn (propName, ?converter: IValueConverter) =
+        let col = DataGridTextColumn()
+        window.NodeList.Columns.Add col
+
+        let binding = Binding(propName)
+        if converter.IsSome then
+            binding.Converter <- converter.Value
+        col.Binding <- binding
+
     override this.SetBindings (model: MainModel) =
         Binding.OfExpression <@
             window.NodeList.ItemsSource <- model.Nodes
             window.NodeList.SelectedIndex <- model.Cursor
         @>
 
-        let addCol propName =
-            let col = DataGridTextColumn()
-            col.Binding <- Binding(propName)
-            window.NodeList.Columns.Add col
-
         window.NodeList.AutoGenerateColumns <- false
-        addCol "Name"
-        addCol "Type"
+        this.AddColumn "Name"
+        this.AddColumn ("Type", ValueConverters.UnionText())
 
         let pathBinding = Binding("Path")
         pathBinding.Converter <- ValueConverters.UnionValue()

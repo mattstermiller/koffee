@@ -26,7 +26,7 @@ type MainView(window: MainWindow) =
         addCol "Type"
 
         let pathBinding = Binding("Path")
-        pathBinding.Converter <- ValueConverters.DiscriminatedUnionValue()
+        pathBinding.Converter <- ValueConverters.UnionValue()
         window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
 
     override this.EventStreams = [

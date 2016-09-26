@@ -1,6 +1,10 @@
-﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Koffee">
     <Grid>
         <TextBox x:Name="PathBox" Height="23" Margin="10,10,10,0" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top"/>
-        <DataGrid x:Name="NodeList" Margin="10,38,10,10"/>
+        <DataGrid x:Name="NodeList" Margin="10,38,10,10" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFD6D6D6">
+            <DataGrid.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{x:Static SystemColors.HighlightColor}"/>
+            </DataGrid.Resources>
+        </DataGrid>
     </Grid>
 </Window>

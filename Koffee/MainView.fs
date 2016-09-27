@@ -10,16 +10,16 @@ type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 type MainView(window: MainWindow) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
-    let addCol propName =
-        let col = DataGridTextColumn()
-        col.Binding <- Binding(propName)
-        window.NodeList.Columns.Add col
-
     override this.SetBindings (model: MainModel) =
         Binding.OfExpression <@
             window.NodeList.ItemsSource <- model.Nodes
             window.NodeList.SelectedIndex <- model.Cursor
         @>
+
+        let addCol propName =
+            let col = DataGridTextColumn()
+            col.Binding <- Binding(propName)
+            window.NodeList.Columns.Add col
 
         window.NodeList.AutoGenerateColumns <- false
         addCol "Name"
@@ -31,20 +31,17 @@ type MainView(window: MainWindow) =
 
     override this.EventStreams = [
         window.PathBox.TextChanged |> Observable.map (fun _ -> PathChanged)
-        window.KeyDown
-            |> Observable.map this.KeyToEvent
-            |> Observable.filter (fun e -> e.IsSome)
-            |> Observable.map (fun e -> e.Value)
+        window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
     ]
 
-    member this.KeyToEvent evt : MainEvents option =
+    member this.ListKeyEvent evt =
         if Keyboard.Modifiers = ModifierKeys.None then
             evt.Handled <- true
             match evt.Key with
-            | System.Windows.Input.Key.J -> Some NavDown
-            | System.Windows.Input.Key.K -> Some NavUp
-            | System.Windows.Input.Key.H -> Some OpenParent
-            | System.Windows.Input.Key.L -> Some OpenSelected
+            | Key.J -> Some NavDown
+            | Key.K -> Some NavUp
+            | Key.H -> Some OpenParent
+            | Key.L -> Some OpenSelected
             | _ -> evt.Handled <- false; None
         else None
 

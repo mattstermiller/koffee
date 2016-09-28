@@ -30,9 +30,23 @@ type MainView(window: MainWindow) =
         window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
 
     override this.EventStreams = [
-        window.PathBox.TextChanged |> Observable.map (fun _ -> PathChanged)
+        window.PathBox.KeyDown |> Observable.choose this.PathKeyEvent
+        window.PathBox.LostFocus |> Observable.mapTo PathChanged
+        window.PathBox.TextChanged |> Observable.choose this.PathChangedOutside
+
         window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
     ]
+
+    member this.PathChangedOutside evt =
+        if not window.PathBox.IsFocused then Some PathChanged else None
+
+    member this.PathKeyEvent evt =
+        if Keyboard.Modifiers = ModifierKeys.None then
+            evt.Handled <- true
+            match evt.Key with
+            | Key.Enter -> window.NodeList.Focus() |> ignore; None
+            | _ -> evt.Handled <- false; None
+        else None
 
     member this.ListKeyEvent evt =
         if Keyboard.Modifiers = ModifierKeys.None then

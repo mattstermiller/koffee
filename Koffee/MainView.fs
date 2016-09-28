@@ -29,13 +29,20 @@ type MainView(window: MainWindow) =
         pathBinding.Converter <- ValueConverters.UnionValue()
         window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
 
+        window.NodeList.Focus() |> ignore
+
     override this.EventStreams = [
         window.PathBox.KeyDown |> Observable.choose this.PathKeyEvent
         window.PathBox.LostFocus |> Observable.mapTo PathChanged
         window.PathBox.TextChanged |> Observable.choose this.PathChangedOutside
 
         window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
+        window.NodeList.SelectionChanged |> Observable.choose this.FocusNodeList
     ]
+
+    member this.FocusNodeList evt : MainEvents option =
+        if not window.NodeList.IsFocused then window.NodeList.Focus() |> ignore
+        None
 
     member this.PathChangedOutside evt =
         if not window.PathBox.IsFocused then Some PathChanged else None

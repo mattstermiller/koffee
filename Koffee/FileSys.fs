@@ -10,7 +10,8 @@ type PathService() =
         override this.nodes path = this.nodes path
 
     member this.winPath (Path path) =
-        path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
+        let p = path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
+        if p.EndsWith(":") then p + "\\" else p
 
     member this.unixPath (path: string) =
         "/" + path.Replace('\\', '/').Replace(":", "") |> Path

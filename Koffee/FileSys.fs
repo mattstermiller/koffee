@@ -5,32 +5,42 @@ open Koffee
 
 type PathService() =
     interface IPathService with
-        override this.root = this.root
-        override this.parent path = this.parent path
-        override this.nodes path = this.nodes path
+        override this.Root = this.Root
+        override this.Parent path = this.Parent path
+        override this.GetNodes path = this.GetNodes path
 
-    member this.winPath (Path path) =
+    member this.WinPath (Path path) =
         let p = path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
         if p.EndsWith(":") then p + "\\" else p
 
-    member this.unixPath (path: string) =
+    member this.UnixPath (path: string) =
         "/" + path.Replace('\\', '/').Replace(":", "") |> Path
 
-    member this.root = Path "/c/"
+    member this.Root = Path "/c/"
 
-    member this.parent path =
+    member this.Parent path =
         match path with
-        | p when p = this.root -> p
-        | p -> p |> this.winPath |> Path.GetDirectoryName |> this.unixPath
+        | p when p = this.Root -> p
+        | p -> p |> this.WinPath |> Path.GetDirectoryName |> this.UnixPath
 
-    member this.nodes path =
-        let pathToNode nodeType path = {
-            Name = Path.GetFileName path
-            Path = this.unixPath path
-            Type = nodeType
-        }
-        let wp = this.winPath path
-        Seq.append
-            (Directory.EnumerateDirectories wp |> Seq.map (pathToNode NodeType.Folder))
-            (Directory.EnumerateFiles wp |> Seq.map (pathToNode NodeType.File))
-        |> Seq.toList
+    member this.GetNodes path =
+        let wp = this.WinPath path
+        let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
+        let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
+        Seq.append folders files |> Seq.toList
+
+    member this.FolderNode path = {
+        Path = this.UnixPath path
+        Name = Path.GetFileName path
+        Type = NodeType.Folder
+        Modified = None
+        Size = None
+    }
+
+    member this.FileNode (file: FileInfo) = {
+        Path = this.UnixPath file.FullName
+        Name = file.Name
+        Type = NodeType.File
+        Modified = Some file.LastWriteTime
+        Size = Some file.Length
+    }

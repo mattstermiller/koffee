@@ -27,6 +27,8 @@ type MainView(window: MainWindow) =
 
         this.AddColumn "Name"
         this.AddColumn ("Type", ValueConverters.UnionText())
+        this.AddColumn ("Modified", ValueConverters.OptionValue())
+        this.AddColumn ("Size", ValueConverters.OptionValue())
 
         let pathBinding = Binding("Path")
         pathBinding.Converter <- ValueConverters.UnionValue()

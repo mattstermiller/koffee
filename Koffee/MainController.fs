@@ -3,15 +3,15 @@
 open FSharp.Desktop.UI
 
 type IPathService =
-    abstract root: Path with get
-    abstract parent: Path -> Path
-    abstract nodes: Path -> Node list
+    abstract Root: Path with get
+    abstract Parent: Path -> Path
+    abstract GetNodes: Path -> Node list
 
-type MainController(path: IPathService) =
+type MainController(pathing: IPathService) =
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
-            model.Path <- path.root
-            model.Nodes <- path.nodes model.Path
+            model.Path <- pathing.Root
+            model.Nodes <- pathing.GetNodes model.Path
             model.Cursor <- 0
 
         member this.Dispatcher = function
@@ -25,7 +25,7 @@ type MainController(path: IPathService) =
         model.Cursor <- model.Cursor + offset
 
     member this.OpenPath (model: MainModel) =
-        model.Nodes <- path.nodes model.Path
+        model.Nodes <- pathing.GetNodes model.Path
         model.Cursor <- 0
 
     member this.SelectedPath (model: MainModel) =
@@ -33,4 +33,4 @@ type MainController(path: IPathService) =
             model.Path <- model.SelectedNode.Path
 
     member this.ParentPath (model: MainModel) =
-        model.Path <- path.parent model.Path
+        model.Path <- pathing.Parent model.Path

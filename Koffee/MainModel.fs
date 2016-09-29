@@ -1,14 +1,17 @@
 ﻿namespace Koffee
 
+open System
 open FSharp.Desktop.UI
 
 type Path = Path of string
 type NodeType = File | Folder
 
 type Node = {
+    Path: Path
     Name: string
     Type: NodeType
-    Path: Path
+    Modified: DateTime option
+    Size: int64 option
 }
 
 [<AbstractClass>]

@@ -34,6 +34,26 @@ type ``UnionValue tests``() =
         conv.Convert(Book "The Hobbit", typedefof<string>, null, null)
         |> should equal "The Hobbit"
 
-    [<Test>] member x.``ConvertBack() to union with a value gives union type`` () =
+    [<Test>] member x.``ConvertBack() to union with a value returns union type`` () =
         conv.ConvertBack("The Hobbit", typedefof<Toys>, null, null)
         |> should equal (Book "The Hobbit")
+
+[<TestFixture>]
+type ``OptionValue tests``() =
+    let conv = OptionValue() :> IValueConverter
+
+    [<Test>] member x.``Convert() an option with a value returns the value`` () =
+        conv.Convert(Some 5, typedefof<string>, null, null)
+        |> should equal 5
+
+    [<Test>] member x.``Convert() an option without a value returns null`` () =
+        conv.Convert(None, typedefof<string>, null, null)
+        |> should equal null
+
+    [<Test>] member x.``ConvertBack() to option with a value returns Some`` () =
+        conv.ConvertBack(5, typedefof<int option>, null, null)
+        |> should equal (Some 5)
+
+    [<Test>] member x.``ConvertBack() to option with null returns None`` () =
+        conv.ConvertBack(null, typedefof<int option>, null, null)
+        |> should equal None

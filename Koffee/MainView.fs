@@ -25,7 +25,6 @@ type MainView(window: MainWindow) =
             window.NodeList.SelectedIndex <- model.Cursor
         @>
 
-        window.NodeList.AutoGenerateColumns <- false
         this.AddColumn "Name"
         this.AddColumn ("Type", ValueConverters.UnionText())
 

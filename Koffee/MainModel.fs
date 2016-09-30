@@ -14,6 +14,22 @@ type Node = {
     Size: int64 option
 }
 
+type Node with
+    member this.SizeFormatted =
+        if this.Size.IsSome then
+            let scale level = pown 1024L level
+            let scaleCutoff level = 10L * (scale level)
+            let scaledStr size level =
+                let scaled = size / (scale level)
+                let levelName = "KB,MB,GB".Split(',').[level-1]
+                scaled.ToString("N0") + " " + levelName
+            match this.Size.Value with
+                | size when size > scaleCutoff 3 -> scaledStr size 3
+                | size when size > scaleCutoff 2 -> scaledStr size 2
+                | size when size > scaleCutoff 1 -> scaledStr size 1
+                | size -> size.ToString("N0")
+        else ""
+
 [<AbstractClass>]
 type MainModel() =
     inherit Model()

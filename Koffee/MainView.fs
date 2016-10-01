@@ -31,7 +31,10 @@ type MainView(window: MainWindow) =
         window.PathBox.KeyDown.Add (fun e ->
             if e.Key = Key.Enter then window.NodeList.Focus() |> ignore; e.Handled <- true)
         window.NodeList.SelectionChanged.Add (fun _ ->
-            if not window.NodeList.IsFocused then window.NodeList.Focus() |> ignore)
+            if window.NodeList.SelectedItem <> null then
+                window.NodeList.ScrollIntoView(window.NodeList.SelectedItem)
+            if not window.NodeList.IsFocused then
+                window.NodeList.Focus() |> ignore)
 
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter, ?format: string) =
         let headerStr = defaultArg header propName

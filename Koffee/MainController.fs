@@ -14,7 +14,6 @@ type MainController(pathing: IPathService) =
         member this.InitModel model =
             model.Path <- pathing.Root
             model.Nodes <- pathing.GetNodes model.Path
-            model.Cursor <- 0
 
         member this.Dispatcher = function
             | Nav offset -> Sync (this.Nav offset)

@@ -26,7 +26,9 @@ type MainView(window: MainWindow) =
         pathBinding.Converter <- ValueConverters.UnionValue()
         window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
 
-        window.NodeList.Focus() |> ignore
+        let desiredCursor = model.Cursor
+        model.Cursor <- -1
+        window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
         window.PathBox.KeyDown.Add (fun e ->
             if e.Key = Key.Enter then window.NodeList.Focus() |> ignore; e.Handled <- true)

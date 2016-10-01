@@ -31,11 +31,13 @@ type PathService() =
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
         else
             let wp = this.WinPath path
-            let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
-            let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
-            Seq.append folders files |> Seq.toList
+            try
+                let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
+                let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
+                Seq.append folders files |> Seq.toList
+            with | ex -> this.ErrorNode ex (this.Parent path) |> List.singleton
 
-    member this.FileNode (file: FileInfo) = {
+    member this.FileNode file = {
         Path = this.UnixPath file.FullName
         Name = file.Name
         Type = NodeType.File
@@ -56,11 +58,21 @@ type PathService() =
         let driveType = drive.DriveType.ToString()
         let label = if drive.IsReady && drive.VolumeLabel <> "" then (sprintf " \"%s\"" drive.VolumeLabel) else ""
         {
-            Path = this.UnixPath drive.Name
+            Path = drive.Name.ToLower() |> this.UnixPath
             Name = sprintf "%s  %s Drive%s" name driveType label 
             Type = NodeType.Drive
             Modified = None
             Size = if drive.IsReady then Some drive.TotalSize else None
+        }
+
+    member this.ErrorNode ex path =
+        let error = ex.Message.Split('\r', '\n').[0]
+        {
+            Path = path
+            Name = sprintf "<Error: %s>" error
+            Type = NodeType.Error
+            Modified = None
+            Size = None
         }
 
     member this.OpenFile path =

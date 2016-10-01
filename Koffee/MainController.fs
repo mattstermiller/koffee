@@ -34,7 +34,7 @@ type MainController(pathing: IPathService) =
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
-        | Folder | Drive -> model.Path <- path
+        | Folder | Drive | Error -> model.Path <- path
         | File -> pathing.OpenFile path
 
     member this.ParentPath (model: MainModel) =

@@ -4,7 +4,7 @@ open System
 open FSharp.Desktop.UI
 
 type Path = Path of string
-type NodeType = File | Folder
+type NodeType = File | Folder | Drive
 
 type Node = {
     Path: Path

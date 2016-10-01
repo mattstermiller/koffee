@@ -18,18 +18,30 @@ type PathService() =
     member this.UnixPath (path: string) =
         "/" + path.Replace('\\', '/').Replace(":", "") |> Path
 
-    member this.Root = Path "/c/"
+    member this.Root = Path "/"
 
     member this.Parent path =
         match path with
         | p when p = this.Root -> p
+        | Path p when p.Trim('/').Length <= 1 -> this.Root
         | p -> p |> this.WinPath |> Path.GetDirectoryName |> this.UnixPath
 
     member this.GetNodes path =
-        let wp = this.WinPath path
-        let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
-        let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
-        Seq.append folders files |> Seq.toList
+        if path = this.Root then
+            DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
+        else
+            let wp = this.WinPath path
+            let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
+            let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
+            Seq.append folders files |> Seq.toList
+
+    member this.FileNode (file: FileInfo) = {
+        Path = this.UnixPath file.FullName
+        Name = file.Name
+        Type = NodeType.File
+        Modified = Some file.LastWriteTime
+        Size = Some file.Length
+    }
 
     member this.FolderNode path = {
         Path = this.UnixPath path
@@ -39,13 +51,17 @@ type PathService() =
         Size = None
     }
 
-    member this.FileNode (file: FileInfo) = {
-        Path = this.UnixPath file.FullName
-        Name = file.Name
-        Type = NodeType.File
-        Modified = Some file.LastWriteTime
-        Size = Some file.Length
-    }
+    member this.DriveNode drive = 
+        let name = drive.Name.TrimEnd('\\')
+        let driveType = drive.DriveType.ToString()
+        let label = if drive.IsReady && drive.VolumeLabel <> "" then (sprintf " \"%s\"" drive.VolumeLabel) else ""
+        {
+            Path = this.UnixPath drive.Name
+            Name = sprintf "%s  %s Drive%s" name driveType label 
+            Type = NodeType.Drive
+            Modified = None
+            Size = if drive.IsReady then Some drive.TotalSize else None
+        }
 
     member this.OpenFile path =
         let winPath = this.WinPath path

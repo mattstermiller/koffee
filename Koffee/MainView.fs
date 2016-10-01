@@ -46,8 +46,8 @@ type MainView(window: MainWindow) =
         col.Header <- headerStr
         col.Width <- DataGridLength(width, DataGridLengthUnitType.Star)
         if alignRight = Some true then
-            col.CellStyle <- Style(typedefof<DataGridCell>)
-            col.CellStyle.Setters.Add(Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right))
+            col.ElementStyle <- Style(typedefof<TextBlock>)
+            col.ElementStyle.Setters.Add(Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right))
 
         let binding = Binding(propName)
         if converter.IsSome then binding.Converter <- converter.Value

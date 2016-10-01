@@ -41,8 +41,7 @@ type MainModel() =
     member this.SelectedNode = this.Nodes.[this.Cursor]
 
 type MainEvents =
-    | NavUp
-    | NavDown
+    | Nav of int
     | PathChanged
     | OpenSelected
     | OpenParent

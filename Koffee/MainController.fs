@@ -17,15 +17,14 @@ type MainController(pathing: IPathService) =
             model.Cursor <- 0
 
         member this.Dispatcher = function
-            | NavUp -> Sync (this.Nav -1)
-            | NavDown -> Sync (this.Nav 1)
+            | Nav offset -> Sync (this.Nav offset)
             | PathChanged -> Sync this.OpenPath
             | OpenSelected -> Sync this.SelectedPath
             | OpenParent -> Sync this.ParentPath
             | OpenExplorer -> Sync (fun m -> m.Path |> pathing.OpenExplorer)
 
     member this.Nav offset (model: MainModel) =
-        model.Cursor <- model.Cursor + offset
+        model.Cursor <- model.Cursor + offset |> max 0 |> min (model.Nodes.Length - 1)
 
     member this.OpenPath (model: MainModel) =
         model.Nodes <- pathing.GetNodes model.Path

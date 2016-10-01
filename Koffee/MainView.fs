@@ -75,8 +75,8 @@ type MainView(window: MainWindow) =
         if Keyboard.Modifiers = ModifierKeys.None then
             evt.Handled <- true
             match evt.Key with
-            | Key.J -> Some NavDown
-            | Key.K -> Some NavUp
+            | Key.J -> Some (Nav 1)
+            | Key.K -> Some (Nav -1)
             | Key.H -> Some OpenParent
             | Key.L -> Some OpenSelected
             | _ -> evt.Handled <- false; None

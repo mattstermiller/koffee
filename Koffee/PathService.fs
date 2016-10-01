@@ -1,5 +1,6 @@
 ﻿namespace Koffee
 
+open System
 open System.IO
 open Koffee
 
@@ -34,7 +35,10 @@ type PathService() =
             try
                 let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
                 let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
-                Seq.append folders files |> Seq.toList
+                let nodes = Seq.append folders files |> Seq.toList
+                if nodes.IsEmpty then
+                    this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton
+                else nodes
             with | ex -> this.ErrorNode ex (this.Parent path) |> List.singleton
 
     member this.FileNode file = {
@@ -53,13 +57,13 @@ type PathService() =
         Size = None
     }
 
-    member this.DriveNode drive = 
+    member this.DriveNode drive =
         let name = drive.Name.TrimEnd('\\')
         let driveType = drive.DriveType.ToString()
         let label = if drive.IsReady && drive.VolumeLabel <> "" then (sprintf " \"%s\"" drive.VolumeLabel) else ""
         {
             Path = drive.Name.ToLower() |> this.UnixPath
-            Name = sprintf "%s  %s Drive%s" name driveType label 
+            Name = sprintf "%s  %s Drive%s" name driveType label
             Type = NodeType.Drive
             Modified = None
             Size = if drive.IsReady then Some drive.TotalSize else None
@@ -69,7 +73,7 @@ type PathService() =
         let error = ex.Message.Split('\r', '\n').[0]
         {
             Path = path
-            Name = sprintf "<Error: %s>" error
+            Name = sprintf "<%s>" error
             Type = NodeType.Error
             Modified = None
             Size = None

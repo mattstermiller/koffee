@@ -80,5 +80,10 @@ type MainView(window: MainWindow) =
             | Key.H -> Some OpenParent
             | Key.L -> Some OpenSelected
             | _ -> evt.Handled <- false; None
+        else if Keyboard.Modifiers = ModifierKeys.Control then
+            evt.Handled <- true
+            match evt.Key with
+            | Key.E -> Some OpenExplorer
+            | _ -> evt.Handled <- false; None
         else None
 

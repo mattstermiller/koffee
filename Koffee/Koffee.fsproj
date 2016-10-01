@@ -61,7 +61,7 @@
     <Compile Include="MainModel.fs" />
     <Compile Include="MainView.fs" />
     <Compile Include="MainController.fs" />
-    <Compile Include="FileSys.fs" />
+    <Compile Include="PathService.fs" />
     <Compile Include="Program.fs" />
     <Content Include="packages.config" />
   </ItemGroup>

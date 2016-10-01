@@ -9,7 +9,7 @@ do
     let model = MainModel.Create()
     let window = MainWindow()
     let view = MainView(window)
-    let controller = MainController(FileSys.PathService())
+    let controller = MainController(PathService())
     let mvc = Mvc(model, view, controller)
     use eventLoop = mvc.Start()
 

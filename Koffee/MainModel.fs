@@ -46,3 +46,4 @@ type MainEvents =
     | PathChanged
     | OpenSelected
     | OpenParent
+    | OpenExplorer

@@ -1,4 +1,4 @@
-﻿module Koffee.FileSys
+﻿namespace Koffee
 
 open System.IO
 open Koffee
@@ -8,6 +8,8 @@ type PathService() =
         override this.Root = this.Root
         override this.Parent path = this.Parent path
         override this.GetNodes path = this.GetNodes path
+        override this.OpenFile path = this.OpenFile path
+        override this.OpenExplorer path = this.OpenExplorer path
 
     member this.WinPath (Path path) =
         let p = path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
@@ -44,3 +46,11 @@ type PathService() =
         Modified = Some file.LastWriteTime
         Size = Some file.Length
     }
+
+    member this.OpenFile path =
+        let winPath = this.WinPath path
+        System.Diagnostics.Process.Start(winPath) |> ignore
+
+    member this.OpenExplorer path =
+        let winPath = this.WinPath path
+        System.Diagnostics.Process.Start("explorer.exe", winPath) |> ignore

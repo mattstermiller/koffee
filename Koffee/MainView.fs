@@ -28,6 +28,11 @@ type MainView(window: MainWindow) =
 
         window.NodeList.Focus() |> ignore
 
+        window.PathBox.KeyDown.Add (fun e ->
+            if e.Key = Key.Enter then window.NodeList.Focus() |> ignore; e.Handled <- true)
+        window.NodeList.SelectionChanged.Add (fun _ ->
+            if not window.NodeList.IsFocused then window.NodeList.Focus() |> ignore)
+
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter, ?format: string) =
         let headerStr = defaultArg header propName
         let width = defaultArg widthWeight 1.0
@@ -46,30 +51,15 @@ type MainView(window: MainWindow) =
 
         window.NodeList.Columns.Add col
 
-
     override this.EventStreams = [
-        window.PathBox.KeyDown |> Observable.choose this.PathKeyEvent
         window.PathBox.LostFocus |> Observable.mapTo PathChanged
         window.PathBox.TextChanged |> Observable.choose this.PathChangedOutside
 
         window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
-        window.NodeList.SelectionChanged |> Observable.choose this.FocusNodeList
     ]
-
-    member this.FocusNodeList evt : MainEvents option =
-        if not window.NodeList.IsFocused then window.NodeList.Focus() |> ignore
-        None
 
     member this.PathChangedOutside evt =
         if not window.PathBox.IsFocused then Some PathChanged else None
-
-    member this.PathKeyEvent evt =
-        if Keyboard.Modifiers = ModifierKeys.None then
-            evt.Handled <- true
-            match evt.Key with
-            | Key.Enter -> window.NodeList.Focus() |> ignore; None
-            | _ -> evt.Handled <- false; None
-        else None
 
     member this.ListKeyEvent evt =
         if Keyboard.Modifiers = ModifierKeys.None then

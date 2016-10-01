@@ -73,10 +73,20 @@ type MainView(window: MainWindow) =
             | Key.H -> Some OpenParent
             | Key.L -> Some OpenSelected
             | _ -> evt.Handled <- false; None
+        else if Keyboard.Modifiers = ModifierKeys.Shift then
+            evt.Handled <- true
+            match evt.Key with
+            | Key.G -> Some (Nav (System.Int32.MaxValue / 2))
+            | _ -> evt.Handled <- false; None
         else if Keyboard.Modifiers = ModifierKeys.Control then
             evt.Handled <- true
             match evt.Key with
             | Key.E -> Some OpenExplorer
+            | Key.U | Key.K -> Some (Nav -this.ItemsPerHalfPage)
+            | Key.D | Key.J -> Some (Nav this.ItemsPerHalfPage)
             | _ -> evt.Handled <- false; None
         else None
 
+    member this.ItemsPerHalfPage =
+        let row = window.NodeList.ItemContainerGenerator.ContainerFromIndex(window.NodeList.SelectedIndex) :?> DataGridRow
+        window.NodeList.ActualHeight / row.ActualHeight * 0.45 |> int

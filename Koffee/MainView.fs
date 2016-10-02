@@ -38,6 +38,9 @@ type MainView(window: MainWindow) =
             if not window.NodeList.IsFocused then
                 window.NodeList.Focus() |> ignore)
 
+        window.NodeList.SizeChanged.Add (fun _ ->
+            if not model.Nodes.IsEmpty then model.PageSize <- this.ItemsPerPage)
+
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter, ?format: string) =
         let headerStr = defaultArg header propName
         let width = defaultArg widthWeight 1.0
@@ -70,25 +73,26 @@ type MainView(window: MainWindow) =
         if Keyboard.Modifiers = ModifierKeys.None then
             evt.Handled <- true
             match evt.Key with
-            | Key.J -> Some (Nav 1)
-            | Key.K -> Some (Nav -1)
+            | Key.J -> Some NavDown
+            | Key.K -> Some NavUp
             | Key.H -> Some OpenParent
             | Key.L -> Some OpenSelected
             | _ -> evt.Handled <- false; None
         else if Keyboard.Modifiers = ModifierKeys.Shift then
             evt.Handled <- true
             match evt.Key with
-            | Key.G -> Some (Nav (System.Int32.MaxValue / 2))
+            | Key.G -> Some NavToLast
             | _ -> evt.Handled <- false; None
         else if Keyboard.Modifiers = ModifierKeys.Control then
             evt.Handled <- true
             match evt.Key with
             | Key.E -> Some OpenExplorer
-            | Key.U | Key.K -> Some (Nav -this.ItemsPerHalfPage)
-            | Key.D | Key.J -> Some (Nav this.ItemsPerHalfPage)
+            | Key.U | Key.K -> Some NavUpHalfPage
+            | Key.D | Key.J -> Some NavDownHalfPage
             | _ -> evt.Handled <- false; None
         else None
 
-    member this.ItemsPerHalfPage =
-        let row = window.NodeList.ItemContainerGenerator.ContainerFromIndex(window.NodeList.SelectedIndex) :?> DataGridRow
-        window.NodeList.ActualHeight / row.ActualHeight * 0.45 |> int
+    member this.ItemsPerPage =
+        let index = window.NodeList.SelectedIndex |> max 0
+        let row = window.NodeList.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
+        window.NodeList.ActualHeight / row.ActualHeight |> int

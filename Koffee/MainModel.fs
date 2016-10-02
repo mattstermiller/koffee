@@ -37,11 +37,18 @@ type MainModel() =
     abstract Path: Path with get, set
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
+    abstract PageSize: int with get, set
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
+    member this.HalfPageScroll = this.PageSize/2 - 1
 
 type MainEvents =
-    | Nav of int
+    | NavUp
+    | NavUpHalfPage
+    | NavDown
+    | NavDownHalfPage
+    | NavToFirst
+    | NavToLast
     | PathChanged
     | OpenSelected
     | OpenParent

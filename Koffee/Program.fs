@@ -8,7 +8,7 @@ open FSharp.Desktop.UI
 do
     let model = MainModel.Create()
     let window = MainWindow()
-    let view = MainView(window)
+    let view = MainView(window, KeyBinding.Defaults)
     let controller = MainController(PathService())
     let mvc = Mvc(model, view, controller)
     use eventLoop = mvc.Start()

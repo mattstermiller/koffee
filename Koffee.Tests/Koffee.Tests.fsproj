@@ -54,6 +54,7 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="ValueConverterTests.fs" />
     <Content Include="packages.config" />
+    <Compile Include="KeyComboParserTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
@@ -81,6 +82,7 @@
       <Project>{4df0ba98-3ce7-422b-b37e-afb2576fa90d}</Project>
       <Private>True</Private>
     </ProjectReference>
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

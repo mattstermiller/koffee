@@ -8,8 +8,10 @@ open FSharp.Desktop.UI
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
-type MainView(window: MainWindow) =
+type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
+
+    let mutable currBindings = keyBindings
 
     override this.SetBindings (model: MainModel) =
         Binding.OfExpression <@
@@ -70,27 +72,48 @@ type MainView(window: MainWindow) =
         if not window.PathBox.IsFocused then Some PathChanged else None
 
     member this.ListKeyEvent evt =
-        if Keyboard.Modifiers = ModifierKeys.None then
-            evt.Handled <- true
-            match evt.Key with
-            | Key.J -> Some NavDown
-            | Key.K -> Some NavUp
-            | Key.H -> Some OpenParent
-            | Key.L -> Some OpenSelected
-            | _ -> evt.Handled <- false; None
-        else if Keyboard.Modifiers = ModifierKeys.Shift then
-            evt.Handled <- true
-            match evt.Key with
-            | Key.G -> Some NavToLast
-            | _ -> evt.Handled <- false; None
-        else if Keyboard.Modifiers = ModifierKeys.Control then
-            evt.Handled <- true
-            match evt.Key with
-            | Key.E -> Some OpenExplorer
-            | Key.U | Key.K -> Some NavUpHalfPage
-            | Key.D | Key.J -> Some NavDownHalfPage
-            | _ -> evt.Handled <- false; None
-        else None
+        let modifiers = [
+            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
+            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
+        ]
+        if Seq.contains evt.Key modifiers then
+            None
+        else
+            let chord = (Keyboard.Modifiers, evt.Key)
+            // choose bindings where the next key/chord matches what was just pressed, with the remaining keys
+            let matchBindings =
+                currBindings
+                |> List.choose
+                    (fun (keyCombo, boundEvt) ->
+                        match keyCombo with
+                        | kc :: rest when kc = chord-> Some (rest, boundEvt)
+                        | _ -> None)
+
+            if matchBindings.IsEmpty then
+                // if none matched, reset the bindings
+                currBindings <- keyBindings
+                None
+            else
+                evt.Handled <- true
+                // within the matching bindings, find the last one that has no more keys and get its event
+                let newEvent =
+                    matchBindings
+                    |> List.choose
+                        (fun (keyCombo, evt) ->
+                            match keyCombo with
+                            | [] -> Some evt
+                            | _ -> None)
+                    |> List.tryLast
+
+                if newEvent.IsSome then
+                    // if there is an event to return, reset the bindings
+                    currBindings <- keyBindings
+                else
+                    // otherwise the bindings need more key presses to match
+                    // set the current bindings to the filtered list
+                    currBindings <- matchBindings
+
+                newEvent
 
     member this.ItemsPerPage =
         let index = window.NodeList.SelectedIndex |> max 0

@@ -57,8 +57,9 @@
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
     <Resource Include="MainWindow.xaml" />
-    <Compile Include="KeyComboParser.fs" />
     <Compile Include="ValueConverters.fs" />
+    <Compile Include="ControlExtensions.fs" />
+    <Compile Include="KeyComboParser.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="KeyBinding.fs" />
     <Compile Include="MainView.fs" />

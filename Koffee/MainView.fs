@@ -5,6 +5,7 @@ open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Controls
 open FSharp.Desktop.UI
+open ControlExtensions
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
@@ -19,10 +20,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             window.NodeList.SelectedIndex <- model.Cursor
         @>
 
-        this.AddColumn ("Name", widthWeight = 3.0)
-        this.AddColumn ("Type", converter = ValueConverters.UnionText())
-        this.AddColumn ("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
-        this.AddColumn ("SizeFormatted", "Size", alignRight = true)
+        window.NodeList.AddColumn("Name", widthWeight = 3.0)
+        window.NodeList.AddColumn ("Type", converter = ValueConverters.UnionText())
+        window.NodeList.AddColumn ("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
+        window.NodeList.AddColumn ("SizeFormatted", "Size", alignRight = true)
 
         let pathBinding = Binding("Path")
         pathBinding.Converter <- ValueConverters.UnionValue()
@@ -42,24 +43,6 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
         window.NodeList.SizeChanged.Add (fun _ ->
             if not model.Nodes.IsEmpty then model.PageSize <- this.ItemsPerPage)
-
-    member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter, ?format: string) =
-        let headerStr = defaultArg header propName
-        let width = defaultArg widthWeight 1.0
-
-        let col = DataGridTextColumn()
-        col.Header <- headerStr
-        col.Width <- DataGridLength(width, DataGridLengthUnitType.Star)
-        if alignRight = Some true then
-            col.ElementStyle <- Style(typedefof<TextBlock>)
-            col.ElementStyle.Setters.Add(Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right))
-
-        let binding = Binding(propName)
-        if converter.IsSome then binding.Converter <- converter.Value
-        if format.IsSome then binding.StringFormat <- format.Value
-        col.Binding <- binding
-
-        window.NodeList.Columns.Add col
 
     override this.EventStreams = [
         window.PathBox.LostFocus |> Observable.mapTo PathChanged

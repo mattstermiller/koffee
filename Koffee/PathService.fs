@@ -84,5 +84,6 @@ type PathService() =
         System.Diagnostics.Process.Start(winPath) |> ignore
 
     member this.OpenExplorer path =
-        let winPath = this.WinPath path
-        System.Diagnostics.Process.Start("explorer.exe", winPath) |> ignore
+        if path <> this.Root then
+            let winPath = this.WinPath path
+            System.Diagnostics.Process.Start("explorer.exe", winPath) |> ignore

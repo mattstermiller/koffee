@@ -4,6 +4,7 @@ open FSharp.Desktop.UI
 
 type IPathService =
     abstract Root: Path with get
+    abstract Normalize: Path -> Path
     abstract Parent: Path -> Path
     abstract GetNodes: Path -> Node list
     abstract OpenFile: Path -> unit
@@ -34,8 +35,12 @@ type MainController(pathing: IPathService) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
 
     member this.OpenPath (model: MainModel) =
-        model.Nodes <- pathing.GetNodes model.Path
-        model.Cursor <- 0
+        let normalized = pathing.Normalize model.Path
+        if model.Path <> normalized then
+            model.Path <- normalized
+        else
+            model.Nodes <- pathing.GetNodes model.Path
+            model.Cursor <- 0
 
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path

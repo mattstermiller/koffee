@@ -2,36 +2,53 @@
 
 open System
 open System.IO
+open System.Text.RegularExpressions
 open Koffee
 
 type PathService() =
+    let (|WinPath|_|) path =
+        match path with
+        | (Path p) when Regex.IsMatch(p, @"^[a-z]:", RegexOptions.IgnoreCase) -> Some p
+        | _ -> None
+
     interface IPathService with
         override this.Root = this.Root
         override this.Parent path = this.Parent path
+        override this.Normalize path = this.Normalize path
         override this.GetNodes path = this.GetNodes path
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
 
-    member this.WinPath (Path path) =
+    member this.ToWinPath (Path path) =
         let p = path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
         if p.EndsWith(":") then p + "\\" else p
 
-    member this.UnixPath (path: string) =
+    member this.ToUnixPath (path: string) =
         "/" + path.Replace('\\', '/').Replace(":", "") |> Path
 
     member this.Root = Path "/"
+
+    member this.Normalize path =
+        match path with
+        | WinPath p -> this.ToUnixPath p |> this.Normalize
+        | (Path p) ->
+            match p.Trim('/') |> List.ofSeq with
+            | drive :: rest ->
+                let pathCore = Char.ToLower(drive) :: rest |> Array.ofList |> String
+                "/" + pathCore |> Path
+            | _ -> this.Root
 
     member this.Parent path =
         match path with
         | p when p = this.Root -> p
         | Path p when p.Trim('/').Length <= 1 -> this.Root
-        | p -> p |> this.WinPath |> Path.GetDirectoryName |> this.UnixPath
+        | p -> p |> this.ToWinPath |> Path.GetDirectoryName |> this.ToUnixPath
 
     member this.GetNodes path =
         if path = this.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
         else
-            let wp = this.WinPath path
+            let wp = this.ToWinPath path
             try
                 let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
                 let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
@@ -42,7 +59,7 @@ type PathService() =
             with | ex -> this.ErrorNode ex (this.Parent path) |> List.singleton
 
     member this.FileNode file = {
-        Path = this.UnixPath file.FullName
+        Path = this.ToUnixPath file.FullName
         Name = file.Name
         Type = NodeType.File
         Modified = Some file.LastWriteTime
@@ -50,7 +67,7 @@ type PathService() =
     }
 
     member this.FolderNode path = {
-        Path = this.UnixPath path
+        Path = this.ToUnixPath path
         Name = Path.GetFileName path
         Type = NodeType.Folder
         Modified = None
@@ -62,7 +79,7 @@ type PathService() =
         let driveType = drive.DriveType.ToString()
         let label = if drive.IsReady && drive.VolumeLabel <> "" then (sprintf " \"%s\"" drive.VolumeLabel) else ""
         {
-            Path = drive.Name.ToLower() |> this.UnixPath
+            Path = drive.Name.ToLower() |> this.ToUnixPath
             Name = sprintf "%s  %s Drive%s" name driveType label
             Type = NodeType.Drive
             Modified = None
@@ -80,10 +97,10 @@ type PathService() =
         }
 
     member this.OpenFile path =
-        let winPath = this.WinPath path
+        let winPath = this.ToWinPath path
         System.Diagnostics.Process.Start(winPath) |> ignore
 
     member this.OpenExplorer path =
         if path <> this.Root then
-            let winPath = this.WinPath path
+            let winPath = this.ToWinPath path
             System.Diagnostics.Process.Start("explorer.exe", winPath) |> ignore

@@ -38,6 +38,7 @@ type MainModel() =
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
+    abstract LastFind: char option with get, set
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1
@@ -58,3 +59,4 @@ type MainEvents =
     | OpenExplorer
     | StartInput of CommandInput
     | Find of char
+    | RepeatFind

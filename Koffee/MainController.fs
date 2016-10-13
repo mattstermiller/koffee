@@ -27,6 +27,7 @@ type MainController(pathing: IPathService) =
             | OpenParent -> Sync this.ParentPath
             | OpenExplorer -> Sync (fun m -> m.Path |> pathing.OpenExplorer)
             | Find c -> Sync (this.Find c)
+            | RepeatFind -> Sync this.RepeatFind
             | StartInput _ -> Sync ignore
 
     member this.NavTo index (model: MainModel) =
@@ -46,6 +47,7 @@ type MainController(pathing: IPathService) =
         model.Path <- pathing.Parent model.Path
 
     member this.Find char (model: MainModel) =
+        model.LastFind <- Some char
         let spliceAt = model.Cursor + 1
         let firstMatch =
             Seq.append model.Nodes.[spliceAt..] model.Nodes.[0..(spliceAt-1)]
@@ -57,4 +59,9 @@ type MainController(pathing: IPathService) =
                     | i -> i)
         match firstMatch with
         | Some index -> this.NavTo index model
+        | None -> ()
+
+    member this.RepeatFind (model: MainModel) =
+        match model.LastFind with
+        | Some c -> this.Find c model
         | None -> ()

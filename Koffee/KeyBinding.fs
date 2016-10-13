@@ -19,5 +19,6 @@ let Defaults = [
     (key "h", OpenParent)
     (key "l", OpenSelected)
     (key "f", StartInput FindInput)
+    (key ";", RepeatFind)
     (key "<c-e>", OpenExplorer)
 ]

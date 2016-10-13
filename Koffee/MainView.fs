@@ -13,6 +13,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
     let mutable currBindings = keyBindings
+    let mutable inputMode : CommandInput option = None
 
     override this.SetBindings (model: MainModel) =
         Binding.OfExpression <@
@@ -35,12 +36,12 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
         window.PathBox.KeyDown.Add (fun e ->
             if e.Key = Key.Enter then window.NodeList.Focus() |> ignore; e.Handled <- true)
+
         window.NodeList.SelectionChanged.Add (fun _ ->
             if window.NodeList.SelectedItem <> null then
                 window.NodeList.ScrollIntoView(window.NodeList.SelectedItem)
             if not window.NodeList.IsFocused then
                 window.NodeList.Focus() |> ignore)
-
         window.NodeList.SizeChanged.Add (fun _ ->
             if not model.Nodes.IsEmpty then model.PageSize <- this.ItemsPerPage)
 
@@ -48,18 +49,27 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.PathBox.LostFocus |> Observable.mapTo PathChanged
         window.PathBox.TextChanged |> Observable.choose this.PathChangedOutside
 
+        window.PreviewTextInput |> Observable.choose this.PreviewTextInput
         window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
     ]
 
     member this.PathChangedOutside evt =
         if not window.PathBox.IsFocused then Some PathChanged else None
 
+    member this.PreviewTextInput evt =
+        match (inputMode, evt.Text.ToCharArray()) with
+        | (Some FindInput, [| c |]) ->
+            evt.Handled <- true
+            inputMode <- None
+            Some (Find c)
+        | _ -> None
+
     member this.ListKeyEvent evt =
         let modifiers = [
             Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
             Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
         ]
-        if Seq.contains evt.Key modifiers then
+        if inputMode.IsSome || Seq.contains evt.Key modifiers then
             None
         else
             let chord = (Keyboard.Modifiers, evt.Key)
@@ -95,6 +105,11 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                     // otherwise the bindings need more key presses to match
                     // set the current bindings to the filtered list
                     currBindings <- matchBindings
+
+                // intercept StartInput events
+                match newEvent with
+                | Some (StartInput inputType) -> inputMode <- Some inputType
+                | _ -> ()
 
                 newEvent
 

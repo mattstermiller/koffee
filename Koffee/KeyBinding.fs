@@ -18,5 +18,6 @@ let Defaults = [
     (key "G", NavToLast)
     (key "h", OpenParent)
     (key "l", OpenSelected)
+    (key "f", StartInput FindInput)
     (key "<c-e>", OpenExplorer)
 ]

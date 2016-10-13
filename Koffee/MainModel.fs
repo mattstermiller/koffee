@@ -42,6 +42,9 @@ type MainModel() =
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1
 
+type CommandInput =
+    | FindInput
+
 type MainEvents =
     | NavUp
     | NavUpHalfPage
@@ -53,3 +56,5 @@ type MainEvents =
     | OpenSelected
     | OpenParent
     | OpenExplorer
+    | StartInput of CommandInput
+    | Find of char

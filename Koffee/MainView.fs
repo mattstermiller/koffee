@@ -15,6 +15,11 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     let mutable currBindings = keyBindings
     let mutable inputMode : CommandInput option = None
 
+    let onKey key action (evt: KeyEventArgs) =
+        if evt.Key = key then
+            evt.Handled <- true
+            action() |> ignore
+
     override this.SetBindings (model: MainModel) =
         // bind the path box
         let pathBinding = Binding("Path")
@@ -37,21 +42,19 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         model.Cursor <- -1
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
-        // Enter in path box selects node list
-        window.PathBox.KeyDown.Add (fun e ->
-            if e.Key = Key.Enter then
-                window.NodeList.Focus() |> ignore
-                e.Handled <- true)
+        window.PathBox.PreviewKeyDown.Add (onKey Key.Enter window.NodeList.Focus)
+        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeList.Focus)
+        window.NodeList.PreviewKeyDown.Add (onKey Key.Tab window.PathBox.Focus)
 
-        // keep selected node in view, make sure node list is focused after any selection change
+        // on selection change, keep selected node in view, make sure node list is focused
         window.NodeList.SelectionChanged.Add (fun _ ->
-            if window.NodeList.SelectedItem <> null then
-                window.NodeList.ScrollIntoView(window.NodeList.SelectedItem)
+            this.KeepSelectedInView()
             if not window.NodeList.IsFocused then
                 window.NodeList.Focus() |> ignore)
 
-        // update the page size when form is resized
+        // on resize, keep selected node in view, update the page size when form is resized
         window.NodeList.SizeChanged.Add (fun _ ->
+            this.KeepSelectedInView()
             match this.ItemsPerPage with
             | Some i -> model.PageSize <- i
             | None -> ())
@@ -123,6 +126,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 | _ -> ()
 
                 newEvent
+
+    member this.KeepSelectedInView () =
+        if window.NodeList.SelectedItem <> null then
+            window.NodeList.ScrollIntoView(window.NodeList.SelectedItem)
 
     member this.ItemsPerPage =
         if window.NodeList.HasItems then

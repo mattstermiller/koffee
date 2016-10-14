@@ -79,53 +79,35 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         | _ -> None
 
     member this.ListKeyEvent evt =
-        let modifiers = [
+        let modifierKeys = [
             Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
             Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
         ]
-        if inputMode.IsSome || Seq.contains evt.Key modifiers then
+        let chord = (Keyboard.Modifiers, evt.Key)
+
+        if inputMode.IsSome || Seq.contains evt.Key modifierKeys then
+            None
+        else if chord = (ModifierKeys.None, Key.Escape) then
+            evt.Handled <- true
+            currBindings <- keyBindings
             None
         else
-            let chord = (Keyboard.Modifiers, evt.Key)
-            // choose bindings where the next key/chord matches what was just pressed, with the remaining keys
-            let matchBindings =
-                currBindings
-                |> List.choose
-                    (fun (keyCombo, boundEvt) ->
-                        match keyCombo with
-                        | kc :: rest when kc = chord-> Some (rest, boundEvt)
-                        | _ -> None)
-
-            if matchBindings.IsEmpty then
-                // if none matched, reset the bindings
+            match KeyBinding.GetMatch currBindings chord with
+            | [ ([], newEvent) ] ->
+                // if StartInput event, update mode
+                match newEvent with
+                    | StartInput inputType -> inputMode <- Some inputType
+                    | _ -> ()
+                evt.Handled <- true
+                currBindings <- keyBindings
+                Some newEvent
+            | [] ->
                 currBindings <- keyBindings
                 None
-            else
+            | matchedBindings ->
                 evt.Handled <- true
-                // within the matching bindings, find the last one that has no more keys and get its event
-                let newEvent =
-                    matchBindings
-                    |> List.choose
-                        (fun (keyCombo, evt) ->
-                            match keyCombo with
-                            | [] -> Some evt
-                            | _ -> None)
-                    |> List.tryLast
-
-                if newEvent.IsSome then
-                    // if there is an event to return, reset the bindings
-                    currBindings <- keyBindings
-                else
-                    // otherwise the bindings need more key presses to match
-                    // set the current bindings to the filtered list
-                    currBindings <- matchBindings
-
-                // intercept StartInput events
-                match newEvent with
-                | Some (StartInput inputType) -> inputMode <- Some inputType
-                | _ -> ()
-
-                newEvent
+                currBindings <- matchedBindings
+                None
 
     member this.KeepSelectedInView () =
         if window.NodeList.SelectedItem <> null then

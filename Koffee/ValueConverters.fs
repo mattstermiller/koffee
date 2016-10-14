@@ -53,7 +53,8 @@ type OptionValue() =
         override this.ConvertBack(value, targetType, _, _) =
             if value = null then None |> box
             else
-                let optType = match targetType.ContainsGenericParameters with
+                let optType =
+                    match targetType.ContainsGenericParameters with
                     | true -> targetType.MakeGenericType([|value.GetType()|])
                     | false -> targetType
                 optType.GetConstructors().[0].Invoke([|value|])

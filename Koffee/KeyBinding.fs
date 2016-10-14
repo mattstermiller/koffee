@@ -23,3 +23,21 @@ let Defaults = [
     (key ";", RepeatFind)
     (key "<c-e>", OpenExplorer)
 ]
+
+let GetMatch (currBindings: (KeyCombo * 'a) list) (chord: ModifierKeys * Key) =
+    // choose bindings where the next key/chord matches, selecting the remaining chords
+    let matchBindings =
+        currBindings
+        |> List.choose
+            (fun (keyCombo, item) ->
+                match keyCombo with
+                | kc :: rest when kc = chord-> Some (rest, item)
+                | _ -> None)
+
+    let triggered =
+        matchBindings
+        |> List.filter (fun (keyCombo, item) -> keyCombo = [])
+
+    match triggered with
+    | [] -> matchBindings
+    | trig -> [List.last trig]

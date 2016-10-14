@@ -16,6 +16,12 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     let mutable inputMode : CommandInput option = None
 
     override this.SetBindings (model: MainModel) =
+        // bind the path box
+        let pathBinding = Binding("Path")
+        pathBinding.Converter <- ValueConverters.UnionValue()
+        window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
+
+        // bind to and setup node list/grid
         Binding.OfExpression <@
             window.NodeList.ItemsSource <- model.Nodes
             window.NodeList.SelectedIndex <- model.Cursor
@@ -26,24 +32,29 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.NodeList.AddColumn ("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
         window.NodeList.AddColumn ("SizeFormatted", "Size", alignRight = true)
 
-        let pathBinding = Binding("Path")
-        pathBinding.Converter <- ValueConverters.UnionValue()
-        window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
-
+        // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor
         model.Cursor <- -1
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
+        // Enter in path box selects node list
         window.PathBox.KeyDown.Add (fun e ->
-            if e.Key = Key.Enter then window.NodeList.Focus() |> ignore; e.Handled <- true)
+            if e.Key = Key.Enter then
+                window.NodeList.Focus() |> ignore
+                e.Handled <- true)
 
+        // keep selected node in view, make sure node list is focused after any selection change
         window.NodeList.SelectionChanged.Add (fun _ ->
             if window.NodeList.SelectedItem <> null then
                 window.NodeList.ScrollIntoView(window.NodeList.SelectedItem)
             if not window.NodeList.IsFocused then
                 window.NodeList.Focus() |> ignore)
+
+        // update the page size when form is resized
         window.NodeList.SizeChanged.Add (fun _ ->
-            if not model.Nodes.IsEmpty then model.PageSize <- this.ItemsPerPage)
+            match this.ItemsPerPage with
+            | Some i -> model.PageSize <- i
+            | None -> ())
 
     override this.EventStreams = [
         window.PathBox.LostFocus |> Observable.mapTo PathChanged
@@ -114,6 +125,9 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 newEvent
 
     member this.ItemsPerPage =
-        let index = window.NodeList.SelectedIndex |> max 0
-        let row = window.NodeList.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
-        window.NodeList.ActualHeight / row.ActualHeight |> int
+        if window.NodeList.HasItems then
+            let index = window.NodeList.SelectedIndex |> max 0
+            let row = window.NodeList.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
+            window.NodeList.ActualHeight / row.ActualHeight |> int |> Some
+        else
+            None

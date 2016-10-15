@@ -3,7 +3,12 @@
 open System
 open FSharp.Desktop.UI
 
-type Path = Path of string
+type Path =
+    | Path of string
+    member this.Value =
+        let (Path p) = this
+        p
+
 type NodeType = File | Folder | Drive | Error
 
 type Node = {
@@ -35,6 +40,7 @@ type MainModel() =
     inherit Model()
 
     abstract Path: Path with get, set
+    abstract Status: string with get, set
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set

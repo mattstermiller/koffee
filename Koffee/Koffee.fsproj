@@ -56,12 +56,12 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
-    <Resource Include="MainWindow.xaml" />
     <Compile Include="ValueConverters.fs" />
     <Compile Include="ControlExtensions.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="KeyBinding.fs" />
+    <Resource Include="MainWindow.xaml" />
     <Compile Include="MainView.fs" />
     <Compile Include="MainController.fs" />
     <Compile Include="PathService.fs" />

@@ -26,10 +26,10 @@ type MainController(pathing: IPathService) =
             | PathChanged -> Sync this.OpenPath
             | OpenSelected -> Sync this.SelectedPath
             | OpenParent -> Sync this.ParentPath
-            | OpenExplorer -> Sync (fun m -> m.Path |> pathing.OpenExplorer)
+            | OpenExplorer -> Sync this.OpenExplorer
             | Find c -> Sync (this.Find c)
             | RepeatFind -> Sync this.RepeatFind
-            | StartInput _ -> Sync ignore
+            | StartInput inputType -> Sync (this.StartInput inputType)
 
     member this.NavTo index (model: MainModel) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
@@ -41,18 +41,22 @@ type MainController(pathing: IPathService) =
         else
             model.Nodes <- pathing.GetNodes model.Path
             model.Cursor <- 0
+            model.Status <- ""
 
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
         | Folder | Drive | Error -> model.Path <- path
-        | File -> pathing.OpenFile path
+        | File ->
+            pathing.OpenFile path
+            model.Status <- "Opened File: " + path.Value
 
     member this.ParentPath (model: MainModel) =
         model.Path <- pathing.Parent model.Path
 
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
+        model.Status <- "Find: " + char.ToString()
         let spliceAt = model.Cursor + 1
         let firstMatch =
             Seq.append model.Nodes.[spliceAt..] model.Nodes.[0..(spliceAt-1)]
@@ -70,3 +74,12 @@ type MainController(pathing: IPathService) =
         match model.LastFind with
         | Some c -> this.Find c model
         | None -> ()
+
+    member this.OpenExplorer (model: MainModel) =
+        if model.Path <> pathing.Root then
+            model.Path |> pathing.OpenExplorer
+            model.Status <- "Opened Windows Explorer to: " + model.Path.Value
+
+    member this.StartInput inputType (model: MainModel) =
+        match inputType with
+        | FindInput -> model.Status <- "Find: "

@@ -30,6 +30,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         Binding.OfExpression <@
             window.NodeList.ItemsSource <- model.Nodes
             window.NodeList.SelectedIndex <- model.Cursor
+            window.StatusLabel.Content <- model.Status
         @>
 
         window.NodeList.AddColumn("Name", widthWeight = 3.0)

@@ -9,7 +9,11 @@ type Path =
         let (Path p) = this
         p
 
-type NodeType = File | Folder | Drive | Error
+type NodeType =
+    | File
+    | Folder
+    | Drive
+    | Error
 
 type Node = {
     Path: Path
@@ -66,3 +70,4 @@ type MainEvents =
     | StartInput of CommandInput
     | Find of char
     | RepeatFind
+    | TogglePathFormat

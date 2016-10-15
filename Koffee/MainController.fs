@@ -2,14 +2,6 @@
 
 open FSharp.Desktop.UI
 
-type IPathService =
-    abstract Root: Path with get
-    abstract Normalize: Path -> Path
-    abstract Parent: Path -> Path
-    abstract GetNodes: Path -> Node list
-    abstract OpenFile: Path -> unit
-    abstract OpenExplorer: Path -> unit
-
 type MainController(pathing: IPathService) =
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
@@ -30,6 +22,7 @@ type MainController(pathing: IPathService) =
             | Find c -> Sync (this.Find c)
             | RepeatFind -> Sync this.RepeatFind
             | StartInput inputType -> Sync (this.StartInput inputType)
+            | TogglePathFormat -> Sync this.TogglePathFormat
 
     member this.NavTo index (model: MainModel) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
@@ -46,7 +39,8 @@ type MainController(pathing: IPathService) =
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
-        | Folder | Drive | Error -> model.Path <- path
+        | Folder | Drive | Error ->
+            model.Path <- path
         | File ->
             pathing.OpenFile path
             model.Status <- "Opened File: " + path.Value
@@ -79,6 +73,15 @@ type MainController(pathing: IPathService) =
         if model.Path <> pathing.Root then
             model.Path |> pathing.OpenExplorer
             model.Status <- "Opened Windows Explorer to: " + model.Path.Value
+
+    member this.TogglePathFormat (model: MainModel) =
+        let newFormat =
+            match pathing.Format with
+            | Windows -> Unix
+            | Unix -> Windows
+        pathing.Format <- newFormat
+        model.Path <- pathing.Normalize model.Path
+        model.Status <- "Changed Path Format to " + newFormat.ToString()
 
     member this.StartInput inputType (model: MainModel) =
         match inputType with

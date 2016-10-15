@@ -22,6 +22,7 @@ let Defaults = [
     (key "f", StartInput FindInput)
     (key ";", RepeatFind)
     (key "<c-e>", OpenExplorer)
+    (key "<f9>", TogglePathFormat)
 ]
 
 let GetMatch (currBindings: (KeyCombo * 'a) list) (chord: ModifierKeys * Key) =

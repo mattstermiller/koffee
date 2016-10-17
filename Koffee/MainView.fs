@@ -24,6 +24,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         // bind the path box
         let pathBinding = Binding("Path")
         pathBinding.Converter <- ValueConverters.UnionValue()
+        pathBinding.Mode <- BindingMode.OneWay
         window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
 
         // bind to and setup node list/grid
@@ -43,7 +44,6 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         model.Cursor <- -1
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Enter window.NodeList.Focus)
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeList.Focus)
         window.NodeList.PreviewKeyDown.Add (onKey Key.Tab window.PathBox.Focus)
 
@@ -61,15 +61,19 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             | None -> ())
 
     override this.EventStreams = [
-        window.PathBox.LostFocus |> Observable.mapTo PathChanged
-        window.PathBox.TextChanged |> Observable.choose this.PathChangedOutside
+        window.PathBox.PreviewKeyDown |> Observable.choose this.OpenPathOnEnter
 
         window.PreviewTextInput |> Observable.choose this.PreviewTextInput
         window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
     ]
 
-    member this.PathChangedOutside evt =
-        if not window.PathBox.IsFocused then Some PathChanged else None
+    member this.OpenPathOnEnter evt =
+        if evt.Key = Key.Enter then
+            evt.Handled <- true
+            window.NodeList.Focus() |> ignore
+            Some (OpenPath window.PathBox.Text)
+        else
+            None
 
     member this.PreviewTextInput evt =
         match (inputMode, evt.Text.ToCharArray()) with

@@ -63,7 +63,7 @@ type MainEvents =
     | NavDownHalfPage
     | NavToFirst
     | NavToLast
-    | PathChanged
+    | OpenPath of string
     | OpenSelected
     | OpenParent
     | OpenExplorer

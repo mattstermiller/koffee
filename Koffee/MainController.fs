@@ -15,7 +15,7 @@ type MainController(pathing: IPathService) =
             | NavDownHalfPage -> Sync (fun m -> this.NavTo (m.Cursor + m.HalfPageScroll) m)
             | NavToFirst -> Sync (this.NavTo 0)
             | NavToLast -> Sync (fun m -> this.NavTo (m.Nodes.Length - 1) m)
-            | PathChanged -> Sync this.OpenPath
+            | OpenPath p -> Sync (this.OpenPath (Path p))
             | OpenSelected -> Sync this.SelectedPath
             | OpenParent -> Sync this.ParentPath
             | OpenExplorer -> Sync this.OpenExplorer
@@ -27,26 +27,23 @@ type MainController(pathing: IPathService) =
     member this.NavTo index (model: MainModel) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
 
-    member this.OpenPath (model: MainModel) =
-        let normalized = pathing.Normalize model.Path
-        if model.Path <> normalized then
-            model.Path <- normalized
-        else
-            model.Nodes <- pathing.GetNodes model.Path
-            model.Cursor <- 0
-            model.Status <- ""
+    member this.OpenPath path (model: MainModel) =
+        model.Path <- pathing.Normalize path
+        model.Nodes <- pathing.GetNodes model.Path
+        model.Cursor <- 0
+        model.Status <- ""
 
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
         | Folder | Drive | Error ->
-            model.Path <- path
+            this.OpenPath path model
         | File ->
             pathing.OpenFile path
             model.Status <- "Opened File: " + path.Value
 
     member this.ParentPath (model: MainModel) =
-        model.Path <- pathing.Parent model.Path
+        this.OpenPath (pathing.Parent model.Path) model
 
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
@@ -80,7 +77,9 @@ type MainController(pathing: IPathService) =
             | Windows -> Unix
             | Unix -> Windows
         pathing.Format <- newFormat
-        model.Path <- pathing.Normalize model.Path
+        let cursor = model.Cursor
+        this.OpenPath model.Path model
+        model.Cursor <- cursor
         model.Status <- "Changed Path Format to " + newFormat.ToString()
 
     member this.StartInput inputType (model: MainModel) =

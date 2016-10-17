@@ -71,7 +71,7 @@ type MainController(pathing: IPathService) =
 
     member this.OpenExplorer (model: MainModel) =
         if model.Path <> pathing.Root then
-            model.Path |> pathing.OpenExplorer
+            model.SelectedNode.Path |> pathing.OpenExplorer
             model.Status <- "Opened Windows Explorer to: " + model.Path.Value
 
     member this.TogglePathFormat (model: MainModel) =

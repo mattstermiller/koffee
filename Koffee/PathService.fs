@@ -3,6 +3,7 @@
 open System
 open System.IO
 open System.Text.RegularExpressions
+open System.Diagnostics
 open Koffee
 
 type PathFormat =
@@ -150,9 +151,9 @@ type PathService() =
 
     member this.OpenFile path =
         let winPath = this.ToRawPath path
-        System.Diagnostics.Process.Start(winPath) |> ignore
+        Process.Start(winPath) |> ignore
 
     member this.OpenExplorer path =
         if path <> this.Root then
             let winPath = this.ToRawPath path
-            System.Diagnostics.Process.Start("explorer.exe", winPath) |> ignore
+            Process.Start("explorer.exe", String.Format("/select,\"{0}\"", winPath)) |> ignore

@@ -63,8 +63,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> Observable.choose this.OpenPathOnEnter
 
-        window.PreviewTextInput |> Observable.choose this.PreviewTextInput
-        window.NodeList.KeyDown |> Observable.choose this.ListKeyEvent
+        window.PreviewTextInput |> Observable.choose this.TriggerForInputMode
+        window.NodeList.KeyDown |> Observable.choose this.TriggerKeyBindings
     ]
 
     member this.OpenPathOnEnter evt =
@@ -75,15 +75,15 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         else
             None
 
-    member this.PreviewTextInput evt =
-        match (inputMode, evt.Text.ToCharArray()) with
+    member this.TriggerForInputMode keyEvt =
+        match (inputMode, keyEvt.Text.ToCharArray()) with
         | (Some FindInput, [| c |]) ->
-            evt.Handled <- true
+            keyEvt.Handled <- true
             inputMode <- None
             Some (Find c)
         | _ -> None
 
-    member this.ListKeyEvent evt =
+    member this.TriggerKeyBindings evt =
         let modifierKeys = [
             Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
             Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System

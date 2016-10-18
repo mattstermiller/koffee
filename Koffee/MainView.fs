@@ -53,6 +53,11 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             if not window.NodeList.IsFocused then
                 window.NodeList.Focus() |> ignore)
 
+        // escape always resets the input mode
+        window.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
+            model.Status <- ""
+            this.SetInputMode None))
+
         // on resize, keep selected node in view, update the page size when form is resized
         window.NodeList.SizeChanged.Add (fun _ ->
             this.KeepSelectedInView()
@@ -61,19 +66,31 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             | None -> ())
 
     override this.EventStreams = [
-        window.PathBox.PreviewKeyDown |> Observable.choose this.OpenPathOnEnter
+        window.PathBox.PreviewKeyDown |> this.TriggerOnEnter (fun () -> OpenPath window.PathBox.Text)
 
         window.PreviewTextInput |> Observable.choose this.TriggerForInputMode
         window.NodeList.KeyDown |> Observable.choose this.TriggerKeyBindings
+
+        window.SearchBox.PreviewKeyDown
+            |> this.TriggerOnEnter
+                (fun () ->
+                    let search = window.SearchBox.Text
+                    window.SearchBox.Text <- ""
+                    Search search)
     ]
 
-    member this.OpenPathOnEnter evt =
-        if evt.Key = Key.Enter then
-            evt.Handled <- true
-            window.NodeList.Focus() |> ignore
-            Some (OpenPath window.PathBox.Text)
-        else
-            None
+    member this.TriggerOnEnter evtToTriggerFunc observable =
+        observable
+        |> Observable.choose
+            (fun keyEvt ->
+                if keyEvt.Key = Key.Enter then
+                    keyEvt.Handled <- true
+                    let evt = evtToTriggerFunc()
+                    this.SetInputMode None
+                    Some evt
+                else
+                    None
+            )
 
     member this.TriggerForInputMode keyEvt =
         match (inputMode, keyEvt.Text.ToCharArray()) with
@@ -101,7 +118,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             | [ ([], newEvent) ] ->
                 // if StartInput event, update mode
                 match newEvent with
-                    | StartInput inputType -> inputMode <- Some inputType
+                    | StartInput inputType -> this.SetInputMode (Some inputType)
                     | _ -> ()
                 evt.Handled <- true
                 currBindings <- keyBindings
@@ -113,6 +130,21 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 evt.Handled <- true
                 currBindings <- matchedBindings
                 None
+
+    member this.SetInputMode inputType =
+        match inputType with
+        | Some SearchInput ->
+            window.StatusLabel.Visibility <- Visibility.Hidden
+            window.SearchLabel.Visibility <- Visibility.Visible
+            window.SearchBox.Visibility <- Visibility.Visible
+            window.SearchBox.Focus() |> ignore
+        | None ->
+            window.StatusLabel.Visibility <- Visibility.Visible
+            window.SearchLabel.Visibility <- Visibility.Hidden
+            window.SearchBox.Visibility <- Visibility.Hidden
+            window.NodeList.Focus() |> ignore
+        | _ -> ()
+        inputMode <- inputType
 
     member this.KeepSelectedInView () =
         if window.NodeList.SelectedItem <> null then

@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open FSharp.Desktop.UI
+open System.Text.RegularExpressions
 
 type MainController(pathing: IPathService) =
     interface IController<MainEvents, MainModel> with
@@ -20,12 +21,24 @@ type MainController(pathing: IPathService) =
             | OpenParent -> Sync this.ParentPath
             | OpenExplorer -> Sync this.OpenExplorer
             | Find c -> Sync (this.Find c)
-            | RepeatFind -> Sync this.RepeatFind
-            | StartInput inputType -> Sync (this.StartInput inputType)
+            | FindNext -> Sync this.FindNext
+            | Search str -> Sync (this.Search str)
+            | SearchNext -> Sync this.SearchNext
             | TogglePathFormat -> Sync this.TogglePathFormat
+            | StartInput inputType -> Sync (this.StartInput inputType)
 
     member this.NavTo index (model: MainModel) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
+
+    member this.NavToNextWhere predicate (model: MainModel) =
+        let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
+        let firstMatch =
+            Seq.append indexed.[(model.Cursor+1)..] indexed.[0..model.Cursor]
+            |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
+            |> Seq.tryHead
+        match firstMatch with
+        | Some index -> this.NavTo index model
+        | None -> ()
 
     member this.OpenPath path (model: MainModel) =
         model.Path <- pathing.Normalize path
@@ -48,22 +61,21 @@ type MainController(pathing: IPathService) =
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
         model.Status <- "Find: " + char.ToString()
-        let spliceAt = model.Cursor + 1
-        let firstMatch =
-            Seq.append model.Nodes.[spliceAt..] model.Nodes.[0..(spliceAt-1)]
-            |> Seq.tryFindIndex (fun n -> n.Name.[0] = char)
-            |> Option.map
-                (fun seqIndex ->
-                    match seqIndex + spliceAt with
-                    | i when i >= model.Nodes.Length -> i - model.Nodes.Length
-                    | i -> i)
-        match firstMatch with
-        | Some index -> this.NavTo index model
-        | None -> ()
+        this.NavToNextWhere (fun n -> n.Name.[0] = char) model
 
-    member this.RepeatFind (model: MainModel) =
+    member this.FindNext (model: MainModel) =
         match model.LastFind with
         | Some c -> this.Find c model
+        | None -> ()
+
+    member this.Search searchStr (model: MainModel) =
+        model.LastSearch <- Some searchStr
+        model.Status <- sprintf "Search \"%s\"" searchStr
+        this.NavToNextWhere (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) model
+
+    member this.SearchNext (model: MainModel) =
+        match model.LastSearch with
+        | Some str -> this.Search str model
         | None -> ()
 
     member this.OpenExplorer (model: MainModel) =
@@ -85,3 +97,4 @@ type MainController(pathing: IPathService) =
     member this.StartInput inputType (model: MainModel) =
         match inputType with
         | FindInput -> model.Status <- "Find: "
+        | SearchInput -> ()

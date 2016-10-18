@@ -20,7 +20,9 @@ let Defaults = [
     (key "l", OpenSelected)
     (key "<enter>", OpenSelected)
     (key "f", StartInput FindInput)
-    (key ";", RepeatFind)
+    (key ";", FindNext)
+    (key "/", StartInput SearchInput)
+    (key "n", SearchNext)
     (key "<c-e>", OpenExplorer)
     (key "<f9>", TogglePathFormat)
 ]

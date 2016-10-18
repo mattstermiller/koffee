@@ -7,5 +7,7 @@
             </DataGrid.Resources>
         </DataGrid>
         <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="26" VerticalAlignment="Bottom" Margin="0,0,0,5"/>
+        <Label x:Name="SearchLabel" Content="Search:" HorizontalAlignment="Left" Height="26" VerticalAlignment="Bottom" Margin="0,0,0,5" Visibility="Hidden"/>
+        <TextBox x:Name="SearchBox" TextWrapping="Wrap" Text="" Height="23" VerticalAlignment="Bottom" Margin="48,0,0,6" Visibility="Hidden"/>
     </Grid>
 </Window>

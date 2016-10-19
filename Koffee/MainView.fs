@@ -28,16 +28,17 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
 
         // bind to and setup node list/grid
-        Binding.OfExpression <@
-            window.NodeList.ItemsSource <- model.Nodes
-            window.NodeList.SelectedIndex <- model.Cursor
-            window.StatusLabel.Content <- model.Status
-        @>
+        Binding.OfExpression
+            <@
+                window.NodeList.ItemsSource <- model.Nodes
+                window.NodeList.SelectedIndex <- model.Cursor
+                window.StatusLabel.Content <- model.Status
+            @>
 
         window.NodeList.AddColumn("Name", widthWeight = 3.0)
-        window.NodeList.AddColumn ("Type", converter = ValueConverters.UnionText())
-        window.NodeList.AddColumn ("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
-        window.NodeList.AddColumn ("SizeFormatted", "Size", alignRight = true)
+        window.NodeList.AddColumn("Type", converter = ValueConverters.UnionText())
+        window.NodeList.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
+        window.NodeList.AddColumn("SizeFormatted", "Size", alignRight = true)
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor

@@ -59,12 +59,12 @@ type CommandInput =
     | SearchInput
 
 type MainEvents =
-    | NavUp
-    | NavUpHalfPage
-    | NavDown
-    | NavDownHalfPage
-    | NavToFirst
-    | NavToLast
+    | CursorUp
+    | CursorUpHalfPage
+    | CursorDown
+    | CursorDownHalfPage
+    | CursorToFirst
+    | CursorToLast
     | OpenPath of string
     | OpenSelected
     | OpenParent

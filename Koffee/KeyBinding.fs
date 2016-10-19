@@ -8,14 +8,14 @@ let private key keyStr =
     | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
 
 let Defaults = [
-    (key "j", NavDown)
-    (key "<c-j>", NavDownHalfPage)
-    (key "<c-d>", NavDownHalfPage)
-    (key "k", NavUp)
-    (key "<c-k>", NavUpHalfPage)
-    (key "<c-u>", NavUpHalfPage)
-    (key "gg", NavToFirst)
-    (key "G", NavToLast)
+    (key "j", CursorDown)
+    (key "<c-j>", CursorDownHalfPage)
+    (key "<c-d>", CursorDownHalfPage)
+    (key "k", CursorUp)
+    (key "<c-k>", CursorUpHalfPage)
+    (key "<c-u>", CursorUpHalfPage)
+    (key "gg", CursorToFirst)
+    (key "G", CursorToLast)
     (key "h", OpenParent)
     (key "l", OpenSelected)
     (key "<enter>", OpenSelected)
@@ -36,11 +36,11 @@ let GetMatch (currBindings: (KeyCombo * 'a) list) (chord: ModifierKeys * Key) =
                 match keyCombo with
                 | kc :: rest when kc = chord-> Some (rest, item)
                 | _ -> None)
-
+    // find bindings that had all chords matched
     let triggered =
         matchBindings
         |> List.filter (fun (keyCombo, item) -> keyCombo = [])
-
+    // if any were triggered, return only the last one; else return all matched bindings
     match triggered with
     | [] -> matchBindings
     | trig -> [List.last trig]

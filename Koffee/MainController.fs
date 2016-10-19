@@ -10,12 +10,12 @@ type MainController(pathing: IPathService) =
             model.Nodes <- pathing.GetNodes model.Path
 
         member this.Dispatcher = function
-            | NavUp -> Sync (fun m -> this.NavTo (m.Cursor - 1) m)
-            | NavUpHalfPage -> Sync (fun m -> this.NavTo (m.Cursor - m.HalfPageScroll) m)
-            | NavDown -> Sync (fun m -> this.NavTo (m.Cursor + 1) m)
-            | NavDownHalfPage -> Sync (fun m -> this.NavTo (m.Cursor + m.HalfPageScroll) m)
-            | NavToFirst -> Sync (this.NavTo 0)
-            | NavToLast -> Sync (fun m -> this.NavTo (m.Nodes.Length - 1) m)
+            | CursorUp -> Sync (fun m -> this.SetCursor (m.Cursor - 1) m)
+            | CursorUpHalfPage -> Sync (fun m -> this.SetCursor (m.Cursor - m.HalfPageScroll) m)
+            | CursorDown -> Sync (fun m -> this.SetCursor (m.Cursor + 1) m)
+            | CursorDownHalfPage -> Sync (fun m -> this.SetCursor (m.Cursor + m.HalfPageScroll) m)
+            | CursorToFirst -> Sync (this.SetCursor 0)
+            | CursorToLast -> Sync (fun m -> this.SetCursor (m.Nodes.Length - 1) m)
             | OpenPath p -> Sync (this.OpenPath (Path p))
             | OpenSelected -> Sync this.SelectedPath
             | OpenParent -> Sync this.ParentPath
@@ -27,17 +27,17 @@ type MainController(pathing: IPathService) =
             | TogglePathFormat -> Sync this.TogglePathFormat
             | StartInput inputType -> Sync (this.StartInput inputType)
 
-    member this.NavTo index (model: MainModel) =
+    member this.SetCursor index (model: MainModel) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
 
-    member this.NavToNextWhere predicate (model: MainModel) =
+    member this.MoveCursorToNext predicate (model: MainModel) =
         let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
         let firstMatch =
             Seq.append indexed.[(model.Cursor+1)..] indexed.[0..model.Cursor]
             |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
             |> Seq.tryHead
         match firstMatch with
-        | Some index -> this.NavTo index model
+        | Some index -> this.SetCursor index model
         | None -> ()
 
     member this.OpenPath path (model: MainModel) =
@@ -61,7 +61,7 @@ type MainController(pathing: IPathService) =
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
         model.Status <- "Find: " + char.ToString()
-        this.NavToNextWhere (fun n -> n.Name.[0] = char) model
+        this.MoveCursorToNext (fun n -> n.Name.[0] = char) model
 
     member this.FindNext (model: MainModel) =
         match model.LastFind with
@@ -71,7 +71,7 @@ type MainController(pathing: IPathService) =
     member this.Search searchStr (model: MainModel) =
         model.LastSearch <- Some searchStr
         model.Status <- sprintf "Search \"%s\"" searchStr
-        this.NavToNextWhere (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) model
+        this.MoveCursorToNext (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) model
 
     member this.SearchNext (model: MainModel) =
         match model.LastSearch with

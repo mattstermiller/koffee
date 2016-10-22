@@ -1,7 +1,7 @@
 ﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Koffee" Width="800" Height="800">
     <Grid>
         <TextBox x:Name="PathBox" Height="28" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top" FontSize="13"/>
-        <DataGrid x:Name="NodeList" Margin="0,33,0,34" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFD6D6D6" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False">
+        <DataGrid x:Name="NodeList" Margin="0,33,0,34" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFD6D6D6" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
             <DataGrid.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{x:Static SystemColors.HighlightColor}"/>
             </DataGrid.Resources>

@@ -30,32 +30,32 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         // bind to and setup node list/grid
         Binding.OfExpression
             <@
-                window.NodeList.ItemsSource <- model.Nodes
-                window.NodeList.SelectedIndex <- model.Cursor
+                window.NodeGrid.ItemsSource <- model.Nodes
+                window.NodeGrid.SelectedIndex <- model.Cursor
                 window.StatusLabel.Content <- model.Status
             @>
 
-        window.NodeList.AddColumn("Name", widthWeight = 3.0)
-        window.NodeList.AddColumn("Type", converter = ValueConverters.UnionText())
-        window.NodeList.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
-        window.NodeList.AddColumn("SizeFormatted", "Size", alignRight = true)
+        window.NodeGrid.AddColumn("Name", widthWeight = 3.0)
+        window.NodeGrid.AddColumn("Type", converter = ValueConverters.UnionText())
+        window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
+        window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor
         model.Cursor <- -1
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeList.Focus)
-        window.NodeList.PreviewKeyDown.Add
+        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
+        window.NodeGrid.PreviewKeyDown.Add
             (onKey Key.Tab (fun () ->
                                 window.PathBox.CaretIndex <- window.PathBox.Text.Length
                                 window.PathBox.Focus()))
 
         // on selection change, keep selected node in view, make sure node list is focused
-        window.NodeList.SelectionChanged.Add (fun _ ->
+        window.NodeGrid.SelectionChanged.Add (fun _ ->
             this.KeepSelectedInView()
-            if not window.NodeList.IsFocused then
-                window.NodeList.Focus() |> ignore)
+            if not window.NodeGrid.IsFocused then
+                window.NodeGrid.Focus() |> ignore)
 
         // escape always resets the input mode
         window.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
@@ -63,7 +63,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             this.SetInputMode None))
 
         // on resize, keep selected node in view, update the page size when form is resized
-        window.NodeList.SizeChanged.Add (fun _ ->
+        window.NodeGrid.SizeChanged.Add (fun _ ->
             this.KeepSelectedInView()
             match this.ItemsPerPage with
             | Some i -> model.PageSize <- i
@@ -73,7 +73,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.PathBox.PreviewKeyDown |> this.TriggerOnEnter (fun () -> OpenPath window.PathBox.Text)
 
         window.PreviewTextInput |> Observable.choose this.TriggerForInputMode
-        window.NodeList.KeyDown |> Observable.choose this.TriggerKeyBindings
+        window.NodeGrid.KeyDown |> Observable.choose this.TriggerKeyBindings
 
         window.SearchBox.PreviewKeyDown
             |> this.TriggerOnEnter
@@ -146,18 +146,18 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             window.StatusLabel.Visibility <- Visibility.Visible
             window.SearchLabel.Visibility <- Visibility.Hidden
             window.SearchBox.Visibility <- Visibility.Hidden
-            window.NodeList.Focus() |> ignore
+            window.NodeGrid.Focus() |> ignore
         | _ -> ()
         inputMode <- inputType
 
     member this.KeepSelectedInView () =
-        if window.NodeList.SelectedItem <> null then
-            window.NodeList.ScrollIntoView(window.NodeList.SelectedItem)
+        if window.NodeGrid.SelectedItem <> null then
+            window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
 
     member this.ItemsPerPage =
-        if window.NodeList.HasItems then
-            let index = window.NodeList.SelectedIndex |> max 0
-            let row = window.NodeList.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
-            window.NodeList.ActualHeight / row.ActualHeight |> int |> Some
+        if window.NodeGrid.HasItems then
+            let index = window.NodeGrid.SelectedIndex |> max 0
+            let row = window.NodeGrid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
+            window.NodeGrid.ActualHeight / row.ActualHeight |> int |> Some
         else
             None

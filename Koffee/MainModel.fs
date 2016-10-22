@@ -60,8 +60,8 @@ type CommandInput =
 
 type MainEvents =
     | CursorUp
-    | CursorUpHalfPage
     | CursorDown
+    | CursorUpHalfPage
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
@@ -74,4 +74,44 @@ type MainEvents =
     | FindNext
     | Search of string
     | SearchNext
+    | OpenSettings
     | TogglePathFormat
+
+    member this.FriendlyName =
+        match this with
+        | CursorUp -> "Move Cursor Up"
+        | CursorDown -> "Move Cursor Down"
+        | CursorUpHalfPage -> "Move Cursor Up Half Page"
+        | CursorDownHalfPage -> "Move Cursor Down Half Page"
+        | CursorToFirst -> "Move Cursor to First Item"
+        | CursorToLast -> "Move Cursor to Last Item"
+        | OpenPath path -> sprintf "Open Path \"%s\"" path
+        | OpenSelected -> "Open Selected Item"
+        | OpenParent -> "Open Parent Folder"
+        | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | StartInput FindInput -> "Find Item Beginning With Character"
+        | StartInput SearchInput -> "Search For Items"
+        | Find char -> sprintf "Find Item Beginning With \"%c\"" char
+        | FindNext -> "Go To Next Find Match"
+        | Search str -> sprintf "Search For Items Matching \"%s\"" str
+        | SearchNext -> "Go To Next Search Match"
+        | OpenSettings -> "Open Help/Settings"
+        | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
+
+    static member Bindable = [
+        CursorUp
+        CursorDown
+        CursorUpHalfPage
+        CursorDownHalfPage
+        CursorToFirst
+        CursorToLast
+        OpenSelected
+        OpenParent
+        StartInput FindInput
+        FindNext
+        StartInput SearchInput
+        SearchNext
+        OpenSettings
+        OpenExplorer
+        TogglePathFormat
+    ]

@@ -3,7 +3,7 @@
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 
-type MainController(pathing: IPathService) =
+type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
             model.Path <- pathing.Root
@@ -25,6 +25,7 @@ type MainController(pathing: IPathService) =
             | Search str -> Sync (this.Search str)
             | SearchNext -> Sync this.SearchNext
             | TogglePathFormat -> Sync this.TogglePathFormat
+            | OpenSettings -> Sync this.OpenSettings
             | StartInput inputType -> Sync (this.StartInput inputType)
 
     member this.SetCursor index (model: MainModel) =
@@ -98,3 +99,7 @@ type MainController(pathing: IPathService) =
         match inputType with
         | FindInput -> model.Status <- "Find: "
         | SearchInput -> ()
+
+    member this.OpenSettings (model: MainModel) =
+        let settings = settingsFactory()
+        settings.StartDialog() |> ignore

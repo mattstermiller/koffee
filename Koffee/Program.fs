@@ -4,12 +4,19 @@ open System.Windows
 open System.IO
 open FSharp.Desktop.UI
 
+let makeSettingsMvc () =
+    let window = SettingsWindow()
+    let model = SettingsModel.Create()
+    let view = SettingsView(window)
+    let controller = SettingsController()
+    Mvc(model, view, controller)
+
 [<System.STAThread>]
 do
-    let model = MainModel.Create()
     let window = MainWindow()
+    let model = MainModel.Create()
     let view = MainView(window, KeyBinding.Defaults)
-    let controller = MainController(PathService())
+    let controller = MainController(PathService(), makeSettingsMvc)
     let mvc = Mvc(model, view, controller)
     use eventLoop = mvc.Start()
 

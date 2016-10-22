@@ -25,7 +25,8 @@ type MainControllerTests() =
         model.Cursor <- cursorStart
 
         let pathing = Mock.Of<IPathService>()
-        let contr = MainController(pathing)
+        let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
+        let contr = MainController(pathing, settingsFactory)
         contr.Find char model
         model.Cursor
 

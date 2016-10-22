@@ -64,6 +64,10 @@
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="KeyBinding.fs" />
+    <Compile Include="SettingsModel.fs" />
+    <Resource Include="SettingsWindow.xaml" />
+    <Compile Include="SettingsView.fs" />
+    <Compile Include="SettingsController.fs" />
     <Compile Include="PathService.fs" />
     <Resource Include="MainWindow.xaml" />
     <Compile Include="MainView.fs" />

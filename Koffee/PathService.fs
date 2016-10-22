@@ -129,8 +129,15 @@ type PathService() =
 
     member this.DriveNode drive =
         let name = drive.Name.TrimEnd('\\')
-        let driveType = drive.DriveType.ToString()
-        let label = if drive.IsReady && drive.VolumeLabel <> "" then (sprintf " \"%s\"" drive.VolumeLabel) else ""
+        let driveType =
+            match drive.DriveType with
+            | DriveType.Fixed -> "Hard"
+            | dt -> dt.ToString()
+        let label =
+            if drive.IsReady && drive.VolumeLabel <> "" then
+                (sprintf " \"%s\"" drive.VolumeLabel)
+            else
+                ""
         {
             Path = drive.Name.ToLower() |> this.ToFormattedPath
             Name = sprintf "%s  %s Drive%s" name driveType label

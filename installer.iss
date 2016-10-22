@@ -15,9 +15,9 @@ AppSupportURL=https://github.com/mattstermiller/koffee
 AppUpdatesURL=https://github.com/mattstermiller/koffee
 DefaultDirName={pf}\Koffee
 DisableProgramGroupPage=yes
-LicenseFile=D:\myfiles\projects\Koffee\LICENSE.txt
-InfoAfterFile=D:\myfiles\projects\Koffee\README.md
-OutputDir=D:\myfiles\projects\Koffee\Koffee\bin
+LicenseFile=LICENSE.txt
+InfoAfterFile=README.md
+OutputDir=Koffee\bin
 OutputBaseFilename=Koffee-Setup
 Compression=lzma
 SolidCompression=yes
@@ -29,8 +29,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "D:\myfiles\projects\Koffee\Koffee\bin\Koffee\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\myfiles\projects\Koffee\Koffee\bin\Koffee\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "Koffee\bin\Koffee\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Koffee\bin\Koffee\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

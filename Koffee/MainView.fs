@@ -46,7 +46,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeList.Focus)
-        window.NodeList.PreviewKeyDown.Add (onKey Key.Tab window.PathBox.Focus)
+        window.NodeList.PreviewKeyDown.Add
+            (onKey Key.Tab (fun () ->
+                                window.PathBox.CaretIndex <- window.PathBox.Text.Length
+                                window.PathBox.Focus()))
 
         // on selection change, keep selected node in view, make sure node list is focused
         window.NodeList.SelectionChanged.Add (fun _ ->

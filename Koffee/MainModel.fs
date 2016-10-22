@@ -74,6 +74,7 @@ type MainEvents =
     | FindNext
     | Search of string
     | SearchNext
+    | SearchPrevious
     | OpenSettings
     | TogglePathFormat
 
@@ -95,6 +96,7 @@ type MainEvents =
         | FindNext -> "Go To Next Find Match"
         | Search str -> sprintf "Search For Items Matching \"%s\"" str
         | SearchNext -> "Go To Next Search Match"
+        | SearchPrevious -> "Go To Previous Search Match"
         | OpenSettings -> "Open Help/Settings"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
 
@@ -111,6 +113,7 @@ type MainEvents =
         FindNext
         StartInput SearchInput
         SearchNext
+        SearchPrevious
         OpenSettings
         OpenExplorer
         TogglePathFormat

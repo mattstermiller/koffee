@@ -23,6 +23,7 @@ let DefaultsAsString = [
     (";", FindNext)
     ("/", StartInput SearchInput)
     ("n", SearchNext)
+    ("N", SearchPrevious)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)
     ("<c-e>", OpenExplorer)

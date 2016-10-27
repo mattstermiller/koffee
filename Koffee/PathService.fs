@@ -72,7 +72,7 @@ type PathService() =
             let converted =
                 match path with
                 | WinPath p -> (this.ToUnixPath p).Value
-                | (Path p) -> p
+                | (Path p) -> p.Replace('\\', '/')
             match converted.Trim('/') |> List.ofSeq with
             | drive :: rest ->
                 let pathCore = Char.ToLower(drive) :: rest |> Array.ofList |> String
@@ -82,7 +82,7 @@ type PathService() =
             let converted =
                 match path with
                 | UnixPath p -> this.ToWinPath (Path p)
-                | (Path p) -> p
+                | (Path p) -> p.Replace('/', '\\')
             match converted.Trim('\\') |> List.ofSeq with
             | drive :: rest ->
                 let newRest =

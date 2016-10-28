@@ -19,15 +19,17 @@ let DefaultsAsString = [
     ("l", OpenSelected)
     ("<enter>", OpenSelected)
     ("h", OpenParent)
+    ("H", Back)
+    ("L", Forward)
     ("f", StartInput FindInput)
     (";", FindNext)
     ("/", StartInput SearchInput)
     ("n", SearchNext)
     ("N", SearchPrevious)
+    ("<f9>", TogglePathFormat)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)
     ("<c-e>", OpenExplorer)
-    ("<f9>", TogglePathFormat)
 ]
 
 let Defaults =

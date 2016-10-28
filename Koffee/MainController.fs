@@ -19,7 +19,8 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
             | OpenPath p -> Sync (this.OpenPath (Path p))
             | OpenSelected -> Sync this.SelectedPath
             | OpenParent -> Sync this.ParentPath
-            | OpenExplorer -> Sync this.OpenExplorer
+            | Back -> Sync this.Back
+            | Forward -> Sync this.Forward
             | Find c -> Sync (this.Find c)
             | FindNext -> Sync this.FindNext
             | Search str -> Sync (this.Search str false)
@@ -27,6 +28,7 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
             | SearchPrevious -> Sync (this.SearchNext true)
             | TogglePathFormat -> Sync this.TogglePathFormat
             | OpenSettings -> Sync this.OpenSettings
+            | OpenExplorer -> Sync this.OpenExplorer
             | StartInput inputType -> Sync (this.StartInput inputType)
 
     member this.SetCursor index (model: MainModel) =
@@ -49,6 +51,8 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
         | None -> ()
 
     member this.OpenPath path (model: MainModel) =
+        model.BackStack <- model.Path :: model.BackStack
+        model.ForwardStack <- []
         model.Path <- pathing.Normalize path
         model.Nodes <- pathing.GetNodes model.Path
         model.Cursor <- 0
@@ -65,6 +69,22 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
 
     member this.ParentPath (model: MainModel) =
         this.OpenPath (pathing.Parent model.Path) model
+
+    member this.Back (model: MainModel) =
+        match model.BackStack with
+        | path :: backTail ->
+            let newForwardStack = model.Path :: model.ForwardStack
+            this.OpenPath path model
+            model.BackStack <- backTail
+            model.ForwardStack <- newForwardStack
+        | [] -> ()
+
+    member this.Forward (model: MainModel) =
+        match model.ForwardStack with
+        | path :: forwardTail ->
+            this.OpenPath path model
+            model.ForwardStack <- forwardTail
+        | [] -> ()
 
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char

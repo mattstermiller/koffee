@@ -50,6 +50,8 @@ type MainModel() =
     abstract PageSize: int with get, set
     abstract LastFind: char option with get, set
     abstract LastSearch: string option with get, set
+    abstract BackStack: Path list with get, set
+    abstract ForwardStack: Path list with get, set
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1
@@ -68,15 +70,17 @@ type MainEvents =
     | OpenPath of string
     | OpenSelected
     | OpenParent
-    | OpenExplorer
+    | Back
+    | Forward
     | StartInput of CommandInput
     | Find of char
     | FindNext
     | Search of string
     | SearchNext
     | SearchPrevious
-    | OpenSettings
     | TogglePathFormat
+    | OpenSettings
+    | OpenExplorer
 
     member this.FriendlyName =
         match this with
@@ -89,7 +93,8 @@ type MainEvents =
         | OpenPath path -> sprintf "Open Path \"%s\"" path
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"
-        | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | Back -> "Back in Location History"
+        | Forward -> "Forward in Location History"
         | StartInput FindInput -> "Find Item Beginning With Character"
         | StartInput SearchInput -> "Search For Items"
         | Find char -> sprintf "Find Item Beginning With \"%c\"" char
@@ -97,8 +102,9 @@ type MainEvents =
         | Search str -> sprintf "Search For Items Matching \"%s\"" str
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
-        | OpenSettings -> "Open Help/Settings"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
+        | OpenSettings -> "Open Help/Settings"
+        | OpenExplorer -> "Open Windows Explorer at Current Location"
 
     static member Bindable = [
         CursorUp
@@ -109,12 +115,14 @@ type MainEvents =
         CursorToLast
         OpenSelected
         OpenParent
+        Back
+        Forward
         StartInput FindInput
         FindNext
         StartInput SearchInput
         SearchNext
         SearchPrevious
+        TogglePathFormat
         OpenSettings
         OpenExplorer
-        TogglePathFormat
     ]

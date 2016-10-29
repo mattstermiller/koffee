@@ -139,7 +139,7 @@ type PathService() =
             else
                 ""
         {
-            Path = drive.Name.ToLower() |> this.ToFormattedPath
+            Path = drive.Name |> this.ToFormattedPath
             Name = sprintf "%s  %s Drive%s" name driveType label
             Type = NodeType.Drive
             Modified = None

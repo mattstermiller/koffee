@@ -8,6 +8,8 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
         member this.InitModel model =
             model.Path <- pathing.Root
             model.Nodes <- pathing.GetNodes model.Path
+            model.BackStack <- []
+            model.ForwardStack <- []
 
         member this.Dispatcher = function
             | CursorUp -> Sync (fun m -> this.SetCursor (m.Cursor - 1) m)
@@ -16,7 +18,7 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
             | CursorDownHalfPage -> Sync (fun m -> this.SetCursor (m.Cursor + m.HalfPageScroll) m)
             | CursorToFirst -> Sync (this.SetCursor 0)
             | CursorToLast -> Sync (fun m -> this.SetCursor (m.Nodes.Length - 1) m)
-            | OpenPath p -> Sync (this.OpenPath (Path p))
+            | OpenPath p -> Sync (this.OpenPath (Path p) 0)
             | OpenSelected -> Sync this.SelectedPath
             | OpenParent -> Sync this.ParentPath
             | Back -> Sync this.Back
@@ -50,39 +52,44 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
         | Some index -> this.SetCursor index model
         | None -> ()
 
-    member this.OpenPath path (model: MainModel) =
-        model.BackStack <- model.Path :: model.BackStack
+    member this.OpenPath path cursor (model: MainModel) =
+        model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
         model.ForwardStack <- []
         model.Path <- pathing.Normalize path
         model.Nodes <- pathing.GetNodes model.Path
-        model.Cursor <- 0
+        model.Cursor <- cursor
         model.Status <- ""
 
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
         | Folder | Drive | Error ->
-            this.OpenPath path model
+            this.OpenPath path 0 model
         | File ->
             pathing.OpenFile path
             model.Status <- "Opened File: " + path.Value
 
     member this.ParentPath (model: MainModel) =
-        this.OpenPath (pathing.Parent model.Path) model
+        let path = model.Path
+        this.OpenPath (pathing.Parent model.Path) 0 model
+        let index = model.Nodes |> Seq.tryFindIndex (fun n -> n.Path = path)
+        match index with
+            | Some i -> model.Cursor <- i
+            | None -> ()
 
     member this.Back (model: MainModel) =
         match model.BackStack with
-        | path :: backTail ->
-            let newForwardStack = model.Path :: model.ForwardStack
-            this.OpenPath path model
+        | (path, cursor) :: backTail ->
+            let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
+            this.OpenPath path cursor model
             model.BackStack <- backTail
             model.ForwardStack <- newForwardStack
         | [] -> ()
 
     member this.Forward (model: MainModel) =
         match model.ForwardStack with
-        | path :: forwardTail ->
-            this.OpenPath path model
+        | (path, cursor) :: forwardTail ->
+            this.OpenPath path cursor model
             model.ForwardStack <- forwardTail
         | [] -> ()
 
@@ -117,9 +124,7 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
             | Windows -> Unix
             | Unix -> Windows
         pathing.Format <- newFormat
-        let cursor = model.Cursor
-        this.OpenPath model.Path model
-        model.Cursor <- cursor
+        this.OpenPath model.Path model.Cursor model
         model.Status <- "Changed Path Format to " + newFormat.ToString()
 
     member this.StartInput inputType (model: MainModel) =

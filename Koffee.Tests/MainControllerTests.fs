@@ -54,11 +54,12 @@ type MainControllerHistoryTests() =
         let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
         MainController(pathing, settingsFactory)
 
-    let History contrFunc pathStr backStack forwardStack =
+    let History contrFunc pathStr cursor backStack forwardStack =
         let model = MainModel.Create<MainModel>()
-        model.BackStack <- backStack |> List.map Path
-        model.ForwardStack <- forwardStack |> List.map Path
+        model.BackStack <- backStack |> List.map (fun (p, c) -> (Path p, c))
+        model.ForwardStack <- forwardStack |> List.map (fun (p, c) -> (Path p, c))
         model.Path <- Path pathStr
+        model.Cursor <- cursor
         let contr = Controller()
         contrFunc contr model
         model
@@ -68,42 +69,48 @@ type MainControllerHistoryTests() =
 
     [<Test>]
     member x.``Back without history does nothing``() =
-        let model = Back "c:" [] []
+        let model = Back "c:" 1 [] []
         model.Path |> should equal (Path "c:")
+        model.Cursor |> should equal 1
         model.BackStack |> should equal []
         model.ForwardStack |> should equal []
 
     [<Test>]
     member x.``Back with simple history changes path and stacks``() =
-        let model = Back "orig" ["back"] []
+        let model = Back "orig" 1 ["back", 2] []
         model.Path |> should equal (Path "back")
+        model.Cursor |> should equal 2
         model.BackStack |> should equal []
-        model.ForwardStack |> should equal [Path "orig"]
+        model.ForwardStack |> should equal [Path "orig", 1]
 
     [<Test>]
     member x.``Back with more history changes path and stacks``() =
-        let model = Back "orig" ["back1"; "back2"] ["fwd1"; "fwd2"]
+        let model = Back "orig" 1 ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
         model.Path |> should equal (Path "back1")
-        model.BackStack |> should equal [Path "back2"]
-        model.ForwardStack |> should equal (["orig"; "fwd1"; "fwd2"] |> List.map Path)
+        model.Cursor |> should equal 2
+        model.BackStack |> should equal [Path "back2", 3]
+        model.ForwardStack |> should equal [Path "orig", 1; Path "fwd1", 4; Path "fwd2", 5]
 
     [<Test>]
     member x.``Forward without history does nothing``() =
-        let model = Forward "c:" [] []
+        let model = Forward "c:" 1 [] []
         model.Path |> should equal (Path "c:")
+        model.Cursor |> should equal 1
         model.BackStack |> should equal []
         model.ForwardStack |> should equal []
 
     [<Test>]
     member x.``Forward with simple history changes path and stacks``() =
-        let model = Forward "orig" [] ["fwd"]
+        let model = Forward "orig" 1 [] ["fwd", 2]
         model.Path |> should equal (Path "fwd")
-        model.BackStack |> should equal [Path "orig"]
+        model.Cursor |> should equal 2
+        model.BackStack |> should equal [Path "orig", 1]
         model.ForwardStack |> should equal []
 
     [<Test>]
     member x.``Forward with more history changes path and stacks``() =
-        let model = Forward "orig" ["back1"; "back2"] ["fwd1"; "fwd2"]
+        let model = Forward "orig" 1 ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
         model.Path |> should equal (Path "fwd1")
-        model.BackStack |> should equal (["orig"; "back1"; "back2"] |> List.map Path)
-        model.ForwardStack |> should equal [Path "fwd2"]
+        model.Cursor |> should equal 4
+        model.BackStack |> should equal [Path "orig", 1; Path "back1", 2; Path "back2", 3]
+        model.ForwardStack |> should equal [Path "fwd2", 5]

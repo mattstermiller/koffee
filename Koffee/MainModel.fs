@@ -50,8 +50,8 @@ type MainModel() =
     abstract PageSize: int with get, set
     abstract LastFind: char option with get, set
     abstract LastSearch: string option with get, set
-    abstract BackStack: Path list with get, set
-    abstract ForwardStack: Path list with get, set
+    abstract BackStack: (Path * int) list with get, set
+    abstract ForwardStack: (Path * int) list with get, set
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1

@@ -23,15 +23,15 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
             | OpenParent -> Sync this.ParentPath
             | Back -> Sync this.Back
             | Forward -> Sync this.Forward
-            | Find c -> Sync (this.Find c)
+            | StartInput inputMode -> Sync (this.StartInput inputMode)
+            | ExecuteCommand -> Sync this.ExecuteCommand
+            | CommandCharTyped c -> Sync (this.CommandCharTyped c)
             | FindNext -> Sync this.FindNext
-            | Search str -> Sync (this.Search str false)
             | SearchNext -> Sync (this.SearchNext false)
             | SearchPrevious -> Sync (this.SearchNext true)
             | TogglePathFormat -> Sync this.TogglePathFormat
             | OpenSettings -> Sync this.OpenSettings
             | OpenExplorer -> Sync this.OpenExplorer
-            | StartInput inputType -> Sync (this.StartInput inputType)
 
     member this.SetCursor index (model: MainModel) =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
@@ -93,9 +93,24 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
             model.ForwardStack <- forwardTail
         | [] -> ()
 
+    member this.StartInput inputMode (model: MainModel) =
+        model.CommandText <- ""
+        model.CommandInputMode <- Some inputMode
+
+    member this.ExecuteCommand (model: MainModel) =
+        match model.CommandInputMode with
+        | Some SearchInput -> this.Search model.CommandText false model
+        | Some FindInput -> ()
+        | None -> ()
+
+    member this.CommandCharTyped char (model: MainModel) =
+        if model.CommandInputMode = Some FindInput then
+            this.Find char model
+
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
-        model.Status <- "Find: " + char.ToString()
+        model.Status <- "Find " + char.ToString()
+        model.CommandInputMode <- None
         this.MoveCursorToNext (fun n -> n.Name.[0] = char) false model
 
     member this.FindNext (model: MainModel) =
@@ -106,6 +121,7 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
     member this.Search searchStr reverse (model: MainModel) =
         model.LastSearch <- Some searchStr
         model.Status <- sprintf "Search \"%s\"" searchStr
+        model.CommandInputMode <- None
         this.MoveCursorToNext (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) reverse model
 
     member this.SearchNext reverse (model: MainModel) =
@@ -126,11 +142,6 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
         pathing.Format <- newFormat
         this.OpenPath model.Path model.Cursor model
         model.Status <- "Changed Path Format to " + newFormat.ToString()
-
-    member this.StartInput inputType (model: MainModel) =
-        match inputType with
-        | FindInput -> model.Status <- "Find: "
-        | SearchInput -> ()
 
     member this.OpenSettings (model: MainModel) =
         let settings = settingsFactory()

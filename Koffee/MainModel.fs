@@ -39,6 +39,10 @@ type Node with
                 | size -> size.ToString("N0")
         else ""
 
+type CommandInput =
+    | FindInput
+    | SearchInput
+
 [<AbstractClass>]
 type MainModel() =
     inherit Model()
@@ -48,6 +52,8 @@ type MainModel() =
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
+    abstract CommandInputMode: CommandInput option with get, set
+    abstract CommandText: string with get, set
     abstract LastFind: char option with get, set
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
@@ -55,10 +61,6 @@ type MainModel() =
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1
-
-type CommandInput =
-    | FindInput
-    | SearchInput
 
 type MainEvents =
     | CursorUp
@@ -73,9 +75,9 @@ type MainEvents =
     | Back
     | Forward
     | StartInput of CommandInput
-    | Find of char
+    | ExecuteCommand
+    | CommandCharTyped of char
     | FindNext
-    | Search of string
     | SearchNext
     | SearchPrevious
     | TogglePathFormat
@@ -97,9 +99,9 @@ type MainEvents =
         | Forward -> "Forward in Location History"
         | StartInput FindInput -> "Find Item Beginning With Character"
         | StartInput SearchInput -> "Search For Items"
-        | Find char -> sprintf "Find Item Beginning With \"%c\"" char
+        | ExecuteCommand -> "Execute the Currently Entered Command"
+        | CommandCharTyped char -> sprintf "Find Item Beginning With \"%c\"" char
         | FindNext -> "Go To Next Find Match"
-        | Search str -> sprintf "Search For Items Matching \"%s\"" str
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"

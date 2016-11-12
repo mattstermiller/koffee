@@ -6,6 +6,7 @@ open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Controls
 open FSharp.Desktop.UI
+open ModelExtensions
 open ControlExtensions
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
@@ -51,10 +52,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             @>
 
         // bind to the command input mode to update the UI
-        let modelNPC = model :> INotifyPropertyChanged
-        modelNPC.PropertyChanged.Add (fun e ->
-            if e.PropertyName = "CommandInputMode" then
-                this.CommandInputModeChanged model.CommandInputMode)
+        model.OnPropertyChanged <@ model.CommandInputMode @> |> Observable.add this.CommandInputModeChanged
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor

@@ -63,6 +63,7 @@
     <None Include="App.config" />
     <Content Include="packages.config" />
     <Compile Include="ValueConverters.fs" />
+    <Compile Include="ModelExtensions.fs" />
     <Compile Include="ControlExtensions.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="MainModel.fs" />

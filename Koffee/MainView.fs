@@ -69,6 +69,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             | Some i -> model.PageSize <- i
             | None -> ())
 
+        window.SearchBox.LostFocus.Add (fun _ -> this.SetInputMode None)
+
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> this.TriggerOnEnter (fun () -> OpenPath window.PathBox.Text)
 

@@ -20,6 +20,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             evt.Handled <- true
             action() |> ignore
 
+    let chooseOnKey key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
+        keyEvent |> Observable.choose (fun evt ->
+            if evt.Key = key then
+                evt.Handled <- true
+                resultFunc()
+            else
+                None)
     override this.SetBindings (model: MainModel) =
         // bind the path box
         let pathBinding = Binding("Path")
@@ -69,34 +76,25 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             | Some i -> model.PageSize <- i
             | None -> ())
 
-        window.SearchBox.LostFocus.Add (fun _ -> this.SetInputMode None)
+        window.CommandBox.LostFocus.Add (fun _ -> this.SetInputMode None)
 
     override this.EventStreams = [
-        window.PathBox.PreviewKeyDown |> this.TriggerOnEnter (fun () -> OpenPath window.PathBox.Text)
+        window.PathBox.PreviewKeyDown |> chooseOnKey Key.Enter (fun () -> Some (OpenPath window.PathBox.Text))
 
         window.PreviewTextInput |> Observable.choose this.TriggerForInputMode
         window.NodeGrid.KeyDown |> Observable.choose this.TriggerKeyBindings
 
-        window.SearchBox.PreviewKeyDown
-            |> this.TriggerOnEnter
-                (fun () ->
-                    let search = window.SearchBox.Text
-                    window.SearchBox.Text <- ""
-                    Search search)
+        window.CommandBox.PreviewKeyDown |> chooseOnKey Key.Enter this.GetCommandEvent
     ]
 
-    member this.TriggerOnEnter evtToTriggerFunc observable =
-        observable
-        |> Observable.choose
-            (fun keyEvt ->
-                if keyEvt.Key = Key.Enter then
-                    keyEvt.Handled <- true
-                    let evt = evtToTriggerFunc()
-                    this.SetInputMode None
-                    Some evt
-                else
-                    None
-            )
+    member this.GetCommandEvent () =
+        match inputMode with
+        | Some SearchInput ->
+            let search = window.CommandBox.Text
+            window.CommandBox.Text <- ""
+            Some (Search search)
+        | Some FindInput -> None
+        | None -> None
 
     member this.TriggerForInputMode keyEvt =
         match (inputMode, keyEvt.Text.ToCharArray()) with
@@ -139,18 +137,31 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
     member this.SetInputMode inputType =
         match inputType with
-        | Some SearchInput ->
-            window.StatusLabel.Visibility <- Visibility.Hidden
-            window.SearchLabel.Visibility <- Visibility.Visible
-            window.SearchBox.Visibility <- Visibility.Visible
-            window.SearchBox.Focus() |> ignore
-        | None ->
-            window.StatusLabel.Visibility <- Visibility.Visible
-            window.SearchLabel.Visibility <- Visibility.Hidden
-            window.SearchBox.Visibility <- Visibility.Hidden
-            window.NodeGrid.Focus() |> ignore
+        | Some SearchInput -> this.ShowCommandBar "Search:"
+        | None -> this.HideCommandBar ()
         | _ -> ()
         inputMode <- inputType
+
+    member this.ShowCommandBar label =
+        let setLeftMargin left (control: Control) =
+            let m = control.Margin
+            control.Margin <- Thickness(left, m.Top, m.Right, m.Bottom)
+
+        window.StatusLabel.Visibility <- Visibility.Hidden
+
+        window.CommandLabel.Content <- label
+        window.CommandLabel.Visibility <- Visibility.Visible
+        window.CommandLabel.UpdateLayout()
+
+        setLeftMargin window.CommandLabel.ActualWidth window.CommandBox
+        window.CommandBox.Visibility <- Visibility.Visible
+        window.CommandBox.Focus() |> ignore
+
+    member this.HideCommandBar () =
+        window.StatusLabel.Visibility <- Visibility.Visible
+        window.CommandLabel.Visibility <- Visibility.Hidden
+        window.CommandBox.Visibility <- Visibility.Hidden
+        window.NodeGrid.Focus() |> ignore
 
     member this.KeepSelectedInView () =
         if window.NodeGrid.SelectedItem <> null then

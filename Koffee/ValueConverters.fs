@@ -2,15 +2,12 @@
 
 open System.Windows.Data
 open Microsoft.FSharp.Reflection
+open Koffee.Reflection
 
 type UnionText() =
-    let caseName value =
-        match FSharpValue.GetUnionFields(value, value.GetType()) with
-        | case, _ -> case.Name
-
     interface IValueConverter with
         override this.Convert(value, targetType, _, _) =
-            value |> caseName |> box
+            value |> GetUnionCaseName |> box
 
         override this.ConvertBack(caseName, targetType, _, _) =
             let case =

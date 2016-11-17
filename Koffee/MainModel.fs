@@ -2,6 +2,7 @@
 
 open System
 open FSharp.Desktop.UI
+open Koffee.Reflection
 
 type Path =
     | Path of string
@@ -42,6 +43,8 @@ type Node with
 type CommandInput =
     | FindInput
     | SearchInput
+    member this.Name =
+        (GetUnionCaseName this).Replace("Input", "")
 
 [<AbstractClass>]
 type MainModel() =

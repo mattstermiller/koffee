@@ -127,8 +127,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
     member this.CommandInputModeChanged mode =
         match mode with
-        | Some FindInput -> this.ShowCommandBar "Find:"
-        | Some SearchInput -> this.ShowCommandBar "Search:"
+        | Some inputMode -> this.ShowCommandBar (sprintf "%s:" inputMode.Name)
         | None -> this.HideCommandBar ()
 
     member this.ShowCommandBar label =

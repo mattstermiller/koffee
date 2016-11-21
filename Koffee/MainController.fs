@@ -3,11 +3,11 @@
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 
-type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
+type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
-            model.Path <- pathing.Root
-            model.Nodes <- pathing.GetNodes model.Path
+            model.Path <- fileSys.Root
+            model.Nodes <- fileSys.GetNodes model.Path
             model.BackStack <- []
             model.ForwardStack <- []
 
@@ -55,8 +55,8 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
     member this.OpenPath path cursor (model: MainModel) =
         model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
         model.ForwardStack <- []
-        model.Path <- pathing.Normalize path
-        model.Nodes <- pathing.GetNodes model.Path
+        model.Path <- fileSys.Normalize path
+        model.Nodes <- fileSys.GetNodes model.Path
         model.Cursor <- cursor
         model.Status <- ""
 
@@ -66,12 +66,12 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
         | Folder | Drive | Error ->
             this.OpenPath path 0 model
         | File ->
-            pathing.OpenFile path
+            fileSys.OpenFile path
             model.Status <- "Opened File: " + path.Value
 
     member this.ParentPath (model: MainModel) =
         let path = model.Path
-        this.OpenPath (pathing.Parent model.Path) 0 model
+        this.OpenPath (fileSys.Parent model.Path) 0 model
         let index = model.Nodes |> Seq.tryFindIndex (fun n -> n.Path = path)
         match index with
             | Some i -> model.Cursor <- i
@@ -130,16 +130,16 @@ type MainController(pathing: IPathService, settingsFactory: unit -> Mvc<Settings
         | None -> ()
 
     member this.OpenExplorer (model: MainModel) =
-        if model.Path <> pathing.Root then
-            model.SelectedNode.Path |> pathing.OpenExplorer
+        if model.Path <> fileSys.Root then
+            model.SelectedNode.Path |> fileSys.OpenExplorer
             model.Status <- "Opened Windows Explorer to: " + model.Path.Value
 
     member this.TogglePathFormat (model: MainModel) =
         let newFormat =
-            match pathing.Format with
+            match fileSys.Format with
             | Windows -> Unix
             | Unix -> Windows
-        pathing.Format <- newFormat
+        fileSys.Format <- newFormat
         this.OpenPath model.Path model.Cursor model
         model.Status <- "Changed Path Format to " + newFormat.ToString()
 

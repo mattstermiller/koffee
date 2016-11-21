@@ -16,7 +16,7 @@ do
     let window = MainWindow()
     let model = MainModel.Create()
     let view = MainView(window, KeyBinding.Defaults)
-    let controller = MainController(PathService(), makeSettingsMvc)
+    let controller = MainController(FileSystemService(), makeSettingsMvc)
     let mvc = Mvc(model, view, controller)
     use eventLoop = mvc.Start()
 

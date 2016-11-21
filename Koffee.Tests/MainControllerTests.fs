@@ -24,9 +24,9 @@ type MainControllerFindTests() =
         model.Nodes <- "alice,bob,charlie,crystal,apple,cherry".Split(',') |> Nodes
         model.Cursor <- cursorStart
 
-        let pathing = Mock.Of<IPathService>()
+        let fileSys = Mock.Of<IFileSystemService>()
         let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-        let contr = MainController(pathing, settingsFactory)
+        let contr = MainController(fileSys, settingsFactory)
         contr.Find char model
         model.Cursor
 
@@ -46,13 +46,13 @@ type MainControllerFindTests() =
 [<TestFixture>]
 type MainControllerHistoryTests() =
     let Controller () =
-        let pathing =
-            Mock<IPathService>()
+        let fileSys =
+            Mock<IFileSystemService>()
                 .Setup(fun x -> <@ x.Normalize(any()) @>).Calls<Path>(fun p -> p)
                 .Setup(fun x -> <@ x.GetNodes(any()) @>).Returns([])
                 .Create()
         let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-        MainController(pathing, settingsFactory)
+        MainController(fileSys, settingsFactory)
 
     let History contrFunc pathStr cursor backStack forwardStack =
         let model = MainModel.Create<MainModel>()

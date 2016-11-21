@@ -11,7 +11,7 @@ type PathFormat =
     | Unix
     override this.ToString() = sprintf "%A" this
 
-type IPathService =
+type IFileSystemService =
     abstract Format: PathFormat with get, set
     abstract Root: Path with get
     abstract Normalize: Path -> Path
@@ -20,7 +20,7 @@ type IPathService =
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
 
-type PathService() =
+type FileSystemService() =
     let (|WinPath|_|) path =
         match path with
         | (Path p) when Regex.IsMatch(p, @"^[a-z]:", RegexOptions.IgnoreCase) -> Some p
@@ -31,7 +31,7 @@ type PathService() =
         | (Path p) when Regex.IsMatch(p, @"^/[a-z]", RegexOptions.IgnoreCase) -> Some p
         | _ -> None
 
-    interface IPathService with
+    interface IFileSystemService with
         member this.Format
             with get () = this.PathFormat
             and set (v: PathFormat) : unit = this.PathFormat <- v

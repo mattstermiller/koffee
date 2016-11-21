@@ -70,17 +70,17 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             if not window.NodeGrid.IsFocused then
                 window.NodeGrid.Focus() |> ignore)
 
-        // escape always resets the input mode
-        window.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
-            model.Status <- ""
-            model.CommandInputMode <- None))
-
         // on resize, keep selected node in view, update the page size when form is resized
         window.NodeGrid.SizeChanged.Add (fun _ ->
             this.KeepSelectedInView()
             match this.ItemsPerPage with
             | Some i -> model.PageSize <- i
             | None -> ())
+
+        // escape always resets the input mode
+        window.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
+            model.Status <- ""
+            model.CommandInputMode <- None))
 
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 
@@ -131,24 +131,14 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         | None -> this.HideCommandBar ()
 
     member this.ShowCommandBar label =
-        let setLeftMargin left (control: Control) =
-            let m = control.Margin
-            control.Margin <- Thickness(left, m.Top, m.Right, m.Bottom)
-
         window.StatusLabel.Visibility <- Visibility.Hidden
-
         window.CommandLabel.Content <- label
-        window.CommandLabel.Visibility <- Visibility.Visible
-        window.CommandLabel.UpdateLayout()
-
-        setLeftMargin window.CommandLabel.ActualWidth window.CommandBox
-        window.CommandBox.Visibility <- Visibility.Visible
+        window.CommandPanel.Visibility <- Visibility.Visible
         window.CommandBox.Focus() |> ignore
 
     member this.HideCommandBar () =
+        window.CommandPanel.Visibility <- Visibility.Hidden
         window.StatusLabel.Visibility <- Visibility.Visible
-        window.CommandLabel.Visibility <- Visibility.Hidden
-        window.CommandBox.Visibility <- Visibility.Hidden
         window.NodeGrid.Focus() |> ignore
 
     member this.KeepSelectedInView () =

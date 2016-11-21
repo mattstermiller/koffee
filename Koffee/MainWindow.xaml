@@ -1,13 +1,11 @@
 ﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Koffee" Width="800" Height="800">
     <Grid>
         <TextBox x:Name="PathBox" Height="28" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top" FontSize="13"/>
-        <DataGrid x:Name="NodeGrid" Margin="0,33,0,34" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFD6D6D6" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
-            <DataGrid.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{x:Static SystemColors.HighlightColor}"/>
-            </DataGrid.Resources>
-        </DataGrid>
-        <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="26" VerticalAlignment="Bottom" Margin="0,0,0,5"/>
-        <Label x:Name="CommandLabel" HorizontalAlignment="Left" Height="26" VerticalAlignment="Bottom" Margin="0,0,0,5" Visibility="Hidden"/>
-        <TextBox x:Name="CommandBox" TextWrapping="Wrap" Text="" Height="23" VerticalAlignment="Bottom" Margin="48,0,0,6" Visibility="Hidden"/>
+        <DataGrid x:Name="NodeGrid" Margin="0,34,0,34" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFD6D6D6" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"/>
+        <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="34" VerticalAlignment="Bottom" Margin="0,0,0,-4"/>
+        <DockPanel x:Name="CommandPanel" LastChildFill="True" Height="34" Background="#FF3399FF" VerticalAlignment="Bottom" Visibility="Hidden">
+            <Label x:Name="CommandLabel" Content="Command:" HorizontalAlignment="Left" Height="26" VerticalAlignment="Center" DockPanel.Dock="Left"/>
+            <TextBox x:Name="CommandBox" TextWrapping="Wrap" Width="Auto" Height="23" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,5,0"/>
+        </DockPanel>
     </Grid>
 </Window>

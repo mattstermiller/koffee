@@ -52,7 +52,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             @>
 
         // bind to the command input mode to update the UI
-        model.OnPropertyChanged <@ model.CommandInputMode @> |> Observable.add this.CommandInputModeChanged
+        model.OnPropertyChanged <@ model.CommandInputMode @> this.CommandInputModeChanged
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor

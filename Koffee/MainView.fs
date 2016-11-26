@@ -36,12 +36,6 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
 
-        // bind the path box
-        let pathBinding = Binding("Path")
-        pathBinding.Converter <- ValueConverters.UnionValue()
-        pathBinding.Mode <- BindingMode.OneWay
-        window.PathBox.SetBinding(TextBox.TextProperty, pathBinding) |> ignore
-
         // simple bindings
         Binding.OfExpression
             <@
@@ -51,6 +45,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
+        model.OnPropertyChanged <@ model.Path @> (fun path -> window.PathBox.Text <- path.Value)
+
         model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
             window.CommandBox.Select(start, len))
 
@@ -59,11 +55,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             this.CommandInputModeChanged mode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
-        // make sure selected item gets set to the cursor
-        let desiredCursor = model.Cursor
-        model.Cursor <- -1
-        window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
-
+        // bind tab to switching focus
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
         window.NodeGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
             window.PathBox.CaretIndex <- window.PathBox.Text.Length
@@ -75,19 +67,23 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             if not window.NodeGrid.IsFocused then
                 window.NodeGrid.Focus() |> ignore)
 
-        // on resize, keep selected node in view, update the page size when form is resized
+        // on resize, keep selected node in view, update the page size
         window.NodeGrid.SizeChanged.Add (fun _ ->
             this.KeepSelectedInView()
             match this.ItemsPerPage with
-            | Some i -> model.PageSize <- i
-            | None -> ())
+                | Some i -> model.PageSize <- i
+                | None -> ())
 
-        // escape always resets the input mode
-        window.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
+        // escape and lost focus resets the input mode
+        window.PreviewKeyDown.Add (onKey Key.Escape (fun _ ->
             model.Status <- ""
             model.CommandInputMode <- None))
-
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
+
+        // make sure selected item gets set to the cursor
+        let desiredCursor = model.Cursor
+        model.Cursor <- -1
+        window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)

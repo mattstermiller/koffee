@@ -63,12 +63,16 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | None -> ()
 
     member this.OpenPath path cursor (model: MainModel) =
-        model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-        model.ForwardStack <- []
-        model.Path <- fileSys.Normalize path
-        model.Nodes <- fileSys.GetNodes model.Path
-        model.Cursor <- cursor
-        model.Status <- ""
+        try
+            let newPath = fileSys.Normalize path
+            let nodes = fileSys.GetNodes newPath
+            model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
+            model.ForwardStack <- []
+            model.Path <- newPath
+            model.Nodes <- nodes
+            model.Cursor <- cursor
+            model.Status <- ""
+        with | ex -> model.SetErrorStatus (sprintf "Could not open path: %s" ex.Message)
 
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path

@@ -5,6 +5,7 @@ open System.Windows
 open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Controls
+open System.Windows.Media
 open FSharp.Desktop.UI
 open ModelExtensions
 open ControlExtensions
@@ -54,6 +55,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         model.OnPropertyChanged <@ model.CommandInputMode @> (fun mode ->
             this.CommandInputModeChanged mode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
+
+        // update status label color
+        model.OnPropertyChanged <@ model.IsErrorStatus @> (fun isError ->
+            window.StatusLabel.Foreground <-
+                match isError with
+                | true -> Brushes.Red
+                | false -> SystemColors.WindowTextBrush)
 
         // bind tab to switching focus
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)

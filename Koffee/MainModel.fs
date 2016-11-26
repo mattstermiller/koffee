@@ -3,6 +3,7 @@
 open System
 open FSharp.Desktop.UI
 open Koffee.Reflection
+open ModelExtensions
 
 type Path =
     | Path of string
@@ -63,11 +64,15 @@ type CommandInput =
 
 
 [<AbstractClass>]
-type MainModel() =
+type MainModel() as this =
     inherit Model()
+
+    do
+        this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
 
     abstract Path: Path with get, set
     abstract Status: string with get, set
+    abstract IsErrorStatus: bool with get, set
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
@@ -78,6 +83,10 @@ type MainModel() =
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
     abstract ForwardStack: (Path * int) list with get, set
+
+    member this.SetErrorStatus status =
+        this.Status <- status
+        this.IsErrorStatus <- true
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1

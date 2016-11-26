@@ -153,7 +153,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- List.findIndex (fun n -> n.Name = model.CommandText) model.Nodes
             model.Status <- sprintf "Renamed %s to %s" oldName model.CommandText
-        with | ex -> model.Status <- sprintf "Could not rename %s: %s" oldName ex.Message
+        with | ex -> model.SetErrorStatus (sprintf "Could not rename %s: %s" oldName ex.Message)
 
     member this.OpenExplorer (model: MainModel) =
         if model.Path <> fileSys.Root then

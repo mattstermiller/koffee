@@ -40,11 +40,27 @@ type Node with
                 | size -> size.ToString("N0")
         else ""
 
+type CursorPosition =
+    | Begin
+    | End
+    | Replace
+
 type CommandInput =
     | FindInput
     | SearchInput
+    | RenameInput of CursorPosition
+
     member this.Name =
         (GetUnionCaseName this).Replace("Input", "")
+
+    member this.AllowedOnNodeType nodeType =
+        match this with
+        | RenameInput _ ->
+            match nodeType with
+            | File | Folder -> true
+            | _ -> false
+        | _ -> true
+
 
 [<AbstractClass>]
 type MainModel() =
@@ -57,6 +73,7 @@ type MainModel() =
     abstract PageSize: int with get, set
     abstract CommandInputMode: CommandInput option with get, set
     abstract CommandText: string with get, set
+    abstract CommandTextSelection: int * int with get, set
     abstract LastFind: char option with get, set
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
@@ -100,6 +117,9 @@ type MainEvents =
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
         | Forward -> "Forward in Location History"
+        | StartInput (RenameInput Begin) -> "Rename File (Prepend)"
+        | StartInput (RenameInput End) -> "Rename File (Append)"
+        | StartInput (RenameInput Replace) -> "Rename File (Replace)"
         | StartInput FindInput -> "Find Item Beginning With Character"
         | StartInput SearchInput -> "Search For Items"
         | ExecuteCommand -> "Execute the Currently Entered Command"
@@ -122,6 +142,9 @@ type MainEvents =
         OpenParent
         Back
         Forward
+        StartInput (RenameInput Begin)
+        StartInput (RenameInput End)
+        StartInput (RenameInput Replace)
         StartInput FindInput
         FindNext
         StartInput SearchInput

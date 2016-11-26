@@ -51,8 +51,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
+        model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
+            window.CommandBox.Select(start, len))
+
         // bind to the command input mode to update the UI
-        model.OnPropertyChanged <@ model.CommandInputMode @> this.CommandInputModeChanged
+        model.OnPropertyChanged <@ model.CommandInputMode @> (fun mode ->
+            this.CommandInputModeChanged mode
+            if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor

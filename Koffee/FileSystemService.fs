@@ -19,6 +19,7 @@ type IFileSystemService =
     abstract GetNodes: Path -> Node list
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
+    abstract Rename: Node -> string -> unit
 
 type FileSystemService() =
     let (|WinPath|_|) path =
@@ -41,6 +42,7 @@ type FileSystemService() =
         override this.GetNodes path = this.GetNodes path
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
+        override this.Rename node newName = this.Rename node newName
 
     member val PathFormat = Windows with get, set
 
@@ -164,3 +166,11 @@ type FileSystemService() =
         if path <> this.Root then
             let winPath = this.ToRawPath path
             Process.Start("explorer.exe", String.Format("/select,\"{0}\"", winPath)) |> ignore
+
+    member this.Rename node newName =
+        let path = this.ToRawPath node.Path
+        let getNewPath () = Path.Combine(Path.GetDirectoryName(path), newName)
+        match node.Type with
+            | File -> File.Move(path, getNewPath())
+            | Folder -> Directory.Move(path, getNewPath())
+            | _ -> ()

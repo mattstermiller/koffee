@@ -4,6 +4,16 @@ open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 
 type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
+    let setCommandSelection cursorPos (model: MainModel) =
+        let nameLen =
+            match model.CommandText.LastIndexOf('.') with
+            | -1 -> model.CommandText.Length
+            | index -> index
+        match cursorPos with
+            | Begin -> model.CommandTextSelection <- (0, 0)
+            | End  -> model.CommandTextSelection <- (nameLen, 0)
+            | Replace -> model.CommandTextSelection <- (0, nameLen)
+
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
             model.Path <- fileSys.Root
@@ -93,24 +103,32 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.ForwardStack <- forwardTail
         | [] -> ()
 
-    member this.StartInput inputMode (model: MainModel) =
-        model.CommandText <- ""
-        model.CommandInputMode <- Some inputMode
+    member this.StartInput (inputMode: CommandInput) (model: MainModel) =
+        if inputMode.AllowedOnNodeType model.SelectedNode.Type then
+            model.CommandInputMode <- Some inputMode
+            match inputMode with
+                | RenameInput pos ->
+                    model.CommandText <- model.SelectedNode.Name
+                    setCommandSelection pos model
+                | _ ->
+                    model.CommandText <- ""
 
     member this.ExecuteCommand (model: MainModel) =
         match model.CommandInputMode with
-        | Some SearchInput -> this.Search model.CommandText false model
-        | Some FindInput -> ()
-        | None -> ()
+            | Some SearchInput -> this.Search model.CommandText false model
+            | Some (RenameInput _) -> this.Rename model
+            | Some FindInput -> () // find is executed by typing a char
+            | None -> ()
+        model.CommandInputMode <- None
 
     member this.CommandCharTyped char (model: MainModel) =
         if model.CommandInputMode = Some FindInput then
             this.Find char model
+            model.CommandInputMode <- None
 
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
         model.Status <- "Find " + char.ToString()
-        model.CommandInputMode <- None
         this.MoveCursorToNext (fun n -> n.Name.[0] = char) false model
 
     member this.FindNext (model: MainModel) =
@@ -121,13 +139,21 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.Search searchStr reverse (model: MainModel) =
         model.LastSearch <- Some searchStr
         model.Status <- sprintf "Search \"%s\"" searchStr
-        model.CommandInputMode <- None
         this.MoveCursorToNext (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) reverse model
 
     member this.SearchNext reverse (model: MainModel) =
         match model.LastSearch with
         | Some str -> this.Search str reverse model
         | None -> ()
+
+    member this.Rename (model: MainModel) =
+        let oldName = model.SelectedNode.Name
+        try
+            fileSys.Rename model.SelectedNode model.CommandText
+            model.Nodes <- fileSys.GetNodes model.Path
+            model.Cursor <- List.findIndex (fun n -> n.Name = model.CommandText) model.Nodes
+            model.Status <- sprintf "Renamed %s to %s" oldName model.CommandText
+        with | ex -> model.Status <- sprintf "Could not rename %s: %s" oldName ex.Message
 
     member this.OpenExplorer (model: MainModel) =
         if model.Path <> fileSys.Root then

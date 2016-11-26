@@ -25,6 +25,13 @@ First of all, take your hand off of the mouse because this is a keyboard tool! O
 - Press `f` then any character to jump to the next item beginning with that character. _(Note that this is case sensitive, so `a` is not the same as `A`.)_ For example, pressing `fa` will jump to the first file or folder starting with "a". Then press `;` to continue jumping to more items starting with that same character.
 - Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `Enter` to jump to the next item containing the search term in its name. Then press `n` to go to the next match, or `N` to go to the previous match. The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
 
+#### File & Folder Manipulation
+- **Rename**: There are three ways to start renaming the currently selected file or folder.
+    - Press `i` to start with the cursor at the beginning of the name
+    - Press `a` to start with the cursor between the name and the extension
+    - Press `c` to start with the cursor selection around the name (excluding the extension) so that typing will replace the name.
+    - When you are done editing the name, press `Enter`.
+
 #### Other
 - Open Windows Explorer at your current location with `Ctrl + e`
 - Toggle between Windows-style and Unix-style path formats with `F9`

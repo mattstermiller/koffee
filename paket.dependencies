@@ -1,0 +1,15 @@
+source https://api.nuget.org/v3/index.json
+framework >= net451
+redirects: on
+
+nuget Castle.Core
+nuget Foq content:none
+nuget FSharp.Desktop.UI
+nuget FsUnit
+nuget FsXaml.Wpf
+nuget NUnit
+nuget Rx-Core
+nuget Rx-Interfaces
+nuget Rx-Linq
+nuget Rx-Main
+nuget Rx-PlatformServices

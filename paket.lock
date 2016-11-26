@@ -1,0 +1,29 @@
+REDIRECTS: ON
+FRAMEWORK: >= NET451
+NUGET
+  remote: http://api.nuget.org/v3/index.json
+    Castle.Core (3.3.3)
+    Foq (1.7.1) - content: none
+    FSharp.Core (4.0.0.1)
+    FSharp.Desktop.UI (0.7.1)
+      Castle.Core (>= 3.3.3)
+      Rx-Main (>= 2.2.5)
+    FsUnit (2.3.2)
+      FSharp.Core (>= 3.1.2.5)
+      NUnit (3.5)
+    FsXaml.Wpf (2.1)
+    NUnit (3.5)
+    Rx-Core (2.2.5)
+      Rx-Interfaces (>= 2.2.5)
+    Rx-Interfaces (2.2.5)
+    Rx-Linq (2.2.5)
+      Rx-Core (>= 2.2.5)
+      Rx-Interfaces (>= 2.2.5)
+    Rx-Main (2.2.5)
+      Rx-Core (>= 2.2.5)
+      Rx-Interfaces (>= 2.2.5)
+      Rx-Linq (>= 2.2.5)
+      Rx-PlatformServices (>= 2.2.5)
+    Rx-PlatformServices (2.2.5)
+      Rx-Core (>= 2.2.5)
+      Rx-Interfaces (>= 2.2.5)

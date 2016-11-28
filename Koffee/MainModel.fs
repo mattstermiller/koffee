@@ -47,16 +47,16 @@ type CursorPosition =
     | Replace
 
 type CommandInput =
-    | FindInput
-    | SearchInput
-    | RenameInput of CursorPosition
+    | Find
+    | Search
+    | Rename of CursorPosition
 
     member this.Name =
-        (GetUnionCaseName this).Replace("Input", "")
+        GetUnionCaseName this
 
     member this.AllowedOnNodeType nodeType =
         match this with
-        | RenameInput _ ->
+        | Rename _ ->
             match nodeType with
             | File | Folder -> true
             | _ -> false
@@ -126,11 +126,11 @@ type MainEvents =
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
         | Forward -> "Forward in Location History"
-        | StartInput (RenameInput Begin) -> "Rename File (Prepend)"
-        | StartInput (RenameInput End) -> "Rename File (Append)"
-        | StartInput (RenameInput Replace) -> "Rename File (Replace)"
-        | StartInput FindInput -> "Find Item Beginning With Character"
-        | StartInput SearchInput -> "Search For Items"
+        | StartInput (Rename Begin) -> "Rename File (Prepend)"
+        | StartInput (Rename End) -> "Rename File (Append)"
+        | StartInput (Rename Replace) -> "Rename File (Replace)"
+        | StartInput Find -> "Find Item Beginning With Character"
+        | StartInput Search -> "Search For Items"
         | ExecuteCommand -> "Execute the Currently Entered Command"
         | CommandCharTyped char -> sprintf "Find Item Beginning With \"%c\"" char
         | FindNext -> "Go To Next Find Match"
@@ -151,12 +151,12 @@ type MainEvents =
         OpenParent
         Back
         Forward
-        StartInput (RenameInput Begin)
-        StartInput (RenameInput End)
-        StartInput (RenameInput Replace)
-        StartInput FindInput
+        StartInput (Rename Begin)
+        StartInput (Rename End)
+        StartInput (Rename Replace)
+        StartInput Find
         FindNext
-        StartInput SearchInput
+        StartInput Search
         SearchNext
         SearchPrevious
         TogglePathFormat

@@ -111,7 +111,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         if inputMode.AllowedOnNodeType model.SelectedNode.Type then
             model.CommandInputMode <- Some inputMode
             match inputMode with
-                | RenameInput pos ->
+                | Rename pos ->
                     model.CommandText <- model.SelectedNode.Name
                     setCommandSelection pos model
                 | _ ->
@@ -119,14 +119,14 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.ExecuteCommand (model: MainModel) =
         match model.CommandInputMode with
-            | Some SearchInput -> this.Search model.CommandText false model
-            | Some (RenameInput _) -> this.Rename model
-            | Some FindInput -> () // find is executed by typing a char
+            | Some Search -> this.Search model.CommandText false model
+            | Some (Rename _) -> this.Rename model
+            | Some Find -> () // find is executed by typing a char
             | None -> ()
         model.CommandInputMode <- None
 
     member this.CommandCharTyped char (model: MainModel) =
-        if model.CommandInputMode = Some FindInput then
+        if model.CommandInputMode = Some Find then
             this.Find char model
             model.CommandInputMode <- None
 

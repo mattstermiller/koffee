@@ -33,6 +33,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | OpenParent -> Sync this.ParentPath
             | Back -> Sync this.Back
             | Forward -> Sync this.Forward
+            | Refresh -> Sync (fun m -> this.OpenPath m.Path m.Cursor m)
             | StartInput inputMode -> Sync (this.StartInput inputMode)
             | ExecuteCommand -> Sync this.ExecuteCommand
             | CommandCharTyped c -> Sync (this.CommandCharTyped c)

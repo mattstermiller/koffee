@@ -21,6 +21,7 @@ let DefaultsAsString = [
     ("h", OpenParent)
     ("H", Back)
     ("L", Forward)
+    ("<f5>", Refresh)
     ("o", StartInput CreateFile)
     ("O", StartInput CreateFolder)
     ("i", StartInput (Rename Begin))

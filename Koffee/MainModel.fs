@@ -110,6 +110,7 @@ type MainEvents =
     | OpenParent
     | Back
     | Forward
+    | Refresh
     | StartInput of CommandInput
     | ExecuteCommand
     | CommandCharTyped of char
@@ -133,6 +134,7 @@ type MainEvents =
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
         | Forward -> "Forward in Location History"
+        | Refresh -> "Refresh Current Folder"
         | StartInput CreateFile -> "Create File"
         | StartInput CreateFolder -> "Create Folder"
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
@@ -160,6 +162,7 @@ type MainEvents =
         OpenParent
         Back
         Forward
+        Refresh
         StartInput CreateFile
         StartInput CreateFolder
         StartInput (Rename Begin)

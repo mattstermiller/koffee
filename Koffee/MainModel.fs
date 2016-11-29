@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System
+open System.Text.RegularExpressions
 open FSharp.Desktop.UI
 open Koffee.Reflection
 open ModelExtensions
@@ -49,10 +50,13 @@ type CursorPosition =
 type CommandInput =
     | Find
     | Search
+    | CreateFile
+    | CreateFolder
     | Rename of CursorPosition
 
     member this.Name =
-        GetUnionCaseName this
+        let caseName = GetUnionCaseName this
+        Regex.Replace(caseName, @"(?<=[a-z])(?=[A-Z\d])", " ")
 
     member this.AllowedOnNodeType nodeType =
         match this with
@@ -87,6 +91,9 @@ type MainModel() as this =
     member this.SetErrorStatus status =
         this.Status <- status
         this.IsErrorStatus <- true
+
+    member this.SetExceptionStatus (ex: Exception) action =
+        this.SetErrorStatus (sprintf "Could not %s: %s" action ex.Message)
 
     member this.SelectedNode = this.Nodes.[this.Cursor]
     member this.HalfPageScroll = this.PageSize/2 - 1
@@ -126,6 +133,8 @@ type MainEvents =
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
         | Forward -> "Forward in Location History"
+        | StartInput CreateFile -> "Create File"
+        | StartInput CreateFolder -> "Create Folder"
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
         | StartInput (Rename End) -> "Rename File (Append)"
         | StartInput (Rename Replace) -> "Rename File (Replace)"
@@ -151,6 +160,8 @@ type MainEvents =
         OpenParent
         Back
         Forward
+        StartInput CreateFile
+        StartInput CreateFolder
         StartInput (Rename Begin)
         StartInput (Rename End)
         StartInput (Rename Replace)

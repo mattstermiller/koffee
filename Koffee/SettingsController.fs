@@ -16,7 +16,7 @@ type SettingsController() =
                             else None) 
                     {
                         EventName = evt.FriendlyName
-                        BoundKeys = String.Join(", ", keys)
+                        BoundKeys = String.Join(" OR ", keys)
                     })
 
         member x.Dispatcher = function

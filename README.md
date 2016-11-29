@@ -32,6 +32,7 @@ _Capitalized letters indicate that the key is combined with Shift._
 - Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `enter` to jump to the next item containing the search term in its name. Then press `n` to go to the next match, or `N` to go to the previous match. The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
 
 #### File & Folder Manipulation
+- **Create file or folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `enter`.
 - **Rename**: There are three ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
     - Press `a` to start with the cursor between the name and the extension

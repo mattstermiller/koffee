@@ -72,7 +72,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.Nodes <- nodes
             model.Cursor <- cursor
             model.Status <- ""
-        with | ex -> model.SetErrorStatus (sprintf "Could not open path: %s" ex.Message)
+        with | ex -> model.SetExceptionStatus ex "open path"
 
     member this.SelectedPath (model: MainModel) =
         let path = model.SelectedNode.Path
@@ -120,6 +120,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.ExecuteCommand (model: MainModel) =
         match model.CommandInputMode with
             | Some Search -> this.Search model.CommandText false model
+            | Some CreateFile -> this.CreateFile model
+            | Some CreateFolder -> this.CreateFolder model
             | Some (Rename _) -> this.Rename model
             | Some Find -> () // find is executed by typing a char
             | None -> ()
@@ -150,14 +152,28 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Some str -> this.Search str reverse model
         | None -> ()
 
+    member this.CreateFile (model: MainModel) =
+        this.CreateItem fileSys.CreateFile "file" model
+
+    member this.CreateFolder (model: MainModel) =
+        this.CreateItem fileSys.CreateFolder "folder" model
+
+    member this.CreateItem action itemName (model: MainModel) =
+        try
+            action model.Path model.CommandText
+            model.Nodes <- fileSys.GetNodes model.Path
+            model.Cursor <- List.findIndex (fun n -> n.Name = model.CommandText) model.Nodes
+            model.Status <- sprintf "Created %s: %s" itemName model.CommandText
+        with | ex -> model.SetExceptionStatus ex (sprintf "create %s %s" itemName model.CommandText)
+
     member this.Rename (model: MainModel) =
         let oldName = model.SelectedNode.Name
         try
             fileSys.Rename model.SelectedNode model.CommandText
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- List.findIndex (fun n -> n.Name = model.CommandText) model.Nodes
-            model.Status <- sprintf "Renamed %s to %s" oldName model.CommandText
-        with | ex -> model.SetErrorStatus (sprintf "Could not rename %s: %s" oldName ex.Message)
+            model.Status <- sprintf "Renamed %s to: %s" oldName model.CommandText
+        with | ex -> model.SetExceptionStatus ex (sprintf "rename %s" oldName)
 
     member this.OpenExplorer (model: MainModel) =
         if model.Path <> fileSys.Root then

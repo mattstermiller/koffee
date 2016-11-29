@@ -17,9 +17,11 @@ type IFileSystemService =
     abstract Normalize: Path -> Path
     abstract Parent: Path -> Path
     abstract GetNodes: Path -> Node list
+    abstract CreateFile: Path -> string -> unit
+    abstract CreateFolder: Path -> string -> unit
+    abstract Rename: Node -> string -> unit
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
-    abstract Rename: Node -> string -> unit
 
 type FileSystemService() =
     let (|WinPath|_|) path =
@@ -40,9 +42,11 @@ type FileSystemService() =
         override this.Parent path = this.Parent path
         override this.Normalize path = this.Normalize path
         override this.GetNodes path = this.GetNodes path
+        override this.CreateFile path fileName = this.CreateFile path fileName
+        override this.CreateFolder path folderName = this.CreateFolder path folderName
+        override this.Rename node newName = this.Rename node newName
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
-        override this.Rename node newName = this.Rename node newName
 
     member val PathFormat = Windows with get, set
 
@@ -111,7 +115,35 @@ type FileSystemService() =
                 this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton
             else nodes
 
-    member this.FileNode file = {
+    member this.CreateFile path fileName =
+        let winPath = this.ToRawPath path
+        let filePath = Path.Combine(winPath, fileName)
+        File.Create(filePath).Dispose()
+
+    member this.CreateFolder path folderName =
+        let winPath = this.ToRawPath path
+        let folderPath = Path.Combine(winPath, folderName)
+        Directory.CreateDirectory(folderPath) |> ignore
+
+    member this.Rename node newName =
+        let path = this.ToRawPath node.Path
+        let getNewPath () = Path.Combine(Path.GetDirectoryName(path), newName)
+        match node.Type with
+            | File -> File.Move(path, getNewPath())
+            | Folder -> Directory.Move(path, getNewPath())
+            | _ -> ()
+
+    member this.OpenFile path =
+        let winPath = this.ToRawPath path
+        Process.Start(winPath) |> ignore
+
+    member this.OpenExplorer path =
+        if path <> this.Root then
+            let winPath = this.ToRawPath path
+            Process.Start("explorer.exe", String.Format("/select,\"{0}\"", winPath)) |> ignore
+
+
+    member private this.FileNode file = {
         Path = this.ToFormattedPath file.FullName
         Name = file.Name
         Type = NodeType.File
@@ -119,7 +151,7 @@ type FileSystemService() =
         Size = Some file.Length
     }
 
-    member this.FolderNode path = {
+    member private this.FolderNode path = {
         Path = this.ToFormattedPath path
         Name = Path.GetFileName path
         Type = NodeType.Folder
@@ -127,7 +159,7 @@ type FileSystemService() =
         Size = None
     }
 
-    member this.DriveNode drive =
+    member private this.DriveNode drive =
         let name = drive.Name.TrimEnd('\\')
         let driveType =
             match drive.DriveType with
@@ -146,7 +178,7 @@ type FileSystemService() =
             Size = if drive.IsReady then Some drive.TotalSize else None
         }
 
-    member this.ErrorNode ex path =
+    member private this.ErrorNode ex path =
         let error = ex.Message.Split('\r', '\n').[0]
         {
             Path = path
@@ -155,20 +187,3 @@ type FileSystemService() =
             Modified = None
             Size = None
         }
-
-    member this.OpenFile path =
-        let winPath = this.ToRawPath path
-        Process.Start(winPath) |> ignore
-
-    member this.OpenExplorer path =
-        if path <> this.Root then
-            let winPath = this.ToRawPath path
-            Process.Start("explorer.exe", String.Format("/select,\"{0}\"", winPath)) |> ignore
-
-    member this.Rename node newName =
-        let path = this.ToRawPath node.Path
-        let getNewPath () = Path.Combine(Path.GetDirectoryName(path), newName)
-        match node.Type with
-            | File -> File.Move(path, getNewPath())
-            | Folder -> Directory.Move(path, getNewPath())
-            | _ -> ()

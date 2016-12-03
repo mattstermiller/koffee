@@ -135,7 +135,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.Find char (model: MainModel) =
         model.LastFind <- Some char
-        model.Status <- "Find " + char.ToString()
+        model.Status <- sprintf "Find %O" char
         this.MoveCursorToNext (fun n -> n.Name.[0] = char) false model
 
     member this.FindNext (model: MainModel) =
@@ -188,7 +188,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Unix -> Windows
         fileSys.Format <- newFormat
         this.OpenPath model.Path model.Cursor model
-        model.Status <- "Changed Path Format to " + newFormat.ToString()
+        model.Status <- sprintf "Changed Path Format to %O" newFormat
 
     member this.OpenSettings (model: MainModel) =
         let settings = settingsFactory()

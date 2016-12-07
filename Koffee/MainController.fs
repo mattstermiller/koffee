@@ -4,16 +4,6 @@ open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 
 type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
-    let setCommandSelection cursorPos (model: MainModel) =
-        let nameLen =
-            match model.CommandText.LastIndexOf('.') with
-            | -1 -> model.CommandText.Length
-            | index -> index
-        match cursorPos with
-            | Begin -> model.CommandTextSelection <- (0, 0)
-            | End  -> model.CommandTextSelection <- (nameLen, 0)
-            | Replace -> model.CommandTextSelection <- (0, nameLen)
-
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
             model.Path <- fileSys.Root
@@ -60,8 +50,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
             |> Seq.tryHead
         match firstMatch with
-        | Some index -> this.SetCursor index model
-        | None -> ()
+            | Some index -> this.SetCursor index model
+            | None -> ()
 
     member this.OpenPath path cursor (model: MainModel) =
         try
@@ -85,11 +75,10 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.Status <- "Opened File: " + path.Value
 
     member this.ParentPath (model: MainModel) =
-        let path = model.Path
+        let oldPath = model.Path
         this.OpenPath (fileSys.Parent model.Path) 0 model
-        let index = model.Nodes |> Seq.tryFindIndex (fun n -> n.Path = path)
-        match index with
-            | Some i -> model.Cursor <- i
+        match model.Nodes |> Seq.tryFindIndex (fun n -> n.Path = oldPath) with
+            | Some index -> model.Cursor <- index
             | None -> ()
 
     member this.Back (model: MainModel) =
@@ -114,7 +103,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             match inputMode with
                 | Rename pos ->
                     model.CommandText <- model.SelectedNode.Name
-                    setCommandSelection pos model
+                    this.SetCommandSelection pos model
                 | _ ->
                     model.CommandText <- ""
 
@@ -159,21 +148,23 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.CreateFolder (model: MainModel) =
         this.CreateItem fileSys.CreateFolder "folder" model
 
-    member this.CreateItem action itemName (model: MainModel) =
+    member private this.CreateItem action itemType (model: MainModel) =
+        let name = model.CommandText
         try
-            action model.Path model.CommandText
+            action model.Path name
             model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- List.findIndex (fun n -> n.Name = model.CommandText) model.Nodes
-            model.Status <- sprintf "Created %s: %s" itemName model.CommandText
-        with | ex -> model.SetExceptionStatus ex (sprintf "create %s %s" itemName model.CommandText)
+            model.Cursor <- List.findIndex (fun n -> n.Name = name) model.Nodes
+            model.Status <- sprintf "Created %s: %s" itemType name
+        with | ex -> model.SetExceptionStatus ex (sprintf "create %s %s" itemType name)
 
     member this.Rename (model: MainModel) =
         let oldName = model.SelectedNode.Name
+        let newName = model.CommandText
         try
-            fileSys.Rename model.SelectedNode model.CommandText
+            fileSys.Rename model.SelectedNode newName
             model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- List.findIndex (fun n -> n.Name = model.CommandText) model.Nodes
-            model.Status <- sprintf "Renamed %s to: %s" oldName model.CommandText
+            model.Cursor <- List.findIndex (fun n -> n.Name = newName) model.Nodes
+            model.Status <- sprintf "Renamed %s to: %s" oldName newName
         with | ex -> model.SetExceptionStatus ex (sprintf "rename %s" oldName)
 
     member this.OpenExplorer (model: MainModel) =
@@ -193,3 +184,14 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.OpenSettings (model: MainModel) =
         let settings = settingsFactory()
         settings.StartDialog() |> ignore
+
+
+    member private this.SetCommandSelection cursorPos (model: MainModel) =
+        let nameLen =
+            match model.CommandText.LastIndexOf('.') with
+            | -1 -> model.CommandText.Length
+            | index -> index
+        match cursorPos with
+            | Begin -> model.CommandTextSelection <- (0, 0)
+            | End  -> model.CommandTextSelection <- (nameLen, 0)
+            | Replace -> model.CommandTextSelection <- (0, nameLen)

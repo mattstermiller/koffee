@@ -55,8 +55,9 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="ValueConverterTests.fs" />
     <Compile Include="KeyComboParserTests.fs" />
-    <Compile Include="MainControllerTests_FindSearch.fs" />
+    <Compile Include="MainControllerTests_OpenPath.fs" />
     <Compile Include="MainControllerTests_BackForward.fs" />
+    <Compile Include="MainControllerTests_FindSearch.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">

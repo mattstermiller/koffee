@@ -73,6 +73,8 @@ type MainModel() as this =
 
     do
         this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
+        this.BackStack <- []
+        this.ForwardStack <- []
 
     abstract Path: Path with get, set
     abstract Status: string with get, set

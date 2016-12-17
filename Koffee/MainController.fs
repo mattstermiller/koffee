@@ -8,8 +8,6 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         member this.InitModel model =
             model.Path <- fileSys.Root
             model.Nodes <- fileSys.GetNodes model.Path
-            model.BackStack <- []
-            model.ForwardStack <- []
 
         member this.Dispatcher = this.Dispatcher
 
@@ -97,8 +95,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.ExecuteCommand model =
         match model.CommandInputMode with
             | Some Search -> this.Search model.CommandText false model
-            | Some CreateFile -> this.CreateFile model
-            | Some CreateFolder -> this.CreateFolder model
+            | Some CreateFile -> this.Create File model
+            | Some CreateFolder -> this.Create Folder model
             | Some (Rename _) -> this.Rename model
             | Some Find -> () // find is executed by typing a char
             | None -> ()
@@ -145,26 +143,21 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Some index -> this.SetCursor index model
             | None -> ()
 
-    member this.CreateFile model =
-        this.CreateItem fileSys.CreateFile "file" model
-
-    member this.CreateFolder model =
-        this.CreateItem fileSys.CreateFolder "folder" model
-
-    member private this.CreateItem action itemType model =
+    member private this.Create nodeType model =
         let name = model.CommandText
         try
-            action model.Path name
+            fileSys.Create nodeType model.Path name
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- List.findIndex (fun n -> n.Name = name) model.Nodes
-            model.Status <- sprintf "Created %s: %s" itemType name
-        with | ex -> model.SetExceptionStatus ex (sprintf "create %s %s" itemType name)
+            model.Status <- sprintf "Created %A: %s" nodeType name
+        with | ex -> model.SetExceptionStatus ex (sprintf "create %A %s" nodeType name)
 
     member this.Rename model =
-        let oldName = model.SelectedNode.Name
+        let node = model.SelectedNode
+        let oldName = node.Name
         let newName = model.CommandText
         try
-            fileSys.Rename model.SelectedNode newName
+            fileSys.Rename node.Type node.Path newName
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- List.findIndex (fun n -> n.Name = newName) model.Nodes
             model.Status <- sprintf "Renamed %s to: %s" oldName newName

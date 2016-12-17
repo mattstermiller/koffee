@@ -32,8 +32,8 @@ type ``MainController tests for creating and renaming files and folders``() =
         model
 
     let AssertModelDidNotChangeNavHistory (model: MainModel) =
-        model.BackStack |> should equal [Path "back", 8]
-        model.ForwardStack |> should equal [Path "fwd", 9]
+        model.BackStack |> shouldEqual [Path "back", 8]
+        model.ForwardStack |> shouldEqual [Path "fwd", 9]
 
     let CreateFileSys () =
         Mock<IFileSystemService>()
@@ -44,7 +44,7 @@ type ``MainController tests for creating and renaming files and folders``() =
         let path = Path "path"
         Mock<IFileSystemService>()
             .Setup(fun x -> <@ x.GetNodes path @>).Returns(newNodes)
-            .Setup(fun x -> <@ x.CreateFolder path (any()) @>).Raises<UnauthorizedAccessException>()
+            .Setup(fun x -> <@ x.Create (any()) path (any()) @>).Raises<UnauthorizedAccessException>()
             .Setup(fun x -> <@ x.Rename (any()) (any()) @>).Raises<UnauthorizedAccessException>()
             .Create()
 
@@ -61,13 +61,13 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.Cursor <- model.Nodes.Length - 1
         contr.StartInput (Rename cursorPosition) model
 
-        model.CommandInputMode |> should equal (Some (Rename cursorPosition))
-        model.CommandText |> should equal node.Name
+        model.CommandInputMode |> shouldEqual (Some (Rename cursorPosition))
+        model.CommandText |> shouldEqual node.Name
         model.CommandTextSelection
 
 
     [<Test>]
-    member x.``Create folder calls fileSys.CreateFolder, reloads nodes and sets cursor``() =
+    member x.``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
         let fileSys = CreateFileSys()
         let contr = CreateController fileSys
         let model = CreateModel()
@@ -75,12 +75,13 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText <- "new two"
         contr.ExecuteCommand model
 
-        let path = (Path "path")
-        verify <@ fileSys.CreateFolder path "new two" @> once
-        model.CommandInputMode |> should equal None
-        model.Nodes |> should equal newNodes
-        model.Cursor |> should equal 1
-        model.Status |> should equal "Created folder: new two"
+        let nodeType = Folder
+        let path = model.Path
+        verify <@ fileSys.Create nodeType path "new two" @> once
+        model.CommandInputMode |> shouldEqual None
+        model.Nodes |> shouldEqual newNodes
+        model.Cursor |> shouldEqual 1
+        model.Status |> shouldEqual "Created Folder: new two"
         AssertModelDidNotChangeNavHistory model
 
     [<Test>]
@@ -92,11 +93,11 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText <- "new two"
         contr.ExecuteCommand model
 
-        model.CommandInputMode |> should equal None
-        model.Nodes |> should equal oldNodes
-        model.Cursor |> should equal 0
-        model.Status |> should startWith "Could not create folder new two"
-        model.IsErrorStatus |> should equal true
+        model.CommandInputMode |> shouldEqual None
+        model.Nodes |> shouldEqual oldNodes
+        model.Cursor |> shouldEqual 0
+        model.Status |> should startWith "Could not create Folder new two"
+        model.IsErrorStatus |> shouldEqual true
         AssertModelDidNotChangeNavHistory model
 
     [<Test>]
@@ -109,12 +110,13 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText <- "new two"
         contr.ExecuteCommand model
 
-        let node = oldNodes.[1]
-        verify <@ fileSys.Rename node "new two" @> once
-        model.CommandInputMode |> should equal None
-        model.Nodes |> should equal newNodes
-        model.Cursor |> should equal 1
-        model.Status |> should equal "Renamed two to: new two"
+        let nodeType = Folder
+        let path = oldNodes.[1].Path
+        verify <@ fileSys.Rename nodeType path "new two" @> once
+        model.CommandInputMode |> shouldEqual None
+        model.Nodes |> shouldEqual newNodes
+        model.Cursor |> shouldEqual 1
+        model.Status |> shouldEqual "Renamed two to: new two"
         AssertModelDidNotChangeNavHistory model
 
     [<Test>]
@@ -127,21 +129,21 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText <- "new two"
         contr.ExecuteCommand model
 
-        model.CommandInputMode |> should equal None
-        model.Nodes |> should equal oldNodes
-        model.Cursor |> should equal 1
+        model.CommandInputMode |> shouldEqual None
+        model.Nodes |> shouldEqual oldNodes
+        model.Cursor |> shouldEqual 1
         model.Status |> should startWith "Could not rename two"
-        model.IsErrorStatus |> should equal true
+        model.IsErrorStatus |> shouldEqual true
         AssertModelDidNotChangeNavHistory model
 
     [<Test>]
     member x.``StartInput for rename at beginning sets command text and selection``() =
-        startRenameTextSelection Begin "three.txt.old" |> should equal (0, 0)
+        startRenameTextSelection Begin "three.txt.old" |> shouldEqual (0, 0)
 
     [<Test>]
     member x.``StartInput for rename at end sets command text and selection``() =
-        startRenameTextSelection End "three.txt.old" |> should equal (9, 0)
+        startRenameTextSelection End "three.txt.old" |> shouldEqual (9, 0)
 
     [<Test>]
     member x.``StartInput for rename replace sets command text and selection``() =
-        startRenameTextSelection Replace "three.txt.old" |> should equal (0, 9)
+        startRenameTextSelection Replace "three.txt.old" |> shouldEqual (0, 9)

@@ -17,9 +17,8 @@ type IFileSystemService =
     abstract Normalize: Path -> Path
     abstract Parent: Path -> Path
     abstract GetNodes: Path -> Node list
-    abstract CreateFile: Path -> string -> unit
-    abstract CreateFolder: Path -> string -> unit
-    abstract Rename: Node -> string -> unit
+    abstract Create: NodeType -> Path -> string -> unit
+    abstract Rename: NodeType -> Path -> string -> unit
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
 
@@ -42,9 +41,8 @@ type FileSystemService() =
         override this.Parent path = this.Parent path
         override this.Normalize path = this.Normalize path
         override this.GetNodes path = this.GetNodes path
-        override this.CreateFile path fileName = this.CreateFile path fileName
-        override this.CreateFolder path folderName = this.CreateFolder path folderName
-        override this.Rename node newName = this.Rename node newName
+        override this.Create nodeType path name = this.Create nodeType path name
+        override this.Rename nodeType path newName = this.Rename nodeType path newName
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
 
@@ -115,23 +113,21 @@ type FileSystemService() =
                 this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton
             else nodes
 
-    member this.CreateFile path fileName =
+    member this.Create nodeType path fileName =
         let winPath = this.ToRawPath path
-        let filePath = Path.Combine(winPath, fileName)
-        File.Create(filePath).Dispose()
+        let newPath = Path.Combine(winPath, fileName)
+        match nodeType with
+            | File -> File.Create(newPath).Dispose()
+            | Folder -> Directory.CreateDirectory(newPath) |> ignore
+            | _ -> failwith (sprintf "Cannot create node type %A" nodeType)
 
-    member this.CreateFolder path folderName =
-        let winPath = this.ToRawPath path
-        let folderPath = Path.Combine(winPath, folderName)
-        Directory.CreateDirectory(folderPath) |> ignore
-
-    member this.Rename node newName =
-        let path = this.ToRawPath node.Path
-        let getNewPath () = Path.Combine(Path.GetDirectoryName(path), newName)
-        match node.Type with
-            | File -> File.Move(path, getNewPath())
-            | Folder -> Directory.Move(path, getNewPath())
-            | _ -> ()
+    member this.Rename nodeType path newName =
+        let rawPath = this.ToRawPath path
+        let newPath = Path.Combine(Path.GetDirectoryName(rawPath), newName)
+        match nodeType with
+            | File -> File.Move(rawPath, newPath)
+            | Folder -> Directory.Move(rawPath, newPath)
+            | _ -> failwith (sprintf "Cannot rename node type %A" nodeType)
 
     member this.OpenFile path =
         let winPath = this.ToRawPath path

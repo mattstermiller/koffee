@@ -57,7 +57,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             this.OpenPath path 0 model
         | File ->
             fileSys.OpenFile path
-            model.Status <- "Opened File: " + path.Value
+            model.Status <- MainController.OpenFileStatus path
 
     member this.ParentPath model =
         let oldPath = model.Path
@@ -109,7 +109,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.Find char model =
         model.LastFind <- Some char
-        model.Status <- sprintf "Find %O" char
+        model.Status <- MainController.FindStatus char
         this.MoveCursorToNext (fun n -> n.Name.[0] = char) false model
 
     member this.FindNext model =
@@ -119,7 +119,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.Search searchStr reverse model =
         model.LastSearch <- Some searchStr
-        model.Status <- sprintf "Search \"%s\"" searchStr
+        model.Status <- MainController.SearchStatus searchStr
         this.MoveCursorToNext (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) reverse model
 
     member this.SearchNext reverse model =
@@ -149,7 +149,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             fileSys.Create nodeType model.Path name
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- List.findIndex (fun n -> n.Name = name) model.Nodes
-            model.Status <- sprintf "Created %A: %s" nodeType name
+            model.Status <- MainController.CreateItemStatus nodeType name
         with | ex -> model.SetExceptionStatus ex (sprintf "create %A %s" nodeType name)
 
     member this.Rename model =
@@ -160,13 +160,13 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             fileSys.Rename node.Type node.Path newName
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- List.findIndex (fun n -> n.Name = newName) model.Nodes
-            model.Status <- sprintf "Renamed %s to: %s" oldName newName
+            model.Status <- MainController.RenameStatus oldName newName
         with | ex -> model.SetExceptionStatus ex (sprintf "rename %s" oldName)
 
     member this.OpenExplorer model =
         if model.Path <> fileSys.Root then
             model.SelectedNode.Path |> fileSys.OpenExplorer
-            model.Status <- "Opened Windows Explorer to: " + model.Path.Value
+            model.Status <- MainController.OpenExplorerStatus model.Path
 
     member this.TogglePathFormat model =
         let newFormat =
@@ -175,7 +175,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Unix -> Windows
         fileSys.Format <- newFormat
         this.OpenPath model.Path model.Cursor model
-        model.Status <- sprintf "Changed Path Format to %O" newFormat
+        model.Status <- MainController.ChangePathFormatStatus newFormat
 
     member this.OpenSettings model =
         let settings = settingsFactory()
@@ -191,3 +191,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Begin -> model.CommandTextSelection <- (0, 0)
             | End  -> model.CommandTextSelection <- (nameLen, 0)
             | Replace -> model.CommandTextSelection <- (0, nameLen)
+
+    static member OpenFileStatus path = sprintf "Opened File: %s" path.Value
+    static member FindStatus char = sprintf "Find %O" char
+    static member SearchStatus searchStr = sprintf "Search \"%s\"" searchStr
+    static member CreateItemStatus nodeType name = sprintf "Created %A: %s" nodeType name
+    static member RenameStatus oldName newName = sprintf "Renamed %s to: %s" oldName newName
+    static member OpenExplorerStatus path = sprintf "Opened Windows Explorer to: %s" path.Value
+    static member ChangePathFormatStatus newFormat = sprintf "Changed Path Format to %O" newFormat

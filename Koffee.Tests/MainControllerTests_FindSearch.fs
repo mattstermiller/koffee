@@ -3,7 +3,7 @@
 open System.Windows.Input
 open FSharp.Desktop.UI
 open NUnit.Framework
-open FsUnit
+open FsUnitTyped
 open Foq
 open Koffee
 
@@ -37,9 +37,9 @@ type ``MainController tests for Find and Search``() =
         let contr = CreateController()
         contr.CommandCharTyped char model
 
-        model.CommandInputMode |> should equal None
-        model.LastFind |> should equal (Some char)
-        model.Status |> should equal ("Find " + (char.ToString()))
+        model.CommandInputMode |> shouldEqual None
+        model.LastFind |> shouldEqual (Some char)
+        model.Status |> shouldEqual (MainController.FindStatus char)
         model.Cursor
 
     let Search searchStr cursorStart =
@@ -49,9 +49,9 @@ type ``MainController tests for Find and Search``() =
         let contr = CreateController()
         contr.ExecuteCommand model
 
-        model.CommandInputMode |> should equal None
-        model.LastSearch |> should equal (Some searchStr)
-        model.Status |> should equal (sprintf "Search \"%s\"" searchStr)
+        model.CommandInputMode |> shouldEqual None
+        model.LastSearch |> shouldEqual (Some searchStr)
+        model.Status |> shouldEqual (MainController.SearchStatus searchStr)
         model.Cursor
 
     let SearchPrevious searchStr cursorStart =
@@ -61,57 +61,57 @@ type ``MainController tests for Find and Search``() =
         let contr = CreateController()
         contr.SearchNext true model
 
-        model.CommandInputMode |> should equal None
-        model.LastSearch |> should equal (Some searchStr)
-        model.Status |> should equal (sprintf "Search \"%s\"" searchStr)
+        model.CommandInputMode |> shouldEqual None
+        model.LastSearch |> shouldEqual (Some searchStr)
+        model.Status |> shouldEqual (MainController.SearchStatus searchStr)
         model.Cursor
 
     [<Test>]
     member x.``Find a char that matches nothing should not change the cursor``() =
-        Find 'A' 1 |> should equal 1
+        Find 'A' 1 |> shouldEqual 1
 
     [<Test>]
     member x.``Find a char that matches only the current node should not change the cursor``() =
-        Find 'b' 1 |> should equal 1
+        Find 'b' 1 |> shouldEqual 1
 
     [<Test>]
     member x.``Find a char that matches the current and next node should set the cursor to the next index``() =
-        Find 'c' 2 |> should equal 3
+        Find 'c' 2 |> shouldEqual 3
 
     [<Test>]
     member x.``Find a char that matches a node wrapping around should set the cursor to the that index``() =
-        Find 'b' 2 |> should equal 1
+        Find 'b' 2 |> shouldEqual 1
 
 
     [<Test>]
     member x.``Search that matches nothing should not change the cursor``() =
-        Search "abc" 1 |> should equal 1
+        Search "abc" 1 |> shouldEqual 1
 
     [<Test>]
     member x.``Search that matches only the current node should not change the cursor``() =
-        Search "ob" 1 |> should equal 1
+        Search "ob" 1 |> shouldEqual 1
 
     [<Test>]
     member x.``Search that matches the current and next node should set the cursor to the next index``() =
-        Search "a" 2 |> should equal 3
+        Search "a" 2 |> shouldEqual 3
 
     [<Test>]
     member x.``Search that matches a node wrapping around should set the cursor to the that index``() =
-        Search "ob" 2 |> should equal 1
+        Search "ob" 2 |> shouldEqual 1
 
 
     [<Test>]
     member x.``Search previous that matches nothing should not change the cursor``() =
-        SearchPrevious "abc" 1 |> should equal 1
+        SearchPrevious "abc" 1 |> shouldEqual 1
 
     [<Test>]
     member x.``Search previous that matches only the current node should not change the cursor``() =
-        SearchPrevious "ob" 1 |> should equal 1
+        SearchPrevious "ob" 1 |> shouldEqual 1
 
     [<Test>]
     member x.``Search previous that matches the current and previous node should set the cursor to the next index``() =
-        SearchPrevious "a" 3 |> should equal 2
+        SearchPrevious "a" 3 |> shouldEqual 2
 
     [<Test>]
     member x.``Search previous that matches a node wrapping around should set the cursor to the that index``() =
-        SearchPrevious "rys" 2 |> should equal 3
+        SearchPrevious "rys" 2 |> shouldEqual 3

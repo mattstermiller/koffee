@@ -3,7 +3,7 @@
 open System.Windows.Input
 open FSharp.Desktop.UI
 open NUnit.Framework
-open FsUnit
+open FsUnitTyped
 open Foq
 open Koffee
 
@@ -35,53 +35,53 @@ type ``MainController tests for Back and Forward``() =
     [<Test>]
     member x.``Back without history does nothing``() =
         let model = Back "c:" 1 [] []
-        model.Path |> should equal (Path "c:")
-        model.Cursor |> should equal 1
-        model.BackStack |> should equal []
-        model.ForwardStack |> should equal []
-        model.Status |> should equal "previous status"
+        model.Path |> shouldEqual (Path "c:")
+        model.Cursor |> shouldEqual 1
+        model.BackStack |> shouldEqual []
+        model.ForwardStack |> shouldEqual []
+        model.Status |> shouldEqual "previous status"
 
     [<Test>]
     member x.``Back with simple history changes path and stacks``() =
         let model = Back "orig" 1 ["back", 2] []
-        model.Path |> should equal (Path "back")
-        model.Cursor |> should equal 2
-        model.BackStack |> should equal []
-        model.ForwardStack |> should equal [Path "orig", 1]
-        model.Status |> should equal ""
+        model.Path |> shouldEqual (Path "back")
+        model.Cursor |> shouldEqual 2
+        model.BackStack |> shouldEqual []
+        model.ForwardStack |> shouldEqual [Path "orig", 1]
+        model.Status |> shouldEqual ""
 
     [<Test>]
     member x.``Back with more history changes path and stacks``() =
         let model = Back "orig" 1 ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
-        model.Path |> should equal (Path "back1")
-        model.Cursor |> should equal 2
-        model.BackStack |> should equal [Path "back2", 3]
-        model.ForwardStack |> should equal [Path "orig", 1; Path "fwd1", 4; Path "fwd2", 5]
-        model.Status |> should equal ""
+        model.Path |> shouldEqual (Path "back1")
+        model.Cursor |> shouldEqual 2
+        model.BackStack |> shouldEqual [Path "back2", 3]
+        model.ForwardStack |> shouldEqual [Path "orig", 1; Path "fwd1", 4; Path "fwd2", 5]
+        model.Status |> shouldEqual ""
 
     [<Test>]
     member x.``Forward without history does nothing``() =
         let model = Forward "c:" 1 [] []
-        model.Path |> should equal (Path "c:")
-        model.Cursor |> should equal 1
-        model.BackStack |> should equal []
-        model.ForwardStack |> should equal []
-        model.Status |> should equal "previous status"
+        model.Path |> shouldEqual (Path "c:")
+        model.Cursor |> shouldEqual 1
+        model.BackStack |> shouldEqual []
+        model.ForwardStack |> shouldEqual []
+        model.Status |> shouldEqual "previous status"
 
     [<Test>]
     member x.``Forward with simple history changes path and stacks``() =
         let model = Forward "orig" 1 [] ["fwd", 2]
-        model.Path |> should equal (Path "fwd")
-        model.Cursor |> should equal 2
-        model.BackStack |> should equal [Path "orig", 1]
-        model.ForwardStack |> should equal []
-        model.Status |> should equal ""
+        model.Path |> shouldEqual (Path "fwd")
+        model.Cursor |> shouldEqual 2
+        model.BackStack |> shouldEqual [Path "orig", 1]
+        model.ForwardStack |> shouldEqual []
+        model.Status |> shouldEqual ""
 
     [<Test>]
     member x.``Forward with more history changes path and stacks``() =
         let model = Forward "orig" 1 ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
-        model.Path |> should equal (Path "fwd1")
-        model.Cursor |> should equal 4
-        model.BackStack |> should equal [Path "orig", 1; Path "back1", 2; Path "back2", 3]
-        model.ForwardStack |> should equal [Path "fwd2", 5]
-        model.Status |> should equal ""
+        model.Path |> shouldEqual (Path "fwd1")
+        model.Cursor |> shouldEqual 4
+        model.BackStack |> shouldEqual [Path "orig", 1; Path "back1", 2; Path "back2", 3]
+        model.ForwardStack |> shouldEqual [Path "fwd2", 5]
+        model.Status |> shouldEqual ""

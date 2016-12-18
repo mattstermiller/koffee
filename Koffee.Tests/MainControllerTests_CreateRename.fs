@@ -81,7 +81,7 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandInputMode |> shouldEqual None
         model.Nodes |> shouldEqual newNodes
         model.Cursor |> shouldEqual 1
-        model.Status |> shouldEqual "Created Folder: new two"
+        model.Status |> shouldEqual (MainController.CreateItemStatus Folder "new two")
         AssertModelDidNotChangeNavHistory model
 
     [<Test>]
@@ -116,7 +116,7 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandInputMode |> shouldEqual None
         model.Nodes |> shouldEqual newNodes
         model.Cursor |> shouldEqual 1
-        model.Status |> shouldEqual "Renamed two to: new two"
+        model.Status |> shouldEqual (MainController.RenameStatus "two" "new two")
         AssertModelDidNotChangeNavHistory model
 
     [<Test>]

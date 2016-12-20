@@ -53,11 +53,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.SelectedPath model =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
-        | Folder | Drive | Error ->
-            this.OpenPath path 0 model
-        | File ->
-            fileSys.OpenFile path
-            model.Status <- MainController.OpenFileStatus path
+            | Folder | Drive | Error ->
+                this.OpenPath path 0 model
+            | File ->
+                fileSys.OpenFile path
+                model.Status <- MainController.OpenFileStatus path
 
     member this.ParentPath model =
         let oldPath = model.Path
@@ -84,13 +84,13 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.StartInput inputMode model =
         if inputMode.AllowedOnNodeType model.SelectedNode.Type then
+            let text, pos =
+                match inputMode with
+                    | Rename pos -> model.SelectedNode.Name, (Some pos)
+                    | _ -> "", None
             model.CommandInputMode <- Some inputMode
-            match inputMode with
-                | Rename pos ->
-                    model.CommandText <- model.SelectedNode.Name
-                    this.SetCommandSelection pos model
-                | _ ->
-                    model.CommandText <- ""
+            model.CommandText <- text
+            this.SetCommandSelection pos model
 
     member this.ExecuteCommand model =
         match model.CommandInputMode with
@@ -183,14 +183,18 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
 
     member private this.SetCommandSelection cursorPos model =
-        let nameLen =
-            match model.CommandText.LastIndexOf('.') with
-            | -1 -> model.CommandText.Length
-            | index -> index
         match cursorPos with
-            | Begin -> model.CommandTextSelection <- (0, 0)
-            | End  -> model.CommandTextSelection <- (nameLen, 0)
-            | Replace -> model.CommandTextSelection <- (0, nameLen)
+        | Some pos ->
+            let nameLen =
+                match model.CommandText.LastIndexOf('.') with
+                | -1 -> model.CommandText.Length
+                | index -> index
+            model.CommandTextSelection <- 
+                match pos with
+                | Begin -> (0, 0)
+                | End  -> (nameLen, 0)
+                | Replace -> (0, nameLen)
+        | None -> ()
 
     static member OpenFileStatus path = sprintf "Opened File: %s" path.Value
     static member FindStatus char = sprintf "Find %O" char

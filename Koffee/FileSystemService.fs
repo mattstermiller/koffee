@@ -105,9 +105,9 @@ type FileSystemService() =
         if path = this.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
         else
-            let wp = this.ToRawPath path
-            let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
-            let files = Directory.EnumerateFiles wp |> Seq.map FileInfo |> Seq.map this.FileNode
+            let winPath = this.ToRawPath path
+            let folders = Directory.EnumerateDirectories winPath |> Seq.map this.FolderNode
+            let files = DirectoryInfo(winPath).GetFiles() |> Seq.map this.FileNode
             let nodes = Seq.append folders files |> Seq.toList
             if nodes.IsEmpty then
                 this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton

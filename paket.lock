@@ -3,6 +3,7 @@ FRAMEWORK: >= NET451
 NUGET
   remote: http://api.nuget.org/v3/index.json
     Castle.Core (3.3.3)
+    CompareNETObjects (3.6)
     Foq (1.7.1) - content: none
     FSharp.Core (4.0.0.1)
     FSharp.Desktop.UI (0.7.1)

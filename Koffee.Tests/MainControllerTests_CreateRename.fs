@@ -4,10 +4,11 @@ open System
 open System.Windows.Input
 open FSharp.Desktop.UI
 open NUnit.Framework
-open FsUnit
 open FsUnitTyped
 open Foq
+open KellermanSoftware.CompareNetObjects
 open Koffee
+open Testing
 
 [<TestFixture>]
 type ``MainController tests for creating and renaming files and folders``() =
@@ -26,14 +27,11 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.Path <- Path "path"
         model.Nodes <- oldNodes
         model.Cursor <- 0
+        model.CommandText <- ""
         model.CommandTextSelection <- (1, 1)
         model.BackStack <- [Path "back", 8]
         model.ForwardStack <- [Path "fwd", 9]
         model
-
-    let AssertModelDidNotChangeNavHistory (model: MainModel) =
-        model.BackStack |> shouldEqual [Path "back", 8]
-        model.ForwardStack |> shouldEqual [Path "fwd", 9]
 
     let CreateFileSys () =
         Mock<IFileSystemService>()
@@ -52,7 +50,7 @@ type ``MainController tests for creating and renaming files and folders``() =
         let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
         MainController(fileSys, settingsFactory)
 
-    let startRenameTextSelection cursorPosition fileName =
+    let RenameTextSelection cursorPosition fileName =
         let fileSys = CreateFileSys()
         let contr = CreateController fileSys
         let model = CreateModel()
@@ -65,6 +63,8 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText |> shouldEqual node.Name
         model.CommandTextSelection
 
+    let Comparer () =
+        CompareLogic() |> ignoreMembers ["CommandText"]
 
     [<Test>]
     member x.``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
@@ -78,11 +78,11 @@ type ``MainController tests for creating and renaming files and folders``() =
         let nodeType = Folder
         let path = model.Path
         verify <@ fileSys.Create nodeType path "new two" @> once
-        model.CommandInputMode |> shouldEqual None
-        model.Nodes |> shouldEqual newNodes
-        model.Cursor |> shouldEqual 1
-        model.Status |> shouldEqual (MainController.CreateItemStatus Folder "new two")
-        AssertModelDidNotChangeNavHistory model
+        let expected = CreateModel()
+        expected.Nodes <- newNodes
+        expected.Cursor <- 1
+        expected.Status <- MainController.CreateItemStatus Folder "new two"
+        Comparer() |> assertAreEqualWith expected model
 
     [<Test>]
     member x.``Create folder handles error by setting error status``() =
@@ -93,12 +93,11 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText <- "new two"
         contr.ExecuteCommand model
 
-        model.CommandInputMode |> shouldEqual None
-        model.Nodes |> shouldEqual oldNodes
-        model.Cursor |> shouldEqual 0
-        model.Status |> should startWith "Could not create Folder new two"
-        model.IsErrorStatus |> shouldEqual true
-        AssertModelDidNotChangeNavHistory model
+        let expected = CreateModel()
+        expected.IsErrorStatus <- true
+        Comparer()
+            |> ignoreMembers ["Status"]
+            |> assertAreEqualWith expected model
 
     [<Test>]
     member x.``Rename calls fileSys.Rename, reloads nodes and sets cursor``() =
@@ -113,11 +112,11 @@ type ``MainController tests for creating and renaming files and folders``() =
         let nodeType = Folder
         let path = oldNodes.[1].Path
         verify <@ fileSys.Rename nodeType path "new two" @> once
-        model.CommandInputMode |> shouldEqual None
-        model.Nodes |> shouldEqual newNodes
-        model.Cursor |> shouldEqual 1
-        model.Status |> shouldEqual (MainController.RenameStatus "two" "new two")
-        AssertModelDidNotChangeNavHistory model
+        let expected = CreateModel()
+        expected.Nodes <- newNodes
+        expected.Cursor <- 1
+        expected.Status <- MainController.RenameStatus "two" "new two"
+        Comparer() |> assertAreEqualWith expected model
 
     [<Test>]
     member x.``Rename handles error by setting error status``() =
@@ -129,21 +128,21 @@ type ``MainController tests for creating and renaming files and folders``() =
         model.CommandText <- "new two"
         contr.ExecuteCommand model
 
-        model.CommandInputMode |> shouldEqual None
-        model.Nodes |> shouldEqual oldNodes
-        model.Cursor |> shouldEqual 1
-        model.Status |> should startWith "Could not rename two"
-        model.IsErrorStatus |> shouldEqual true
-        AssertModelDidNotChangeNavHistory model
+        let expected = CreateModel()
+        expected.Cursor <- 1
+        expected.IsErrorStatus <- true
+        Comparer()
+            |> ignoreMembers ["Status"]
+            |> assertAreEqualWith expected model
 
     [<Test>]
     member x.``StartInput for rename at beginning sets command text and selection``() =
-        startRenameTextSelection Begin "three.txt.old" |> shouldEqual (0, 0)
+        RenameTextSelection Begin "three.txt.old" |> shouldEqual (0, 0)
 
     [<Test>]
     member x.``StartInput for rename at end sets command text and selection``() =
-        startRenameTextSelection End "three.txt.old" |> shouldEqual (9, 0)
+        RenameTextSelection End "three.txt.old" |> shouldEqual (9, 0)
 
     [<Test>]
     member x.``StartInput for rename replace sets command text and selection``() =
-        startRenameTextSelection Replace "three.txt.old" |> shouldEqual (0, 9)
+        RenameTextSelection Replace "three.txt.old" |> shouldEqual (0, 9)

@@ -7,28 +7,39 @@ open NUnit.Framework
 open FsUnit
 open FsUnitTyped
 open Foq
+open KellermanSoftware.CompareNetObjects
 open Koffee
+open Testing
 
 [<TestFixture>]
 type ``MainController tests for opening paths``() =
+    let Node path name =
+        {Path = Path path; Name = name; Type = Folder; Modified = None; Size = None}
+
+    let newNodes = [
+        Node "path1" "one"
+        Node "path2" "two"
+    ]
+
     let CreateModel () =
         let model = Model.Create<MainModel>()
-        model.Nodes <- [{Path = Path "old"; Name = "node"; Type = Folder; Modified = None; Size = None}]
-        model.Path <- Path "old path"
+        model.Nodes <- [
+            Node "old/p1" "old one"
+            Node "old/p2" "old two"
+            Node "old/p3" "old three"
+        ]
+        model.Path <- Path "old"
         model.Cursor <- 2
         model.BackStack <- []
         model.ForwardStack <- [Path "fwd", 9]
+        model.Status <- ""
         model
 
     let CreateController () =
-        let nodes = [
-            {Path = Path "path1"; Name = "one"; Type = Folder; Modified = None; Size = None}
-            {Path = Path "path2"; Name = "two"; Type = Folder; Modified = None; Size = None}
-        ]
         let fileSys =
             Mock<IFileSystemService>()
                 .Setup(fun x -> <@ x.Normalize(Path "path") @>).Returns(Path "normalized")
-                .Setup(fun x -> <@ x.GetNodes(Path "normalized") @>).Returns(nodes)
+                .Setup(fun x -> <@ x.GetNodes(Path "normalized") @>).Returns(newNodes)
                 .Setup(fun x -> <@ x.Normalize(Path "bad path") @>).Returns(Path "bad normalized")
                 .Setup(fun x -> <@ x.GetNodes(Path "bad normalized") @>).Raises<UnauthorizedAccessException>()
                 .Create()
@@ -41,13 +52,13 @@ type ``MainController tests for opening paths``() =
         let contr = CreateController()
         contr.OpenPath (Path "path") 1 model
 
-        model.Nodes |> shouldHaveLength 2
-        model.Path |> shouldEqual (Path "normalized")
-        model.Cursor |> shouldEqual 1
-        model.BackStack |> shouldEqual [Path "old path", 2]
-        model.ForwardStack |> shouldEqual []
-        model.Status |> shouldEqual ""
-        model.IsErrorStatus |> shouldEqual false
+        let expected = CreateModel()
+        expected.Nodes <- newNodes
+        expected.Path <- Path "normalized"
+        expected.Cursor <- 1
+        expected.BackStack <- [Path "old", 2]
+        expected.ForwardStack <- []
+        assertAreEqual expected model
 
     [<Test>]
     member x.``Opening a path that throws on GetNodes sets error status only``() =
@@ -55,11 +66,10 @@ type ``MainController tests for opening paths``() =
         let contr = CreateController()
         contr.OpenPath (Path "bad path") 0 model
 
-        model.Nodes.Length |> shouldEqual 1
-        model.Path |> shouldEqual (Path "old path")
-        model.Cursor |> shouldEqual 2
-        model.BackStack |> shouldEqual []
-        model.ForwardStack |> shouldEqual [Path "fwd", 9]
+        let expected = CreateModel()
+        expected.IsErrorStatus <- true
+        CompareLogic()
+            |> ignoreMembers ["Status"]
+            |> assertAreEqualWith expected model
         model.Status |> shouldContainText "Could not open path"
         model.Status |> shouldContainText "unauthorized"
-        model.IsErrorStatus |> shouldEqual true

@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Text.RegularExpressions
 open System.Diagnostics
+open Microsoft.VisualBasic.FileIO
 open Koffee
 
 type PathFormat =
@@ -19,6 +20,8 @@ type IFileSystemService =
     abstract GetNodes: Path -> Node list
     abstract Create: NodeType -> Path -> string -> unit
     abstract Rename: NodeType -> Path -> string -> unit
+    abstract Delete: Node -> unit
+    abstract DeletePermanently: Node -> unit
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
 
@@ -43,6 +46,8 @@ type FileSystemService() =
         override this.GetNodes path = this.GetNodes path
         override this.Create nodeType path name = this.Create nodeType path name
         override this.Rename nodeType path newName = this.Rename nodeType path newName
+        override this.Delete node = this.Delete node
+        override this.DeletePermanently node = this.DeletePermanently node
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
 
@@ -128,6 +133,21 @@ type FileSystemService() =
             | File -> File.Move(rawPath, newPath)
             | Folder -> Directory.Move(rawPath, newPath)
             | _ -> failwith (sprintf "Cannot rename node type %A" nodeType)
+
+    member this.Delete node =
+        let rawPath = this.ToRawPath node.Path
+        match node.Type with
+            | File -> FileSystem.DeleteFile(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+            | Folder -> FileSystem.DeleteDirectory(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+            | _ -> failwith (sprintf "Cannot delete node type %A" node.Type)
+
+    member this.DeletePermanently node =
+        let rawPath = this.ToRawPath node.Path
+        match node.Type with
+            | File -> File.Delete rawPath
+            | Folder -> Directory.Delete rawPath
+            | _ -> failwith (sprintf "Cannot delete node type %A" node.Type)
+
 
     member this.OpenFile path =
         let winPath = this.ToRawPath path

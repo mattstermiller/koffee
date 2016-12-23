@@ -31,9 +31,10 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | FindNext -> Sync this.FindNext
         | SearchNext -> Sync (this.SearchNext false)
         | SearchPrevious -> Sync (this.SearchNext true)
+        | Delete -> Sync this.Delete
         | TogglePathFormat -> Sync this.TogglePathFormat
-        | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
+        | OpenSettings -> Sync this.OpenSettings
 
     member this.SetCursor index model =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
@@ -93,19 +94,29 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             this.SetCommandSelection pos model
 
     member this.ExecuteCommand model =
-        match model.CommandInputMode with
+        let mode = model.CommandInputMode
+        model.CommandInputMode <- None
+        match mode with
             | Some Search -> this.Search model.CommandText false model
             | Some CreateFile -> this.Create File model
             | Some CreateFolder -> this.Create Folder model
             | Some (Rename _) -> this.Rename model
-            | Some Find -> () // find is executed by typing a char
             | None -> ()
-        model.CommandInputMode <- None
+            // below are triggered by typing a char
+            | Some Find -> ()
+            | Some DeletePermanently -> ()
 
     member this.CommandCharTyped char model =
-        if model.CommandInputMode = Some Find then
+        match model.CommandInputMode with
+        | Some Find ->
             this.Find char model
             model.CommandInputMode <- None
+        | Some DeletePermanently ->
+            model.CommandInputMode <- None
+            match char with
+                | 'y' -> this.DeleteItem true model
+                | _ -> model.Status <- MainController.DeleteCancelled
+        | _ -> ()
 
     member this.Find char model =
         model.LastFind <- Some char
@@ -163,10 +174,20 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.Status <- MainController.RenameStatus oldName newName
         with | ex -> model.SetExceptionStatus ex (sprintf "rename %s" oldName)
 
-    member this.OpenExplorer model =
-        if model.Path <> fileSys.Root then
-            model.SelectedNode.Path |> fileSys.OpenExplorer
-            model.Status <- MainController.OpenExplorerStatus model.Path
+    member this.Delete model = this.DeleteItem false model
+
+    member private this.DeleteItem permanent model =
+        let node = model.SelectedNode
+        try
+            if permanent then
+                fileSys.DeletePermanently node
+            else
+                fileSys.Delete node
+            let cursor = model.Cursor
+            model.Nodes <- fileSys.GetNodes model.Path
+            model.Cursor <- min cursor (model.Nodes.Length-1)
+            model.Status <- MainController.DeletedStatus permanent node.Type node.Name
+        with | ex -> model.SetExceptionStatus ex (sprintf "delete %A %s" node.Type node.Name)
 
     member this.TogglePathFormat model =
         let newFormat =
@@ -176,6 +197,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         fileSys.Format <- newFormat
         this.OpenPath model.Path model.Cursor model
         model.Status <- MainController.ChangePathFormatStatus newFormat
+
+    member this.OpenExplorer model =
+        if model.Path <> fileSys.Root then
+            model.SelectedNode.Path |> fileSys.OpenExplorer
+            model.Status <- MainController.OpenExplorerStatus model.Path
 
     member this.OpenSettings model =
         let settings = settingsFactory()
@@ -189,7 +215,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 match model.CommandText.LastIndexOf('.') with
                 | -1 -> model.CommandText.Length
                 | index -> index
-            model.CommandTextSelection <- 
+            model.CommandTextSelection <-
                 match pos with
                 | Begin -> (0, 0)
                 | End  -> (nameLen, 0)
@@ -200,6 +226,10 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     static member FindStatus char = sprintf "Find %O" char
     static member SearchStatus searchStr = sprintf "Search \"%s\"" searchStr
     static member CreateItemStatus nodeType name = sprintf "Created %A: %s" nodeType name
+    static member DeletedStatus permanent nodeType name =
+        if permanent then sprintf "Deleted %A Permanently: %s" nodeType name
+        else sprintf "Moved %A to Recycle Bin: %s" nodeType name
+    static member DeleteCancelled = "Delete cancelled"
     static member RenameStatus oldName newName = sprintf "Renamed %s to: %s" oldName newName
     static member OpenExplorerStatus path = sprintf "Opened Windows Explorer to: %s" path.Value
     static member ChangePathFormatStatus newFormat = sprintf "Changed Path Format to %O" newFormat

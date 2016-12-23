@@ -60,6 +60,7 @@
     <Compile Include="MainControllerTests_BackForward.fs" />
     <Compile Include="MainControllerTests_FindSearch.fs" />
     <Compile Include="MainControllerTests_CreateRename.fs" />
+    <Compile Include="MainControllerTests_Delete.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">

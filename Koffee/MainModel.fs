@@ -52,11 +52,16 @@ type CommandInput =
     | Search
     | CreateFile
     | CreateFolder
+    | DeletePermanently
     | Rename of CursorPosition
 
-    member this.Name =
-        let caseName = GetUnionCaseName this
-        Regex.Replace(caseName, @"(?<=[a-z])(?=[A-Z\d])", " ")
+    member this.Prompt (node: Node) =
+        match this with
+        | DeletePermanently -> sprintf "Permanently delete \"%s\" y/n ?" node.Name
+        | _ ->
+            let caseName = GetUnionCaseName this
+            let name = Regex.Replace(caseName, @"(?<=[a-z])(?=[A-Z\d])", " ")
+            sprintf "%s:" name
 
     member this.AllowedOnNodeType nodeType =
         match this with
@@ -97,7 +102,10 @@ type MainModel() as this =
     member this.SetExceptionStatus (ex: Exception) action =
         this.SetErrorStatus (sprintf "Could not %s: %s" action ex.Message)
 
-    member this.SelectedNode = this.Nodes.[this.Cursor]
+    member this.SelectedNode =
+        let index = min this.Cursor (this.Nodes.Length-1)
+        this.Nodes.[index]
+
     member this.HalfPageScroll = this.PageSize/2 - 1
 
 type MainEvents =
@@ -119,6 +127,7 @@ type MainEvents =
     | FindNext
     | SearchNext
     | SearchPrevious
+    | Delete
     | TogglePathFormat
     | OpenSettings
     | OpenExplorer
@@ -139,6 +148,7 @@ type MainEvents =
         | Refresh -> "Refresh Current Folder"
         | StartInput CreateFile -> "Create File"
         | StartInput CreateFolder -> "Create Folder"
+        | StartInput DeletePermanently -> "Delete Permanently"
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
         | StartInput (Rename End) -> "Rename File (Append)"
         | StartInput (Rename Replace) -> "Rename File (Replace)"
@@ -149,6 +159,7 @@ type MainEvents =
         | FindNext -> "Go To Next Find Match"
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
+        | Delete -> "Send to Recycle Bin"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | OpenSettings -> "Open Help/Settings"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
@@ -175,6 +186,7 @@ type MainEvents =
         StartInput Search
         SearchNext
         SearchPrevious
+        Delete
         TogglePathFormat
         OpenSettings
         OpenExplorer

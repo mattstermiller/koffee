@@ -53,7 +53,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
         // bind to the command input mode to update the UI
         model.OnPropertyChanged <@ model.CommandInputMode @> (fun mode ->
-            this.CommandInputModeChanged mode
+            this.CommandInputModeChanged mode model.SelectedNode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update status label color
@@ -134,9 +134,9 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 currBindings <- matchedBindings
                 None
 
-    member this.CommandInputModeChanged mode =
+    member this.CommandInputModeChanged mode node =
         match mode with
-        | Some inputMode -> this.ShowCommandBar (sprintf "%s:" inputMode.Name)
+        | Some inputMode -> this.ShowCommandBar (inputMode.Prompt node)
         | None -> this.HideCommandBar ()
 
     member this.ShowCommandBar label =

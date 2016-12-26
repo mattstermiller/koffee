@@ -1,5 +1,4 @@
-﻿
-namespace Koffee.Tests
+﻿module Koffee.MainControllerTests_Delete
 
 open System
 open System.Windows.Input
@@ -8,122 +7,122 @@ open NUnit.Framework
 open FsUnitTyped
 open Foq
 open KellermanSoftware.CompareNetObjects
-open Koffee
 open Testing
 
-[<TestFixture>]
-type ``MainController tests for deleting files and folders``() =
-    let oldNodes = [
-        {Path = Path "path1"; Name = "one"; Type = Folder; Modified = None; Size = None}
-        {Path = Path "path2"; Name = "two"; Type = Folder; Modified = None; Size = None}
-    ]
+let node path name =
+    {Path = Path path; Name = name; Type = Folder; Modified = None; Size = None}
 
-    let newNodes = [oldNodes.[0]]
+let oldNodes = [
+    node "path1" "one"
+    node "path2" "two"
+]
 
-    let CreateModel () =
-        let model = Model.Create<MainModel>()
-        model.Path <- Path "path"
-        model.Nodes <- oldNodes
-        model.Cursor <- 1
-        model.CommandText <- ""
-        model.BackStack <- [Path "back", 8]
-        model.ForwardStack <- [Path "fwd", 9]
-        model
+let newNodes = [oldNodes.[0]]
 
-    let CreateFileSys () =
-        Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
-            .Create()
+let createModel () =
+    let model = Model.Create<MainModel>()
+    model.Path <- Path "path"
+    model.Nodes <- oldNodes
+    model.Cursor <- 1
+    model.CommandText <- ""
+    model.BackStack <- [Path "back", 8]
+    model.ForwardStack <- [Path "fwd", 9]
+    model
 
-    let CreateUnauthorizedFileSys () =
-        Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
-            .Setup(fun x -> <@ x.Delete (any()) @>).Raises<UnauthorizedAccessException>()
-            .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises<UnauthorizedAccessException>()
-            .Create()
+let createFileSys () =
+    Mock<IFileSystemService>()
+        .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
+        .Create()
 
-    let CreateController fileSys =
-        let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-        MainController(fileSys, settingsFactory)
+let createUnauthorizedFileSys () =
+    Mock<IFileSystemService>()
+        .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
+        .Setup(fun x -> <@ x.Delete (any()) @>).Raises<UnauthorizedAccessException>()
+        .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises<UnauthorizedAccessException>()
+        .Create()
 
-    [<TestCase(0)>]
-    [<TestCase(1)>]
-    member x.``Delete calls file sys delete and sets message`` cursor =
-        let fileSys = CreateFileSys()
-        let contr = CreateController fileSys
-        let model = CreateModel()
-        model.Cursor <- cursor
-        contr.Delete model
+let createController fileSys =
+    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
+    MainController(fileSys, settingsFactory)
 
-        let expectedNode = oldNodes.[cursor]
-        verify <@ fileSys.Delete expectedNode @> once
-        let expected = CreateModel()
-        expected.CommandInputMode <- None
-        expected.Nodes <- newNodes
-        expected.Cursor <- 0
-        expected.Status <- MainController.DeletedStatus false expectedNode.Type expectedNode.Name
-        assertAreEqual expected model
+[<TestCase(0)>]
+[<TestCase(1)>]
+let ``Delete calls file sys delete and sets message`` cursor =
+    let fileSys = createFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    model.Cursor <- cursor
+    contr.Delete model
 
-    [<Test>]
-    member x.``Delete handles error by setting error status``() =
-        let fileSys = CreateUnauthorizedFileSys()
-        let contr = CreateController fileSys
-        let model = CreateModel()
-        contr.Delete model
+    let expectedNode = oldNodes.[cursor]
+    verify <@ fileSys.Delete expectedNode @> once
+    let expected = createModel()
+    expected.CommandInputMode <- None
+    expected.Nodes <- newNodes
+    expected.Cursor <- 0
+    expected.Status <- MainController.DeletedStatus false expectedNode.Type expectedNode.Name
+    assertAreEqual expected model
 
-        let expected = CreateModel()
-        expected.CommandInputMode <- None
-        expected.IsErrorStatus <- true
-        CompareLogic()
-            |> ignoreMembers ["Status"]
-            |> assertAreEqualWith expected model
+[<Test>]
+let ``Delete handles error by setting error status``() =
+    let fileSys = createUnauthorizedFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    contr.Delete model
 
-    [<TestCase(0)>]
-    [<TestCase(1)>]
-    member x.``DeletePermanently prompt answered "y" calls file sys delete and sets message`` cursor =
-        let fileSys = CreateFileSys()
-        let contr = CreateController fileSys
-        let model = CreateModel()
-        model.Cursor <- cursor
-        model.CommandInputMode <- Some DeletePermanently
-        contr.CommandCharTyped 'y' model
+    let expected = createModel()
+    expected.CommandInputMode <- None
+    expected.IsErrorStatus <- true
+    CompareLogic()
+        |> ignoreMembers ["Status"]
+        |> assertAreEqualWith expected model
 
-        let expectedNode = oldNodes.[cursor]
-        verify <@ fileSys.DeletePermanently expectedNode @> once
-        let expected = CreateModel()
-        expected.CommandInputMode <- None
-        expected.Nodes <- newNodes
-        expected.Cursor <- 0
-        expected.Status <- MainController.DeletedStatus true expectedNode.Type expectedNode.Name
-        assertAreEqual expected model
+[<TestCase(0)>]
+[<TestCase(1)>]
+let ``DeletePermanently prompt answered "y" calls file sys delete and sets message`` cursor =
+    let fileSys = createFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    model.Cursor <- cursor
+    model.CommandInputMode <- Some DeletePermanently
+    contr.CommandCharTyped 'y' model
 
-    [<Test>]
-    member x.``DeletePermanently prompt answered "y" handles error by setting error status``() =
-        let fileSys = CreateUnauthorizedFileSys()
-        let contr = CreateController fileSys
-        let model = CreateModel()
-        model.CommandInputMode <- Some DeletePermanently
-        contr.CommandCharTyped 'y' model
+    let expectedNode = oldNodes.[cursor]
+    verify <@ fileSys.DeletePermanently expectedNode @> once
+    let expected = createModel()
+    expected.CommandInputMode <- None
+    expected.Nodes <- newNodes
+    expected.Cursor <- 0
+    expected.Status <- MainController.DeletedStatus true expectedNode.Type expectedNode.Name
+    assertAreEqual expected model
 
-        let expected = CreateModel()
-        expected.CommandInputMode <- None
-        expected.IsErrorStatus <- true
-        CompareLogic()
-            |> ignoreMembers ["Status"]
-            |> assertAreEqualWith expected model
+[<Test>]
+let ``DeletePermanently prompt answered "y" handles error by setting error status``() =
+    let fileSys = createUnauthorizedFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    model.CommandInputMode <- Some DeletePermanently
+    contr.CommandCharTyped 'y' model
 
-    [<TestCase('n')>]
-    [<TestCase('x')>]
-    [<TestCase('q')>]
-    member x.``DeletePermanently prompt answered with any key besides "y" escapes input mode`` char =
-        let fileSys = CreateFileSys()
-        let contr = CreateController fileSys
-        let model = CreateModel()
-        model.CommandInputMode <- Some DeletePermanently
-        contr.CommandCharTyped char model
+    let expected = createModel()
+    expected.CommandInputMode <- None
+    expected.IsErrorStatus <- true
+    CompareLogic()
+        |> ignoreMembers ["Status"]
+        |> assertAreEqualWith expected model
 
-        verify <@ fileSys.DeletePermanently (any()) @> never
-        let expected = CreateModel()
-        expected.CommandInputMode <- None
-        expected.Status <- MainController.DeleteCancelled
-        assertAreEqual expected model
+[<TestCase('n')>]
+[<TestCase('x')>]
+[<TestCase('q')>]
+let ``DeletePermanently prompt answered with any key besides "y" escapes input mode`` char =
+    let fileSys = createFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    model.CommandInputMode <- Some DeletePermanently
+    contr.CommandCharTyped char model
+
+    verify <@ fileSys.DeletePermanently (any()) @> never
+    let expected = createModel()
+    expected.CommandInputMode <- None
+    expected.Status <- MainController.DeleteCancelledStatus
+    assertAreEqual expected model

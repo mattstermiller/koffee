@@ -115,7 +115,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.CommandInputMode <- None
             match char with
                 | 'y' -> this.DeleteItem true model
-                | _ -> model.Status <- MainController.DeleteCancelled
+                | _ -> model.Status <- MainController.DeleteCancelledStatus
         | _ -> ()
 
     member this.Find char model =
@@ -227,9 +227,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     static member SearchStatus searchStr = sprintf "Search \"%s\"" searchStr
     static member CreateItemStatus nodeType name = sprintf "Created %A: %s" nodeType name
     static member DeletedStatus permanent nodeType name =
-        if permanent then sprintf "Deleted %A Permanently: %s" nodeType name
-        else sprintf "Moved %A to Recycle Bin: %s" nodeType name
-    static member DeleteCancelled = "Delete cancelled"
+        if permanent then
+            sprintf "Deleted %A Permanently: %s" nodeType name
+        else
+            sprintf "Moved %A to Recycle Bin: %s" nodeType name
+    static member DeleteCancelledStatus = "Delete cancelled"
     static member RenameStatus oldName newName = sprintf "Renamed %s to: %s" oldName newName
     static member OpenExplorerStatus path = sprintf "Opened Windows Explorer to: %s" path.Value
     static member ChangePathFormatStatus newFormat = sprintf "Changed Path Format to %O" newFormat

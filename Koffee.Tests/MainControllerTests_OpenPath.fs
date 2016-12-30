@@ -10,26 +10,20 @@ open Foq
 open KellermanSoftware.CompareNetObjects
 open Testing
 
-let node path name =
-    {Path = Path path; Name = name; Type = Folder; Modified = None; Size = None}
-
 let newNodes = [
-    node "path1" "one"
-    node "path2" "two"
+    createNode "path" "one"
+    createNode "path" "two"
 ]
 
 let createModel () =
-    let model = Model.Create<MainModel>()
+    let model = createBaseTestModel()
     model.Nodes <- [
-        node "old/p1" "old one"
-        node "old/p2" "old two"
-        node "old/p3" "old three"
+        createNode "old" "old one"
+        createNode "old" "old two"
+        createNode "old" "old three"
     ]
     model.Path <- Path "old"
     model.Cursor <- 2
-    model.BackStack <- []
-    model.ForwardStack <- [Path "fwd", 9]
-    model.Status <- ""
     model
 
 let createController () =
@@ -53,7 +47,7 @@ let ``Opening a valid path updates model correctly``() =
     expected.Nodes <- newNodes
     expected.Path <- Path "normalized"
     expected.Cursor <- 1
-    expected.BackStack <- [Path "old", 2]
+    expected.BackStack <- (Path "old", 2) :: expected.BackStack
     expected.ForwardStack <- []
     assertAreEqual expected model
 

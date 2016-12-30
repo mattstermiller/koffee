@@ -9,40 +9,31 @@ open Foq
 open KellermanSoftware.CompareNetObjects
 open Testing
 
-let node path name =
-    {Path = Path path; Name = name; Type = Folder; Modified = None; Size = None}
-
 let oldNodes = [
-    node "path1" "one"  
-    node "path2" "two"
+    createNode "path" "one"  
+    createNode "path" "two"
 ]
 
 let newNodes = [
-    node "path/new one" "new one"
-    node "path/new two" "new two"
+    createNode "path" "new one"
+    createNode "path" "new two"
 ]
 
 let createModel () =
-    let model = Model.Create<MainModel>()
+    let model = createBaseTestModel()
     model.Path <- Path "path"
     model.Nodes <- oldNodes
     model.Cursor <- 0
     model.CommandText <- ""
     model.CommandTextSelection <- (1, 1)
-    model.BackStack <- [Path "back", 8]
-    model.ForwardStack <- [Path "fwd", 9]
     model
 
 let createFileSys () =
-    Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
-        .Create()
+    (baseFileSysMock newNodes).Create()
 
 let createUnauthorizedFileSys () =
-    let path = Path "path"
-    Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes path @>).Returns(newNodes)
-        .Setup(fun x -> <@ x.Create (any()) path (any()) @>).Raises<UnauthorizedAccessException>()
+    (baseFileSysMock newNodes)
+        .Setup(fun x -> <@ x.Create (any()) (any()) @>).Raises<UnauthorizedAccessException>()
         .Setup(fun x -> <@ x.Rename (any()) (any()) @>).Raises<UnauthorizedAccessException>()
         .Create()
 

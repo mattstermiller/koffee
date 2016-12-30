@@ -85,6 +85,8 @@ type MainModel() as this =
         this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
         this.BackStack <- []
         this.ForwardStack <- []
+        this.CommandText <- ""
+        this.Status <- ""
 
     abstract Path: Path with get, set
     abstract Status: string with get, set

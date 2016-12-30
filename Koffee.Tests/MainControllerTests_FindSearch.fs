@@ -5,6 +5,8 @@ open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
 open Foq
+open Testing
+open KellermanSoftware.CompareNetObjects
 
 let nodes names =
     let toNode name = {
@@ -17,7 +19,7 @@ let nodes names =
     names |> Seq.map toNode |> Seq.toList
 
 let createModel inputMode cursorStart =
-    let model = MainModel.Create<MainModel>()
+    let model = createBaseTestModel()
     model.Nodes <- "alice,bob,charlie,crystal,apple,cherry".Split(',') |> nodes
     model.Cursor <- cursorStart
     model.CommandInputMode <- inputMode
@@ -28,39 +30,50 @@ let createController () =
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory)
 
+let assertEqualExceptCursor expected actual =
+    CompareLogic()
+        |> ignoreMembers ["Cursor"; "CommandText"]
+        |> assertAreEqualWith expected actual
+
 let find char cursorStart =
     let model = createModel (Some Find) cursorStart
+    let expected = createModel (Some Find) cursorStart
 
     let contr = createController()
     contr.CommandCharTyped char model
 
-    model.CommandInputMode |> shouldEqual None
-    model.LastFind |> shouldEqual (Some char)
-    model.Status |> shouldEqual (MainController.FindStatus char)
+    expected.CommandInputMode <- None
+    expected.LastFind <- (Some char)
+    expected.Status <- (MainController.FindStatus char)
+    assertEqualExceptCursor expected model
     model.Cursor
 
 let search searchStr cursorStart =
     let model = createModel (Some Search) cursorStart
     model.CommandText <- searchStr
+    let expected = createModel (Some Search) cursorStart
 
     let contr = createController()
     contr.ExecuteCommand model
 
-    model.CommandInputMode |> shouldEqual None
-    model.LastSearch |> shouldEqual (Some searchStr)
-    model.Status |> shouldEqual (MainController.SearchStatus searchStr)
+    expected.CommandInputMode <- None
+    expected.LastSearch <- (Some searchStr)
+    expected.Status <- (MainController.SearchStatus searchStr)
+    assertEqualExceptCursor expected model
     model.Cursor
 
 let searchPrevious searchStr cursorStart =
     let model = createModel None cursorStart
     model.LastSearch <- Some searchStr
+    let expected = createModel None cursorStart
 
     let contr = createController()
     contr.SearchNext true model
 
-    model.CommandInputMode |> shouldEqual None
-    model.LastSearch |> shouldEqual (Some searchStr)
-    model.Status |> shouldEqual (MainController.SearchStatus searchStr)
+    expected.CommandInputMode <- None
+    expected.LastSearch <- (Some searchStr)
+    expected.Status <- (MainController.SearchStatus searchStr)
+    assertEqualExceptCursor expected model
     model.Cursor
 
 [<Test>]

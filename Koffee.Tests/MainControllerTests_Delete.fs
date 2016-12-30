@@ -9,34 +9,25 @@ open Foq
 open KellermanSoftware.CompareNetObjects
 open Testing
 
-let node path name =
-    {Path = Path path; Name = name; Type = Folder; Modified = None; Size = None}
-
 let oldNodes = [
-    node "path1" "one"
-    node "path2" "two"
+    createNode "path" "one"
+    createNode "path" "two"
 ]
 
 let newNodes = [oldNodes.[0]]
 
 let createModel () =
-    let model = Model.Create<MainModel>()
+    let model = createBaseTestModel()
     model.Path <- Path "path"
     model.Nodes <- oldNodes
     model.Cursor <- 1
-    model.CommandText <- ""
-    model.BackStack <- [Path "back", 8]
-    model.ForwardStack <- [Path "fwd", 9]
     model
 
 let createFileSys () =
-    Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
-        .Create()
+    (baseFileSysMock newNodes).Create()
 
 let createUnauthorizedFileSys () =
-    Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes (Path "path") @>).Returns(newNodes)
+    (baseFileSysMock newNodes)
         .Setup(fun x -> <@ x.Delete (any()) @>).Raises<UnauthorizedAccessException>()
         .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises<UnauthorizedAccessException>()
         .Create()

@@ -71,6 +71,11 @@ type CommandInput =
             | _ -> false
         | _ -> true
 
+type ItemAction =
+    | CreatedItem of Node
+    | RenamedItem of Node * newName:string
+    | DeletedItem of Node * permanent:bool
+
 
 [<AbstractClass>]
 type MainModel() as this =
@@ -105,6 +110,8 @@ type MainModel() as this =
     member this.SelectedNode =
         let index = min this.Cursor (this.Nodes.Length-1)
         this.Nodes.[index]
+
+    member this.FindNode name = List.findIndex (fun n -> n.Name = name) this.Nodes
 
     member this.HalfPageScroll = this.PageSize/2 - 1
 

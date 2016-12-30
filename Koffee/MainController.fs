@@ -159,8 +159,10 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         try
             fileSys.Create nodeType model.Path name
             model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- List.findIndex (fun n -> n.Name = name) model.Nodes
-            model.Status <- MainController.CreateItemStatus nodeType name
+            let index = model.FindNode name
+            let action = CreatedItem model.Nodes.[index]
+            model.Cursor <- index
+            model.Status <- MainController.ActionStatus action
         with | ex -> model.SetExceptionStatus ex (sprintf "create %A %s" nodeType name)
 
     member this.Rename model =
@@ -170,8 +172,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         try
             fileSys.Rename node.Type node.Path newName
             model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- List.findIndex (fun n -> n.Name = newName) model.Nodes
-            model.Status <- MainController.RenameStatus oldName newName
+            model.Cursor <- model.FindNode newName
+            let action = RenamedItem (node, newName)
+            model.Status <- MainController.ActionStatus action
         with | ex -> model.SetExceptionStatus ex (sprintf "rename %s" oldName)
 
     member this.Delete model = this.DeleteItem false model
@@ -186,7 +189,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
-            model.Status <- MainController.DeletedStatus permanent node.Type node.Name
+            let action = DeletedItem (node, permanent)
+            model.Status <- MainController.ActionStatus action
         with | ex -> model.SetExceptionStatus ex (sprintf "delete %A %s" node.Type node.Name)
 
     member this.TogglePathFormat model =
@@ -222,16 +226,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | Replace -> (0, nameLen)
         | None -> ()
 
-    static member OpenFileStatus path = sprintf "Opened File: %s" path.Value
+
+    // nav messages
     static member FindStatus char = sprintf "Find %O" char
     static member SearchStatus searchStr = sprintf "Search \"%s\"" searchStr
-    static member CreateItemStatus nodeType name = sprintf "Created %A: %s" nodeType name
-    static member DeletedStatus permanent nodeType name =
-        if permanent then
-            sprintf "Deleted %A Permanently: %s" nodeType name
-        else
-            sprintf "Moved %A to Recycle Bin: %s" nodeType name
-    static member DeleteCancelledStatus = "Delete cancelled"
-    static member RenameStatus oldName newName = sprintf "Renamed %s to: %s" oldName newName
+
+    // action messages
+    static member OpenFileStatus path = sprintf "Opened File: %s" path.Value
     static member OpenExplorerStatus path = sprintf "Opened Windows Explorer to: %s" path.Value
     static member ChangePathFormatStatus newFormat = sprintf "Changed Path Format to %O" newFormat
+    static member ActionStatus action =
+        match action with
+        | CreatedItem node -> sprintf "Created %A: %s" node.Type node.Name
+        | RenamedItem (node, newName) -> sprintf "Renamed %s to: %s" node.Name newName
+        | DeletedItem (node, false) -> sprintf "Moved %A to Recycle Bin: %s" node.Type node.Name
+        | DeletedItem (node, true) -> sprintf "Deleted %A Permanently: %s" node.Type node.Name
+    static member DeleteCancelledStatus = "Delete cancelled"

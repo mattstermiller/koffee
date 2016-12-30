@@ -70,7 +70,7 @@ let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
-    expected.Status <- MainController.CreateItemStatus Folder createNode.Name
+    expected.Status <- MainController.ActionStatus (CreatedItem createNode)
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -106,7 +106,7 @@ let ``Rename calls fileSys.Rename, reloads nodes and sets cursor``() =
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
-    expected.Status <- MainController.RenameStatus oldNodes.[1].Name newName
+    expected.Status <- MainController.ActionStatus (RenamedItem (oldNodes.[1], newName))
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]

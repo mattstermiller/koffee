@@ -60,7 +60,7 @@ let ``Delete calls file sys delete and sets message`` cursor =
     expected.CommandInputMode <- None
     expected.Nodes <- newNodes
     expected.Cursor <- 0
-    expected.Status <- MainController.DeletedStatus false expectedNode.Type expectedNode.Name
+    expected.Status <- MainController.ActionStatus (DeletedItem (expectedNode, false))
     assertAreEqual expected model
 
 [<Test>]
@@ -93,7 +93,7 @@ let ``DeletePermanently prompt answered "y" calls file sys delete and sets messa
     expected.CommandInputMode <- None
     expected.Nodes <- newNodes
     expected.Cursor <- 0
-    expected.Status <- MainController.DeletedStatus true expectedNode.Type expectedNode.Name
+    expected.Status <- MainController.ActionStatus (DeletedItem (expectedNode, true))
     assertAreEqual expected model
 
 [<Test>]

@@ -151,6 +151,7 @@ type MainEvents =
     | TogglePathFormat
     | OpenSettings
     | OpenExplorer
+    | Exit
 
     member this.FriendlyName =
         match this with
@@ -185,6 +186,7 @@ type MainEvents =
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | OpenSettings -> "Open Help/Settings"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | Exit -> "Exit"
 
     static member Bindable = [
         CursorUp
@@ -214,4 +216,5 @@ type MainEvents =
         TogglePathFormat
         OpenSettings
         OpenExplorer
+        Exit
     ]

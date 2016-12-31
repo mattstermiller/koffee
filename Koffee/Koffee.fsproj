@@ -65,7 +65,7 @@
     <Compile Include="Reflection.fs" />
     <Compile Include="ValueConverters.fs" />
     <Compile Include="ModelExtensions.fs" />
-    <Compile Include="ControlExtensions.fs" />
+    <Compile Include="UIHelpers.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="KeyBinding.fs" />

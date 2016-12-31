@@ -1,8 +1,19 @@
-﻿module ControlExtensions
+﻿module UIHelpers
 
 open System.Windows
 open System.Windows.Data
 open System.Windows.Controls
+open System.Windows.Input
+
+let onKey key action (evt: KeyEventArgs) =
+    if evt.Key = key then
+        evt.Handled <- true
+        action() |> ignore
+
+let onKeyCombo mods key action (evt: KeyEventArgs) =
+    if Keyboard.Modifiers = mods && evt.Key = key then
+        evt.Handled <- true
+        action() |> ignore
 
 type DataGrid with
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter,

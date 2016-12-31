@@ -8,7 +8,7 @@ open System.Windows.Controls
 open System.Windows.Media
 open FSharp.Desktop.UI
 open ModelExtensions
-open ControlExtensions
+open UIHelpers
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
@@ -16,11 +16,6 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
     let mutable currBindings = keyBindings
-
-    let onKey key action (evt: KeyEventArgs) =
-        if evt.Key = key then
-            evt.Handled <- true
-            action() |> ignore
 
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Observable.choose (fun evt ->
@@ -122,13 +117,19 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             None
         else
             match KeyBinding.GetMatch currBindings chord with
+            // completed key combo
+            | [ ([], Exit) ] ->
+                window.Close()
+                None
             | [ ([], newEvent) ] ->
                 evt.Handled <- true
                 currBindings <- keyBindings
                 Some newEvent
+            // no match
             | [] ->
                 currBindings <- keyBindings
                 None
+            // partial match to one or more key combos
             | matchedBindings ->
                 evt.Handled <- true
                 currBindings <- matchedBindings

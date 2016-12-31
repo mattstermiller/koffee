@@ -42,6 +42,7 @@ let DefaultsAsString = [
     ("?", OpenSettings)
     ("<f1>", OpenSettings)
     ("<c-e>", OpenExplorer)
+    ("<c-w>", Exit)
 ]
 
 let Defaults =

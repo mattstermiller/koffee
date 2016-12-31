@@ -37,6 +37,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | TogglePathFormat -> Sync this.TogglePathFormat
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenSettings -> Sync this.OpenSettings
+        | Exit -> Sync ignore // handled by view
 
     member this.SetCursor index model =
         model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)

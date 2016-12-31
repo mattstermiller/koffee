@@ -8,9 +8,12 @@ open ModelExtensions
 
 type Path =
     | Path of string
+
     member this.Value =
         let (Path p) = this
         p
+
+    override this.ToString() = this.Value
 
 type NodeType =
     | File
@@ -25,6 +28,8 @@ type Node = {
     Modified: DateTime option
     Size: int64 option
 }
+with
+    override this.ToString() = this.Path.Value
 
 type Node with
     member this.SizeFormatted =

@@ -25,6 +25,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Back -> Sync this.Back
         | Forward -> Sync this.Forward
         | Refresh -> Sync (fun m -> this.OpenPath m.Path m.Cursor m)
+        | Undo -> Sync this.Undo
+        | Redo -> Sync this.Redo
         | StartInput inputMode -> Sync (this.StartInput inputMode)
         | ExecuteCommand -> Sync this.ExecuteCommand
         | CommandCharTyped c -> Sync (this.CommandCharTyped c)
@@ -98,9 +100,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         model.CommandInputMode <- None
         match mode with
             | Some Search -> this.Search model.CommandText false model
-            | Some CreateFile -> this.Create File model
-            | Some CreateFolder -> this.Create Folder model
-            | Some (Rename _) -> this.Rename model
+            | Some CreateFile -> this.Create File model.CommandText model
+            | Some CreateFolder -> this.Create Folder model.CommandText model
+            | Some (Rename _) -> this.Rename model.SelectedNode model.CommandText model
             | None -> ()
             // below are triggered by typing a char
             | Some Find -> ()
@@ -114,7 +116,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Some DeletePermanently ->
             model.CommandInputMode <- None
             match char with
-                | 'y' -> this.DeleteItem true model
+                | 'y' -> this.DeleteItem model.SelectedNode true model
                 | _ -> model.Status <- MainController.DeleteCancelledStatus
         | _ -> ()
 
@@ -154,34 +156,30 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Some index -> this.SetCursor index model
             | None -> ()
 
-    member private this.Create nodeType model =
-        let name = model.CommandText
+    member private this.Create nodeType name model =
         try
-            fileSys.Create nodeType model.Path name
+            fileSys.JoinPath model.Path name
+                |> fileSys.Create nodeType
             model.Nodes <- fileSys.GetNodes model.Path
             let index = model.FindNode name
-            let action = CreatedItem model.Nodes.[index]
             model.Cursor <- index
-            model.Status <- MainController.ActionStatus action
+            model |> this.PerformedAction (CreatedItem model.Nodes.[index])
         with | ex ->
             let action = CreatedItem {Path = model.Path; Name = name; Type = nodeType; Modified = None; Size = None}
-            MainController.SetActionExceptionStatus action ex model
+            model |> MainController.SetActionExceptionStatus action ex
 
-    member this.Rename model =
-        let node = model.SelectedNode
-        let newName = model.CommandText
+    member this.Rename node newName model =
         let action = RenamedItem (node, newName)
         try
             fileSys.Rename node.Type node.Path newName
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- model.FindNode newName
-            model.Status <- MainController.ActionStatus action
-        with | ex -> MainController.SetActionExceptionStatus action ex model
+            model |> this.PerformedAction action
+        with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
-    member this.Delete model = this.DeleteItem false model
+    member this.Delete model = this.DeleteItem model.SelectedNode false model
 
-    member private this.DeleteItem permanent model =
-        let node = model.SelectedNode
+    member private this.DeleteItem node permanent model =
         let action = DeletedItem (node, permanent)
         try
             if permanent then
@@ -191,8 +189,74 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
-            model.Status <- MainController.ActionStatus action
-        with | ex -> MainController.SetActionExceptionStatus action ex model
+            model |> this.PerformedAction action
+        with | ex -> model |> MainController.SetActionExceptionStatus action ex
+
+    member private this.PerformedAction action model =
+        model.UndoStack <- action :: model.UndoStack
+        model.RedoStack <- []
+        model.Status <- MainController.ActionStatus action
+
+    member this.Undo model =
+        match model.UndoStack with
+        | action :: rest ->
+            model.IsErrorStatus <- false
+            let goToPath node =
+                let path = fileSys.Parent node.Path
+                let nodes = fileSys.GetNodes path
+                if path <> model.Path then
+                    model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
+                    model.ForwardStack <- []
+                model.Path <- path
+                model.Nodes <- nodes
+                model.Cursor <- 0
+            match action with
+                | CreatedItem node ->
+                    try
+                        if fileSys.IsEmpty node then
+                            fileSys.DeletePermanently node
+                            goToPath node
+                        else
+                            model.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus node)
+                    with | ex -> model |> MainController.SetActionExceptionStatus (DeletedItem (node, true)) ex
+                | RenamedItem (oldNode, curName) ->
+                    let curPath = fileSys.JoinPath (fileSys.Parent oldNode.Path) curName
+                    let node = { oldNode with Name = curName; Path = curPath}
+                    let action = RenamedItem (node, oldNode.Name)
+                    try
+                        fileSys.Rename node.Type node.Path oldNode.Name
+                        goToPath oldNode
+                        model.Nodes <- fileSys.GetNodes model.Path
+                        model.Cursor <- model.FindNode oldNode.Name
+                    with | ex -> model |> MainController.SetActionExceptionStatus action ex
+                | DeletedItem (node, permanent) ->
+                    model.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent node)
+            model.UndoStack <- rest
+            if not model.IsErrorStatus then
+                model.RedoStack <- action :: model.RedoStack
+                model.Status <- MainController.UndoActionStatus action
+        | [] -> model.Status <- MainController.NoUndoActionsStatus
+
+    member this.Redo model =
+        match model.RedoStack with
+        | action :: rest ->
+            let goToPath node =
+                let path = fileSys.Parent node.Path
+                if path <> model.Path then
+                    this.OpenPath path 0 model
+            match action with
+                | CreatedItem node ->
+                    goToPath node
+                    this.Create node.Type node.Name model
+                | RenamedItem (node, newName) ->
+                    goToPath node
+                    this.Rename node newName model
+                | DeletedItem (node, permanent) ->
+                    goToPath node
+                    this.DeleteItem node permanent model
+            model.RedoStack <- rest
+            model.Status <- MainController.RedoActionStatus action
+        | [] -> model.Status <- MainController.NoRedoActionsStatus
 
     member this.TogglePathFormat model =
         let newFormat =
@@ -250,3 +314,16 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | RenamedItem (node, newName) -> sprintf "rename %s" node.Name
             | DeletedItem (node, _) -> sprintf "delete %A %s" node.Type node.Name
         model.SetExceptionStatus ex actionMsg
+
+    // undo/redo messages
+    static member UndoActionStatus action = MainController.ActionStatus action |> sprintf "Action undone: %s"
+    static member RedoActionStatus action = MainController.ActionStatus action |> sprintf "Action redone: %s"
+    static member NoUndoActionsStatus = "No more actions to undo"
+    static member NoRedoActionsStatus = "No more actions to redo"
+    static member CannotUndoNonEmptyCreatedStatus node =
+        sprintf "Cannot undo creation of %A \"%O\" because it is no longer empty" node.Type node.Name
+    static member CannotUndoDeleteStatus permanent node =
+        if permanent then
+            sprintf "Cannot undo permanent deletion of %A \"%O\"" node.Type node.Name
+        else
+            sprintf "Cannot undo deletion of %A \"%O\". Please open the Recycle Bin in Windows Explorer to restore this item" node.Type node.Name

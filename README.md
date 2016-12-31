@@ -32,12 +32,18 @@ _Capitalized letters indicate that the key is combined with Shift._
 - Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `enter` to jump to the next item containing the search term in its name. Then press `n` to go to the next match, or `N` to go to the previous match. The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
 
 #### File & Folder Manipulation
-- **Create file or folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `enter`.
+- **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `enter`.
 - **Rename**: There are three ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
     - Press `a` to start with the cursor between the name and the extension
     - Press `c` to start with the cursor selection around the name (excluding the extension) so that typing will replace the name.
     - When you are done editing the name, press `enter`.
+- **Delete**
+    - Press `d` to send the currently selected item to the Recycle Bin.
+    - Press `D` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
+- **Undo / Redo Action**
+    - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
+    - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
 
 #### Other
 - Open Windows Explorer at your current location with `ctrl + e`

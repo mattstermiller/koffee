@@ -85,6 +85,8 @@ type MainModel() as this =
         this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
         this.BackStack <- []
         this.ForwardStack <- []
+        this.UndoStack <- []
+        this.RedoStack <- []
         this.CommandText <- ""
         this.Status <- ""
 
@@ -101,6 +103,8 @@ type MainModel() as this =
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
     abstract ForwardStack: (Path * int) list with get, set
+    abstract UndoStack: ItemAction list with get, set
+    abstract RedoStack: ItemAction list with get, set
 
     member this.SetErrorStatus status =
         this.Status <- status
@@ -130,6 +134,8 @@ type MainEvents =
     | Back
     | Forward
     | Refresh
+    | Undo
+    | Redo
     | StartInput of CommandInput
     | ExecuteCommand
     | CommandCharTyped of char
@@ -155,6 +161,8 @@ type MainEvents =
         | Back -> "Back in Location History"
         | Forward -> "Forward in Location History"
         | Refresh -> "Refresh Current Folder"
+        | Undo -> "Undo Action"
+        | Redo -> "Redo Action"
         | StartInput CreateFile -> "Create File"
         | StartInput CreateFolder -> "Create Folder"
         | StartInput DeletePermanently -> "Delete Permanently"
@@ -185,6 +193,8 @@ type MainEvents =
         Back
         Forward
         Refresh
+        Undo
+        Redo
         StartInput CreateFile
         StartInput CreateFolder
         StartInput (Rename Begin)

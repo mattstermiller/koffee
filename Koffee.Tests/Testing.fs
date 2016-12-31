@@ -45,6 +45,9 @@ let createBaseTestModel() =
     let model = Model.Create<MainModel>()
     model.BackStack <- [Path "back", 8]
     model.ForwardStack <- [Path "fwd", 9]
+    let node = createNode "path" "default undo-redo"
+    model.UndoStack <- [CreatedItem node]
+    model.RedoStack <- [RenamedItem (node, "item")]
     // simulate grid losing selected item (bound to cursor) when data source changes
     model.OnPropertyChanged <@ model.Nodes @> (fun _ -> model.Cursor <- -1)
     model
@@ -62,4 +65,5 @@ let baseFileSysMock (newNodes: Node list) =
     Mock<IFileSystemService>()
         .Setup(fun x -> <@ x.Normalize (any()) @>).Calls<Path>(id)
         .Setup(fun x -> <@ x.Parent (any()) @>).Calls<Path>(parent)
+        .Setup(fun x -> <@ x.JoinPath (any()) (any()) @>).Calls<Path * string>(join)
         .Setup(fun x -> <@ x.GetNodes path @>).Returns(newNodes)

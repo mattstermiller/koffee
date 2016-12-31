@@ -17,8 +17,10 @@ type IFileSystemService =
     abstract Root: Path with get
     abstract Normalize: Path -> Path
     abstract Parent: Path -> Path
+    abstract JoinPath: Path -> string -> Path
     abstract GetNodes: Path -> Node list
-    abstract Create: NodeType -> Path -> string -> unit
+    abstract IsEmpty: Node -> bool
+    abstract Create: NodeType -> Path -> unit
     abstract Rename: NodeType -> Path -> string -> unit
     abstract Delete: Node -> unit
     abstract DeletePermanently: Node -> unit
@@ -42,9 +44,11 @@ type FileSystemService() =
             and set (v: PathFormat) : unit = this.PathFormat <- v
         override this.Root = this.Root
         override this.Parent path = this.Parent path
+        override this.JoinPath path name = this.JoinPath path name
         override this.Normalize path = this.Normalize path
         override this.GetNodes path = this.GetNodes path
-        override this.Create nodeType path name = this.Create nodeType path name
+        override this.IsEmpty node = this.IsEmpty node
+        override this.Create nodeType path = this.Create nodeType path
         override this.Rename nodeType path newName = this.Rename nodeType path newName
         override this.Delete node = this.Delete node
         override this.DeletePermanently node = this.DeletePermanently node
@@ -106,6 +110,14 @@ type FileSystemService() =
         | Path p when p.Trim('/', '\\').Length <= 2 -> this.Root
         | p -> p |> this.ToRawPath |> Path.GetDirectoryName |> this.ToFormattedPath
 
+    member this.JoinPath (path: Path) name =
+        let trimmed = path.Value.Trim('/', '\\')
+        let join =
+            match this.PathFormat with
+            | Unix -> '/'
+            | Windows -> '\\'
+        sprintf "%s%O%s" trimmed join name |> Path
+
     member this.GetNodes path =
         if path = this.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
@@ -118,12 +130,18 @@ type FileSystemService() =
                 this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton
             else nodes
 
-    member this.Create nodeType path fileName =
+    member this.IsEmpty (node: Node) =
+        let winPath = this.ToRawPath node.Path
+        match node.Type with
+            | File -> FileInfo(winPath).Length = 0L
+            | Folder -> Directory.EnumerateFiles(winPath) |> Seq.isEmpty
+            | _ -> false
+
+    member this.Create nodeType path =
         let winPath = this.ToRawPath path
-        let newPath = Path.Combine(winPath, fileName)
         match nodeType with
-            | File -> File.Create(newPath).Dispose()
-            | Folder -> Directory.CreateDirectory(newPath) |> ignore
+            | File -> File.Create(winPath).Dispose()
+            | Folder -> Directory.CreateDirectory(winPath) |> ignore
             | _ -> failwith (sprintf "Cannot create node type %A" nodeType)
 
     member this.Rename nodeType path newName =

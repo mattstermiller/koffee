@@ -57,12 +57,13 @@ let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
     contr.ExecuteCommand model
 
     let nodeType = createNode.Type
-    let path = model.Path
-    let name = createNode.Name
-    verify <@ fileSys.Create nodeType path name @> once
+    let path = createNode.Path
+    verify <@ fileSys.Create nodeType path @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
+    expected.UndoStack <- CreatedItem createNode :: expected.UndoStack
+    expected.RedoStack <- []
     expected.Status <- MainController.ActionStatus (CreatedItem createNode)
     comparer() |> assertAreEqualWith expected model
 
@@ -97,6 +98,8 @@ let ``Rename calls fileSys.Rename, reloads nodes and sets cursor``() =
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
+    expected.UndoStack <- RenamedItem (oldNodes.[1], newName) :: expected.UndoStack
+    expected.RedoStack <- []
     expected.Status <- MainController.ActionStatus (RenamedItem (oldNodes.[1], newName))
     comparer() |> assertAreEqualWith expected model
 

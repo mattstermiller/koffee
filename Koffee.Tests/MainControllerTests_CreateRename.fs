@@ -28,13 +28,15 @@ let createModel () =
     model.CommandTextSelection <- (1, 1)
     model
 
+let ex = UnauthorizedAccessException()
+
 let createFileSys () =
     (baseFileSysMock newNodes).Create()
 
 let createUnauthorizedFileSys () =
     (baseFileSysMock newNodes)
-        .Setup(fun x -> <@ x.Create (any()) (any()) @>).Raises<UnauthorizedAccessException>()
-        .Setup(fun x -> <@ x.Rename (any()) (any()) @>).Raises<UnauthorizedAccessException>()
+        .Setup(fun x -> <@ x.Create (any()) (any()) @>).Raises(ex)
+        .Setup(fun x -> <@ x.Rename (any()) (any()) @>).Raises(ex)
         .Create()
 
 let createController fileSys =
@@ -75,10 +77,8 @@ let ``Create folder handles error by setting error status``() =
     contr.ExecuteCommand model
 
     let expected = createModel()
-    expected.IsErrorStatus <- true
-    comparer()
-        |> ignoreMembers ["Status"]
-        |> assertAreEqualWith expected model
+    expected |> MainController.SetActionExceptionStatus (CreatedItem createNode) ex
+    comparer() |> assertAreEqualWith expected model
 
 [<Test>]
 let ``Rename calls fileSys.Rename, reloads nodes and sets cursor``() =
@@ -107,15 +107,13 @@ let ``Rename handles error by setting error status``() =
     let model = createModel()
     model.Cursor <- 1
     model.CommandInputMode <- Some (Rename Begin)
-    model.CommandText <- "new two"
+    model.CommandText <- newNodes.[1].Name
     contr.ExecuteCommand model
 
     let expected = createModel()
     expected.Cursor <- 1
-    expected.IsErrorStatus <- true
-    comparer()
-        |> ignoreMembers ["Status"]
-        |> assertAreEqualWith expected model
+    expected |> MainController.SetActionExceptionStatus (RenamedItem (oldNodes.[1], newNodes.[1].Name)) ex
+    comparer() |> assertAreEqualWith expected model
 
 
 let renameTextSelection cursorPosition fileName =

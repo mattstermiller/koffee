@@ -163,24 +163,26 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             let action = CreatedItem model.Nodes.[index]
             model.Cursor <- index
             model.Status <- MainController.ActionStatus action
-        with | ex -> model.SetExceptionStatus ex (sprintf "create %A %s" nodeType name)
+        with | ex ->
+            let action = CreatedItem {Path = model.Path; Name = name; Type = nodeType; Modified = None; Size = None}
+            MainController.SetActionExceptionStatus action ex model
 
     member this.Rename model =
         let node = model.SelectedNode
-        let oldName = node.Name
         let newName = model.CommandText
+        let action = RenamedItem (node, newName)
         try
             fileSys.Rename node.Type node.Path newName
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- model.FindNode newName
-            let action = RenamedItem (node, newName)
             model.Status <- MainController.ActionStatus action
-        with | ex -> model.SetExceptionStatus ex (sprintf "rename %s" oldName)
+        with | ex -> MainController.SetActionExceptionStatus action ex model
 
     member this.Delete model = this.DeleteItem false model
 
     member private this.DeleteItem permanent model =
         let node = model.SelectedNode
+        let action = DeletedItem (node, permanent)
         try
             if permanent then
                 fileSys.DeletePermanently node
@@ -189,9 +191,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
-            let action = DeletedItem (node, permanent)
             model.Status <- MainController.ActionStatus action
-        with | ex -> model.SetExceptionStatus ex (sprintf "delete %A %s" node.Type node.Name)
+        with | ex -> MainController.SetActionExceptionStatus action ex model
 
     member this.TogglePathFormat model =
         let newFormat =
@@ -242,3 +243,10 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | DeletedItem (node, false) -> sprintf "Moved %A to Recycle Bin: %s" node.Type node.Name
         | DeletedItem (node, true) -> sprintf "Deleted %A Permanently: %s" node.Type node.Name
     static member DeleteCancelledStatus = "Delete cancelled"
+    static member SetActionExceptionStatus action ex model =
+        let actionMsg =
+            match action with
+            | CreatedItem node -> sprintf "create %A %s" node.Type node.Name
+            | RenamedItem (node, newName) -> sprintf "rename %s" node.Name
+            | DeletedItem (node, _) -> sprintf "delete %A %s" node.Type node.Name
+        model.SetExceptionStatus ex actionMsg

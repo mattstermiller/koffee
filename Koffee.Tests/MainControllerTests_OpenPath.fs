@@ -26,13 +26,15 @@ let createModel () =
     model.Cursor <- 2
     model
 
+let ex = UnauthorizedAccessException()
+
 let createController () =
     let fileSys =
         Mock<IFileSystemService>()
             .Setup(fun x -> <@ x.Normalize(Path "path") @>).Returns(Path "normalized")
             .Setup(fun x -> <@ x.GetNodes(Path "normalized") @>).Returns(newNodes)
             .Setup(fun x -> <@ x.Normalize(Path "bad path") @>).Returns(Path "bad normalized")
-            .Setup(fun x -> <@ x.GetNodes(Path "bad normalized") @>).Raises<UnauthorizedAccessException>()
+            .Setup(fun x -> <@ x.GetNodes(Path "bad normalized") @>).Raises(ex)
             .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory)
@@ -58,9 +60,5 @@ let ``Opening a path that throws on GetNodes sets error status only``() =
     contr.OpenPath (Path "bad path") 0 model
 
     let expected = createModel()
-    expected.IsErrorStatus <- true
-    CompareLogic()
-        |> ignoreMembers ["Status"]
-        |> assertAreEqualWith expected model
-    model.Status |> shouldContainText "Could not open path"
-    model.Status |> shouldContainText "unauthorized"
+    expected.SetExceptionStatus ex "open path"
+    assertAreEqual expected model

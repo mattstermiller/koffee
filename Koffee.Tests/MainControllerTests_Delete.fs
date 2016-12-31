@@ -23,13 +23,15 @@ let createModel () =
     model.Cursor <- 1
     model
 
+let ex = UnauthorizedAccessException()
+
 let createFileSys () =
     (baseFileSysMock newNodes).Create()
 
 let createUnauthorizedFileSys () =
     (baseFileSysMock newNodes)
-        .Setup(fun x -> <@ x.Delete (any()) @>).Raises<UnauthorizedAccessException>()
-        .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises<UnauthorizedAccessException>()
+        .Setup(fun x -> <@ x.Delete (any()) @>).Raises(ex)
+        .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises(ex)
         .Create()
 
 let createController fileSys =
@@ -63,10 +65,8 @@ let ``Delete handles error by setting error status``() =
 
     let expected = createModel()
     expected.CommandInputMode <- None
-    expected.IsErrorStatus <- true
-    CompareLogic()
-        |> ignoreMembers ["Status"]
-        |> assertAreEqualWith expected model
+    expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
+    assertAreEqual expected model
 
 [<TestCase(0)>]
 [<TestCase(1)>]
@@ -97,10 +97,9 @@ let ``DeletePermanently prompt answered "y" handles error by setting error statu
 
     let expected = createModel()
     expected.CommandInputMode <- None
+    expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], true)) ex
     expected.IsErrorStatus <- true
-    CompareLogic()
-        |> ignoreMembers ["Status"]
-        |> assertAreEqualWith expected model
+    assertAreEqual expected model
 
 [<TestCase('n')>]
 [<TestCase('x')>]

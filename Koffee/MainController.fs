@@ -45,8 +45,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         try
             let newPath = fileSys.Normalize path
             let nodes = fileSys.GetNodes newPath
-            model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-            model.ForwardStack <- []
+            if newPath <> model.Path then
+                model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
+                model.ForwardStack <- []
             model.Path <- newPath
             model.Nodes <- nodes
             model.Cursor <- cursor
@@ -201,32 +202,23 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         match model.UndoStack with
         | action :: rest ->
             model.IsErrorStatus <- false
-            let goToPath node =
-                let path = fileSys.Parent node.Path
-                let nodes = fileSys.GetNodes path
-                if path <> model.Path then
-                    model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-                    model.ForwardStack <- []
-                model.Path <- path
-                model.Nodes <- nodes
-                model.Cursor <- 0
             match action with
                 | CreatedItem node ->
                     try
                         if fileSys.IsEmpty node then
                             fileSys.DeletePermanently node
-                            goToPath node
+                            let path = fileSys.Parent node.Path
+                            this.OpenPath path 0 model
                         else
                             model.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus node)
                     with | ex -> model |> MainController.SetActionExceptionStatus (DeletedItem (node, true)) ex
                 | RenamedItem (oldNode, curName) ->
-                    let curPath = fileSys.JoinPath (fileSys.Parent oldNode.Path) curName
-                    let node = { oldNode with Name = curName; Path = curPath}
+                    let path = fileSys.Parent oldNode.Path
+                    let node = { oldNode with Name = curName; Path = fileSys.JoinPath path curName}
                     let action = RenamedItem (node, oldNode.Name)
                     try
                         fileSys.Rename node.Type node.Path oldNode.Name
-                        goToPath oldNode
-                        model.Nodes <- fileSys.GetNodes model.Path
+                        this.OpenPath path 0 model
                         model.Cursor <- model.FindNode oldNode.Name
                     with | ex -> model |> MainController.SetActionExceptionStatus action ex
                 | DeletedItem (node, permanent) ->

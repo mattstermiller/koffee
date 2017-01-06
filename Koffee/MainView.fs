@@ -91,7 +91,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)
 
-        window.NodeGrid.KeyDown |> Observable.choose this.TriggerKeyBindings
+        window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
 
         window.CommandBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> ExecuteCommand)
         window.CommandBox.PreviewTextInput |> Observable.choose this.CommandTextInput

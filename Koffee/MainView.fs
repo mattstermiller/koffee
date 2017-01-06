@@ -41,6 +41,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
+        window.PathBox.Text <- model.Path.Value
         model.OnPropertyChanged <@ model.Path @> (fun path -> window.PathBox.Text <- path.Value)
 
         model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
@@ -61,7 +62,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         // bind tab to switching focus
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
         window.NodeGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
-            window.PathBox.CaretIndex <- window.PathBox.Text.Length
+            window.PathBox.SelectAll()
             window.PathBox.Focus()))
 
         // on selection change, keep selected node in view, make sure node list is focused

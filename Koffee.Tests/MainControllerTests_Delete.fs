@@ -53,7 +53,7 @@ let ``Delete calls file sys delete and sets message`` cursor =
     let contr = createController fileSys
     let model = createModel()
     model.Cursor <- cursor
-    contr.Delete model
+    contr.Delete model |> Async.RunSynchronously
 
     let expectedNode = oldNodes.[cursor]
     verify <@ fileSys.Delete expectedNode @> once
@@ -71,7 +71,7 @@ let ``Delete sets status message when not recyclable``() =
     let fileSys = createNoRecycleFileSys()
     let contr = createController fileSys
     let model = createModel()
-    contr.Delete model
+    contr.Delete model |> Async.RunSynchronously
 
     let expected = createModel()
     expected.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus oldNodes.[1])
@@ -82,7 +82,7 @@ let ``Delete handles error by setting error status``() =
     let fileSys = createUnauthorizedFileSys()
     let contr = createController fileSys
     let model = createModel()
-    contr.Delete model
+    contr.Delete model |> Async.RunSynchronously
 
     let expected = createModel()
     expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex

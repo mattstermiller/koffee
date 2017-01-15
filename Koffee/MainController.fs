@@ -2,6 +2,7 @@
 
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
+open System.Threading.Tasks
 
 type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
     interface IController<MainEvents, MainModel> with
@@ -33,7 +34,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | FindNext -> Sync this.FindNext
         | SearchNext -> Sync (this.SearchNext false)
         | SearchPrevious -> Sync (this.SearchNext true)
-        | Delete -> Sync this.Delete
+        | Delete -> Async this.Delete
         | TogglePathFormat -> Sync this.TogglePathFormat
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenSettings -> Sync this.OpenSettings
@@ -179,22 +180,27 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model |> this.PerformedAction action
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
-    member this.Delete model = this.DeleteItem model.SelectedNode false model
+    member this.Delete model = async {
+        let node = model.SelectedNode
+        model.Status <- "Calculating size..."
+        let! isRecyclable = (fun () -> fileSys.IsRecyclable node) |> Task.Run |> Async.AwaitTask
+        if isRecyclable then
+            this.DeleteItem node false model
+        else
+            model.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus node)
+        }
 
     member private this.DeleteItem node permanent model =
         let action = DeletedItem (node, permanent)
         try
-            if permanent || fileSys.IsRecyclable node then
-                if permanent then
-                    fileSys.DeletePermanently node
-                else
-                    fileSys.Delete node
-                let cursor = model.Cursor
-                model.Nodes <- fileSys.GetNodes model.Path
-                model.Cursor <- min cursor (model.Nodes.Length-1)
-                model |> this.PerformedAction action
+            if permanent then
+                fileSys.DeletePermanently node
             else
-                model.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus node)
+                fileSys.Delete node
+            let cursor = model.Cursor
+            model.Nodes <- fileSys.GetNodes model.Path
+            model.Cursor <- min cursor (model.Nodes.Length-1)
+            model |> this.PerformedAction action
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
     member private this.PerformedAction action model =

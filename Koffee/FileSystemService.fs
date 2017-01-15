@@ -20,6 +20,7 @@ type IFileSystemService =
     abstract JoinPath: Path -> string -> Path
     abstract GetNodes: Path -> Node list
     abstract IsEmpty: Node -> bool
+    abstract IsRecyclable: Node -> bool
     abstract Create: NodeType -> Path -> unit
     abstract Rename: NodeType -> Path -> string -> unit
     abstract Delete: Node -> unit
@@ -48,6 +49,7 @@ type FileSystemService() =
         override this.Normalize path = this.Normalize path
         override this.GetNodes path = this.GetNodes path
         override this.IsEmpty node = this.IsEmpty node
+        override this.IsRecyclable node = this.IsRecyclable node
         override this.Create nodeType path = this.Create nodeType path
         override this.Rename nodeType path newName = this.Rename nodeType path newName
         override this.Delete node = this.Delete node
@@ -135,6 +137,28 @@ type FileSystemService() =
         match node.Type with
             | File -> FileInfo(winPath).Length = 0L
             | Folder -> Directory.EnumerateFiles(winPath) |> Seq.isEmpty
+            | _ -> false
+
+    member this.IsRecyclable (node: Node) =
+        let winPath = this.ToRawPath node.Path
+        let driveSize =
+            match winPath.[0] with
+            | l when Char.IsLetter l -> Some (DriveInfo(string l).TotalSize)
+            | _ -> None
+        let size =
+            if driveSize.IsNone then
+                None
+            else if File.Exists(winPath) then
+                Some (FileInfo(winPath).Length)
+            else if Directory.Exists(winPath) then
+                Some (DirectoryInfo(winPath).EnumerateFiles("*", SearchOption.AllDirectories)
+                        |> Seq.sumBy (fun fi -> fi.Length))
+            else
+                None
+        match size, driveSize with
+            | Some s, Some ds when ds > 0L ->
+                let ratio = (double s) / (double ds)
+                ratio < 0.03
             | _ -> false
 
     member this.Create nodeType path =

@@ -184,14 +184,17 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member private this.DeleteItem node permanent model =
         let action = DeletedItem (node, permanent)
         try
-            if permanent then
-                fileSys.DeletePermanently node
+            if permanent || fileSys.IsRecyclable node then
+                if permanent then
+                    fileSys.DeletePermanently node
+                else
+                    fileSys.Delete node
+                let cursor = model.Cursor
+                model.Nodes <- fileSys.GetNodes model.Path
+                model.Cursor <- min cursor (model.Nodes.Length-1)
+                model |> this.PerformedAction action
             else
-                fileSys.Delete node
-            let cursor = model.Cursor
-            model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- min cursor (model.Nodes.Length-1)
-            model |> this.PerformedAction action
+                model.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus node)
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
     member private this.PerformedAction action model =
@@ -299,6 +302,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | RenamedItem (node, newName) -> sprintf "Renamed %s to: %s" node.Name newName
         | DeletedItem (node, false) -> sprintf "Moved %A to Recycle Bin: %s" node.Type node.Name
         | DeletedItem (node, true) -> sprintf "Deleted %A Permanently: %s" node.Type node.Name
+    static member CannotDeleteUnrecyclableStatus node =
+        sprintf "Cannot move \"%s\" to the recycle bin because it is too large" node.Name
     static member DeleteCancelledStatus = "Delete cancelled"
     static member SetActionExceptionStatus action ex model =
         let actionMsg =

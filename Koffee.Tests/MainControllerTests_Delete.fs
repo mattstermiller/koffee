@@ -26,10 +26,18 @@ let createModel () =
 let ex = UnauthorizedAccessException()
 
 let createFileSys () =
-    (baseFileSysMock newNodes).Create()
+    (baseFileSysMock newNodes)
+        .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(true)
+        .Create()
+
+let createNoRecycleFileSys () =
+    (baseFileSysMock newNodes)
+        .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(false)
+        .Create()
 
 let createUnauthorizedFileSys () =
     (baseFileSysMock newNodes)
+        .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(true)
         .Setup(fun x -> <@ x.Delete (any()) @>).Raises(ex)
         .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises(ex)
         .Create()
@@ -59,6 +67,17 @@ let ``Delete calls file sys delete and sets message`` cursor =
     assertAreEqual expected model
 
 [<Test>]
+let ``Delete sets status message when not recyclable``() =
+    let fileSys = createNoRecycleFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    contr.Delete model
+
+    let expected = createModel()
+    expected.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus oldNodes.[1])
+    assertAreEqual expected model
+
+[<Test>]
 let ``Delete handles error by setting error status``() =
     let fileSys = createUnauthorizedFileSys()
     let contr = createController fileSys
@@ -66,14 +85,13 @@ let ``Delete handles error by setting error status``() =
     contr.Delete model
 
     let expected = createModel()
-    expected.CommandInputMode <- None
     expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
     assertAreEqual expected model
 
 [<TestCase(0)>]
 [<TestCase(1)>]
 let ``DeletePermanently prompt answered "y" calls file sys delete and sets message`` cursor =
-    let fileSys = createFileSys()
+    let fileSys = createNoRecycleFileSys()
     let contr = createController fileSys
     let model = createModel()
     model.Cursor <- cursor

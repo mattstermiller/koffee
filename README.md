@@ -39,8 +39,8 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `c` to start with the cursor selection around the name (excluding the extension) so that typing will replace the name.
     - When you are done editing the name, press `enter`.
 - **Delete**
-    - Press `d` to send the currently selected item to the Recycle Bin.
-    - Press `D` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
+    - Press `Delete` to send the currently selected item to the Recycle Bin. If the item is too large to fit in the Recycle Bin, a message will be shown instead.
+    - Press `s-Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.

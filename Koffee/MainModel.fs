@@ -88,6 +88,7 @@ type MainModel() as this =
 
     do
         this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
+        this.Path <- Path ""
         this.BackStack <- []
         this.ForwardStack <- []
         this.UndoStack <- []

@@ -7,7 +7,9 @@ open System.Threading.Tasks
 type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
-            model.Path <- fileSys.Root
+            if model.Path.Value = "" then
+                model.Path <- fileSys.Root
+            model.Path <- fileSys.Normalize model.Path
             model.Nodes <- fileSys.GetNodes model.Path
 
         member this.Dispatcher = this.Dispatcher

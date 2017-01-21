@@ -31,7 +31,6 @@ type Node = {
 with
     override this.ToString() = this.Path.Value
 
-type Node with
     member this.SizeFormatted =
         if this.Size.IsSome then
             let scale level = pown 1024L level
@@ -57,8 +56,8 @@ type CommandInput =
     | Search
     | CreateFile
     | CreateFolder
-    | DeletePermanently
     | Rename of CursorPosition
+    | DeletePermanently
 
     member this.Prompt (node: Node) =
         match this with
@@ -78,8 +77,8 @@ type CommandInput =
 
 type ItemAction =
     | CreatedItem of Node
-    | RenamedItem of Node * newName:string
-    | DeletedItem of Node * permanent:bool
+    | RenamedItem of Node * newName: string
+    | DeletedItem of Node * permanent: bool
 
 
 [<AbstractClass>]
@@ -172,10 +171,10 @@ type MainEvents =
         | Redo -> "Redo Action"
         | StartInput CreateFile -> "Create File"
         | StartInput CreateFolder -> "Create Folder"
-        | StartInput DeletePermanently -> "Delete Permanently"
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
         | StartInput (Rename End) -> "Rename File (Append)"
         | StartInput (Rename Replace) -> "Rename File (Replace)"
+        | StartInput DeletePermanently -> "Delete Permanently"
         | StartInput Find -> "Find Item Beginning With Character"
         | StartInput Search -> "Search For Items"
         | ExecuteCommand -> "Execute the Currently Entered Command"

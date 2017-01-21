@@ -57,13 +57,14 @@ let ``Delete calls file sys delete and sets message`` cursor =
 
     let expectedNode = oldNodes.[cursor]
     verify <@ fileSys.Delete expectedNode @> once
+    let expectedAction = DeletedItem (oldNodes.[cursor], false)
     let expected = createModel()
     expected.CommandInputMode <- None
     expected.Nodes <- newNodes
     expected.Cursor <- 0
-    expected.UndoStack <- DeletedItem (oldNodes.[cursor], false) :: expected.UndoStack
+    expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus (DeletedItem (expectedNode, false))
+    expected.Status <- MainController.ActionStatus expectedAction
     assertAreEqual expected model
 
 [<Test>]
@@ -100,13 +101,14 @@ let ``DeletePermanently prompt answered "y" calls file sys delete and sets messa
 
     let expectedNode = oldNodes.[cursor]
     verify <@ fileSys.DeletePermanently expectedNode @> once
+    let expectedAction = DeletedItem (oldNodes.[cursor], true)
     let expected = createModel()
     expected.CommandInputMode <- None
     expected.Nodes <- newNodes
     expected.Cursor <- 0
-    expected.UndoStack <- DeletedItem (oldNodes.[cursor], true) :: expected.UndoStack
+    expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus (DeletedItem (expectedNode, true))
+    expected.Status <- MainController.ActionStatus expectedAction
     assertAreEqual expected model
 
 [<Test>]
@@ -136,5 +138,5 @@ let ``DeletePermanently prompt answered with any key besides "y" escapes input m
     verify <@ fileSys.DeletePermanently (any()) @> never
     let expected = createModel()
     expected.CommandInputMode <- None
-    expected.Status <- MainController.DeleteCancelledStatus
+    expected.Status <- MainController.CancelledStatus
     assertAreEqual expected model

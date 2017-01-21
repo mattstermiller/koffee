@@ -122,7 +122,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.CommandInputMode <- None
             match char with
                 | 'y' -> this.DeleteItem model.SelectedNode true model
-                | _ -> model.Status <- MainController.DeleteCancelledStatus
+                | _ -> model.Status <- MainController.CancelledStatus
         | _ -> ()
 
     member this.Find char model =
@@ -312,7 +312,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | DeletedItem (node, true) -> sprintf "Deleted %A Permanently: %s" node.Type node.Name
     static member CannotDeleteUnrecyclableStatus node =
         sprintf "Cannot move \"%s\" to the recycle bin because it is too large" node.Name
-    static member DeleteCancelledStatus = "Delete cancelled"
+    static member CancelledStatus = "Cancelled"
     static member SetActionExceptionStatus action ex model =
         let actionMsg =
             match action with

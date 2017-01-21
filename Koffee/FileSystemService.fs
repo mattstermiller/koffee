@@ -135,14 +135,14 @@ type FileSystemService() =
             else
                 this.ErrorNode (Exception("Path does not exist")) this.Root |> List.singleton
 
-    member this.IsEmpty (node: Node) =
+    member this.IsEmpty node =
         let winPath = this.ToRawPath node.Path
         match node.Type with
             | File -> FileInfo(winPath).Length = 0L
             | Folder -> Directory.EnumerateFiles(winPath) |> Seq.isEmpty
             | _ -> false
 
-    member this.IsRecyclable (node: Node) =
+    member this.IsRecyclable node =
         let winPath = this.ToRawPath node.Path
         let driveSize =
             match winPath.[0] with
@@ -169,7 +169,7 @@ type FileSystemService() =
         match nodeType with
             | File -> File.Create(winPath).Dispose()
             | Folder -> Directory.CreateDirectory(winPath) |> ignore
-            | _ -> failwith (sprintf "Cannot create node type %A" nodeType)
+            | _ -> failwith (this.CannotActOnNodeType "create" nodeType)
 
     member this.Rename nodeType path newName =
         let rawPath = this.ToRawPath path
@@ -177,21 +177,21 @@ type FileSystemService() =
         match nodeType with
             | File -> File.Move(rawPath, newPath)
             | Folder -> Directory.Move(rawPath, newPath)
-            | _ -> failwith (sprintf "Cannot rename node type %A" nodeType)
+            | _ -> failwith (this.CannotActOnNodeType "rename" nodeType)
 
     member this.Delete node =
         let rawPath = this.ToRawPath node.Path
         match node.Type with
             | File -> FileSystem.DeleteFile(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
             | Folder -> FileSystem.DeleteDirectory(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-            | _ -> failwith (sprintf "Cannot delete node type %A" node.Type)
+            | _ -> failwith (this.CannotActOnNodeType "delete" node.Type)
 
     member this.DeletePermanently node =
         let rawPath = this.ToRawPath node.Path
         match node.Type with
             | File -> File.Delete rawPath
             | Folder -> Directory.Delete rawPath
-            | _ -> failwith (sprintf "Cannot delete node type %A" node.Type)
+            | _ -> failwith (this.CannotActOnNodeType "delete" node.Type)
 
 
     member this.OpenFile path =
@@ -248,3 +248,6 @@ type FileSystemService() =
             Modified = None
             Size = None
         }
+
+    member private this.CannotActOnNodeType action nodeType =
+        sprintf "Cannot %s node type %A" action nodeType

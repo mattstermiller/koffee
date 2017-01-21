@@ -12,10 +12,10 @@
                 <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}"/>
             </DataGrid.Resources>
         </DataGrid>
-        <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="34" VerticalAlignment="Bottom" Margin="0,0,0,-4"/>
+        <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="30" VerticalAlignment="Bottom"/>
         <DockPanel x:Name="CommandPanel" Background="{DynamicResource FocusBrush}" LastChildFill="True" Height="34" VerticalAlignment="Bottom" Visibility="Hidden">
             <Label x:Name="CommandLabel" Content="Command:" Foreground="White" HorizontalAlignment="Left" Height="26" VerticalAlignment="Center" DockPanel.Dock="Left"/>
-            <TextBox x:Name="CommandBox" TextWrapping="Wrap" Width="Auto" Height="23" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,5,0"/>
+            <TextBox x:Name="CommandBox" TextWrapping="NoWrap" Width="Auto" Height="23" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,5,0"/>
         </DockPanel>
     </Grid>
 </Window>

@@ -52,6 +52,20 @@ let ``Undo with empty undo stack sets status only``() =
     expected.Status <- MainController.NoUndoActionsStatus
     assertAreEqual expected model
 
+[<Test>]
+let ``Redo with empty stack sets status only``() =
+    let fileSys = Mock.Of<IFileSystemService>()
+    let contr = createController fileSys
+    let model = createModel()
+    model.RedoStack <- []
+    contr.Redo model
+
+    let expected = createModel()
+    expected.RedoStack <- []
+    expected.Status <- MainController.NoRedoActionsStatus
+    assertAreEqual expected model
+
+
 [<TestCase(1, false)>]
 [<TestCase(2, false)>]
 [<TestCase(1, true)>]
@@ -126,6 +140,33 @@ let ``Undo create item sets status if non-empty and consumes action``() =
     expected.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus createdNode)
     assertAreEqual expected model
 
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Redo create item creates item`` curPathDifferent =
+    let fileSys = fileSysMock().Create()
+    let contr = createController fileSys
+    let createdNode = newNodes.[1]
+    let action = CreatedItem createdNode
+    let model = createModel()
+    model.RedoStack <- action :: model.RedoStack
+    if curPathDifferent then
+        model.Path <- Path "other"
+        model.Cursor <- 5
+    contr.Redo model
+
+    let nodeType = createdNode.Type
+    let path = createdNode.Path
+    verify <@ fileSys.Create nodeType path @> once
+    let expected = createModel()
+    expected.Nodes <- newNodes
+    expected.Cursor <- 1
+    expected.Status <- MainController.RedoActionStatus action
+    expected.UndoStack <- action :: expected.UndoStack
+    if curPathDifferent then
+        expected.BackStack <- (Path "other", 5) :: expected.BackStack
+        expected.ForwardStack <- []
+    assertAreEqual expected model
+
 
 [<TestCase(true)>]
 [<TestCase(false)>]
@@ -176,68 +217,6 @@ let ``Undo rename item handles error by setting error status and consumes action
     expected |> MainController.SetActionExceptionStatus (RenamedItem (curNode, prevNode.Name)) ex
     assertAreEqual expected model
 
-
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Undo delete or delete permanently sets status message and consumes action`` permanent =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.IsEmpty (any()) @>).Returns(false)
-            .Create()
-    let contr = createController fileSys
-    let deletedNode = createNode "path" "deleteMe"
-    let undoAction = DeletedItem (deletedNode, permanent)
-    let model = createModel()
-    model.Path <- Path "other"
-    model.UndoStack <- undoAction :: model.UndoStack
-    contr.Undo model
-
-    let expected = createModel()
-    expected.Path <- Path "other"
-    expected.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent deletedNode)
-    assertAreEqual expected model
-
-
-[<Test>]
-let ``Redo with empty stack sets status only``() =
-    let fileSys = Mock.Of<IFileSystemService>()
-    let contr = createController fileSys
-    let model = createModel()
-    model.RedoStack <- []
-    contr.Redo model
-
-    let expected = createModel()
-    expected.RedoStack <- []
-    expected.Status <- MainController.NoRedoActionsStatus
-    assertAreEqual expected model
-
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Redo create item creates item`` curPathDifferent =
-    let fileSys = fileSysMock().Create()
-    let contr = createController fileSys
-    let createdNode = newNodes.[1]
-    let action = CreatedItem createdNode
-    let model = createModel()
-    model.RedoStack <- action :: model.RedoStack
-    if curPathDifferent then
-        model.Path <- Path "other"
-        model.Cursor <- 5
-    contr.Redo model
-
-    let nodeType = createdNode.Type
-    let path = createdNode.Path
-    verify <@ fileSys.Create nodeType path @> once
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    expected.Status <- MainController.RedoActionStatus action
-    expected.UndoStack <- action :: expected.UndoStack
-    if curPathDifferent then
-        expected.BackStack <- (Path "other", 5) :: expected.BackStack
-        expected.ForwardStack <- []
-    assertAreEqual expected model
-
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Redo rename item renames original file name again`` curPathDifferent =
@@ -264,4 +243,25 @@ let ``Redo rename item renames original file name again`` curPathDifferent =
     if curPathDifferent then
         expected.BackStack <- (Path "other", 5) :: expected.BackStack
         expected.ForwardStack <- []
+    assertAreEqual expected model
+
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo delete or delete permanently sets status message and consumes action`` permanent =
+    let fileSys =
+        fileSysMock()
+            .Setup(fun x -> <@ x.IsEmpty (any()) @>).Returns(false)
+            .Create()
+    let contr = createController fileSys
+    let deletedNode = createNode "path" "deleteMe"
+    let undoAction = DeletedItem (deletedNode, permanent)
+    let model = createModel()
+    model.Path <- Path "other"
+    model.UndoStack <- undoAction :: model.UndoStack
+    contr.Undo model
+
+    let expected = createModel()
+    expected.Path <- Path "other"
+    expected.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent deletedNode)
     assertAreEqual expected model

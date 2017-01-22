@@ -143,10 +143,9 @@ let ``Undo rename item names file back to original`` curPathDifferent =
         model.Cursor <- 5
     contr.Undo model
 
-    let nodeType = curNode.Type
-    let path = curNode.Path
-    let name = prevNode.Name
-    verify <@ fileSys.Rename nodeType path name @> once
+    let curPath = curNode.Path
+    let prevPath = prevNode.Path
+    verify <@ fileSys.Move curPath prevPath @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
@@ -161,7 +160,7 @@ let ``Undo rename item names file back to original`` curPathDifferent =
 let ``Undo rename item handles error by setting error status and consumes action``() =
     let fileSys =
         fileSysMock()
-            .Setup(fun x -> <@ x.Rename (any()) (any()) (any()) @>).Raises(ex)
+            .Setup(fun x -> <@ x.Move (any()) (any()) @>).Raises(ex)
             .Create()
     let contr = createController fileSys
     let prevNode = newNodes.[1]
@@ -254,10 +253,9 @@ let ``Redo rename item renames original file name again`` curPathDifferent =
         model.Cursor <- 5
     contr.Redo model
 
-    let nodeType = curNode.Type
-    let path = curNode.Path
-    let name = newNode.Name
-    verify <@ fileSys.Rename nodeType path name @> once
+    let curPath = curNode.Path
+    let curName = newNode.Path
+    verify <@ fileSys.Move curPath curName @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1

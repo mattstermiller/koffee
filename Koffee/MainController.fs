@@ -176,7 +176,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.Rename node newName model =
         let action = RenamedItem (node, newName)
         try
-            fileSys.Rename node.Type node.Path newName
+            let newPath = fileSys.JoinPath (fileSys.Parent node.Path) newName
+            fileSys.Move node.Path newPath
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- model.FindNode newName
             model |> this.PerformedAction action
@@ -225,12 +226,12 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                             model.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus node)
                     with | ex -> model |> MainController.SetActionExceptionStatus (DeletedItem (node, true)) ex
                 | RenamedItem (oldNode, curName) ->
-                    let path = fileSys.Parent oldNode.Path
-                    let node = { oldNode with Name = curName; Path = fileSys.JoinPath path curName}
+                    let parentPath = fileSys.Parent oldNode.Path
+                    let node = { oldNode with Name = curName; Path = fileSys.JoinPath parentPath curName}
                     let action = RenamedItem (node, oldNode.Name)
                     try
-                        fileSys.Rename node.Type node.Path oldNode.Name
-                        this.OpenPath path 0 model
+                        fileSys.Move node.Path oldNode.Path
+                        this.OpenPath parentPath 0 model
                         model.Cursor <- model.FindNode oldNode.Name
                     with | ex -> model |> MainController.SetActionExceptionStatus action ex
                 | DeletedItem (node, permanent) ->

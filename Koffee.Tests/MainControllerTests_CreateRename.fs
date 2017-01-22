@@ -36,7 +36,7 @@ let createFileSys () =
 let createUnauthorizedFileSys () =
     (baseFileSysMock newNodes)
         .Setup(fun x -> <@ x.Create (any()) (any()) @>).Raises(ex)
-        .Setup(fun x -> <@ x.Rename (any()) (any()) @>).Raises(ex)
+        .Setup(fun x -> <@ x.Move (any()) (any()) @>).Raises(ex)
         .Create()
 
 let createController fileSys =
@@ -82,7 +82,7 @@ let ``Create folder handles error by setting error status``() =
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
-let ``Rename calls fileSys.Rename, reloads nodes and sets cursor``() =
+let ``Rename calls fileSys.Move, reloads nodes and sets cursor``() =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let newName = newNodes.[1].Name
@@ -92,9 +92,9 @@ let ``Rename calls fileSys.Rename, reloads nodes and sets cursor``() =
     model.CommandText <- newName
     contr.ExecuteCommand model
 
-    let nodeType = Folder
-    let path = oldNodes.[1].Path
-    verify <@ fileSys.Rename nodeType path newName @> once
+    let oldPath = oldNodes.[1].Path
+    let newPath = newNodes.[1].Path
+    verify <@ fileSys.Move oldPath newPath @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1

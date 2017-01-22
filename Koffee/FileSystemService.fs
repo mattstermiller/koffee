@@ -22,7 +22,7 @@ type IFileSystemService =
     abstract IsEmpty: Node -> bool
     abstract IsRecyclable: Node -> bool
     abstract Create: NodeType -> Path -> unit
-    abstract Rename: NodeType -> Path -> string -> unit
+    abstract Move: currentPath: Path -> newPath: Path -> unit
     abstract Delete: Node -> unit
     abstract DeletePermanently: Node -> unit
     abstract OpenFile: Path -> unit
@@ -51,7 +51,7 @@ type FileSystemService() =
         override this.IsEmpty node = this.IsEmpty node
         override this.IsRecyclable node = this.IsRecyclable node
         override this.Create nodeType path = this.Create nodeType path
-        override this.Rename nodeType path newName = this.Rename nodeType path newName
+        override this.Move currentPath newPath = this.Move currentPath newPath
         override this.Delete node = this.Delete node
         override this.DeletePermanently node = this.DeletePermanently node
         override this.OpenFile path = this.OpenFile path
@@ -171,13 +171,13 @@ type FileSystemService() =
             | Folder -> Directory.CreateDirectory(winPath) |> ignore
             | _ -> failwith (this.CannotActOnNodeType "create" nodeType)
 
-    member this.Rename nodeType path newName =
-        let rawPath = this.ToRawPath path
-        let newPath = Path.Combine(Path.GetDirectoryName(rawPath), newName)
-        match nodeType with
-            | File -> File.Move(rawPath, newPath)
-            | Folder -> Directory.Move(rawPath, newPath)
-            | _ -> failwith (this.CannotActOnNodeType "rename" nodeType)
+    member this.Move currentPath newPath =
+        let source = this.ToRawPath currentPath
+        let dest = this.ToRawPath newPath
+        if Directory.Exists source then
+            Directory.Move(source, dest)
+        else
+            File.Move(source, dest)
 
     member this.Delete node =
         let rawPath = this.ToRawPath node.Path

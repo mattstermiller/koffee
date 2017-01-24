@@ -69,7 +69,7 @@ let ``Redo with empty stack sets status only``() =
 [<TestCase(1, false)>]
 [<TestCase(2, false)>]
 [<TestCase(1, true)>]
-let ``Undo create item deletes permanently if empty`` nodeIndex curPathDifferent =
+let ``Undo create item deletes if empty`` nodeIndex curPathDifferent =
     let fileSys =
         fileSysMock()
             .Setup(fun x -> <@ x.IsEmpty (any()) @>).Returns(true)
@@ -85,7 +85,7 @@ let ``Undo create item deletes permanently if empty`` nodeIndex curPathDifferent
         model.Cursor <- 5
     contr.Undo model
 
-    verify <@ fileSys.DeletePermanently createdNode @> once
+    verify <@ fileSys.Delete createdNode @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 0
@@ -106,7 +106,7 @@ let ``Undo create item handles error by setting error status and consumes action
             fileSysMock().Setup(fun x -> <@ x.IsEmpty (any()) @>).Returns(true)
     let fileSys =
         fsMock
-            .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises(ex)
+            .Setup(fun x -> <@ x.Delete (any()) @>).Raises(ex)
             .Create()
     let contr = createController fileSys
     let model = createModel()
@@ -134,7 +134,7 @@ let ``Undo create item sets status if non-empty and consumes action``() =
     model.UndoStack <- action :: model.UndoStack
     contr.Undo model
 
-    verify <@ fileSys.DeletePermanently (any()) @> never
+    verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.Path <- Path "other"
     expected.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus createdNode)
@@ -248,7 +248,7 @@ let ``Redo rename item renames original file name again`` curPathDifferent =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo delete or delete permanently sets status message and consumes action`` permanent =
+let ``Undo recycle or delete sets status message and consumes action`` permanent =
     let fileSys =
         fileSysMock()
             .Setup(fun x -> <@ x.IsEmpty (any()) @>).Returns(false)

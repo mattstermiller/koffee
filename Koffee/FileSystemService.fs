@@ -23,8 +23,8 @@ type IFileSystemService =
     abstract IsRecyclable: Node -> bool
     abstract Create: NodeType -> Path -> unit
     abstract Move: currentPath: Path -> newPath: Path -> unit
+    abstract Recycle: Node -> unit
     abstract Delete: Node -> unit
-    abstract DeletePermanently: Node -> unit
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
 
@@ -52,8 +52,8 @@ type FileSystemService() =
         override this.IsRecyclable node = this.IsRecyclable node
         override this.Create nodeType path = this.Create nodeType path
         override this.Move currentPath newPath = this.Move currentPath newPath
+        override this.Recycle node = this.Recycle node
         override this.Delete node = this.Delete node
-        override this.DeletePermanently node = this.DeletePermanently node
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
 
@@ -179,14 +179,14 @@ type FileSystemService() =
         else
             File.Move(source, dest)
 
-    member this.Delete node =
+    member this.Recycle node =
         let rawPath = this.ToRawPath node.Path
         match node.Type with
             | File -> FileSystem.DeleteFile(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
             | Folder -> FileSystem.DeleteDirectory(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
             | _ -> failwith (this.CannotActOnNodeType "delete" node.Type)
 
-    member this.DeletePermanently node =
+    member this.Delete node =
         let rawPath = this.ToRawPath node.Path
         match node.Type with
             | File -> File.Delete rawPath

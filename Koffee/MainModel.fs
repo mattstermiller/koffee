@@ -57,11 +57,11 @@ type CommandInput =
     | CreateFile
     | CreateFolder
     | Rename of CursorPosition
-    | DeletePermanently
+    | Delete
 
     member this.Prompt (node: Node) =
         match this with
-        | DeletePermanently -> sprintf "Permanently delete \"%s\" y/n ?" node.Name
+        | Delete -> sprintf "Permanently delete \"%s\" y/n ?" node.Name
         | _ ->
             let caseName = GetUnionCaseName this
             let name = Regex.Replace(caseName, @"(?<=[a-z])(?=[A-Z\d])", " ")
@@ -147,7 +147,7 @@ type MainEvents =
     | FindNext
     | SearchNext
     | SearchPrevious
-    | Delete
+    | Recycle
     | TogglePathFormat
     | OpenSettings
     | OpenExplorer
@@ -174,7 +174,7 @@ type MainEvents =
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
         | StartInput (Rename End) -> "Rename File (Append)"
         | StartInput (Rename Replace) -> "Rename File (Replace)"
-        | StartInput DeletePermanently -> "Delete Permanently"
+        | StartInput Delete -> "Delete Permanently"
         | StartInput Find -> "Find Item Beginning With Character"
         | StartInput Search -> "Search For Items"
         | ExecuteCommand -> "Execute the Currently Entered Command"
@@ -182,7 +182,7 @@ type MainEvents =
         | FindNext -> "Go To Next Find Match"
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
-        | Delete -> "Send to Recycle Bin"
+        | Recycle -> "Send to Recycle Bin"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | OpenSettings -> "Open Help/Settings"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
@@ -212,7 +212,7 @@ type MainEvents =
         StartInput Search
         SearchNext
         SearchPrevious
-        Delete
+        Recycle
         TogglePathFormat
         OpenSettings
         OpenExplorer

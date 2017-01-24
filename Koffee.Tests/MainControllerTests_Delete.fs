@@ -38,8 +38,8 @@ let createNoRecycleFileSys () =
 let createUnauthorizedFileSys () =
     (baseFileSysMock newNodes)
         .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(true)
+        .Setup(fun x -> <@ x.Recycle (any()) @>).Raises(ex)
         .Setup(fun x -> <@ x.Delete (any()) @>).Raises(ex)
-        .Setup(fun x -> <@ x.DeletePermanently (any()) @>).Raises(ex)
         .Create()
 
 let createController fileSys =
@@ -48,15 +48,15 @@ let createController fileSys =
 
 [<TestCase(0)>]
 [<TestCase(1)>]
-let ``Delete calls file sys delete and sets message`` cursor =
+let ``Recycle calls file sys recycle and sets message`` cursor =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
     model.Cursor <- cursor
-    contr.Delete model |> Async.RunSynchronously
+    contr.Recycle model |> Async.RunSynchronously
 
     let expectedNode = oldNodes.[cursor]
-    verify <@ fileSys.Delete expectedNode @> once
+    verify <@ fileSys.Recycle expectedNode @> once
     let expectedAction = DeletedItem (oldNodes.[cursor], false)
     let expected = createModel()
     expected.CommandInputMode <- None
@@ -68,39 +68,40 @@ let ``Delete calls file sys delete and sets message`` cursor =
     assertAreEqual expected model
 
 [<Test>]
-let ``Delete sets status message when not recyclable``() =
+let ``Recycle sets status message when not recyclable``() =
     let fileSys = createNoRecycleFileSys()
     let contr = createController fileSys
     let model = createModel()
-    contr.Delete model |> Async.RunSynchronously
+    contr.Recycle model |> Async.RunSynchronously
 
     let expected = createModel()
-    expected.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus oldNodes.[1])
+    expected.SetErrorStatus (MainController.CannotRecycleStatus oldNodes.[1])
     assertAreEqual expected model
 
 [<Test>]
-let ``Delete handles error by setting error status``() =
+let ``Recycle handles error by setting error status``() =
     let fileSys = createUnauthorizedFileSys()
     let contr = createController fileSys
     let model = createModel()
-    contr.Delete model |> Async.RunSynchronously
+    contr.Recycle model |> Async.RunSynchronously
 
     let expected = createModel()
     expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
     assertAreEqual expected model
 
+
 [<TestCase(0)>]
 [<TestCase(1)>]
-let ``DeletePermanently prompt answered "y" calls file sys delete and sets message`` cursor =
+let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor =
     let fileSys = createNoRecycleFileSys()
     let contr = createController fileSys
     let model = createModel()
     model.Cursor <- cursor
-    model.CommandInputMode <- Some DeletePermanently
+    model.CommandInputMode <- Some Delete
     contr.CommandCharTyped 'y' model
 
     let expectedNode = oldNodes.[cursor]
-    verify <@ fileSys.DeletePermanently expectedNode @> once
+    verify <@ fileSys.Delete expectedNode @> once
     let expectedAction = DeletedItem (oldNodes.[cursor], true)
     let expected = createModel()
     expected.CommandInputMode <- None
@@ -112,11 +113,11 @@ let ``DeletePermanently prompt answered "y" calls file sys delete and sets messa
     assertAreEqual expected model
 
 [<Test>]
-let ``DeletePermanently prompt answered "y" handles error by setting error status``() =
+let ``Delete prompt answered "y" handles error by setting error status``() =
     let fileSys = createUnauthorizedFileSys()
     let contr = createController fileSys
     let model = createModel()
-    model.CommandInputMode <- Some DeletePermanently
+    model.CommandInputMode <- Some Delete
     contr.CommandCharTyped 'y' model
 
     let expected = createModel()
@@ -128,14 +129,14 @@ let ``DeletePermanently prompt answered "y" handles error by setting error statu
 [<TestCase('n')>]
 [<TestCase('x')>]
 [<TestCase('q')>]
-let ``DeletePermanently prompt answered with any key besides "y" escapes input mode`` char =
+let ``Delete prompt answered with any key besides "y" escapes input mode`` char =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
-    model.CommandInputMode <- Some DeletePermanently
+    model.CommandInputMode <- Some Delete
     contr.CommandCharTyped char model
 
-    verify <@ fileSys.DeletePermanently (any()) @> never
+    verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.CommandInputMode <- None
     expected.Status <- MainController.CancelledStatus

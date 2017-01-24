@@ -36,7 +36,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | FindNext -> Sync this.FindNext
         | SearchNext -> Sync (this.SearchNext false)
         | SearchPrevious -> Sync (this.SearchNext true)
-        | Delete -> Async this.Delete
+        | Recycle -> Async this.Recycle
         | TogglePathFormat -> Sync this.TogglePathFormat
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenSettings -> Sync this.OpenSettings
@@ -111,17 +111,17 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | None -> ()
             // below are triggered by typing a char
             | Some Find -> ()
-            | Some DeletePermanently -> ()
+            | Some Delete -> ()
 
     member this.CommandCharTyped char model =
         match model.CommandInputMode with
         | Some Find ->
             this.Find char model
             model.CommandInputMode <- None
-        | Some DeletePermanently ->
+        | Some Delete ->
             model.CommandInputMode <- None
             match char with
-                | 'y' -> this.DeleteItem model.SelectedNode true model
+                | 'y' -> this.Delete model.SelectedNode true model
                 | _ -> model.Status <- MainController.CancelledStatus
         | _ -> ()
 
@@ -183,23 +183,23 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model |> this.PerformedAction action
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
-    member this.Delete model = async {
+    member this.Recycle model = async {
         let node = model.SelectedNode
         model.Status <- "Calculating size..."
         let! isRecyclable = (fun () -> fileSys.IsRecyclable node) |> Task.Run |> Async.AwaitTask
         if isRecyclable then
-            this.DeleteItem node false model
+            this.Delete node false model
         else
-            model.SetErrorStatus (MainController.CannotDeleteUnrecyclableStatus node)
+            model.SetErrorStatus (MainController.CannotRecycleStatus node)
         }
 
-    member private this.DeleteItem node permanent model =
+    member private this.Delete node permanent model =
         let action = DeletedItem (node, permanent)
         try
             if permanent then
-                fileSys.DeletePermanently node
-            else
                 fileSys.Delete node
+            else
+                fileSys.Recycle node
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
@@ -219,7 +219,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | CreatedItem node ->
                     try
                         if fileSys.IsEmpty node then
-                            fileSys.DeletePermanently node
+                            fileSys.Delete node
                             let path = fileSys.Parent node.Path
                             this.OpenPath path 0 model
                         else
@@ -258,7 +258,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     this.Rename node newName model
                 | DeletedItem (node, permanent) ->
                     goToPath node
-                    this.DeleteItem node permanent model
+                    this.Delete node permanent model
             model.RedoStack <- rest
             model.Status <- MainController.RedoActionStatus action
         | [] -> model.Status <- MainController.NoRedoActionsStatus
@@ -309,18 +309,20 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         match action with
         | CreatedItem node -> sprintf "Created %A: %s" node.Type node.Name
         | RenamedItem (node, newName) -> sprintf "Renamed %s to: %s" node.Name newName
-        | DeletedItem (node, false) -> sprintf "Moved %A to Recycle Bin: %s" node.Type node.Name
+        | DeletedItem (node, false) -> sprintf "Sent %A to Recycle Bin: %s" node.Type node.Name
         | DeletedItem (node, true) -> sprintf "Deleted %A Permanently: %s" node.Type node.Name
-    static member CannotDeleteUnrecyclableStatus node =
+    static member CannotRecycleStatus node =
         sprintf "Cannot move \"%s\" to the recycle bin because it is too large" node.Name
     static member CancelledStatus = "Cancelled"
     static member SetActionExceptionStatus action ex model =
-        let actionMsg =
+        let actionName =
             match action with
             | CreatedItem node -> sprintf "create %A %s" node.Type node.Name
             | RenamedItem (node, newName) -> sprintf "rename %s" node.Name
-            | DeletedItem (node, _) -> sprintf "delete %A %s" node.Type node.Name
-        model.SetExceptionStatus ex actionMsg
+            | DeletedItem (node, permanent) ->
+                let verb = if permanent then "delete" else "recycle"
+                sprintf "%s %A %s" verb node.Type node.Name
+        model.SetExceptionStatus ex actionName
 
     // undo/redo messages
     static member UndoActionStatus action = MainController.ActionStatus action |> sprintf "Action undone: %s"
@@ -333,4 +335,4 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         if permanent then
             sprintf "Cannot undo permanent deletion of %A \"%O\"" node.Type node.Name
         else
-            sprintf "Cannot undo deletion of %A \"%O\". Please open the Recycle Bin in Windows Explorer to restore this item" node.Type node.Name
+            sprintf "Cannot undo recycling of %A \"%O\". Please open the Recycle Bin in Windows Explorer to restore this item" node.Type node.Name

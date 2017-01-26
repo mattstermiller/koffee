@@ -85,7 +85,8 @@ let ``Undo create item deletes if empty`` nodeIndex curPathDifferent =
         model.Cursor <- 5
     contr.Undo model
 
-    verify <@ fileSys.Delete createdNode @> once
+    let expectedPath = createdNode.Path
+    verify <@ fileSys.Delete expectedPath @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 0

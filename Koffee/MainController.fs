@@ -186,7 +186,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.Recycle model = async {
         let node = model.SelectedNode
         model.Status <- "Calculating size..."
-        let! isRecyclable = (fun () -> fileSys.IsRecyclable node) |> Task.Run |> Async.AwaitTask
+        let! isRecyclable = (fun () -> fileSys.IsRecyclable node.Path) |> Task.Run |> Async.AwaitTask
         if isRecyclable then
             this.Delete node false model
         else
@@ -197,9 +197,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         let action = DeletedItem (node, permanent)
         try
             if permanent then
-                fileSys.Delete node
+                fileSys.Delete node.Path
             else
-                fileSys.Recycle node
+                fileSys.Recycle node.Path
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
@@ -218,8 +218,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             match action with
                 | CreatedItem node ->
                     try
-                        if fileSys.IsEmpty node then
-                            fileSys.Delete node
+                        if fileSys.IsEmpty node.Path then
+                            fileSys.Delete node.Path
                             let path = fileSys.Parent node.Path
                             this.OpenPath path 0 model
                         else

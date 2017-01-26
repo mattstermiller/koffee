@@ -19,12 +19,12 @@ type IFileSystemService =
     abstract Parent: Path -> Path
     abstract JoinPath: Path -> string -> Path
     abstract GetNodes: Path -> Node list
-    abstract IsEmpty: Node -> bool
-    abstract IsRecyclable: Node -> bool
+    abstract IsEmpty: Path -> bool
+    abstract IsRecyclable: Path -> bool
     abstract Create: NodeType -> Path -> unit
     abstract Move: currentPath: Path -> newPath: Path -> unit
-    abstract Recycle: Node -> unit
-    abstract Delete: Node -> unit
+    abstract Recycle: Path -> unit
+    abstract Delete: Path -> unit
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
 
@@ -124,10 +124,10 @@ type FileSystemService() =
         if path = this.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
         else
-            let winPath = this.ToRawPath path
-            if Directory.Exists winPath then
-                let folders = Directory.EnumerateDirectories winPath |> Seq.map this.FolderNode
-                let files = DirectoryInfo(winPath).GetFiles() |> Seq.map this.FileNode
+            let rawPath = this.ToRawPath path
+            if Directory.Exists rawPath then
+                let folders = Directory.EnumerateDirectories rawPath |> Seq.map this.FolderNode
+                let files = DirectoryInfo(rawPath).GetFiles() |> Seq.map this.FileNode
                 let nodes = Seq.append folders files |> Seq.toList
                 if nodes.IsEmpty then
                     this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton
@@ -135,15 +135,15 @@ type FileSystemService() =
             else
                 this.ErrorNode (Exception("Path does not exist")) this.Root |> List.singleton
 
-    member this.IsEmpty node =
-        let winPath = this.ToRawPath node.Path
-        match node.Type with
-            | File -> FileInfo(winPath).Length = 0L
-            | Folder -> Directory.EnumerateFiles(winPath) |> Seq.isEmpty
-            | _ -> false
+    member this.IsEmpty path =
+        let winPath = this.ToRawPath path
+        if Directory.Exists(winPath) then
+            Directory.EnumerateFiles(winPath, "*", SearchOption.AllDirectories) |> Seq.isEmpty
+        else
+            FileInfo(winPath).Length = 0L
 
-    member this.IsRecyclable node =
-        let winPath = this.ToRawPath node.Path
+    member this.IsRecyclable path =
+        let winPath = this.ToRawPath path
         let driveSize =
             match winPath.[0] with
             | l when Char.IsLetter l -> Some (DriveInfo(string l).TotalSize)
@@ -179,19 +179,19 @@ type FileSystemService() =
         else
             File.Move(source, dest)
 
-    member this.Recycle node =
-        let rawPath = this.ToRawPath node.Path
-        match node.Type with
-            | File -> FileSystem.DeleteFile(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-            | Folder -> FileSystem.DeleteDirectory(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-            | _ -> failwith (this.CannotActOnNodeType "delete" node.Type)
+    member this.Recycle path =
+        let rawPath = this.ToRawPath path
+        if Directory.Exists rawPath then
+            FileSystem.DeleteDirectory(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+        else
+            FileSystem.DeleteFile(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
 
-    member this.Delete node =
-        let rawPath = this.ToRawPath node.Path
-        match node.Type with
-            | File -> File.Delete rawPath
-            | Folder -> Directory.Delete rawPath
-            | _ -> failwith (this.CannotActOnNodeType "delete" node.Type)
+    member this.Delete path =
+        let rawPath = this.ToRawPath path
+        if Directory.Exists rawPath then
+            Directory.Delete rawPath
+        else
+            File.Delete rawPath
 
 
     member this.OpenFile path =

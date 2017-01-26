@@ -55,8 +55,8 @@ let ``Recycle calls file sys recycle and sets message`` cursor =
     model.Cursor <- cursor
     contr.Recycle model |> Async.RunSynchronously
 
-    let expectedNode = oldNodes.[cursor]
-    verify <@ fileSys.Recycle expectedNode @> once
+    let expectedPath = oldNodes.[cursor].Path
+    verify <@ fileSys.Recycle expectedPath @> once
     let expectedAction = DeletedItem (oldNodes.[cursor], false)
     let expected = createModel()
     expected.CommandInputMode <- None
@@ -100,8 +100,8 @@ let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor
     model.CommandInputMode <- Some Delete
     contr.CommandCharTyped 'y' model
 
-    let expectedNode = oldNodes.[cursor]
-    verify <@ fileSys.Delete expectedNode @> once
+    let expectedPath = oldNodes.[cursor].Path
+    verify <@ fileSys.Delete expectedPath @> once
     let expectedAction = DeletedItem (oldNodes.[cursor], true)
     let expected = createModel()
     expected.CommandInputMode <- None

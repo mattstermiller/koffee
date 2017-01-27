@@ -44,6 +44,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.PathBox.Text <- model.Path.Value
         model.OnPropertyChanged <@ model.Path @> (fun path -> window.PathBox.Text <- path.Value)
 
+        window.BufferLabel.Content <- ""
+        model.OnPropertyChanged <@ model.ItemBuffer @> (fun buffer ->
+            window.BufferLabel.Content <- MainView.BufferStatus buffer)
+
         model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
             window.CommandBox.Select(start, len))
 
@@ -143,6 +147,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
     member this.ShowCommandBar label =
         window.StatusLabel.Visibility <- Visibility.Hidden
+        window.BufferLabel.Visibility <- Visibility.Hidden
         window.CommandLabel.Content <- label
         window.CommandPanel.Visibility <- Visibility.Visible
         window.CommandBox.Focus() |> ignore
@@ -150,6 +155,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
     member this.HideCommandBar () =
         window.CommandPanel.Visibility <- Visibility.Hidden
         window.StatusLabel.Visibility <- Visibility.Visible
+        window.BufferLabel.Visibility <- Visibility.Visible
         window.NodeGrid.Focus() |> ignore
 
     member this.KeepSelectedInView () =
@@ -163,3 +169,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             window.NodeGrid.ActualHeight / row.ActualHeight |> int |> Some
         else
             None
+
+    static member BufferStatus buffer =
+        match buffer with
+        | Some (node, action) -> sprintf "%A %A: %s" action node.Type node.Name
+        | None -> ""

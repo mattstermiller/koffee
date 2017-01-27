@@ -36,6 +36,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | FindNext -> Sync this.FindNext
         | SearchNext -> Sync (this.SearchNext false)
         | SearchPrevious -> Sync (this.SearchNext true)
+        | StartMove -> Sync this.StartMove
+        | StartCopy -> Sync this.StartCopy
+        | Put -> Sync (this.Put false)
         | Recycle -> Async this.Recycle
         | TogglePathFormat -> Sync this.TogglePathFormat
         | OpenExplorer -> Sync this.OpenExplorer
@@ -111,6 +114,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | None -> ()
             // below are triggered by typing a char
             | Some Find -> ()
+            | Some Overwrite -> ()
             | Some Delete -> ()
 
     member this.CommandCharTyped char model =
@@ -118,6 +122,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Some Find ->
             this.Find char model
             model.CommandInputMode <- None
+        | Some Overwrite ->
+            model.CommandInputMode <- None
+            match char with
+                | 'y' -> this.Put true model
+                | _ -> model.Status <- MainController.CancelledStatus
         | Some Delete ->
             model.CommandInputMode <- None
             match char with
@@ -183,6 +192,47 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model |> this.PerformedAction action
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
+    member this.StartMove model =
+        model.ItemBuffer <- Some (model.SelectedNode, Move)
+        model.Status <- ""
+
+    member this.StartCopy model =
+        model.ItemBuffer <- Some (model.SelectedNode, Copy)
+        model.Status <- ""
+
+    member this.Put overwrite model =
+        match model.ItemBuffer with
+        | Some (node, bufferAction) ->
+            let sameFolder = fileSys.Parent node.Path = model.Path
+            if bufferAction = Move && sameFolder then
+                model.SetErrorStatus MainController.CannotMoveToSameFolderStatus
+            else
+                let newName =
+                    if bufferAction = Copy && sameFolder then
+                        Seq.init 99 (fun i -> MainController.GetCopyName node.Name i)
+                        |> Seq.pick
+                            (fun name ->
+                                let path = fileSys.JoinPath model.Path name
+                                if not (fileSys.Exists path) then Some name else None)
+                    else
+                        node.Name
+                let newPath = fileSys.JoinPath model.Path newName
+                if fileSys.Exists newPath && not overwrite then
+                    this.StartInput Overwrite model
+                else
+                    let fileSysAction, action =
+                        match bufferAction with
+                        | Move -> (fileSys.Move, MovedItem (node, newPath))
+                        | Copy -> (fileSys.Copy, CopiedItem (node, newPath))
+                    try
+                        fileSysAction node.Path newPath
+                        model.Nodes <- fileSys.GetNodes model.Path
+                        model.Cursor <- model.FindNode newName
+                        model.ItemBuffer <- None
+                        model |> this.PerformedAction action
+                    with | ex -> model |> MainController.SetActionExceptionStatus action ex
+        | None -> ()
+
     member this.Recycle model = async {
         let node = model.SelectedNode
         model.Status <- "Calculating size..."
@@ -241,6 +291,35 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     with | ex ->
                         let action = RenamedItem (node, oldNode.Name)
                         model |> MainController.SetActionExceptionStatus action ex
+                | MovedItem (node, newPath) ->
+                    if fileSys.Exists newPath then
+                        // todo: prompt for overwrite here
+                        model.SetErrorStatus (sprintf "Cannot undo move %s because an item exists in its previous location" node.Name)
+                    else
+                        try
+                            fileSys.Move newPath node.Path
+                            let path = fileSys.Parent node.Path
+                            this.OpenPath path 0 model
+                            model.Cursor <- model.FindNode node.Name
+                        with | ex ->
+                            let action = MovedItem ({ node with Path = newPath }, node.Path)
+                            model |> MainController.SetActionExceptionStatus action ex
+                | CopiedItem (node, newPath) ->
+                    let mutable delete = false
+                    try
+                        let copyModified = fileSys.GetNode newPath |> Option.bind (fun n -> n.Modified)
+                        delete <-
+                            match node.Modified, copyModified with
+                            | Some orig, Some copy when orig = copy -> true
+                            | _ -> false
+                        if delete then
+                            fileSys.Delete newPath
+                        else
+                            fileSys.Recycle newPath
+                        refreshIfOnPath newPath
+                    with | ex ->
+                        let action = DeletedItem ({ node with Path = newPath }, delete)
+                        model |> MainController.SetActionExceptionStatus action ex
                 | DeletedItem (node, permanent) ->
                     model.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent node)
             model.UndoStack <- rest
@@ -263,6 +342,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | RenamedItem (node, newName) ->
                     goToPath node
                     this.Rename node newName model
+                | MovedItem (node, newPath)
+                | CopiedItem (node, newPath) ->
+                    let moveOrCopy =
+                        match action with
+                        | MovedItem _ -> Move
+                        | _ -> Copy
+                    let path = fileSys.Parent newPath
+                    if path <> model.Path then
+                        this.OpenPath path 0 model
+                    let buffer = model.ItemBuffer
+                    model.ItemBuffer <- Some (node, moveOrCopy)
+                    this.Put false model
+                    model.ItemBuffer <- buffer
                 | DeletedItem (node, permanent) ->
                     goToPath node
                     this.Delete node permanent model
@@ -292,10 +384,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member private this.SetCommandSelection cursorPos model =
         match cursorPos with
         | Some pos ->
-            let nameLen =
-                match model.CommandText.LastIndexOf('.') with
-                | -1 -> model.CommandText.Length
-                | index -> index
+            let nameLen = MainController.GetNameParts model.CommandText |> fst |> (fun (s: string) -> s.Length)
             model.CommandTextSelection <-
                 match pos with
                 | Begin -> (0, 0)
@@ -303,6 +392,16 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | Replace -> (0, nameLen)
         | None -> ()
 
+
+    static member GetNameParts name =
+        match name.LastIndexOf('.') with
+        | -1 -> (name, "")
+        | index -> (name.Substring(0, index), name.Substring(index))
+
+    static member GetCopyName name i =
+        let (nameNoExt, ext) = MainController.GetNameParts name
+        let number = if i = 0 then "" else sprintf " %i" (i+1)
+        sprintf "%s (copy%s)%s" nameNoExt number ext
 
     // nav messages
     static member FindStatus char = sprintf "Find %O" char
@@ -316,8 +415,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         match action with
         | CreatedItem node -> sprintf "Created %s" node.Description
         | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
+        | MovedItem (node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description newPath.Value
+        | CopiedItem (node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description newPath.Value
         | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
         | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
+    static member CannotMoveToSameFolderStatus = "Cannot move item to same folder it is already in"
     static member CannotRecycleStatus node =
         sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
     static member CancelledStatus = "Cancelled"
@@ -326,6 +428,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             match action with
             | CreatedItem node -> sprintf "create %s" node.Description
             | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
+            | MovedItem (node, newPath) -> sprintf "move %s to \"%s\"" node.Description newPath.Value
+            | CopiedItem (node, newPath) -> sprintf "copy %s to \"%s\"" node.Description newPath.Value
             | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
             | DeletedItem (node, true) -> sprintf "delete %s" node.Description
         model.SetExceptionStatus ex actionName

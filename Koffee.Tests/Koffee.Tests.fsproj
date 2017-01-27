@@ -61,6 +61,7 @@
     <Compile Include="MainControllerTests_FindSearch.fs" />
     <Compile Include="MainControllerTests_CreateRename.fs" />
     <Compile Include="MainControllerTests_Delete.fs" />
+    <Compile Include="MainControllerTests_MoveCopy.fs" />
     <Compile Include="MainControllerTests_UndoRedo.fs" />
   </ItemGroup>
   <ItemGroup>

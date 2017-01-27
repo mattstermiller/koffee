@@ -62,10 +62,12 @@ type CommandInput =
     | CreateFile
     | CreateFolder
     | Rename of CursorPosition
+    | Overwrite
     | Delete
 
     member this.Prompt (node: Node) =
         match this with
+        | Overwrite -> sprintf "File named \"%s\" already exists, overwrite y/n ?" node.Name
         | Delete -> sprintf "Permanently delete \"%s\" y/n ?" node.Name
         | _ ->
             let caseName = GetUnionCaseName this
@@ -80,9 +82,15 @@ type CommandInput =
             | _ -> false
         | _ -> true
 
+type BufferAction =
+    | Move
+    | Copy
+
 type ItemAction =
     | CreatedItem of Node
     | RenamedItem of Node * newName: string
+    | MovedItem of Node * newPath: Path
+    | CopiedItem of Node * newPath: Path
     | DeletedItem of Node * permanent: bool
 
 
@@ -113,6 +121,7 @@ type MainModel() as this =
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
     abstract ForwardStack: (Path * int) list with get, set
+    abstract ItemBuffer: (Node * BufferAction) option with get, set
     abstract UndoStack: ItemAction list with get, set
     abstract RedoStack: ItemAction list with get, set
 
@@ -152,6 +161,9 @@ type MainEvents =
     | FindNext
     | SearchNext
     | SearchPrevious
+    | StartMove
+    | StartCopy
+    | Put
     | Recycle
     | TogglePathFormat
     | OpenSettings
@@ -179,6 +191,7 @@ type MainEvents =
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
         | StartInput (Rename End) -> "Rename File (Append)"
         | StartInput (Rename Replace) -> "Rename File (Replace)"
+        | StartInput Overwrite -> "Overwrite existing file"
         | StartInput Delete -> "Delete Permanently"
         | StartInput Find -> "Find Item Beginning With Character"
         | StartInput Search -> "Search For Items"
@@ -187,6 +200,9 @@ type MainEvents =
         | FindNext -> "Go To Next Find Match"
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
+        | StartMove -> "Start Move Item"
+        | StartCopy -> "Start Copy Item"
+        | Put -> "Put Item to Move/Copy in Current Folder"
         | Recycle -> "Send to Recycle Bin"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | OpenSettings -> "Open Help/Settings"
@@ -217,6 +233,9 @@ type MainEvents =
         StartInput Search
         SearchNext
         SearchPrevious
+        StartMove
+        StartCopy
+        Put
         Recycle
         TogglePathFormat
         OpenSettings

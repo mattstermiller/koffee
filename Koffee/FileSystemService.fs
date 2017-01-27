@@ -18,11 +18,14 @@ type IFileSystemService =
     abstract Normalize: Path -> Path
     abstract Parent: Path -> Path
     abstract JoinPath: Path -> string -> Path
+    abstract GetNode: Path -> Node option
     abstract GetNodes: Path -> Node list
+    abstract Exists: Path -> bool
     abstract IsEmpty: Path -> bool
     abstract IsRecyclable: Path -> bool
     abstract Create: NodeType -> Path -> unit
     abstract Move: currentPath: Path -> newPath: Path -> unit
+    abstract Copy: currentPath: Path -> newPath: Path -> unit
     abstract Recycle: Path -> unit
     abstract Delete: Path -> unit
     abstract OpenFile: Path -> unit
@@ -47,11 +50,14 @@ type FileSystemService() =
         override this.Parent path = this.Parent path
         override this.JoinPath path name = this.JoinPath path name
         override this.Normalize path = this.Normalize path
+        override this.GetNode path = this.GetNode path
         override this.GetNodes path = this.GetNodes path
+        override this.Exists path = this.Exists path
         override this.IsEmpty node = this.IsEmpty node
         override this.IsRecyclable node = this.IsRecyclable node
         override this.Create nodeType path = this.Create nodeType path
         override this.Move currentPath newPath = this.Move currentPath newPath
+        override this.Copy currentPath newPath = this.Copy currentPath newPath
         override this.Recycle node = this.Recycle node
         override this.Delete node = this.Delete node
         override this.OpenFile path = this.OpenFile path
@@ -120,6 +126,15 @@ type FileSystemService() =
             | Windows -> '\\'
         sprintf "%s%O%s" trimmed join name |> Path
 
+    member this.GetNode path =
+        let rawPath = this.ToRawPath path
+        if Directory.Exists rawPath then
+            rawPath |> this.FolderNode |> Some
+        else if File.Exists rawPath then
+            FileInfo(rawPath) |> this.FileNode |> Some
+        else
+            None
+
     member this.GetNodes path =
         if path = this.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
@@ -134,6 +149,10 @@ type FileSystemService() =
                 else nodes
             else
                 this.ErrorNode (Exception("Path does not exist")) this.Root |> List.singleton
+
+    member this.Exists path =
+        let winPath = this.ToRawPath path
+        File.Exists winPath || Directory.Exists winPath
 
     member this.IsEmpty path =
         let winPath = this.ToRawPath path
@@ -178,6 +197,25 @@ type FileSystemService() =
             Directory.Move(source, dest)
         else
             File.Move(source, dest)
+
+    member this.Copy currentPath newPath =
+        let source = this.ToRawPath currentPath
+        let dest = this.ToRawPath newPath
+        if Directory.Exists source then
+            let getDest sourcePath = Regex.Replace(sourcePath, "^" + source, dest)
+            // copy folder structure
+            Directory.CreateDirectory dest |> ignore
+            Directory.GetDirectories(source, "*")
+                |> Seq.iter (fun sourceDir ->
+                    getDest sourceDir
+                    |> Directory.CreateDirectory |> ignore)
+            // copy files
+            Directory.GetFiles(source, "*")
+                |> Seq.iter (fun sourceFile ->
+                    let destFile = getDest sourceFile
+                    File.Copy(sourceFile, destFile, true))
+        else
+            File.Copy(source, dest, true)
 
     member this.Recycle path =
         let rawPath = this.ToRawPath path

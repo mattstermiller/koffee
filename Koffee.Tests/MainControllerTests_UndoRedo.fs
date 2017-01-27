@@ -16,7 +16,7 @@ let oldNodes = [
 ]
 
 let newNodes = [
-    createNode "path" "onee"
+    createNode "path" "one"
     createNode "path" "four"
     createNode "path" "three.txt"
 ]
@@ -80,21 +80,22 @@ let ``Undo create item deletes if empty`` nodeIndex curPathDifferent =
     let model = createModel()
     model.UndoStack <- action :: model.UndoStack
     model.IsErrorStatus <- true
+    model.Cursor <- 5
     if curPathDifferent then
         model.Path <- Path "other"
-        model.Cursor <- 5
     contr.Undo model
 
     let expectedPath = createdNode.Path
     verify <@ fileSys.Delete expectedPath @> once
     let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 0
     expected.RedoStack <- action :: expected.RedoStack
     expected.Status <- MainController.UndoActionStatus action
     if curPathDifferent then
-        expected.BackStack <- (Path "other", 5) :: expected.BackStack
-        expected.ForwardStack <- []
+        expected.Path <- Path "other"
+        expected.Cursor <- 5
+    else
+        expected.Nodes <- newNodes
+        expected.Cursor <- newNodes.Length - 1
     assertAreEqual expected model
 
 [<TestCase(false)>]
@@ -234,8 +235,8 @@ let ``Redo rename item renames original file name again`` curPathDifferent =
     contr.Redo model
 
     let curPath = curNode.Path
-    let curName = newNode.Path
-    verify <@ fileSys.Move curPath curName @> once
+    let newPath = newNode.Path
+    verify <@ fileSys.Move curPath newPath @> once
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1

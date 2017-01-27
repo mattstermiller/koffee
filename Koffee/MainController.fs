@@ -215,25 +215,32 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         match model.UndoStack with
         | action :: rest ->
             model.IsErrorStatus <- false
+            let refreshIfOnPath path =
+                if model.Path = (fileSys.Parent path) then
+                    let cursor = model.Cursor
+                    model.Nodes <- fileSys.GetNodes model.Path
+                    model.Cursor <- cursor |> min (model.Nodes.Length - 1)
             match action with
                 | CreatedItem node ->
                     try
                         if fileSys.IsEmpty node.Path then
                             fileSys.Delete node.Path
-                            let path = fileSys.Parent node.Path
-                            this.OpenPath path 0 model
+                            refreshIfOnPath node.Path
                         else
                             model.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus node)
-                    with | ex -> model |> MainController.SetActionExceptionStatus (DeletedItem (node, true)) ex
+                    with | ex ->
+                        let action = DeletedItem (node, true)
+                        model |> MainController.SetActionExceptionStatus action ex
                 | RenamedItem (oldNode, curName) ->
                     let parentPath = fileSys.Parent oldNode.Path
                     let node = { oldNode with Name = curName; Path = fileSys.JoinPath parentPath curName}
-                    let action = RenamedItem (node, oldNode.Name)
                     try
                         fileSys.Move node.Path oldNode.Path
                         this.OpenPath parentPath 0 model
                         model.Cursor <- model.FindNode oldNode.Name
-                    with | ex -> model |> MainController.SetActionExceptionStatus action ex
+                    with | ex ->
+                        let action = RenamedItem (node, oldNode.Name)
+                        model |> MainController.SetActionExceptionStatus action ex
                 | DeletedItem (node, permanent) ->
                     model.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent node)
             model.UndoStack <- rest

@@ -314,21 +314,20 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     static member ChangePathFormatStatus newFormat = sprintf "Changed Path Format to %O" newFormat
     static member ActionStatus action =
         match action with
-        | CreatedItem node -> sprintf "Created %A: %s" node.Type node.Name
-        | RenamedItem (node, newName) -> sprintf "Renamed %s to: %s" node.Name newName
-        | DeletedItem (node, false) -> sprintf "Sent %A to Recycle Bin: %s" node.Type node.Name
-        | DeletedItem (node, true) -> sprintf "Deleted %A Permanently: %s" node.Type node.Name
+        | CreatedItem node -> sprintf "Created %s" node.Description
+        | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
+        | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
+        | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
     static member CannotRecycleStatus node =
-        sprintf "Cannot move \"%s\" to the recycle bin because it is too large" node.Name
+        sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
     static member CancelledStatus = "Cancelled"
     static member SetActionExceptionStatus action ex model =
         let actionName =
             match action with
-            | CreatedItem node -> sprintf "create %A %s" node.Type node.Name
-            | RenamedItem (node, newName) -> sprintf "rename %s" node.Name
-            | DeletedItem (node, permanent) ->
-                let verb = if permanent then "delete" else "recycle"
-                sprintf "%s %A %s" verb node.Type node.Name
+            | CreatedItem node -> sprintf "create %s" node.Description
+            | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
+            | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
+            | DeletedItem (node, true) -> sprintf "delete %s" node.Description
         model.SetExceptionStatus ex actionName
 
     // undo/redo messages
@@ -337,9 +336,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     static member NoUndoActionsStatus = "No more actions to undo"
     static member NoRedoActionsStatus = "No more actions to redo"
     static member CannotUndoNonEmptyCreatedStatus node =
-        sprintf "Cannot undo creation of %A \"%O\" because it is no longer empty" node.Type node.Name
+        sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
     static member CannotUndoDeleteStatus permanent node =
         if permanent then
-            sprintf "Cannot undo permanent deletion of %A \"%O\"" node.Type node.Name
+            sprintf "Cannot undo deletion of %s" node.Description
         else
-            sprintf "Cannot undo recycling of %A \"%O\". Please open the Recycle Bin in Windows Explorer to restore this item" node.Type node.Name
+            sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description

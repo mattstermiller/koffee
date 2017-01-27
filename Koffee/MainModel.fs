@@ -21,6 +21,8 @@ type NodeType =
     | Drive
     | Error
 
+    override this.ToString() = (sprintf "%A" this).ToLower()
+
 type Node = {
     Path: Path
     Name: string
@@ -30,6 +32,9 @@ type Node = {
 }
 with
     override this.ToString() = this.Path.Value
+
+    member this.Description =
+        sprintf "%O \"%s\"" this.Type this.Name
 
     member this.SizeFormatted =
         if this.Size.IsSome then

@@ -11,7 +11,7 @@ open KellermanSoftware.CompareNetObjects
 let nodes names =
     let toNode name = {
         Name = name
-        Path = Path ""
+        Path = Path.Root
         Type = Folder
         Modified = None
         Size = None

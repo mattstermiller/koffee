@@ -38,32 +38,27 @@ let assertAreEqualWith expected actual (comparer: CompareLogic) =
 let assertAreEqual expected actual =
     CompareLogic() |> assertAreEqualWith expected actual
 
+let createPath pathStr = (Path.Parse ("/c/" + pathStr)).Value
+
 let createNode path name =
-    {Path = Path (path + "/" + name); Name = name; Type = Folder; Modified = None; Size = None}
+    {Path = sprintf "%s/%s" path name |> createPath; Name = name; Type = Folder; Modified = None; Size = None}
 
 let createBaseTestModel() =
     let model = Model.Create<MainModel>()
-    model.BackStack <- [Path "back", 8]
-    model.ForwardStack <- [Path "fwd", 9]
+    model.BackStack <- [createPath "back", 8]
+    model.ForwardStack <- [createPath "fwd", 9]
     let node = createNode "path" "default undo-redo"
     model.UndoStack <- [CreatedItem node]
     model.RedoStack <- [RenamedItem (node, "item")]
+    model.PathFormat <- Unix
     // simulate grid losing selected item (bound to cursor) when data source changes
     model.OnPropertyChanged <@ model.Nodes @> (fun _ -> model.Cursor <- -1)
     model
 
 let baseFileSysMock (newNodes: Node list) =
-    let parent (Path p) =
-        let lastSlash = p.TrimEnd('/').LastIndexOf('/')
-        p.Substring(0, lastSlash) |> Path
-    let join (Path p, name) =
-        p.TrimEnd('/') + "/" + name |> Path
     let path =
         match newNodes with
-        | node :: _ -> parent node.Path
-        | [] -> Path "path"
+        | node :: _ -> node.Path.Parent
+        | [] -> createPath "path"
     Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.Normalize (any()) @>).Calls<Path>(id)
-        .Setup(fun x -> <@ x.Parent (any()) @>).Calls<Path>(parent)
-        .Setup(fun x -> <@ x.JoinPath (any()) (any()) @>).Calls<Path * string>(join)
         .Setup(fun x -> <@ x.GetNodes path @>).Returns(newNodes)

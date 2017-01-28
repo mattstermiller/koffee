@@ -41,8 +41,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
-        window.PathBox.Text <- model.Path.Value
-        model.OnPropertyChanged <@ model.Path @> (fun path -> window.PathBox.Text <- path.Value)
+        let displayPath x = window.PathBox.Text <- model.PathFormatted
+        displayPath()
+        model.OnPropertyChanged <@ model.Path @> displayPath
+        model.OnPropertyChanged <@ model.PathFormat @> displayPath
 
         window.BufferLabel.Content <- ""
         model.OnPropertyChanged <@ model.ItemBuffer @> (fun buffer ->

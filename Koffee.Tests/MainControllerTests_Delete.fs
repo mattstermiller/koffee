@@ -18,7 +18,7 @@ let newNodes = [oldNodes.[0]]
 
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- Path "path"
+    model.Path <- createPath "path"
     model.Nodes <- oldNodes
     model.Cursor <- 1
     model
@@ -64,7 +64,7 @@ let ``Recycle calls file sys recycle and sets message`` cursor =
     expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]
@@ -109,7 +109,7 @@ let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor
     expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]

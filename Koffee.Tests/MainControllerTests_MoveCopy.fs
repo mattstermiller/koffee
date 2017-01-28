@@ -31,7 +31,7 @@ let newNodes = [
 
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- Path "path"
+    model.Path <- createPath "path"
     model.Nodes <- oldNodes
     model.Cursor <- 0
     model
@@ -76,7 +76,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]
@@ -153,7 +153,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]
@@ -186,11 +186,12 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let contr = createController fileSys
     let item = Some (nodeSameFolder, Copy)
     let model = createModel()
+    let path = model.Path
     model.ItemBuffer <- item
     contr.Put false model
 
     let oldPath = nodeSameFolder.Path
-    let newPath = Path ("path/" + (MainController.GetCopyName nodeSameFolder.Name existingCopies))
+    let newPath = path.Join (MainController.GetCopyName nodeSameFolder.Name existingCopies)
     verify <@ fileSys.Copy oldPath newPath @> once
     let expectedAction = CopiedItem (nodeSameFolder, newPath)
     let expected = createModel()
@@ -198,7 +199,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     expected.Cursor <- 2 + existingCopies
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]

@@ -56,6 +56,7 @@
     <Compile Include="Testing.fs" />
     <Compile Include="ValueConverterTests.fs" />
     <Compile Include="KeyComboParserTests.fs" />
+    <Compile Include="PathTests.fs" />
     <Compile Include="MainControllerTests_OpenPath.fs" />
     <Compile Include="MainControllerTests_BackForward.fs" />
     <Compile Include="MainControllerTests_FindSearch.fs" />

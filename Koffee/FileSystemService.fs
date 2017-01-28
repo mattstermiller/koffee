@@ -7,17 +7,7 @@ open System.Diagnostics
 open Microsoft.VisualBasic.FileIO
 open Koffee
 
-type PathFormat =
-    | Windows
-    | Unix
-    override this.ToString() = sprintf "%A" this
-
 type IFileSystemService =
-    abstract Format: PathFormat with get, set
-    abstract Root: Path with get
-    abstract Normalize: Path -> Path
-    abstract Parent: Path -> Path
-    abstract JoinPath: Path -> string -> Path
     abstract GetNode: Path -> Node option
     abstract GetNodes: Path -> Node list
     abstract Exists: Path -> bool
@@ -32,24 +22,10 @@ type IFileSystemService =
     abstract OpenExplorer: Path -> unit
 
 type FileSystemService() =
-    let (|WinPath|_|) path =
-        match path with
-        | (Path p) when Regex.IsMatch(p, @"^[a-z]:", RegexOptions.IgnoreCase) -> Some p
-        | _ -> None
-
-    let (|UnixPath|_|) path =
-        match path with
-        | (Path p) when Regex.IsMatch(p, @"^/[a-z]", RegexOptions.IgnoreCase) -> Some p
-        | _ -> None
+    let wpath (path: Path) = path.Format Windows
+    let toPath s = (Path.Parse s).Value
 
     interface IFileSystemService with
-        member this.Format
-            with get () = this.PathFormat
-            and set (v: PathFormat) : unit = this.PathFormat <- v
-        override this.Root = this.Root
-        override this.Parent path = this.Parent path
-        override this.JoinPath path name = this.JoinPath path name
-        override this.Normalize path = this.Normalize path
         override this.GetNode path = this.GetNode path
         override this.GetNodes path = this.GetNodes path
         override this.Exists path = this.Exists path
@@ -63,117 +39,52 @@ type FileSystemService() =
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
 
-    member val PathFormat = Windows with get, set
-
-    member this.ToWinPath (Path path) =
-        let p = path.TrimStart('/').Replace('/', '\\').Insert(1, ":")
-        if p.EndsWith(":") then p + "\\" else p
-
-    member this.ToUnixPath (path: string) =
-        "/" + path.Replace('\\', '/').Replace(":", "") |> Path
-
-    member this.ToRawPath path =
-        match this.PathFormat with
-        | Unix -> this.ToWinPath path
-        | Windows -> path.Value
-
-    member this.ToFormattedPath path =
-        match this.PathFormat with
-        | Unix -> this.ToUnixPath path
-        | Windows -> Path path
-
-    member this.Root =
-        match this.PathFormat with
-        | Unix -> Path "/"
-        | Windows -> Path "Drives"
-
-    member this.Normalize path =
-        match this.PathFormat with
-        | Unix ->
-            let converted =
-                match path with
-                | WinPath p -> (this.ToUnixPath p).Value
-                | (Path p) -> p.Replace('\\', '/')
-            match converted.Trim('/') |> List.ofSeq with
-            | drive :: rest ->
-                let pathCore = Char.ToLower(drive) :: rest |> Array.ofList |> String
-                "/" + pathCore |> Path
-            | _ -> this.Root
-        | Windows -> 
-            let converted =
-                match path with
-                | UnixPath p -> this.ToWinPath (Path p)
-                | (Path p) -> p.Replace('/', '\\')
-            match converted.Trim('\\') |> List.ofSeq with
-            | drive :: rest ->
-                let newRest =
-                    if rest.Length <= 2 then [':'; '\\']
-                    else rest
-                Char.ToUpper(drive) :: newRest |> Array.ofList |> String |> Path
-            | _ -> this.Root
-
-    member this.Parent path =
-        match path with
-        | p when p = this.Root -> p
-        | Path p when p.Trim('/', '\\').Length <= 2 -> this.Root
-        | p -> p |> this.ToRawPath |> Path.GetDirectoryName |> this.ToFormattedPath
-
-    member this.JoinPath (path: Path) name =
-        let trimmed = path.Value.Trim('/', '\\')
-        let join =
-            match this.PathFormat with
-            | Unix -> '/'
-            | Windows -> '\\'
-        sprintf "%s%O%s" trimmed join name |> Path
-
     member this.GetNode path =
-        let rawPath = this.ToRawPath path
-        if Directory.Exists rawPath then
-            rawPath |> this.FolderNode |> Some
-        else if File.Exists rawPath then
-            FileInfo(rawPath) |> this.FileNode |> Some
+        let wp = wpath path
+        if Directory.Exists wp then
+            wp |> this.FolderNode |> Some
+        else if File.Exists wp then
+            FileInfo(wp) |> this.FileNode |> Some
         else
             None
 
     member this.GetNodes path =
-        if path = this.Root then
+        let error msg parent =
+            this.ErrorNode (Exception(msg)) parent |> List.singleton
+        if path = Path.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
         else
-            let rawPath = this.ToRawPath path
-            if Directory.Exists rawPath then
-                let folders = Directory.EnumerateDirectories rawPath |> Seq.map this.FolderNode
-                let files = DirectoryInfo(rawPath).GetFiles() |> Seq.map this.FileNode
+            let wp = wpath path
+            if Directory.Exists wp then
+                let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
+                let files = DirectoryInfo(wp).GetFiles() |> Seq.map this.FileNode
                 let nodes = Seq.append folders files |> Seq.toList
                 if nodes.IsEmpty then
-                    this.ErrorNode (Exception("Empty Folder")) (this.Parent path) |> List.singleton
+                    error "Empty Folder" path.Parent
                 else nodes
-            else
-                this.ErrorNode (Exception("Path does not exist")) this.Root |> List.singleton
+            else error "Path does not exist" Path.Root
 
     member this.Exists path =
-        let winPath = this.ToRawPath path
-        File.Exists winPath || Directory.Exists winPath
+        let wp = wpath path
+        File.Exists wp || Directory.Exists wp
 
     member this.IsEmpty path =
-        let winPath = this.ToRawPath path
-        if Directory.Exists(winPath) then
-            Directory.EnumerateFiles(winPath, "*", SearchOption.AllDirectories) |> Seq.isEmpty
+        let wp = wpath path
+        if Directory.Exists(wp) then
+            Directory.EnumerateFiles(wp, "*", SearchOption.AllDirectories) |> Seq.isEmpty
         else
-            FileInfo(winPath).Length = 0L
+            FileInfo(wp).Length = 0L
 
     member this.IsRecyclable path =
-        let winPath = this.ToRawPath path
-        let driveSize =
-            match winPath.[0] with
-            | l when Char.IsLetter l -> Some (DriveInfo(string l).TotalSize)
-            | _ -> None
+        let wp = wpath path
+        let driveSize = path.Drive |> Option.map (fun d -> DriveInfo(d).TotalSize)
         let size =
             if driveSize.IsNone then
                 None
-            else if File.Exists(winPath) then
-                Some (FileInfo(winPath).Length)
-            else if Directory.Exists(winPath) then
-                Some (DirectoryInfo(winPath).EnumerateFiles("*", SearchOption.AllDirectories)
+            else if File.Exists(wp) then
+                Some (FileInfo(wp).Length)
+            else if Directory.Exists(wp) then
+                Some (DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
                         |> Seq.sumBy (fun fi -> fi.Length))
             else
                 None
@@ -184,23 +95,23 @@ type FileSystemService() =
             | _ -> false
 
     member this.Create nodeType path =
-        let winPath = this.ToRawPath path
+        let wp = wpath path
         match nodeType with
-            | File -> File.Create(winPath).Dispose()
-            | Folder -> Directory.CreateDirectory(winPath) |> ignore
+            | File -> File.Create(wp).Dispose()
+            | Folder -> Directory.CreateDirectory(wp) |> ignore
             | _ -> failwith (this.CannotActOnNodeType "create" nodeType)
 
     member this.Move currentPath newPath =
-        let source = this.ToRawPath currentPath
-        let dest = this.ToRawPath newPath
+        let source = wpath currentPath
+        let dest = wpath newPath
         if Directory.Exists source then
             Directory.Move(source, dest)
         else
             File.Move(source, dest)
 
     member this.Copy currentPath newPath =
-        let source = this.ToRawPath currentPath
-        let dest = this.ToRawPath newPath
+        let source = wpath currentPath
+        let dest = wpath newPath
         if Directory.Exists source then
             let getDest sourcePath = Regex.Replace(sourcePath, "^" + source, dest)
             // copy folder structure
@@ -218,32 +129,29 @@ type FileSystemService() =
             File.Copy(source, dest, true)
 
     member this.Recycle path =
-        let rawPath = this.ToRawPath path
-        if Directory.Exists rawPath then
-            FileSystem.DeleteDirectory(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+        let wp = wpath path
+        if Directory.Exists wp then
+            FileSystem.DeleteDirectory(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
         else
-            FileSystem.DeleteFile(rawPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+            FileSystem.DeleteFile(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
 
     member this.Delete path =
-        let rawPath = this.ToRawPath path
-        if Directory.Exists rawPath then
-            Directory.Delete rawPath
+        let wp = wpath path
+        if Directory.Exists wp then
+            Directory.Delete wp
         else
-            File.Delete rawPath
-
+            File.Delete wp
 
     member this.OpenFile path =
-        let winPath = this.ToRawPath path
-        Process.Start(winPath) |> ignore
+        Process.Start(wpath path) |> ignore
 
     member this.OpenExplorer path =
-        if path <> this.Root then
-            let winPath = this.ToRawPath path
-            Process.Start("explorer.exe", String.Format("/select,\"{0}\"", winPath)) |> ignore
+        if path <> Path.Root then
+            Process.Start("explorer.exe", String.Format("/select,\"{0}\"", wpath path)) |> ignore
 
 
     member private this.FileNode file = {
-        Path = this.ToFormattedPath file.FullName
+        Path = toPath file.FullName
         Name = file.Name
         Type = NodeType.File
         Modified = Some file.LastWriteTime
@@ -251,7 +159,7 @@ type FileSystemService() =
     }
 
     member private this.FolderNode path = {
-        Path = this.ToFormattedPath path
+        Path = toPath path
         Name = Path.GetFileName path
         Type = NodeType.Folder
         Modified = None
@@ -270,7 +178,7 @@ type FileSystemService() =
             else
                 ""
         {
-            Path = drive.Name |> this.ToFormattedPath
+            Path = toPath drive.Name
             Name = sprintf "%s  %s Drive%s" name driveType label
             Type = NodeType.Drive
             Modified = None

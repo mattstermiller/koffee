@@ -6,15 +6,6 @@ open FSharp.Desktop.UI
 open Koffee.Reflection
 open ModelExtensions
 
-type Path =
-    | Path of string
-
-    member this.Value =
-        let (Path p) = this
-        p
-
-    override this.ToString() = this.Value
-
 type NodeType =
     | File
     | Folder
@@ -31,7 +22,7 @@ type Node = {
     Size: int64 option
 }
 with
-    override this.ToString() = this.Path.Value
+    override this.ToString() = this.Path.Format Windows
 
     member this.Description =
         sprintf "%O \"%s\"" this.Type this.Name
@@ -100,7 +91,8 @@ type MainModel() as this =
 
     do
         this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
-        this.Path <- Path ""
+        this.Path <- Path.Root
+        this.PathFormat <- Windows
         this.BackStack <- []
         this.ForwardStack <- []
         this.UndoStack <- []
@@ -109,6 +101,7 @@ type MainModel() as this =
         this.Status <- ""
 
     abstract Path: Path with get, set
+    abstract PathFormat: PathFormat with get, set
     abstract Status: string with get, set
     abstract IsErrorStatus: bool with get, set
     abstract Nodes: Node list with get, set
@@ -131,6 +124,8 @@ type MainModel() as this =
 
     member this.SetExceptionStatus (ex: Exception) action =
         this.SetErrorStatus (sprintf "Could not %s: %s" action ex.Message)
+
+    member this.PathFormatted = this.Path.Format this.PathFormat
 
     member this.SelectedNode =
         let index = min this.Cursor (this.Nodes.Length-1)

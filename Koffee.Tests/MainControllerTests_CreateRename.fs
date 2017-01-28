@@ -21,7 +21,7 @@ let newNodes = [
 
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- Path "path"
+    model.Path <- createPath "path"
     model.Nodes <- oldNodes
     model.Cursor <- 0
     model.CommandText <- ""
@@ -59,12 +59,13 @@ let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
     let nodeType = createNode.Type
     let path = createNode.Path
     verify <@ fileSys.Create nodeType path @> once
+    let expectedAction = CreatedItem createNode
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
-    expected.UndoStack <- CreatedItem createNode :: expected.UndoStack
+    expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus (CreatedItem createNode)
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -95,12 +96,13 @@ let ``Rename calls fileSys.Move, reloads nodes and sets cursor``() =
     let oldPath = oldNodes.[1].Path
     let newPath = newNodes.[1].Path
     verify <@ fileSys.Move oldPath newPath @> once
+    let expectedAction = RenamedItem (oldNodes.[1], newName)
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
-    expected.UndoStack <- RenamedItem (oldNodes.[1], newName) :: expected.UndoStack
+    expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus (RenamedItem (oldNodes.[1], newName))
+    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -123,7 +125,7 @@ let renameTextSelection cursorPosition fileName =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
-    let node = {Path = Path "path3"; Name = fileName; Type = File; Modified = None; Size = None}
+    let node = {Path = createPath "path3"; Name = fileName; Type = File; Modified = None; Size = None}
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
     contr.StartInput (Rename cursorPosition) model

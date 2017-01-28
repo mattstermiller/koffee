@@ -7,7 +7,8 @@ open System.Threading.Tasks
 type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
-            model.Nodes <- fileSys.GetNodes model.Path
+            this.OpenUserPath (model.Path.Format Windows) model
+            model.BackStack <- []
 
         member this.Dispatcher = this.Dispatcher
 
@@ -44,7 +45,12 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.OpenUserPath pathStr model =
         match Path.Parse pathStr with
-        | Some path -> this.OpenPath path KeepSelect model
+        | Some path ->
+            match fileSys.GetNode path with
+            | Some node when node.Type = File ->
+                this.OpenPath path.Parent (SelectName node.Name) model
+            | _ ->
+                this.OpenPath path KeepSelect model
         | None -> model.SetErrorStatus (MainController.InvalidPathStatus pathStr)
 
     member this.OpenPath path select model =

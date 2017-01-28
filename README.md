@@ -24,6 +24,7 @@ _Capitalized letters indicate that the key is combined with Shift._
 - `L` to go forward in navigation history
 - `tab` switches between the main view and the path box
 - `?` opens the settings window, which displays the hotkeys for all commands. _(This window will allow you to edit the hotkeys and other settings in the future.)_
+- `Ctrl + w` to exit
 
 #### Jumping to Items in the Current Folder
 - `Ctrl + j` and `Ctrl + k` move the cursor by half-pages at a time.
@@ -33,20 +34,25 @@ _Capitalized letters indicate that the key is combined with Shift._
 
 #### File & Folder Manipulation
 - **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `enter`.
-- **Rename**: There are three ways to start renaming the currently selected file or folder.
+- **Rename**: There are several ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
-    - Press `a` to start with the cursor between the name and the extension
-    - Press `c` to start with the cursor selection around the name (excluding the extension) so that typing will replace the name.
-    - When you are done editing the name, press `enter`.
+    - Press `a` to start with the cursor at the end of the name, before the extension
+    - Press `A` to start with the cursor at the end of the extension
+    - Press `c` to start with the name (without extension) selected so that typing will replace the name
+    - Press `C` to start with the extension selected so that typing will replace the extension
+    - When you are done editing the name, press `enter`
+- **Move / Copy**
+    1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed at the lower-right corner of the window.
+    2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it.
 - **Delete**
     - Press `Delete` to send the currently selected item to the Recycle Bin. If the item is too large to fit in the Recycle Bin, a message will be shown instead.
-    - Press `s-Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
+    - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
 
 #### Other
-- Open Windows Explorer at your current location with `ctrl + e`
+- Open Windows Explorer at your current location with `Ctrl + e`
 - Toggle between Windows-style and Unix-style path formats with `F9`
 
 ## Version History

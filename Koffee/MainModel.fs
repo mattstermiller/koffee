@@ -84,6 +84,11 @@ type ItemAction =
     | CopiedItem of Node * newPath: Path
     | DeletedItem of Node * permanent: bool
 
+type SelectType =
+    | KeepSelect
+    | SelectIndex of int
+    | SelectName of string
+
 
 [<AbstractClass>]
 type MainModel() as this =
@@ -125,13 +130,14 @@ type MainModel() as this =
     member this.SetExceptionStatus (ex: Exception) action =
         this.SetErrorStatus (sprintf "Could not %s: %s" action ex.Message)
 
+    member this.SetCursor index =
+        this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
+
     member this.PathFormatted = this.Path.Format this.PathFormat
 
     member this.SelectedNode =
         let index = min this.Cursor (this.Nodes.Length-1)
         this.Nodes.[index]
-
-    member this.FindNode name = List.findIndex (fun n -> n.Name = name) this.Nodes
 
     member this.HalfPageScroll = this.PageSize/2 - 1
 

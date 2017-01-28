@@ -13,18 +13,18 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.Dispatcher evt : EventHandler<MainModel> =
         match evt with
-        | CursorUp -> Sync (fun m -> this.SetCursor (m.Cursor - 1) m)
-        | CursorUpHalfPage -> Sync (fun m -> this.SetCursor (m.Cursor - m.HalfPageScroll) m)
-        | CursorDown -> Sync (fun m -> this.SetCursor (m.Cursor + 1) m)
-        | CursorDownHalfPage -> Sync (fun m -> this.SetCursor (m.Cursor + m.HalfPageScroll) m)
-        | CursorToFirst -> Sync (this.SetCursor 0)
-        | CursorToLast -> Sync (fun m -> this.SetCursor (m.Nodes.Length - 1) m)
+        | CursorUp -> Sync (fun m -> m.SetCursor (m.Cursor - 1))
+        | CursorUpHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor - m.HalfPageScroll))
+        | CursorDown -> Sync (fun m -> m.SetCursor (m.Cursor + 1))
+        | CursorDownHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor + m.HalfPageScroll))
+        | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
+        | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
         | OpenPath p -> Sync (this.OpenUserPath p)
         | OpenSelected -> Sync this.SelectedPath
         | OpenParent -> Sync this.ParentPath
         | Back -> Sync this.Back
         | Forward -> Sync this.Forward
-        | Refresh -> Sync (fun m -> this.OpenPath m.Path m.Cursor m)
+        | Refresh -> Sync (fun m -> this.OpenPath m.Path KeepSelect m)
         | Undo -> Sync this.Undo
         | Redo -> Sync this.Redo
         | StartInput inputMode -> Sync (this.StartInput inputMode)
@@ -42,23 +42,28 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | OpenSettings -> Sync this.OpenSettings
         | Exit -> Sync ignore // handled by view
 
-    member this.SetCursor index model =
-        model.Cursor <- index |> max 0 |> min (model.Nodes.Length - 1)
-
     member this.OpenUserPath pathStr model =
         match Path.Parse pathStr with
-        | Some path -> this.OpenPath path 0 model
+        | Some path -> this.OpenPath path KeepSelect model
         | None -> model.SetErrorStatus (MainController.InvalidPathStatus pathStr)
 
-    member this.OpenPath path cursor model =
+    member this.OpenPath path select model =
         try
             let nodes = fileSys.GetNodes path
             if path <> model.Path then
                 model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
                 model.ForwardStack <- []
-            model.Path <- path
+                model.Path <- path
+                model.Cursor <- 0
+            let keepCursor = model.Cursor
             model.Nodes <- nodes
-            model.Cursor <- cursor
+            model.SetCursor (
+                match select with
+                | SelectIndex index -> index
+                | SelectName name ->
+                    List.tryFindIndex (fun n -> n.Name = name) nodes
+                    |> (fun i -> defaultArg i model.Cursor)
+                | KeepSelect -> keepCursor)
             model.Status <- ""
         with | ex -> model.SetExceptionStatus ex "open path"
 
@@ -66,23 +71,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
             | Folder | Drive | Error ->
-                this.OpenPath path 0 model
+                this.OpenPath path KeepSelect model
             | File ->
                 fileSys.OpenFile path
                 model.Status <- MainController.OpenFileStatus (path.Format model.PathFormat)
 
     member this.ParentPath model =
-        let oldPath = model.Path
-        this.OpenPath model.Path.Parent 0 model
-        match model.Nodes |> Seq.tryFindIndex (fun n -> n.Path = oldPath) with
-            | Some index -> model.Cursor <- index
-            | None -> ()
+        this.OpenPath model.Path.Parent (SelectName model.Path.Name) model
 
     member this.Back model =
         match model.BackStack with
         | (path, cursor) :: backTail ->
             let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
-            this.OpenPath path cursor model
+            this.OpenPath path (SelectIndex cursor) model
             model.BackStack <- backTail
             model.ForwardStack <- newForwardStack
         | [] -> ()
@@ -90,7 +91,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.Forward model =
         match model.ForwardStack with
         | (path, cursor) :: forwardTail ->
-            this.OpenPath path cursor model
+            this.OpenPath path (SelectIndex cursor) model
             model.ForwardStack <- forwardTail
         | [] -> ()
 
@@ -163,19 +164,15 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 |> Seq.rev
             else
                 Seq.append indexed.[(model.Cursor+1)..] indexed.[0..model.Cursor]
-        let firstMatch =
-            items
+        items
             |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
             |> Seq.tryHead
-        match firstMatch with
-            | Some index -> this.SetCursor index model
-            | None -> ()
+            |> Option.iter (fun index -> model.SetCursor index)
 
     member private this.Create nodeType name model =
         try
             fileSys.Create nodeType (model.Path.Join name)
-            model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- model.FindNode name
+            this.OpenPath model.Path (SelectName name) model
             model |> this.PerformedAction (CreatedItem model.SelectedNode)
         with | ex ->
             let action = CreatedItem {Path = model.Path; Name = name; Type = nodeType; Modified = None; Size = None}
@@ -186,8 +183,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         try
             let newPath = node.Path.Parent.Join newName
             fileSys.Move node.Path newPath
-            model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- model.FindNode newName
+            this.OpenPath model.Path (SelectName newName) model
             model |> this.PerformedAction action
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
@@ -225,8 +221,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                         | Copy -> (fileSys.Copy, CopiedItem (node, newPath))
                     try
                         fileSysAction node.Path newPath
-                        model.Nodes <- fileSys.GetNodes model.Path
-                        model.Cursor <- model.FindNode newName
+                        this.OpenPath model.Path (SelectName newName) model
                         model.ItemBuffer <- None
                         model |> this.PerformedAction action
                     with | ex -> model |> MainController.SetActionExceptionStatus action ex
@@ -266,9 +261,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.IsErrorStatus <- false
             let refreshIfOnPath (path: Path) =
                 if model.Path = path.Parent then
-                    let cursor = model.Cursor
-                    model.Nodes <- fileSys.GetNodes model.Path
-                    model.Cursor <- cursor |> min (model.Nodes.Length - 1)
+                    this.OpenPath model.Path KeepSelect model
             match action with
                 | CreatedItem node ->
                     try
@@ -285,8 +278,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     let node = { oldNode with Name = curName; Path = parentPath.Join curName}
                     try
                         fileSys.Move node.Path oldNode.Path
-                        this.OpenPath parentPath 0 model
-                        model.Cursor <- model.FindNode oldNode.Name
+                        this.OpenPath parentPath (SelectName oldNode.Name) model
                     with | ex ->
                         let action = RenamedItem (node, oldNode.Name)
                         model |> MainController.SetActionExceptionStatus action ex
@@ -297,8 +289,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     else
                         try
                             fileSys.Move newPath node.Path
-                            this.OpenPath node.Path.Parent 0 model
-                            model.Cursor <- model.FindNode node.Name
+                            this.OpenPath node.Path.Parent (SelectName node.Name) model
                         with | ex ->
                             let action = MovedItem ({ node with Path = newPath }, node.Path)
                             model |> MainController.SetActionExceptionStatus action ex
@@ -332,7 +323,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             let goToPath (nodePath: Path) =
                 let path = nodePath.Parent
                 if path <> model.Path then
-                    this.OpenPath path 0 model
+                    this.OpenPath path KeepSelect model
             match action with
                 | CreatedItem node ->
                     goToPath node.Path

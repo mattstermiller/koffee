@@ -7,10 +7,18 @@ open FsUnitTyped
 open Foq
 open Testing
 
+let newNodes = [
+    createNode "path" "one"
+    createNode "path" "two"
+    createNode "path" "three"
+    createNode "path" "four"
+    createNode "path" "five"
+]
+
 let createController () =
     let fileSys =
         Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes(any()) @>).Returns([])
+            .Setup(fun x -> <@ x.GetNodes (any()) @>).Returns(newNodes)
             .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory)

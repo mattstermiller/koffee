@@ -43,7 +43,7 @@ let createController () =
 let ``Opening a valid path updates model correctly``() =
     let model = createModel()
     let contr = createController()
-    contr.OpenPath (createPath "path") 1 model
+    contr.OpenPath (createPath "path") (SelectIndex 1) model
 
     let expected = createModel()
     expected.Nodes <- newNodes
@@ -57,7 +57,7 @@ let ``Opening a valid path updates model correctly``() =
 let ``Opening same path does not modify navigation history``() =
     let model = createModel()
     let contr = createController()
-    contr.OpenPath (createPath "old") 1 model
+    contr.OpenPath (createPath "old") (SelectIndex 1) model
 
     let expected = createModel()
     expected.Cursor <- 1
@@ -67,7 +67,7 @@ let ``Opening same path does not modify navigation history``() =
 let ``Opening a path that throws on GetNodes sets error status only``() =
     let model = createModel()
     let contr = createController()
-    contr.OpenPath (createPath "bad path") 0 model
+    contr.OpenPath (createPath "bad path") (SelectIndex 0) model
 
     let expected = createModel()
     expected.SetExceptionStatus ex "open path"

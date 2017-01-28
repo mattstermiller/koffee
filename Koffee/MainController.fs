@@ -194,12 +194,18 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
 
     member this.StartMove model =
-        model.ItemBuffer <- Some (model.SelectedNode, Move)
-        model.Status <- ""
+        match model.SelectedNode.Type with
+        | File | Folder ->
+            model.ItemBuffer <- Some (model.SelectedNode, Move)
+            model.Status <- ""
+        | _ -> ()
 
     member this.StartCopy model =
-        model.ItemBuffer <- Some (model.SelectedNode, Copy)
-        model.Status <- ""
+        match model.SelectedNode.Type with
+        | File | Folder ->
+            model.ItemBuffer <- Some (model.SelectedNode, Copy)
+            model.Status <- ""
+        | _ -> ()
 
     member this.Put overwrite model =
         match model.ItemBuffer with

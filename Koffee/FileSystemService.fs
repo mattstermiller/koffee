@@ -134,7 +134,7 @@ type FileSystemService() =
     member this.Delete path =
         let wp = wpath path
         if Directory.Exists wp then
-            Directory.Delete wp
+            Directory.Delete(wp, true)
         else
             File.Delete wp
 

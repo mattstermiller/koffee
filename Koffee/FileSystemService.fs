@@ -113,18 +113,14 @@ type FileSystemService() =
         let source = wpath currentPath
         let dest = wpath newPath
         if Directory.Exists source then
-            let getDest sourcePath = Regex.Replace(sourcePath, "^" + source, dest)
+            let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
             // copy folder structure
             Directory.CreateDirectory dest |> ignore
-            Directory.GetDirectories(source, "*")
-                |> Seq.iter (fun sourceDir ->
-                    getDest sourceDir
-                    |> Directory.CreateDirectory |> ignore)
+            Directory.GetDirectories(source, "*", SearchOption.AllDirectories)
+                |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
             // copy files
-            Directory.GetFiles(source, "*")
-                |> Seq.iter (fun sourceFile ->
-                    let destFile = getDest sourceFile
-                    File.Copy(sourceFile, destFile, true))
+            Directory.GetFiles(source, "*", SearchOption.AllDirectories)
+                |> Seq.iter (fun file -> File.Copy(file, getDest file, true))
         else
             File.Copy(source, dest, true)
 

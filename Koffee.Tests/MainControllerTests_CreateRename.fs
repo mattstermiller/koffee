@@ -121,10 +121,11 @@ let ``Rename handles error by setting error status``() =
     comparer() |> assertAreEqualWith expected model
 
 
-let renameTextSelection cursorPosition fileName =
+let renameTextSelection cursorPosition =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
+    let fileName = "three.txt.old"
     let node = {Path = createPath "path3"; Name = fileName; Type = File; Modified = None; Size = None}
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
@@ -136,12 +137,20 @@ let renameTextSelection cursorPosition fileName =
 
 [<Test>]
 let ``StartInput for rename at beginning sets command text and selection``() =
-    renameTextSelection Begin "three.txt.old" |> shouldEqual (0, 0)
+    renameTextSelection Begin |> shouldEqual (0, 0)
 
 [<Test>]
-let ``StartInput for rename at end sets command text and selection``() =
-    renameTextSelection End "three.txt.old" |> shouldEqual (9, 0)
+let ``StartInput for rename at end of name sets command text and selection``() =
+    renameTextSelection EndName |> shouldEqual (9, 0)
 
 [<Test>]
-let ``StartInput for rename replace sets command text and selection``() =
-    renameTextSelection Replace "three.txt.old" |> shouldEqual (0, 9)
+let ``StartInput for rename at end of full name sets command text and selection``() =
+    renameTextSelection End |> shouldEqual (13, 0)
+
+[<Test>]
+let ``StartInput for rename replace name sets command text and selection``() =
+    renameTextSelection ReplaceName |> shouldEqual (0, 9)
+
+[<Test>]
+let ``StartInput for rename replace extension sets command text and selection``() =
+    renameTextSelection ReplaceExt |> shouldEqual (10, 3)

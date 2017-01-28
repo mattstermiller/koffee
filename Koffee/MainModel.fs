@@ -42,17 +42,19 @@ with
                 | size -> size.ToString("N0")
         else ""
 
-type CursorPosition =
+type RenamePart =
     | Begin
+    | EndName
     | End
-    | Replace
+    | ReplaceName
+    | ReplaceExt
 
 type CommandInput =
     | Find
     | Search
     | CreateFile
     | CreateFolder
-    | Rename of CursorPosition
+    | Rename of RenamePart
     | Overwrite
     | Delete
 
@@ -190,8 +192,10 @@ type MainEvents =
         | StartInput CreateFile -> "Create File"
         | StartInput CreateFolder -> "Create Folder"
         | StartInput (Rename Begin) -> "Rename File (Prepend)"
-        | StartInput (Rename End) -> "Rename File (Append)"
-        | StartInput (Rename Replace) -> "Rename File (Replace)"
+        | StartInput (Rename EndName) -> "Rename File (Append to Name)"
+        | StartInput (Rename End) -> "Rename File (Append to Extension)"
+        | StartInput (Rename ReplaceName) -> "Rename File (Replace Name)"
+        | StartInput (Rename ReplaceExt) -> "Rename File (Replace Extension)"
         | StartInput Overwrite -> "Overwrite existing file"
         | StartInput Delete -> "Delete Permanently"
         | StartInput Find -> "Find Item Beginning With Character"
@@ -227,8 +231,10 @@ type MainEvents =
         StartInput CreateFile
         StartInput CreateFolder
         StartInput (Rename Begin)
+        StartInput (Rename EndName)
         StartInput (Rename End)
-        StartInput (Rename Replace)
+        StartInput (Rename ReplaceName)
+        StartInput (Rename ReplaceExt)
         StartInput Find
         FindNext
         StartInput Search

@@ -375,12 +375,15 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member private this.SetCommandSelection cursorPos model =
         match cursorPos with
         | Some pos ->
-            let nameLen = Path.SplitName model.CommandText |> fst |> (fun (s: string) -> s.Length)
+            let fullName = model.CommandText
+            let (name, ext) = Path.SplitName fullName
             model.CommandTextSelection <-
                 match pos with
                 | Begin -> (0, 0)
-                | End  -> (nameLen, 0)
-                | Replace -> (0, nameLen)
+                | EndName  -> (name.Length, 0)
+                | End  -> (fullName.Length, 0)
+                | ReplaceName -> (0, name.Length)
+                | ReplaceExt -> (name.Length + 1, ext.Length - 1)
         | None -> ()
 
 

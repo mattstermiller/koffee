@@ -57,15 +57,21 @@ _Capitalized letters indicate that the key is combined with Shift._
 
 ## Version History
 
+#### v0.2.0  File & Folder Manipulation
+- Create, delete, rename, move, and copy files and folders
+- Undo/redo of file and folder actions
+- Back/forward navigation
+- When navigating to parent folder, folder you were just in is selected
+- Support for opening a path passed in as an argument to the executable
+- Added icon and simple thematic elements
+
 #### v0.1.0  Initial Release
 - Local file system navigation with VIM hotkeys
 - Find by first character and search with regular expression in current folder
 - Toggle between Windows and Unix-style path formats
 
 ## Planned Features
-- File manipulation: create, delete, rename, move, copy, paste files and folders
 - Search sub-folders
-- Back/forward navigation
 - Option to remember previous location
 - Configurable hotkeys
 - Bookmarks: quickly save and jump to a folder and/or item

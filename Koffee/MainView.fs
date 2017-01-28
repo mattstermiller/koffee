@@ -48,7 +48,9 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
         window.BufferLabel.Content <- ""
         model.OnPropertyChanged <@ model.ItemBuffer @> (fun buffer ->
-            window.BufferLabel.Content <- MainView.BufferStatus buffer)
+            let text = MainView.BufferStatus buffer
+            window.BufferLabel.Content <- text
+            window.BufferLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible)
 
         model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
             window.CommandBox.Select(start, len))

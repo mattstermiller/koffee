@@ -389,7 +389,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | EndName  -> (name.Length, 0)
                 | End  -> (fullName.Length, 0)
                 | ReplaceName -> (0, name.Length)
-                | ReplaceExt -> (name.Length + 1, ext.Length - 1)
+                | ReplaceExt ->
+                    if ext.Length > 0 then
+                        (name.Length + 1, ext.Length - 1)
+                    else
+                        (name.Length, 0)
         | None -> ()
 
 

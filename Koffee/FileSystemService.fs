@@ -133,9 +133,14 @@ type FileSystemService() =
 
     member this.Delete path =
         let wp = wpath path
+        // need to clear attributes since the Delete API refuses to delete read-only files
+        let resetAttr p = File.SetAttributes(p, FileAttributes.Normal);
         if Directory.Exists wp then
+            Directory.GetFiles(wp, "*", SearchOption.AllDirectories)
+                |> Seq.iter (fun file -> resetAttr file)
             Directory.Delete(wp, true)
         else
+            resetAttr wp
             File.Delete wp
 
     member this.OpenFile path =

@@ -150,16 +150,12 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         | None -> this.HideCommandBar ()
 
     member this.ShowCommandBar label =
-        window.StatusLabel.Visibility <- Visibility.Hidden
-        window.BufferLabel.Visibility <- Visibility.Hidden
         window.CommandLabel.Content <- label
         window.CommandPanel.Visibility <- Visibility.Visible
         window.CommandBox.Focus() |> ignore
 
     member this.HideCommandBar () =
         window.CommandPanel.Visibility <- Visibility.Hidden
-        window.StatusLabel.Visibility <- Visibility.Visible
-        window.BufferLabel.Visibility <- Visibility.Visible
         window.NodeGrid.Focus() |> ignore
 
     member this.KeepSelectedInView () =

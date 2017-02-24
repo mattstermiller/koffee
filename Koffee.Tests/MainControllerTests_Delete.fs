@@ -126,18 +126,33 @@ let ``Delete prompt answered "y" handles error by setting error status``() =
     expected.IsErrorStatus <- true
     assertAreEqual expected model
 
-[<TestCase('n')>]
-[<TestCase('x')>]
-[<TestCase('q')>]
-let ``Delete prompt answered with any key besides "y" escapes input mode`` char =
+[<Test>]
+let ``Delete prompt answered with "n" sets cancelled status`` =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
     model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped char model
+    contr.CommandCharTyped 'n' model
 
     verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.CommandInputMode <- None
     expected.Status <- MainController.CancelledStatus
+    assertAreEqual expected model
+
+[<TestCase('h')>]
+[<TestCase('x')>]
+[<TestCase('q')>]
+let ``Delete prompt answered with any key besides "y" or "n" does nothing`` char =
+    let fileSys = createFileSys()
+    let contr = createController fileSys
+    let model = createModel()
+    model.CommandInputMode <- Some (Confirm Delete)
+    model.CommandText <- "test"
+    contr.CommandCharTyped char model
+
+    verify <@ fileSys.Delete (any()) @> never
+    let expected = createModel()
+    expected.CommandInputMode <- Some (Confirm Delete)
+    expected.CommandText <- ""
     assertAreEqual expected model

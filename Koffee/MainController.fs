@@ -131,13 +131,17 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             this.Find char model
             model.CommandInputMode <- None
         | Some (Confirm confirmType) ->
-            model.CommandInputMode <- None
             match char with
-                | 'y' -> 
-                    match confirmType with
+            | 'y' -> 
+                model.CommandInputMode <- None
+                match confirmType with
                     | Overwrite -> this.Put true model
                     | Delete -> this.Delete model.SelectedNode true model
-                | _ -> model.Status <- MainController.CancelledStatus
+            | 'n' ->
+                model.CommandInputMode <- None
+                model.Status <- MainController.CancelledStatus
+            | _ ->
+                model.CommandText <- ""
         | _ -> ()
 
     member this.Find char model =

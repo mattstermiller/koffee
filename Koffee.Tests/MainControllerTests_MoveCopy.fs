@@ -218,11 +218,9 @@ let ``Put item to copy handles error by setting error status``() =
     assertAreEqual expected model
 
 
-[<TestCase(false, 'n')>]
-[<TestCase(false, 'z')>]
-[<TestCase(true, 'n')>]
-[<TestCase(true, 'z')>]
-let ``Overwrite answered not 'y' with any item sets cancelled status`` isCopy answer =
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Confirm Overwrite answered 'n' with any item sets cancelled status`` isCopy =
     let fileSys =
         fileSysMock()
             .Setup(fun x -> <@ x.Exists (any()) @>).Returns(true)
@@ -233,9 +231,33 @@ let ``Overwrite answered not 'y' with any item sets cancelled status`` isCopy an
     let model = createModel()
     model.ItemBuffer <- item
     model.CommandInputMode <- Some (Confirm Overwrite)
-    contr.CommandCharTyped answer model
+    contr.CommandCharTyped 'n' model
 
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.Status <- MainController.CancelledStatus
+    assertAreEqual expected model
+
+[<TestCase(false, 'h')>]
+[<TestCase(false, 'z')>]
+[<TestCase(true, 'h')>]
+[<TestCase(true, 'z')>]
+let ``Confirm Overwrite answered with any key besides 'y' or 'n' does nothing`` isCopy answer =
+    let fileSys =
+        fileSysMock()
+            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(true)
+            .Create()
+    let contr = createController fileSys
+    let action = if isCopy then Copy else Move
+    let item = Some (nodeDiffFolder, action)
+    let model = createModel()
+    model.ItemBuffer <- item
+    model.CommandInputMode <- Some (Confirm Overwrite)
+    model.CommandText <- "test"
+    contr.CommandCharTyped answer model
+
+    let expected = createModel()
+    expected.ItemBuffer <- item
+    expected.CommandInputMode <- Some (Confirm Overwrite)
+    expected.CommandText <- ""
     assertAreEqual expected model

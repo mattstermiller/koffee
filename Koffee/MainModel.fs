@@ -49,19 +49,22 @@ type RenamePart =
     | ReplaceName
     | ReplaceExt
 
+type ConfirmType =
+    | Overwrite
+    | Delete
+
 type CommandInput =
     | Find
     | Search
     | CreateFile
     | CreateFolder
     | Rename of RenamePart
-    | Overwrite
-    | Delete
+    | Confirm of ConfirmType
 
     member this.Prompt (node: Node) =
         match this with
-        | Overwrite -> sprintf "File named \"%s\" already exists, overwrite y/n ?" node.Name
-        | Delete -> sprintf "Permanently delete \"%s\" y/n ?" node.Name
+        | Confirm Overwrite -> sprintf "File named \"%s\" already exists, overwrite y/n ?" node.Name
+        | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
         | _ ->
             let caseName = GetUnionCaseName this
             let name = Regex.Replace(caseName, @"(?<=[a-z])(?=[A-Z\d])", " ")
@@ -168,6 +171,7 @@ type MainEvents =
     | StartCopy
     | Put
     | Recycle
+    | PromptDelete
     | TogglePathFormat
     | OpenSettings
     | OpenExplorer
@@ -196,8 +200,7 @@ type MainEvents =
         | StartInput (Rename End) -> "Rename File (Append to Extension)"
         | StartInput (Rename ReplaceName) -> "Rename File (Replace Name)"
         | StartInput (Rename ReplaceExt) -> "Rename File (Replace Extension)"
-        | StartInput Overwrite -> "Overwrite existing file"
-        | StartInput Delete -> "Delete Permanently"
+        | StartInput (Confirm _) -> ""
         | StartInput Find -> "Find Item Beginning With Character"
         | StartInput Search -> "Search For Items"
         | ExecuteCommand -> "Execute the Currently Entered Command"
@@ -209,6 +212,7 @@ type MainEvents =
         | StartCopy -> "Start Copy Item"
         | Put -> "Put Item to Move/Copy in Current Folder"
         | Recycle -> "Send to Recycle Bin"
+        | PromptDelete -> "Delete Permanently"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | OpenSettings -> "Open Help/Settings"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
@@ -244,6 +248,7 @@ type MainEvents =
         StartCopy
         Put
         Recycle
+        PromptDelete
         TogglePathFormat
         OpenSettings
         OpenExplorer

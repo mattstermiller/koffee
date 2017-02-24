@@ -38,6 +38,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | StartCopy -> Sync this.StartCopy
         | Put -> Sync (this.Put false)
         | Recycle -> Async this.Recycle
+        | PromptDelete -> Sync (this.StartInput (Confirm Delete))
         | TogglePathFormat -> Sync this.TogglePathFormat
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenSettings -> Sync this.OpenSettings
@@ -122,23 +123,20 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | None -> ()
             // below are triggered by typing a char
             | Some Find -> ()
-            | Some Overwrite -> ()
-            | Some Delete -> ()
+            | Some (Confirm _) -> ()
 
     member this.CommandCharTyped char model =
         match model.CommandInputMode with
         | Some Find ->
             this.Find char model
             model.CommandInputMode <- None
-        | Some Overwrite ->
+        | Some (Confirm confirmType) ->
             model.CommandInputMode <- None
             match char with
-                | 'y' -> this.Put true model
-                | _ -> model.Status <- MainController.CancelledStatus
-        | Some Delete ->
-            model.CommandInputMode <- None
-            match char with
-                | 'y' -> this.Delete model.SelectedNode true model
+                | 'y' -> 
+                    match confirmType with
+                    | Overwrite -> this.Put true model
+                    | Delete -> this.Delete model.SelectedNode true model
                 | _ -> model.Status <- MainController.CancelledStatus
         | _ -> ()
 
@@ -225,7 +223,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                         node.Name
                 let newPath = model.Path.Join newName
                 if fileSys.Exists newPath && not overwrite then
-                    this.StartInput Overwrite model
+                    this.StartInput (Confirm Overwrite) model
                 else
                     let fileSysAction, action =
                         match bufferAction with

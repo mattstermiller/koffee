@@ -97,7 +97,7 @@ let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor
     let contr = createController fileSys
     let model = createModel()
     model.Cursor <- cursor
-    model.CommandInputMode <- Some Delete
+    model.CommandInputMode <- Some (Confirm Delete)
     contr.CommandCharTyped 'y' model
 
     let expectedPath = oldNodes.[cursor].Path
@@ -117,7 +117,7 @@ let ``Delete prompt answered "y" handles error by setting error status``() =
     let fileSys = createUnauthorizedFileSys()
     let contr = createController fileSys
     let model = createModel()
-    model.CommandInputMode <- Some Delete
+    model.CommandInputMode <- Some (Confirm Delete)
     contr.CommandCharTyped 'y' model
 
     let expected = createModel()
@@ -133,7 +133,7 @@ let ``Delete prompt answered with any key besides "y" escapes input mode`` char 
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
-    model.CommandInputMode <- Some Delete
+    model.CommandInputMode <- Some (Confirm Delete)
     contr.CommandCharTyped char model
 
     verify <@ fileSys.Delete (any()) @> never

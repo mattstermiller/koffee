@@ -13,7 +13,7 @@ type SettingsController() =
                         KeyBinding.DefaultsAsString
                         |> List.choose (fun (key, bound) ->
                             if bound = evt then Some key
-                            else None) 
+                            else None)
                     {
                         EventName = evt.FriendlyName
                         BoundKeys = String.Join(" OR ", keys)

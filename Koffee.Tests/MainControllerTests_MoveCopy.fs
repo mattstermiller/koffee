@@ -62,7 +62,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let model = createModel()
     model.ItemBuffer <- Some (nodeDiffFolder, Move)
     if overwrite then
-        model.CommandInputMode <- Some Overwrite
+        model.CommandInputMode <- Some (Confirm Overwrite)
         contr.CommandCharTyped 'y' model
     else
         contr.Put false model
@@ -94,7 +94,7 @@ let ``Put item to move in different folder with item of same name prompts for ov
     verify <@ fileSys.Move (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
-    expected.CommandInputMode <- Some Overwrite
+    expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
 
 [<Test>]
@@ -139,7 +139,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let model = createModel()
     model.ItemBuffer <- Some (nodeDiffFolder, Copy)
     if overwrite then
-        model.CommandInputMode <- Some Overwrite
+        model.CommandInputMode <- Some (Confirm Overwrite)
         contr.CommandCharTyped 'y' model
     else
         contr.Put false model
@@ -171,7 +171,7 @@ let ``Put item to copy in different folder with item of same name prompts for ov
     verify <@ fileSys.Copy (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
-    expected.CommandInputMode <- Some Overwrite
+    expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
 
 [<TestCase(0)>]
@@ -232,7 +232,7 @@ let ``Overwrite answered not 'y' with any item sets cancelled status`` isCopy an
     let item = Some (nodeDiffFolder, action)
     let model = createModel()
     model.ItemBuffer <- item
-    model.CommandInputMode <- Some Overwrite
+    model.CommandInputMode <- Some (Confirm Overwrite)
     contr.CommandCharTyped answer model
 
     let expected = createModel()

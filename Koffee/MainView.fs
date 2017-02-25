@@ -9,6 +9,7 @@ open System.Windows.Media
 open FSharp.Desktop.UI
 open ModelExtensions
 open UIHelpers
+open Utility
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
@@ -41,7 +42,12 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
-        let displayPath x = window.PathBox.Text <- model.PathFormatted
+        let displayPath x =
+            window.PathBox.Text <- model.PathFormatted
+            window.Title <-
+                model.Path.Name
+                |> Str.ifEmpty model.PathFormatted
+                |> sprintf "%s | Koffee"
         displayPath()
         model.OnPropertyChanged <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath

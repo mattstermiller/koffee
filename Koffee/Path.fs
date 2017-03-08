@@ -1,5 +1,6 @@
 ﻿namespace Koffee
 
+open System
 open System.Text.RegularExpressions
 open Utility
 
@@ -12,21 +13,13 @@ type PathFormat =
 
 type Path private (path: string) =
     static let firstModify f (s: string) =
-        if System.String.IsNullOrEmpty(s) then ""
+        if String.IsNullOrEmpty(s) then ""
         else
             let first = string s.[0] |> f
             if s.Length > 1 then first + s.Substring(1)
             else first
     static let firstToUpper = firstModify (fun s -> s.ToUpper())
     static let firstToLower = firstModify (fun s -> s.ToLower())
-
-    static let isMatch pattern s = Regex.IsMatch(s, pattern, RegexOptions.IgnoreCase)
-
-    static let noInvalidChars (s: string) =
-        IOPath.GetInvalidPathChars()
-        |> Seq.append "?*"
-        |> Seq.exists (fun c -> Seq.contains c s)
-        |> not
 
     static let normalize (pathStr: string) =
         pathStr
@@ -36,34 +29,34 @@ type Path private (path: string) =
             |> firstToUpper
             |> Path
 
-    static let (|WinPath|_|) s =
-        if isMatch @"^[a-z]:([/\\]|$)" s && noInvalidChars s then
-            Some (normalize s)
-        else None
-
-    static let (|UnixPath|_|) s =
-        if isMatch @"^/[a-z]([/\\]|$)" s && noInvalidChars s then
-            Some (normalize s)
-        else None
+    static let (|PathPattern|_|) =
+        let invalidChars = (IOPath.GetInvalidPathChars() |> String) + "?*"
+        let pattern = sprintf @"^([a-z]:|/[a-z])([/\\][^%s]*)?$" invalidChars
+        let regex = Regex(pattern, RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
+        (fun s ->
+            if regex.IsMatch(s) then
+                Some (normalize s)
+            else None)
 
     static let root = ""
     static let rootWindows = "Drives"
     static let rootUnix = "/"
     static let isRoot p =
-        p = root || p = rootUnix || System.String.Equals(p, rootWindows, System.StringComparison.OrdinalIgnoreCase)
+        p = root || p = rootUnix || String.Equals(p, rootWindows, StringComparison.OrdinalIgnoreCase)
 
     static member Root = Path root
 
     static member Parse (s: string) =
         match s.Trim() with
         | p when isRoot p -> Some (Path root)
-        | WinPath path | UnixPath path -> Some path
+        | PathPattern path -> Some path
         | _ -> None
 
     static member SplitName (name: string) =
         match name.LastIndexOf('.') with
         | -1 -> (name, "")
         | index -> (name.Substring(0, index), name.Substring(index))
+
 
     member private this.Value = path
 
@@ -84,7 +77,7 @@ type Path private (path: string) =
 
     member this.Drive =
         match path with
-        | p when p.Length > 0 && System.Char.IsLetter p.[0] -> Some (string p.[0])
+        | p when p.Length > 0 && Char.IsLetter p.[0] -> Some (string p.[0])
         | _ -> None
 
     member this.Parent =

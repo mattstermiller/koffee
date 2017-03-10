@@ -23,6 +23,7 @@ type Path private (path: string) =
 
     static let normalize (pathStr: string) =
         pathStr
+            .Replace("~", Path.UserDirectory)
             .Replace("/", @"\").Trim('\\')
             .Replace(":", "").Insert(1, ":")
             |> (fun s -> if s.EndsWith(":") then s + @"\" else s)
@@ -31,7 +32,7 @@ type Path private (path: string) =
 
     static let (|PathPattern|_|) =
         let invalidChars = (IOPath.GetInvalidPathChars() |> String) + "?*"
-        let pattern = sprintf @"^([a-z]:|/[a-z])([/\\][^%s]*)?$" invalidChars
+        let pattern = sprintf @"^([a-z]:|/[a-z]|~)([/\\][^%s]*)?$" invalidChars
         let regex = Regex(pattern, RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
         (fun s ->
             if regex.IsMatch(s) then
@@ -45,6 +46,7 @@ type Path private (path: string) =
         p = root || p = rootUnix || String.Equals(p, rootWindows, StringComparison.OrdinalIgnoreCase)
 
     static member Root = Path root
+    static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
     static member Parse (s: string) =
         match s.Trim() with

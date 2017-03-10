@@ -37,6 +37,15 @@ let ``Parse returns drive for valid drives`` input =
 let ``Parse returns path for valid paths`` input =
     input |> Path.Parse |> shouldParseTo @"C:\test"
 
+[<TestCase("~", "")>]
+[<TestCase("~/", "")>]
+[<TestCase("~/test", @"\test")>]
+[<TestCase(@"~\", "")>]
+[<TestCase(@"~\test", @"\test")>]
+let ``Parse substitutes tilde for user directory`` input expectedSuffix =
+    let expectedPath = Path.UserDirectory + expectedSuffix 
+    input |> Path.Parse |> shouldParseTo expectedPath
+
 [<TestCase("c")>]
 [<TestCase("test")>]
 [<TestCase("/test/")>]

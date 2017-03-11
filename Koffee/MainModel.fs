@@ -132,8 +132,12 @@ type MainModel() as this =
         this.Status <- status
         this.IsErrorStatus <- true
 
-    member this.SetExceptionStatus (ex: Exception) action =
-        this.SetErrorStatus (sprintf "Could not %s: %s" action ex.Message)
+    member this.SetExceptionStatus (ex: exn) action =
+        let unwrappedExn =
+            match ex with
+            | :? AggregateException as agg -> agg.InnerExceptions.[0]
+            | _ -> ex
+        this.SetErrorStatus (sprintf "Could not %s: %s" action unwrappedExn.Message)
 
     member this.SetCursor index =
         this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0

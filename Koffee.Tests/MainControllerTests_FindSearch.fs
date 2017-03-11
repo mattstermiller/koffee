@@ -40,7 +40,7 @@ let find char cursorStart =
     let expected = createModel (Some Find) cursorStart
 
     let contr = createController()
-    contr.CommandCharTyped char model
+    Async.RunSynchronously <| contr.CommandCharTyped char model
 
     expected.CommandInputMode <- None
     expected.LastFind <- (Some char)

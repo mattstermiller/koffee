@@ -40,17 +40,17 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Back -> Sync this.Back
         | Forward -> Sync this.Forward
         | Refresh -> Sync (fun m -> this.OpenPath m.Path KeepSelect m)
-        | Undo -> Sync this.Undo
-        | Redo -> Sync this.Redo
+        | Undo -> Async this.Undo
+        | Redo -> Async this.Redo
         | StartInput inputMode -> Sync (this.StartInput inputMode)
         | ExecuteCommand -> Sync this.ExecuteCommand
-        | CommandCharTyped c -> Sync (this.CommandCharTyped c)
+        | CommandCharTyped c -> Async (this.CommandCharTyped c)
         | FindNext -> Sync this.FindNext
         | SearchNext -> Sync (this.SearchNext false)
         | SearchPrevious -> Sync (this.SearchNext true)
         | StartMove -> Sync this.StartMove
         | StartCopy -> Sync this.StartCopy
-        | Put -> Sync (this.Put false)
+        | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
         | PromptDelete -> Sync (this.StartInput (Confirm Delete))
         | TogglePathFormat -> Sync this.TogglePathFormat
@@ -139,7 +139,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Some Find -> ()
             | Some (Confirm _) -> ()
 
-    member this.CommandCharTyped char model =
+    member this.CommandCharTyped char model = async {
         match model.CommandInputMode with
         | Some Find ->
             this.Find char model
@@ -149,14 +149,15 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | 'y' -> 
                 model.CommandInputMode <- None
                 match confirmType with
-                    | Overwrite -> this.Put true model
-                    | Delete -> this.Delete model.SelectedNode true model
+                    | Overwrite -> do! this.Put true model
+                    | Delete -> do! this.Delete model.SelectedNode true model
             | 'n' ->
                 model.CommandInputMode <- None
                 model.Status <- MainController.CancelledStatus
             | _ ->
                 model.CommandText <- ""
         | _ -> ()
+    }
 
     member this.Find char model =
         model.LastFind <- Some char
@@ -223,7 +224,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model.Status <- ""
         | _ -> ()
 
-    member this.Put overwrite model =
+    member this.Put overwrite model = async {
         match model.ItemBuffer with
         | Some (node, bufferAction) ->
             let sameFolder = node.Path.Parent = model.Path
@@ -248,42 +249,46 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                         | Move -> (fileSys.Move, MovedItem (node, newPath))
                         | Copy -> (fileSys.Copy, CopiedItem (node, newPath))
                     try
-                        fileSysAction node.Path newPath
+                        model.Status <- MainController.ActionRunStatus action model.PathFormat
+                        do! runAsync (fun () -> fileSysAction node.Path newPath)
                         this.OpenPath model.Path (SelectName newName) model
                         model.ItemBuffer <- None
                         model |> this.PerformedAction action
                     with | ex -> model |> MainController.SetActionExceptionStatus action ex
         | None -> ()
+    }
 
     member this.Recycle model = async {
         let node = model.SelectedNode
-        model.Status <- "Calculating size..."
-        let! isRecyclable = (fun () -> fileSys.IsRecyclable node.Path) |> Task.Run |> Async.AwaitTask
+        model.Status <- MainController.IsRecyclableStatus
+        let! isRecyclable = runAsync (fun () -> fileSys.IsRecyclable node.Path)
         if isRecyclable then
-            this.Delete node false model
+            do! this.Delete node false model
         else
             model.SetErrorStatus (MainController.CannotRecycleStatus node)
-        }
+    }
 
-    member private this.Delete node permanent model =
+    member private this.Delete node permanent model = async {
         let action = DeletedItem (node, permanent)
         try
-            if permanent then
-                fileSys.Delete node.Path
-            else
-                fileSys.Recycle node.Path
+            let fileSysFunc =
+                if permanent then fileSys.Delete
+                else fileSys.Recycle
+            model.Status <- MainController.ActionRunStatus action model.PathFormat
+            do! runAsync (fun () -> fileSysFunc node.Path)
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
             model |> this.PerformedAction action
         with | ex -> model |> MainController.SetActionExceptionStatus action ex
+    }
 
     member private this.PerformedAction action model =
         model.UndoStack <- action :: model.UndoStack
         model.RedoStack <- []
-        model.Status <- MainController.ActionStatus action model.PathFormat
+        model.Status <- MainController.ActionCompleteStatus action model.PathFormat
 
-    member this.Undo model =
+    member this.Undo model = async {
         match model.UndoStack with
         | action :: rest ->
             model.IsErrorStatus <- false
@@ -294,7 +299,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | CreatedItem node ->
                     try
                         if fileSys.IsEmpty node.Path then
-                            fileSys.Delete node.Path
+                            model.Status <- MainController.UndoCreateStatus node
+                            do! runAsync (fun () -> fileSys.Delete node.Path)
                             refreshIfOnPath node.Path
                         else
                             model.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus node)
@@ -313,29 +319,31 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | MovedItem (node, newPath) ->
                     if fileSys.Exists newPath then
                         // todo: prompt for overwrite here
-                        model.SetErrorStatus (sprintf "Cannot undo move %s because an item exists in its previous location" node.Name)
+                        model.SetErrorStatus (sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name)
                     else
                         try
-                            fileSys.Move newPath node.Path
+                            model.Status <- MainController.UndoMoveStatus node
+                            do! runAsync (fun () -> fileSys.Move newPath node.Path)
                             this.OpenPath node.Path.Parent (SelectName node.Name) model
                         with | ex ->
                             let action = MovedItem ({ node with Path = newPath }, node.Path)
                             model |> MainController.SetActionExceptionStatus action ex
                 | CopiedItem (node, newPath) ->
-                    let mutable delete = false
+                    let mutable isDeletionPermanent = false
                     try
                         let copyModified = fileSys.GetNode newPath |> Option.bind (fun n -> n.Modified)
-                        delete <-
+                        isDeletionPermanent <-
                             match node.Modified, copyModified with
                             | Some orig, Some copy when orig = copy -> true
                             | _ -> false
-                        if delete then
-                            fileSys.Delete newPath
-                        else
-                            fileSys.Recycle newPath
+                        let fileSysFunc =
+                            if isDeletionPermanent then fileSys.Delete
+                            else fileSys.Recycle
+                        model.Status <- MainController.UndoCopyStatus node isDeletionPermanent
+                        do! runAsync (fun () -> fileSysFunc newPath)
                         refreshIfOnPath newPath
                     with | ex ->
-                        let action = DeletedItem ({ node with Path = newPath }, delete)
+                        let action = DeletedItem ({ node with Path = newPath }, isDeletionPermanent)
                         model |> MainController.SetActionExceptionStatus action ex
                 | DeletedItem (node, permanent) ->
                     model.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent node)
@@ -344,8 +352,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 model.RedoStack <- action :: model.RedoStack
                 model.Status <- MainController.UndoActionStatus action model.PathFormat
         | [] -> model.Status <- MainController.NoUndoActionsStatus
+    }
 
-    member this.Redo model =
+    member this.Redo model = async {
         match model.RedoStack with
         | action :: rest ->
             let goToPath (nodePath: Path) =
@@ -368,14 +377,17 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     goToPath newPath
                     let buffer = model.ItemBuffer
                     model.ItemBuffer <- Some (node, moveOrCopy)
-                    this.Put false model
+                    model.Status <- MainController.RedoingActionStatus action model.PathFormat
+                    do! this.Put false model
                     model.ItemBuffer <- buffer
                 | DeletedItem (node, permanent) ->
                     goToPath node.Path
-                    this.Delete node permanent model
+                    model.Status <- MainController.RedoingActionStatus action model.PathFormat
+                    do! this.Delete node permanent model
             model.RedoStack <- rest
             model.Status <- MainController.RedoActionStatus action model.PathFormat
         | [] -> model.Status <- MainController.NoRedoActionsStatus
+    }
 
     member this.TogglePathFormat model =
         model.PathFormat <-
@@ -427,7 +439,14 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     static member OpenExplorerStatus path = sprintf "Opened Windows Explorer to: %s" path
     static member InvalidPathStatus path = sprintf "Path format is invalid: %s" path
     static member ChangePathFormatStatus newFormat = sprintf "Changed Path Format to %O" newFormat
-    static member ActionStatus action pathFormat =
+    static member ActionRunStatus action pathFormat =
+        match action with
+        | MovedItem (node, newPath) -> sprintf "Moving %s to \"%s\"..." node.Description (newPath.Format pathFormat)
+        | CopiedItem (node, newPath) -> sprintf "Copying %s to \"%s\"..." node.Description (newPath.Format pathFormat)
+        | DeletedItem (node, false) -> sprintf "Recycling %s..." node.Description
+        | DeletedItem (node, true) -> sprintf "Deleting %s..." node.Description
+        | _ -> ""
+    static member ActionCompleteStatus action pathFormat =
         match action with
         | CreatedItem node -> sprintf "Created %s" node.Description
         | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
@@ -435,6 +454,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | CopiedItem (node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
         | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
         | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
+    static member IsRecyclableStatus = "Calculating size..."
     static member CannotMoveToSameFolderStatus = "Cannot move item to same folder it is already in"
     static member CannotRecycleStatus node =
         sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
@@ -451,10 +471,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         model.SetExceptionStatus ex actionName
 
     // undo/redo messages
+    static member UndoCreateStatus node = sprintf "Undoing creation of %s - Deleting..." node.Description
+    static member UndoMoveStatus node = sprintf "Undoing move of %s..." node.Description
+    static member UndoCopyStatus node isDeletionPermanent =
+        let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
+        sprintf "Undoing copy of %s - %s..." node.Description undoVerb
     static member UndoActionStatus action pathFormat =
-        MainController.ActionStatus action pathFormat |> sprintf "Action undone: %s"
+        MainController.ActionCompleteStatus action pathFormat |> sprintf "Action undone: %s"
+
+    static member RedoingActionStatus action pathFormat =
+        MainController.ActionRunStatus action pathFormat |> sprintf "Redoing action: %s"
     static member RedoActionStatus action pathFormat =
-        MainController.ActionStatus action pathFormat |> sprintf "Action redone: %s"
+        MainController.ActionCompleteStatus action pathFormat |> sprintf "Action redone: %s"
+
     static member NoUndoActionsStatus = "No more actions to undo"
     static member NoRedoActionsStatus = "No more actions to redo"
     static member CannotUndoNonEmptyCreatedStatus node =

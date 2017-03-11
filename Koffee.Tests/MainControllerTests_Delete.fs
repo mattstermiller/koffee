@@ -64,7 +64,7 @@ let ``Recycle calls file sys recycle and sets message`` cursor =
     expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
+    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]
@@ -98,7 +98,7 @@ let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor
     let model = createModel()
     model.Cursor <- cursor
     model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped 'y' model
+    contr.CommandCharTyped 'y' model |> Async.RunSynchronously
 
     let expectedPath = oldNodes.[cursor].Path
     verify <@ fileSys.Delete expectedPath @> once
@@ -109,8 +109,9 @@ let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor
     expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
+    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
     assertAreEqual expected model
+
 
 [<Test>]
 let ``Delete prompt answered "y" handles error by setting error status``() =
@@ -118,7 +119,7 @@ let ``Delete prompt answered "y" handles error by setting error status``() =
     let contr = createController fileSys
     let model = createModel()
     model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped 'y' model
+    contr.CommandCharTyped 'y' model |> Async.RunSynchronously
 
     let expected = createModel()
     expected.CommandInputMode <- None
@@ -126,19 +127,21 @@ let ``Delete prompt answered "y" handles error by setting error status``() =
     expected.IsErrorStatus <- true
     assertAreEqual expected model
 
+
 [<Test>]
 let ``Delete prompt answered with "n" sets cancelled status`` =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
     model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped 'n' model
+    contr.CommandCharTyped 'n' model |> Async.RunSynchronously
 
     verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.CommandInputMode <- None
     expected.Status <- MainController.CancelledStatus
     assertAreEqual expected model
+
 
 [<TestCase('h')>]
 [<TestCase('x')>]
@@ -149,10 +152,11 @@ let ``Delete prompt answered with any key besides "y" or "n" does nothing`` char
     let model = createModel()
     model.CommandInputMode <- Some (Confirm Delete)
     model.CommandText <- "test"
-    contr.CommandCharTyped char model
+    contr.CommandCharTyped char model |> Async.RunSynchronously
 
     verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.CommandInputMode <- Some (Confirm Delete)
     expected.CommandText <- ""
     assertAreEqual expected model
+

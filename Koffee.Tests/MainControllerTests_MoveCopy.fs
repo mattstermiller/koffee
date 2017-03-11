@@ -63,9 +63,9 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     model.ItemBuffer <- Some (nodeDiffFolder, Move)
     if overwrite then
         model.CommandInputMode <- Some (Confirm Overwrite)
-        contr.CommandCharTyped 'y' model
+        contr.CommandCharTyped 'y' model |> Async.RunSynchronously
     else
-        contr.Put false model
+        contr.Put false model |> Async.RunSynchronously
 
     let oldPath = nodeDiffFolder.Path
     let newPath = nodeSameFolder.Path
@@ -76,8 +76,9 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
+    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
     assertAreEqual expected model
+
 
 [<Test>]
 let ``Put item to move in different folder with item of same name prompts for overwrite``() =
@@ -89,13 +90,14 @@ let ``Put item to move in different folder with item of same name prompts for ov
     let item = Some (nodeDiffFolder, Move)
     let model = createModel()
     model.ItemBuffer <- item
-    contr.Put false model
+    contr.Put false model |> Async.RunSynchronously
 
     verify <@ fileSys.Move (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
+
 
 [<Test>]
 let ``Put item to move in same folder gives same-folder message``() =
@@ -104,13 +106,14 @@ let ``Put item to move in same folder gives same-folder message``() =
     let item = Some (nodeSameFolder, Move)
     let model = createModel()
     model.ItemBuffer <- item
-    contr.Put false model
+    contr.Put false model |> Async.RunSynchronously
 
     verify <@ fileSys.Move (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.SetErrorStatus MainController.CannotMoveToSameFolderStatus
     assertAreEqual expected model
+
 
 [<Test>]
 let ``Put item to move handles error by setting error status``() =
@@ -119,13 +122,14 @@ let ``Put item to move handles error by setting error status``() =
     let item = Some (nodeDiffFolder, Move)
     let model = createModel()
     model.ItemBuffer <- item
-    contr.Put false model
+    contr.Put false model |> Async.RunSynchronously
 
     let expectedAction = MovedItem (nodeDiffFolder, nodeSameFolder.Path)
     let expected = createModel()
     expected.ItemBuffer <- item
     expected |> MainController.SetActionExceptionStatus expectedAction ex
     assertAreEqual expected model
+
 
 
 [<TestCase(false)>]
@@ -140,9 +144,9 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     model.ItemBuffer <- Some (nodeDiffFolder, Copy)
     if overwrite then
         model.CommandInputMode <- Some (Confirm Overwrite)
-        contr.CommandCharTyped 'y' model
+        contr.CommandCharTyped 'y' model |> Async.RunSynchronously
     else
-        contr.Put false model
+        contr.Put false model |> Async.RunSynchronously
 
     let curPath = nodeDiffFolder.Path
     let newPath = nodeSameFolder.Path
@@ -153,8 +157,9 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
+    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
     assertAreEqual expected model
+
 
 [<Test>]
 let ``Put item to copy in different folder with item of same name prompts for overwrite``() =
@@ -166,13 +171,14 @@ let ``Put item to copy in different folder with item of same name prompts for ov
     let item = Some (nodeDiffFolder, Copy)
     let model = createModel()
     model.ItemBuffer <- item
-    contr.Put false model
+    contr.Put false model |> Async.RunSynchronously
 
     verify <@ fileSys.Copy (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
+
 
 [<TestCase(0)>]
 [<TestCase(1)>]
@@ -188,7 +194,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let model = createModel()
     let path = model.Path
     model.ItemBuffer <- item
-    contr.Put false model
+    contr.Put false model |> Async.RunSynchronously
 
     let oldPath = nodeSameFolder.Path
     let newPath = path.Join (MainController.GetCopyName nodeSameFolder.Name existingCopies)
@@ -199,8 +205,9 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     expected.Cursor <- 2 + existingCopies
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionStatus expectedAction model.PathFormat
+    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
     assertAreEqual expected model
+
 
 [<Test>]
 let ``Put item to copy handles error by setting error status``() =
@@ -209,13 +216,14 @@ let ``Put item to copy handles error by setting error status``() =
     let item = Some (nodeDiffFolder, Copy)
     let model = createModel()
     model.ItemBuffer <- item
-    contr.Put false model
+    contr.Put false model |> Async.RunSynchronously
 
     let expectedAction = CopiedItem (nodeDiffFolder, nodeSameFolder.Path)
     let expected = createModel()
     expected.ItemBuffer <- item
     expected |> MainController.SetActionExceptionStatus expectedAction ex
     assertAreEqual expected model
+
 
 
 [<TestCase(false)>]
@@ -231,12 +239,13 @@ let ``Confirm Overwrite answered 'n' with any item sets cancelled status`` isCop
     let model = createModel()
     model.ItemBuffer <- item
     model.CommandInputMode <- Some (Confirm Overwrite)
-    contr.CommandCharTyped 'n' model
+    contr.CommandCharTyped 'n' model |> Async.RunSynchronously
 
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.Status <- MainController.CancelledStatus
     assertAreEqual expected model
+
 
 [<TestCase(false, 'h')>]
 [<TestCase(false, 'z')>]
@@ -254,10 +263,11 @@ let ``Confirm Overwrite answered with any key besides 'y' or 'n' does nothing`` 
     model.ItemBuffer <- item
     model.CommandInputMode <- Some (Confirm Overwrite)
     model.CommandText <- "test"
-    contr.CommandCharTyped answer model
+    contr.CommandCharTyped answer model |> Async.RunSynchronously
 
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.CommandInputMode <- Some (Confirm Overwrite)
     expected.CommandText <- ""
     assertAreEqual expected model
+

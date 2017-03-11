@@ -5,12 +5,26 @@ open System.Text.RegularExpressions
 open System.Threading.Tasks
 
 type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
+    let runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
+    let mutable taskRunning = false
+
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
             this.OpenUserPath (model.Path.Format Windows) model
             model.BackStack <- []
 
-        member this.Dispatcher = this.Dispatcher
+        member this.Dispatcher = this.LockingDispatcher
+
+    member this.LockingDispatcher evt =
+        match this.Dispatcher evt with
+        | Sync handler -> Sync (fun m -> if not taskRunning then handler m)
+        | Async handler ->
+            Async (fun m -> async {
+                if not taskRunning then
+                    taskRunning <- true
+                    do! handler m
+                    taskRunning <- false
+            })
 
     member this.Dispatcher evt : EventHandler<MainModel> =
         match evt with

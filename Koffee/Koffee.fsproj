@@ -41,7 +41,7 @@
     </DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <WarningsAsErrors>25</WarningsAsErrors>
+    <WarningsAsErrors>25,20</WarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>

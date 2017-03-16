@@ -38,7 +38,6 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             <@
                 window.NodeGrid.ItemsSource <- model.Nodes
                 window.NodeGrid.SelectedIndex <- model.Cursor
-                window.StatusLabel.Content <- model.Status
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
@@ -67,11 +66,16 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update status label color
-        model.OnPropertyChanged <@ model.IsErrorStatus @> (fun isError ->
+        model.OnPropertyChanged <@ model.Status @> (fun status ->
+            window.StatusLabel.Content <- 
+                match status with
+                | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+                | None -> ""
             window.StatusLabel.Foreground <-
-                match isError with
-                | true -> Brushes.Red
-                | false -> SystemColors.WindowTextBrush)
+                match status with
+                | Some (ErrorMessage _) -> Brushes.Red
+                | _ -> SystemColors.WindowTextBrush
+        )
 
         // bind tab to switching focus
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
@@ -94,7 +98,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
 
         // escape and lost focus resets the input mode
         window.PreviewKeyDown.Add (onKey Key.Escape (fun _ ->
-            model.Status <- ""
+            model.Status <- None
             model.CommandInputMode <- None))
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 

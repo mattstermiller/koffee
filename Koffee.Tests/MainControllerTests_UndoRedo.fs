@@ -52,7 +52,7 @@ let ``Undo with empty undo stack sets status only``() =
 
     let expected = createModel()
     expected.UndoStack <- []
-    expected.Status <- MainController.NoUndoActionsStatus
+    expected.Status <- Some <| MainController.NoUndoActionsStatus
     assertAreEqual expected model
 
 [<Test>]
@@ -65,7 +65,7 @@ let ``Redo with empty stack sets status only``() =
 
     let expected = createModel()
     expected.RedoStack <- []
-    expected.Status <- MainController.NoRedoActionsStatus
+    expected.Status <- Some <| MainController.NoRedoActionsStatus
     assertAreEqual expected model
 
 
@@ -83,7 +83,7 @@ let ``Undo create item deletes if empty`` nodeIndex curPathDifferent =
     let action = CreatedItem createdNode
     let model = createModel()
     model.UndoStack <- action :: model.UndoStack
-    model.IsErrorStatus <- true
+    model.Status <- Some <| ErrorMessage "prev error"
     model.Cursor <- 5
     if curPathDifferent then
         model.Path <- createPath "other"
@@ -93,7 +93,7 @@ let ``Undo create item deletes if empty`` nodeIndex curPathDifferent =
     verify <@ fileSys.Delete expectedPath @> once
     let expected = createModel()
     expected.RedoStack <- action :: expected.RedoStack
-    expected.Status <- MainController.UndoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.UndoActionStatus action model.PathFormat
     if curPathDifferent then
         expected.Path <- createPath "other"
         expected.Cursor <- 5
@@ -145,7 +145,7 @@ let ``Undo create item sets status if non-empty and consumes action``() =
     verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.Path <- createPath "other"
-    expected.SetErrorStatus (MainController.CannotUndoNonEmptyCreatedStatus createdNode)
+    expected.Status <- Some <| MainController.CannotUndoNonEmptyCreatedStatus createdNode
     assertAreEqual expected model
 
 
@@ -169,7 +169,7 @@ let ``Redo create item creates item`` curPathDifferent =
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
-    expected.Status <- MainController.RedoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.RedoActionStatus action model.PathFormat
     expected.UndoStack <- action :: expected.UndoStack
     if curPathDifferent then
         expected.BackStack <- (createPath "other", 5) :: expected.BackStack
@@ -188,7 +188,7 @@ let ``Undo rename item names file back to original`` curPathDifferent =
     let action = RenamedItem (prevNode, curNode.Name)
     let model = createModel()
     model.UndoStack <- action :: model.UndoStack
-    model.IsErrorStatus <- true
+    model.Status <- Some <| ErrorMessage "prev error"
     if curPathDifferent then
         model.Path <- createPath "other"
         model.Cursor <- 5
@@ -201,7 +201,7 @@ let ``Undo rename item names file back to original`` curPathDifferent =
     expected.Nodes <- newNodes
     expected.Cursor <- 1
     expected.RedoStack <- action :: expected.RedoStack
-    expected.Status <- MainController.UndoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.UndoActionStatus action model.PathFormat
     if curPathDifferent then
         expected.BackStack <- (createPath "other", 5) :: expected.BackStack
         expected.ForwardStack <- []
@@ -250,7 +250,7 @@ let ``Redo rename item renames original file name again`` curPathDifferent =
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.Cursor <- 1
-    expected.Status <- MainController.RedoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.RedoActionStatus action model.PathFormat
     expected.UndoStack <- action :: expected.UndoStack
     if curPathDifferent then
         expected.BackStack <- (createPath "other", 5) :: expected.BackStack
@@ -284,7 +284,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     expected.Cursor <- 1
     expected.RedoStack <- action :: expected.RedoStack
     expected.ItemBuffer <- otherItem
-    expected.Status <- MainController.UndoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.UndoActionStatus action model.PathFormat
     if curPathDifferent then
         expected.BackStack <- (createPath "other", 5) :: expected.BackStack
         expected.ForwardStack <- []
@@ -337,7 +337,7 @@ let ``Redo move item moves it from original path again`` curPathDifferent =
     expected.Cursor <- 1
     expected.UndoStack <- action :: expected.UndoStack
     expected.ItemBuffer <- otherItem
-    expected.Status <- MainController.RedoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.RedoActionStatus action model.PathFormat
     if curPathDifferent then
         expected.BackStack <- (createPath "other", 5) :: expected.BackStack
         expected.ForwardStack <- []
@@ -372,7 +372,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let expected = createModel()
     expected.RedoStack <- action :: expected.RedoStack
     expected.ItemBuffer <- otherItem
-    expected.Status <- MainController.UndoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.UndoActionStatus action model.PathFormat
     if curPathDifferent then
         expected.Path <- createPath "other"
         expected.Cursor <- 5
@@ -406,7 +406,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     expected.Nodes <- newNodes
     expected.Cursor <- 1
     expected.RedoStack <- action :: expected.RedoStack
-    expected.Status <- MainController.UndoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.UndoActionStatus action model.PathFormat
     assertAreEqual expected model
 
 
@@ -464,7 +464,7 @@ let ``Redo copy item makes another copy`` curPathDifferent =
     expected.Cursor <- 1
     expected.UndoStack <- action :: expected.UndoStack
     expected.ItemBuffer <- otherItem
-    expected.Status <- MainController.RedoActionStatus action model.PathFormat
+    expected.Status <- Some <| MainController.RedoActionStatus action model.PathFormat
     if curPathDifferent then
         expected.BackStack <- (createPath "other", 5) :: expected.BackStack
         expected.ForwardStack <- []
@@ -489,6 +489,6 @@ let ``Undo recycle or delete sets status message and consumes action`` permanent
 
     let expected = createModel()
     expected.Path <- createPath "other"
-    expected.SetErrorStatus (MainController.CannotUndoDeleteStatus permanent deletedNode)
+    expected.Status <- Some <| MainController.CannotUndoDeleteStatus permanent deletedNode
     assertAreEqual expected model
 

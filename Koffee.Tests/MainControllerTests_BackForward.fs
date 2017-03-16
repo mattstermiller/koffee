@@ -15,6 +15,8 @@ let newNodes = [
     createNode "path" "five"
 ]
 
+let prevStatus = Some <| Message "previous status"
+
 let createController () =
     let fileSys =
         Mock<IFileSystemService>()
@@ -29,7 +31,7 @@ let history contrFunc backStack forwardStack =
     model.ForwardStack <- forwardStack |> List.map (fun (p, c) -> (createPath p, c))
     model.Path <- createPath "path"
     model.Cursor <- 1
-    model.Status <- "previous status"
+    model.Status <- prevStatus
     let contr = createController()
     contrFunc contr model
     model
@@ -44,7 +46,7 @@ let ``Back without history does nothing``() =
     model.Cursor |> shouldEqual 1
     model.BackStack |> shouldEqual []
     model.ForwardStack |> shouldEqual []
-    model.Status |> shouldEqual "previous status"
+    model.Status |> shouldEqual prevStatus
 
 [<Test>]
 let ``Back with simple history changes path and stacks``() =
@@ -53,7 +55,7 @@ let ``Back with simple history changes path and stacks``() =
     model.Cursor |> shouldEqual 2
     model.BackStack |> shouldEqual []
     model.ForwardStack |> shouldEqual [createPath "path", 1]
-    model.Status |> shouldEqual ""
+    model.Status |> shouldEqual None
 
 [<Test>]
 let ``Back with more history changes path and stacks``() =
@@ -62,7 +64,7 @@ let ``Back with more history changes path and stacks``() =
     model.Cursor |> shouldEqual 2
     model.BackStack |> shouldEqual [createPath "back2", 3]
     model.ForwardStack |> shouldEqual [createPath "path", 1; createPath "fwd1", 4; createPath "fwd2", 5]
-    model.Status |> shouldEqual ""
+    model.Status |> shouldEqual None
 
 [<Test>]
 let ``Forward without history does nothing``() =
@@ -71,7 +73,7 @@ let ``Forward without history does nothing``() =
     model.Cursor |> shouldEqual 1
     model.BackStack |> shouldEqual []
     model.ForwardStack |> shouldEqual []
-    model.Status |> shouldEqual "previous status"
+    model.Status |> shouldEqual prevStatus
 
 [<Test>]
 let ``Forward with simple history changes path and stacks``() =
@@ -80,7 +82,7 @@ let ``Forward with simple history changes path and stacks``() =
     model.Cursor |> shouldEqual 2
     model.BackStack |> shouldEqual [createPath "path", 1]
     model.ForwardStack |> shouldEqual []
-    model.Status |> shouldEqual ""
+    model.Status |> shouldEqual None
 
 [<Test>]
 let ``Forward with more history changes path and stacks``() =
@@ -89,4 +91,4 @@ let ``Forward with more history changes path and stacks``() =
     model.Cursor |> shouldEqual 4
     model.BackStack |> shouldEqual [createPath "path", 1; createPath "back1", 2; createPath "back2", 3]
     model.ForwardStack |> shouldEqual [createPath "fwd2", 5]
-    model.Status |> shouldEqual ""
+    model.Status |> shouldEqual None

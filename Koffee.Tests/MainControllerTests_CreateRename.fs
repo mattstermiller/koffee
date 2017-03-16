@@ -65,7 +65,7 @@ let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -102,7 +102,7 @@ let ``Rename calls fileSys.Move, reloads nodes and sets cursor``() =
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]

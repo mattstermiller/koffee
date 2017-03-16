@@ -70,5 +70,5 @@ let ``Opening a path that throws on GetNodes sets error status only``() =
     contr.OpenPath (createPath "bad path") (SelectIndex 0) model
 
     let expected = createModel()
-    expected.SetExceptionStatus ex "open path"
+    expected.Status <- Some <| StatusType.fromExn "open path" ex
     assertAreEqual expected model

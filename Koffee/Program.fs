@@ -23,7 +23,7 @@ let main args =
     if args.Length > 0 then
         match Path.Parse args.[0] with
         | Some p -> model.Path <- p
-        | None -> model.SetErrorStatus (MainController.InvalidPathStatus args.[0])
+        | None -> model.Status <- Some <| MainController.InvalidPathStatus args.[0]
 
     use eventLoop = mvc.Start()
 

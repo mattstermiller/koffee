@@ -94,13 +94,23 @@ type SelectType =
     | SelectIndex of int
     | SelectName of string
 
+type StatusType =
+    | Message of string
+    | ErrorMessage of string
+    | Busy of string
+
+    static member fromExn actionName (ex: exn) =
+        let exnMessage =
+            match ex with
+            | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
+            | _ -> ex.Message
+        ErrorMessage (sprintf "Could not %s: %s" actionName exnMessage)
 
 [<AbstractClass>]
 type MainModel() as this =
     inherit Model()
 
     do
-        this.OnPropertyChanged <@ this.Status @> (fun _ -> this.IsErrorStatus <- false)
         this.Path <- Path.Root
         this.PathFormat <- Windows
         this.BackStack <- []
@@ -108,12 +118,10 @@ type MainModel() as this =
         this.UndoStack <- []
         this.RedoStack <- []
         this.CommandText <- ""
-        this.Status <- ""
 
     abstract Path: Path with get, set
     abstract PathFormat: PathFormat with get, set
-    abstract Status: string with get, set
-    abstract IsErrorStatus: bool with get, set
+    abstract Status: StatusType option with get, set
     abstract Nodes: Node list with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
@@ -128,19 +136,10 @@ type MainModel() as this =
     abstract UndoStack: ItemAction list with get, set
     abstract RedoStack: ItemAction list with get, set
 
-    member this.SetErrorStatus status =
-        this.Status <- status
-        this.IsErrorStatus <- true
-
-    member this.SetExceptionStatus (ex: exn) action =
-        let unwrappedExn =
-            match ex with
-            | :? AggregateException as agg -> agg.InnerExceptions.[0]
-            | _ -> ex
-        this.SetErrorStatus (sprintf "Could not %s: %s" action unwrappedExn.Message)
-
-    member this.SetCursor index =
-        this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
+    member this.HasErrorStatus =
+        match this.Status with
+        | Some (ErrorMessage _) -> true
+        | _ -> false
 
     member this.PathFormatted = this.Path.Format this.PathFormat
 
@@ -149,6 +148,9 @@ type MainModel() as this =
         this.Nodes.[index]
 
     member this.HalfPageScroll = this.PageSize/2 - 1
+
+    member this.SetCursor index =
+        this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
 
 type MainEvents =
     | CursorUp

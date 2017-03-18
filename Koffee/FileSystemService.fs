@@ -20,6 +20,7 @@ type IFileSystemService =
     abstract Delete: Path -> unit
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
+    abstract OpenCommandLine: Path -> unit
 
 type FileSystemService() =
     let wpath (path: Path) = path.Format Windows
@@ -38,6 +39,7 @@ type FileSystemService() =
         override this.Delete node = this.Delete node
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
+        override this.OpenCommandLine path = this.OpenCommandLine path
 
     member this.GetNode path =
         let wp = wpath path
@@ -149,6 +151,10 @@ type FileSystemService() =
     member this.OpenExplorer path =
         if path <> Path.Root then
             Process.Start("explorer.exe", String.Format("/select,\"{0}\"", wpath path)) |> ignore
+
+    member this.OpenCommandLine path =
+        if path <> Path.Root then
+            Process.Start("cmd.exe", String.Format("/k pushd \"{0}\"", wpath path)) |> ignore
 
 
     member private this.FileNode file = {

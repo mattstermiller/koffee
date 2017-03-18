@@ -182,6 +182,7 @@ type MainEvents =
     | Redo
     | TogglePathFormat
     | OpenExplorer
+    | OpenCommandLine
     | OpenSettings
     | Exit
 
@@ -223,6 +224,7 @@ type MainEvents =
         | Redo -> "Redo Action"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenSettings -> "Open Help/Settings"
         | Exit -> "Exit"
 
@@ -259,6 +261,7 @@ type MainEvents =
         Redo
         TogglePathFormat
         OpenExplorer
+        OpenCommandLine
         OpenSettings
         Exit
     ]

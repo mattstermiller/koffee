@@ -56,6 +56,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | TogglePathFormat -> Sync this.TogglePathFormat
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
+        | OpenCommandLine -> Sync this.OpenCommandLine
         | Exit -> Sync ignore // handled by view
 
     member this.OpenUserPath pathStr model =
@@ -399,6 +400,11 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         if model.Path <> Path.Root then
             fileSys.OpenExplorer model.SelectedNode.Path
             model.Status <- Some <| MainStatus.openExplorer model.PathFormatted
+
+    member this.OpenCommandLine model =
+        if model.Path <> Path.Root then
+            fileSys.OpenCommandLine model.Path
+            model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
 
     member this.OpenSettings model =
         let settings = settingsFactory()

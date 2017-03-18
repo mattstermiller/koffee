@@ -53,6 +53,7 @@ _Capitalized letters indicate that the key is combined with Shift._
 
 #### Other
 - Open Windows Explorer at your current location with `Ctrl + e`
+- Open Commandline at your current location with `Ctrl + Shift + c`
 - Toggle between Windows-style and Unix-style path formats with `F9`
 
 ## Version History

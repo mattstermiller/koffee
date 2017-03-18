@@ -45,6 +45,7 @@ let DefaultsAsString = [
     ("<s-delete>", PromptDelete)
     ("<f9>", TogglePathFormat)
     ("<c-e>", OpenExplorer)
+    ("<cs-c>", OpenCommandLine)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)
     ("<c-w>", Exit)

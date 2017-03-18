@@ -113,11 +113,13 @@ type MainModel() as this =
     do
         this.Path <- Path.Root
         this.PathFormat <- Windows
+        this.Nodes <- []
         this.BackStack <- []
         this.ForwardStack <- []
         this.UndoStack <- []
         this.RedoStack <- []
         this.CommandText <- ""
+        this.CommandTextSelection <- 0, 0
 
     abstract Path: Path with get, set
     abstract PathFormat: PathFormat with get, set
@@ -127,7 +129,7 @@ type MainModel() as this =
     abstract PageSize: int with get, set
     abstract CommandInputMode: CommandInput option with get, set
     abstract CommandText: string with get, set
-    abstract CommandTextSelection: int * int with get, set
+    abstract CommandTextSelection: start:int * len:int with get, set
     abstract LastFind: char option with get, set
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set

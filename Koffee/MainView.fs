@@ -48,29 +48,26 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 model.Path.Name
                 |> Str.ifEmpty model.PathFormatted
                 |> sprintf "%s  |  Koffee"
-        displayPath()
-        model.OnPropertyChanged <@ model.Path @> displayPath
+        bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
 
         // display item in buffer
-        window.BufferLabel.Content <- ""
-        model.OnPropertyChanged <@ model.ItemBuffer @> (fun buffer ->
+        bindPropertyToFunc <@ model.ItemBuffer @> (fun buffer ->
             let text = MainView.BufferStatus buffer
             window.BufferLabel.Content <- text
             window.BufferLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible)
 
         // update command text selection
-        model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
+        bindPropertyToFunc <@ model.CommandTextSelection @> (fun (start, len) ->
             window.CommandBox.Select(start, len))
 
         // update UI for the command input mode
-        model.OnPropertyChanged <@ model.CommandInputMode @> (fun mode ->
+        bindPropertyToFunc <@ model.CommandInputMode @> (fun mode ->
             this.CommandInputModeChanged mode model.SelectedNode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update UI for status
-        this.UpdateStatus model.Status
-        model.OnPropertyChanged <@ model.Status @> this.UpdateStatus
+        bindPropertyToFunc <@ model.Status @> this.UpdateStatus
 
         // bind Tab key to switch focus
         window.PathBox.PreviewKeyDown.Add <| onKey Key.Tab window.NodeGrid.Focus

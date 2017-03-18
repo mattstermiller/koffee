@@ -54,8 +54,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Recycle -> Async this.Recycle
         | PromptDelete -> Sync (this.StartInput (Confirm Delete))
         | TogglePathFormat -> Sync this.TogglePathFormat
-        | OpenExplorer -> Sync this.OpenExplorer
         | OpenSettings -> Sync this.OpenSettings
+        | OpenExplorer -> Sync this.OpenExplorer
         | Exit -> Sync ignore // handled by view
 
     member this.OpenUserPath pathStr model =
@@ -397,7 +397,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.OpenExplorer model =
         if model.Path <> Path.Root then
-            model.SelectedNode.Path |> fileSys.OpenExplorer
+            fileSys.OpenExplorer model.SelectedNode.Path
             model.Status <- Some <| MainStatus.openExplorer model.PathFormatted
 
     member this.OpenSettings model =

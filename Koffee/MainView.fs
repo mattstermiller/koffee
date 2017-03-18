@@ -204,10 +204,10 @@ module MainStatus =
     let search searchStr = Message <| sprintf "Search \"%s\"" searchStr
 
     // actions
-    let openFile path = Message <| sprintf "Opened File: %s" path
-    let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
     let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path
     let changePathFormat newFormat = Message <| sprintf "Changed Path Format to %O" newFormat
+    let openFile path = Message <| sprintf "Opened File: %s" path
+    let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
 
     let private runningActionMessage action pathFormat =
         match action with

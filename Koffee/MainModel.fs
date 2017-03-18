@@ -161,28 +161,28 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
+    | FindNext
+    | SearchNext
+    | SearchPrevious
     | OpenPath of string
     | OpenSelected
     | OpenParent
     | Back
     | Forward
     | Refresh
-    | Undo
-    | Redo
     | StartInput of CommandInput
     | ExecuteCommand
     | CommandCharTyped of char
-    | FindNext
-    | SearchNext
-    | SearchPrevious
     | StartMove
     | StartCopy
     | Put
     | Recycle
     | PromptDelete
+    | Undo
+    | Redo
     | TogglePathFormat
-    | OpenSettings
     | OpenExplorer
+    | OpenSettings
     | Exit
 
     member this.FriendlyName =
@@ -193,37 +193,37 @@ type MainEvents =
         | CursorDownHalfPage -> "Move Cursor Down Half Page"
         | CursorToFirst -> "Move Cursor to First Item"
         | CursorToLast -> "Move Cursor to Last Item"
+        | StartInput Find -> "Find Item Beginning With Character"
+        | FindNext -> "Go To Next Find Match"
+        | StartInput Search -> "Search For Items"
+        | SearchNext -> "Go To Next Search Match"
+        | SearchPrevious -> "Go To Previous Search Match"
         | OpenPath path -> sprintf "Open Path \"%s\"" path
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
         | Forward -> "Forward in Location History"
         | Refresh -> "Refresh Current Folder"
-        | Undo -> "Undo Action"
-        | Redo -> "Redo Action"
         | StartInput CreateFile -> "Create File"
         | StartInput CreateFolder -> "Create Folder"
-        | StartInput (Rename Begin) -> "Rename File (Prepend)"
-        | StartInput (Rename EndName) -> "Rename File (Append to Name)"
-        | StartInput (Rename End) -> "Rename File (Append to Extension)"
-        | StartInput (Rename ReplaceName) -> "Rename File (Replace Name)"
-        | StartInput (Rename ReplaceExt) -> "Rename File (Replace Extension)"
+        | StartInput (Rename Begin) -> "Rename Item (Prepend)"
+        | StartInput (Rename EndName) -> "Rename Item (Append to Name)"
+        | StartInput (Rename End) -> "Rename Item (Append to Extension)"
+        | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
+        | StartInput (Rename ReplaceExt) -> "Rename Item (Replace Extension)"
         | StartInput (Confirm _) -> ""
-        | StartInput Find -> "Find Item Beginning With Character"
-        | StartInput Search -> "Search For Items"
+        | CommandCharTyped _ -> ""
         | ExecuteCommand -> "Execute the Currently Entered Command"
-        | CommandCharTyped char -> sprintf "Find Item Beginning With \"%c\"" char
-        | FindNext -> "Go To Next Find Match"
-        | SearchNext -> "Go To Next Search Match"
-        | SearchPrevious -> "Go To Previous Search Match"
         | StartMove -> "Start Move Item"
         | StartCopy -> "Start Copy Item"
         | Put -> "Put Item to Move/Copy in Current Folder"
         | Recycle -> "Send to Recycle Bin"
         | PromptDelete -> "Delete Permanently"
+        | Undo -> "Undo Action"
+        | Redo -> "Redo Action"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
-        | OpenSettings -> "Open Help/Settings"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | OpenSettings -> "Open Help/Settings"
         | Exit -> "Exit"
 
     static member Bindable = [
@@ -233,13 +233,16 @@ type MainEvents =
         CursorDownHalfPage
         CursorToFirst
         CursorToLast
+        StartInput Find
+        FindNext
+        StartInput Search
+        SearchNext
+        SearchPrevious
         OpenSelected
         OpenParent
         Back
         Forward
         Refresh
-        Undo
-        Redo
         StartInput CreateFile
         StartInput CreateFolder
         StartInput (Rename Begin)
@@ -247,18 +250,15 @@ type MainEvents =
         StartInput (Rename End)
         StartInput (Rename ReplaceName)
         StartInput (Rename ReplaceExt)
-        StartInput Find
-        FindNext
-        StartInput Search
-        SearchNext
-        SearchPrevious
         StartMove
         StartCopy
         Put
         Recycle
         PromptDelete
+        Undo
+        Redo
         TogglePathFormat
-        OpenSettings
         OpenExplorer
+        OpenSettings
         Exit
     ]

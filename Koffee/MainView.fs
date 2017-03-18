@@ -46,7 +46,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             window.Title <-
                 model.Path.Name
                 |> Str.ifEmpty model.PathFormatted
-                |> sprintf "%s | Koffee"
+                |> sprintf "%s  |  Koffee"
         displayPath()
         model.OnPropertyChanged <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath

@@ -65,27 +65,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             this.CommandInputModeChanged mode model.SelectedNode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
-        // update status label color
-        model.OnPropertyChanged <@ model.Status @> (fun status ->
-            window.StatusLabel.Content <- 
-                match status with
-                | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-                | None -> ""
-            window.StatusLabel.Foreground <-
-                match status with
-                | Some (ErrorMessage _) -> Brushes.Red
-                | _ -> SystemColors.WindowTextBrush
-            let isBusy =
-                match status with
-                | Some (Busy _) -> true
-                | _ -> false
-            let wasBusy = not window.NodeGrid.IsEnabled
-            window.PathBox.IsEnabled <- not isBusy
-            window.NodeGrid.IsEnabled <- not isBusy
-            window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
-            if wasBusy && not isBusy then
-                window.NodeGrid.Focus() |> ignore
-        )
+        // update controls to display status
+        model.OnPropertyChanged <@ model.Status @> this.UpdateStatus
 
         // bind tab to switching focus
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
@@ -164,17 +145,38 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 currBindings <- matchedBindings
                 None
 
+    member this.UpdateStatus status =
+        window.StatusLabel.Content <- 
+            match status with
+            | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+            | None -> ""
+        window.StatusLabel.Foreground <-
+            match status with
+            | Some (ErrorMessage _) -> Brushes.Red
+            | _ -> SystemColors.WindowTextBrush
+
+        let isBusy =
+            match status with
+            | Some (Busy _) -> true
+            | _ -> false
+        let wasBusy = not window.NodeGrid.IsEnabled
+        window.PathBox.IsEnabled <- not isBusy
+        window.NodeGrid.IsEnabled <- not isBusy
+        window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
+        if wasBusy && not isBusy then
+            window.NodeGrid.Focus() |> ignore
+
     member this.CommandInputModeChanged mode node =
         match mode with
         | Some inputMode -> this.ShowCommandBar (inputMode.Prompt node)
         | None -> this.HideCommandBar ()
 
-    member this.ShowCommandBar label =
+    member private this.ShowCommandBar label =
         window.CommandLabel.Content <- label
         window.CommandPanel.Visibility <- Visibility.Visible
         window.CommandBox.Focus() |> ignore
 
-    member this.HideCommandBar () =
+    member private this.HideCommandBar () =
         window.CommandPanel.Visibility <- Visibility.Hidden
         window.NodeGrid.Focus() |> ignore
 

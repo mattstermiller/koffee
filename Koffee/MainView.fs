@@ -75,6 +75,16 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 match status with
                 | Some (ErrorMessage _) -> Brushes.Red
                 | _ -> SystemColors.WindowTextBrush
+            let isBusy =
+                match status with
+                | Some (Busy _) -> true
+                | _ -> false
+            let wasBusy = not window.NodeGrid.IsEnabled
+            window.PathBox.IsEnabled <- not isBusy
+            window.NodeGrid.IsEnabled <- not isBusy
+            window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
+            if wasBusy && not isBusy then
+                window.NodeGrid.Focus() |> ignore
         )
 
         // bind tab to switching focus

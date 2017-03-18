@@ -3,7 +3,7 @@
 open System
 open System.Text.RegularExpressions
 open FSharp.Desktop.UI
-open Koffee.Reflection
+open Reflection
 open ModelExtensions
 
 type NodeType =

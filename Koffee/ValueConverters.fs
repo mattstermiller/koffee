@@ -2,7 +2,7 @@
 
 open System.Windows.Data
 open Microsoft.FSharp.Reflection
-open Koffee.Reflection
+open Reflection
 
 type UnionText() =
     interface IValueConverter with

@@ -1,4 +1,4 @@
-﻿module Koffee.Reflection
+﻿module Reflection
 
 open Microsoft.FSharp.Reflection
 

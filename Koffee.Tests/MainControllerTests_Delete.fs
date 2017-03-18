@@ -64,7 +64,7 @@ let ``Recycle calls file sys recycle and sets message`` cursor =
     expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
 [<Test>]
@@ -75,7 +75,7 @@ let ``Recycle sets status message when not recyclable``() =
     contr.Recycle model |> Async.RunSynchronously
 
     let expected = createModel()
-    expected.Status <- Some <| MainController.CannotRecycleStatus oldNodes.[1]
+    expected.Status <- Some <| MainStatus.cannotRecycle oldNodes.[1]
     assertAreEqual expected model
 
 [<Test>]
@@ -86,7 +86,7 @@ let ``Recycle handles error by setting error status``() =
     contr.Recycle model |> Async.RunSynchronously
 
     let expected = createModel()
-    expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
+    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
     assertAreEqual expected model
 
 
@@ -109,7 +109,7 @@ let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor
     expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
 
@@ -123,7 +123,7 @@ let ``Delete prompt answered "y" handles error by setting error status``() =
 
     let expected = createModel()
     expected.CommandInputMode <- None
-    expected |> MainController.SetActionExceptionStatus (DeletedItem (oldNodes.[1], true)) ex
+    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], true)) ex
     assertAreEqual expected model
 
 
@@ -138,7 +138,7 @@ let ``Delete prompt answered with "n" sets cancelled status`` =
     verify <@ fileSys.Delete (any()) @> never
     let expected = createModel()
     expected.CommandInputMode <- None
-    expected.Status <- Some <| MainController.CancelledStatus
+    expected.Status <- Some <| MainStatus.cancelled
     assertAreEqual expected model
 
 

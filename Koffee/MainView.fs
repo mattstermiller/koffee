@@ -194,3 +194,77 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         match buffer with
         | Some (node, action) -> sprintf "%A %A: %s" action node.Type node.Name
         | None -> ""
+
+module MainStatus =
+    // navigation
+    let find char = Message <| sprintf "Find %O" char
+    let search searchStr = Message <| sprintf "Search \"%s\"" searchStr
+
+    // actions
+    let openFile path = Message <| sprintf "Opened File: %s" path
+    let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
+    let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path
+    let changePathFormat newFormat = Message <| sprintf "Changed Path Format to %O" newFormat
+
+    let private runningActionMessage action pathFormat =
+        match action with
+        | MovedItem (node, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." node.Description (newPath.Format pathFormat)
+        | CopiedItem (node, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." node.Description (newPath.Format pathFormat)
+        | DeletedItem (node, false) -> Some <| sprintf "Recycling %s..." node.Description
+        | DeletedItem (node, true) -> Some <| sprintf "Deleting %s..." node.Description
+        | _ -> None
+    let checkingIsRecyclable = Message <| "Calculating size..."
+    let runningAction action pathFormat =
+        runningActionMessage action pathFormat |> Option.map (fun m -> Busy m)
+    let private actionCompleteMessage action pathFormat =
+        match action with
+        | CreatedItem node -> sprintf "Created %s" node.Description
+        | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
+        | MovedItem (node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description (newPath.Format pathFormat)
+        | CopiedItem (node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
+        | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
+        | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
+    let actionComplete action pathFormat =
+        actionCompleteMessage action pathFormat |> Message
+
+    let cannotRecycle (node: Node) =
+        ErrorMessage <| sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
+    let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"
+    let cancelled = Message <| "Cancelled"
+
+    let setActionExceptionStatus action ex (model: MainModel) =
+        let actionName =
+            match action with
+            | CreatedItem node -> sprintf "create %s" node.Description
+            | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
+            | MovedItem (node, newPath) -> sprintf "move %s to \"%s\"" node.Description (newPath.Format model.PathFormat)
+            | CopiedItem (node, newPath) -> sprintf "copy %s to \"%s\"" node.Description (newPath.Format model.PathFormat)
+            | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
+            | DeletedItem (node, true) -> sprintf "delete %s" node.Description
+        model.Status <- Some <| StatusType.fromExn actionName ex
+
+    // undo/redo
+    let undoingCreate (node: Node) = Busy <| sprintf "Undoing creation of %s - Deleting..." node.Description
+    let undoingMove (node: Node) = Busy <| sprintf "Undoing move of %s..." node.Description
+    let undoingCopy (node: Node) isDeletionPermanent =
+        let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
+        Busy <| sprintf "Undoing copy of %s - %s..." node.Description undoVerb
+    let undoAction action pathFormat =
+        Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
+
+    let redoingAction action pathFormat =
+        runningActionMessage action pathFormat
+            |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
+    let redoAction action pathFormat =
+        Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
+
+    let noUndoActions = ErrorMessage "No more actions to undo"
+    let noRedoActions = ErrorMessage "No more actions to redo"
+    let cannotUndoNonEmptyCreated (node: Node) =
+        ErrorMessage <| sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
+    let cannotUndoDelete permanent (node: Node) =
+        ErrorMessage <| 
+            if permanent then
+                sprintf "Cannot undo deletion of %s" node.Description
+            else
+                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description

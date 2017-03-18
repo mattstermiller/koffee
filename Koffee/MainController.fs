@@ -66,7 +66,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 this.OpenPath path.Parent (SelectName node.Name) model
             | _ ->
                 this.OpenPath path KeepSelect model
-        | None -> model.Status <- Some <| MainController.InvalidPathStatus pathStr
+        | None -> model.Status <- Some <| MainStatus.invalidPath pathStr
 
     member this.OpenPath path select model =
         try
@@ -95,7 +95,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 this.OpenPath path KeepSelect model
             | File ->
                 fileSys.OpenFile path
-                model.Status <- Some <| MainController.OpenFileStatus (path.Format model.PathFormat)
+                model.Status <- Some <| MainStatus.openFile (path.Format model.PathFormat)
 
     member this.ParentPath model =
         this.OpenPath model.Path.Parent (SelectName model.Path.Name) model
@@ -153,7 +153,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     | Delete -> do! this.Delete model.SelectedNode true model
             | 'n' ->
                 model.CommandInputMode <- None
-                model.Status <- Some <| MainController.CancelledStatus
+                model.Status <- Some <| MainStatus.cancelled
             | _ ->
                 model.CommandText <- ""
         | _ -> ()
@@ -161,7 +161,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.Find char model =
         model.LastFind <- Some char
-        model.Status <- Some <| MainController.FindStatus char
+        model.Status <- Some <| MainStatus.find char
         this.MoveCursorToNext (fun n -> n.Name.[0] = char) false model
 
     member this.FindNext model =
@@ -171,7 +171,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.Search searchStr reverse model =
         model.LastSearch <- Some searchStr
-        model.Status <- Some <| MainController.SearchStatus searchStr
+        model.Status <- Some <| MainStatus.search searchStr
         this.MoveCursorToNext (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) reverse model
 
     member this.SearchNext reverse model =
@@ -199,7 +199,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             model |> this.PerformedAction (CreatedItem model.SelectedNode)
         with | ex ->
             let action = CreatedItem {Path = model.Path; Name = name; Type = nodeType; Modified = None; Size = None}
-            model |> MainController.SetActionExceptionStatus action ex
+            model |> MainStatus.setActionExceptionStatus action ex
 
     member this.Rename node newName model =
         let action = RenamedItem (node, newName)
@@ -208,7 +208,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             fileSys.Move node.Path newPath
             this.OpenPath model.Path (SelectName newName) model
             model |> this.PerformedAction action
-        with | ex -> model |> MainController.SetActionExceptionStatus action ex
+        with | ex -> model |> MainStatus.setActionExceptionStatus action ex
 
     member this.StartMove model =
         match model.SelectedNode.Type with
@@ -229,7 +229,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Some (node, bufferAction) ->
             let sameFolder = node.Path.Parent = model.Path
             if bufferAction = Move && sameFolder then
-                model.Status <- Some MainController.CannotMoveToSameFolderStatus
+                model.Status <- Some MainStatus.cannotMoveToSameFolder
             else
                 let newName =
                     if bufferAction = Copy && sameFolder then
@@ -249,23 +249,23 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                         | Move -> (fileSys.Move, MovedItem (node, newPath))
                         | Copy -> (fileSys.Copy, CopiedItem (node, newPath))
                     try
-                        model.Status <- MainController.ActionRunStatus action model.PathFormat
+                        model.Status <- MainStatus.runningAction action model.PathFormat
                         do! runAsync (fun () -> fileSysAction node.Path newPath)
                         this.OpenPath model.Path (SelectName newName) model
                         model.ItemBuffer <- None
                         model |> this.PerformedAction action
-                    with | ex -> model |> MainController.SetActionExceptionStatus action ex
+                    with | ex -> model |> MainStatus.setActionExceptionStatus action ex
         | None -> ()
     }
 
     member this.Recycle model = async {
         let node = model.SelectedNode
-        model.Status <- Some <| MainController.IsRecyclableStatus
+        model.Status <- Some <| MainStatus.checkingIsRecyclable
         let! isRecyclable = runAsync (fun () -> fileSys.IsRecyclable node.Path)
         if isRecyclable then
             do! this.Delete node false model
         else
-            model.Status <- Some <| MainController.CannotRecycleStatus node
+            model.Status <- Some <| MainStatus.cannotRecycle node
     }
 
     member private this.Delete node permanent model = async {
@@ -274,19 +274,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             let fileSysFunc =
                 if permanent then fileSys.Delete
                 else fileSys.Recycle
-            model.Status <- MainController.ActionRunStatus action model.PathFormat
+            model.Status <- MainStatus.runningAction action model.PathFormat
             do! runAsync (fun () -> fileSysFunc node.Path)
             let cursor = model.Cursor
             model.Nodes <- fileSys.GetNodes model.Path
             model.Cursor <- min cursor (model.Nodes.Length-1)
             model |> this.PerformedAction action
-        with | ex -> model |> MainController.SetActionExceptionStatus action ex
+        with | ex -> model |> MainStatus.setActionExceptionStatus action ex
     }
 
     member private this.PerformedAction action model =
         model.UndoStack <- action :: model.UndoStack
         model.RedoStack <- []
-        model.Status <- Some <| MainController.ActionCompleteStatus action model.PathFormat
+        model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
 
     member this.Undo model = async {
         match model.UndoStack with
@@ -298,14 +298,14 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                 | CreatedItem node ->
                     try
                         if fileSys.IsEmpty node.Path then
-                            model.Status <- Some <| MainController.UndoingCreateStatus node
+                            model.Status <- Some <| MainStatus.undoingCreate node
                             do! runAsync (fun () -> fileSys.Delete node.Path)
                             refreshIfOnPath node.Path
                         else
-                            model.Status <- Some <| MainController.CannotUndoNonEmptyCreatedStatus node
+                            model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
                     with | ex ->
                         let action = DeletedItem (node, true)
-                        model |> MainController.SetActionExceptionStatus action ex
+                        model |> MainStatus.setActionExceptionStatus action ex
                 | RenamedItem (oldNode, curName) ->
                     let parentPath = oldNode.Path.Parent
                     let node = { oldNode with Name = curName; Path = parentPath.Join curName}
@@ -314,19 +314,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                         this.OpenPath parentPath (SelectName oldNode.Name) model
                     with | ex ->
                         let action = RenamedItem (node, oldNode.Name)
-                        model |> MainController.SetActionExceptionStatus action ex
+                        model |> MainStatus.setActionExceptionStatus action ex
                 | MovedItem (node, newPath) ->
                     if fileSys.Exists newPath then
                         // todo: prompt for overwrite here
                         model.Status <- Some <| ErrorMessage (sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name)
                     else
                         try
-                            model.Status <- Some <| MainController.UndoingMoveStatus node
+                            model.Status <- Some <| MainStatus.undoingMove node
                             do! runAsync (fun () -> fileSys.Move newPath node.Path)
                             this.OpenPath node.Path.Parent (SelectName node.Name) model
                         with | ex ->
                             let action = MovedItem ({ node with Path = newPath }, node.Path)
-                            model |> MainController.SetActionExceptionStatus action ex
+                            model |> MainStatus.setActionExceptionStatus action ex
                 | CopiedItem (node, newPath) ->
                     let mutable isDeletionPermanent = false
                     try
@@ -338,19 +338,19 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                         let fileSysFunc =
                             if isDeletionPermanent then fileSys.Delete
                             else fileSys.Recycle
-                        model.Status <- Some <| MainController.UndoingCopyStatus node isDeletionPermanent
+                        model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
                         do! runAsync (fun () -> fileSysFunc newPath)
                         refreshIfOnPath newPath
                     with | ex ->
                         let action = DeletedItem ({ node with Path = newPath }, isDeletionPermanent)
-                        model |> MainController.SetActionExceptionStatus action ex
+                        model |> MainStatus.setActionExceptionStatus action ex
                 | DeletedItem (node, permanent) ->
-                    model.Status <- Some <| MainController.CannotUndoDeleteStatus permanent node
+                    model.Status <- Some <| MainStatus.cannotUndoDelete permanent node
             model.UndoStack <- rest
             if not model.HasErrorStatus then
                 model.RedoStack <- action :: model.RedoStack
-                model.Status <- Some <| MainController.UndoActionStatus action model.PathFormat
-        | [] -> model.Status <- Some <| MainController.NoUndoActionsStatus
+                model.Status <- Some <| MainStatus.undoAction action model.PathFormat
+        | [] -> model.Status <- Some <| MainStatus.noUndoActions
     }
 
     member this.Redo model = async {
@@ -376,16 +376,16 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                     goToPath newPath
                     let buffer = model.ItemBuffer
                     model.ItemBuffer <- Some (node, moveOrCopy)
-                    model.Status <- MainController.RedoingActionStatus action model.PathFormat
+                    model.Status <- MainStatus.redoingAction action model.PathFormat
                     do! this.Put false model
                     model.ItemBuffer <- buffer
                 | DeletedItem (node, permanent) ->
                     goToPath node.Path
-                    model.Status <- MainController.RedoingActionStatus action model.PathFormat
+                    model.Status <- MainStatus.redoingAction action model.PathFormat
                     do! this.Delete node permanent model
             model.RedoStack <- rest
-            model.Status <- Some <| MainController.RedoActionStatus action model.PathFormat
-        | [] -> model.Status <- Some <| MainController.NoRedoActionsStatus
+            model.Status <- Some <| MainStatus.redoAction action model.PathFormat
+        | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
 
     member this.TogglePathFormat model =
@@ -393,12 +393,12 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             match model.PathFormat with
             | Windows -> Unix
             | Unix -> Windows
-        model.Status <- Some <| MainController.ChangePathFormatStatus model.PathFormat
+        model.Status <- Some <| MainStatus.changePathFormat model.PathFormat
 
     member this.OpenExplorer model =
         if model.Path <> Path.Root then
             model.SelectedNode.Path |> fileSys.OpenExplorer
-            model.Status <- Some <| MainController.OpenExplorerStatus model.PathFormatted
+            model.Status <- Some <| MainStatus.openExplorer model.PathFormatted
 
     member this.OpenSettings model =
         let settings = settingsFactory()
@@ -428,73 +428,3 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         let (nameNoExt, ext) = Path.SplitName name
         let number = if i = 0 then "" else sprintf " %i" (i+1)
         sprintf "%s (copy%s)%s" nameNoExt number ext
-
-    // nav messages
-    static member FindStatus char = Message <| sprintf "Find %O" char
-    static member SearchStatus searchStr = Message <| sprintf "Search \"%s\"" searchStr
-
-    // action messages
-    static member OpenFileStatus path = Message <| sprintf "Opened File: %s" path
-    static member OpenExplorerStatus path = Message <| sprintf "Opened Windows Explorer to: %s" path
-    static member InvalidPathStatus path = ErrorMessage <| sprintf "Path format is invalid: %s" path
-    static member ChangePathFormatStatus newFormat = Message <| sprintf "Changed Path Format to %O" newFormat
-    static member ActionRunStatusMessage action pathFormat =
-        match action with
-        | MovedItem (node, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." node.Description (newPath.Format pathFormat)
-        | CopiedItem (node, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." node.Description (newPath.Format pathFormat)
-        | DeletedItem (node, false) -> Some <| sprintf "Recycling %s..." node.Description
-        | DeletedItem (node, true) -> Some <| sprintf "Deleting %s..." node.Description
-        | _ -> None
-    static member ActionRunStatus action pathFormat =
-        MainController.ActionRunStatusMessage action pathFormat |> Option.map (fun m -> Busy m)
-    static member ActionCompleteStatusMessage action pathFormat =
-        match action with
-        | CreatedItem node -> sprintf "Created %s" node.Description
-        | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
-        | MovedItem (node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description (newPath.Format pathFormat)
-        | CopiedItem (node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
-        | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
-        | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
-    static member ActionCompleteStatus action pathFormat =
-        MainController.ActionCompleteStatusMessage action pathFormat |> Message
-    static member IsRecyclableStatus = Message <| "Calculating size..."
-    static member CannotMoveToSameFolderStatus = ErrorMessage <| "Cannot move item to same folder it is already in"
-    static member CannotRecycleStatus node =
-        ErrorMessage <| sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
-    static member CancelledStatus = Message <| "Cancelled"
-    static member SetActionExceptionStatus action ex model =
-        let actionName =
-            match action with
-            | CreatedItem node -> sprintf "create %s" node.Description
-            | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
-            | MovedItem (node, newPath) -> sprintf "move %s to \"%s\"" node.Description (newPath.Format model.PathFormat)
-            | CopiedItem (node, newPath) -> sprintf "copy %s to \"%s\"" node.Description (newPath.Format model.PathFormat)
-            | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
-            | DeletedItem (node, true) -> sprintf "delete %s" node.Description
-        model.Status <- Some <| StatusType.fromExn actionName ex
-
-    // undo/redo messages
-    static member UndoingCreateStatus node = Busy <| sprintf "Undoing creation of %s - Deleting..." node.Description
-    static member UndoingMoveStatus node = Busy <| sprintf "Undoing move of %s..." node.Description
-    static member UndoingCopyStatus node isDeletionPermanent =
-        let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
-        Busy <| sprintf "Undoing copy of %s - %s..." node.Description undoVerb
-    static member UndoActionStatus action pathFormat =
-        Message <| (MainController.ActionCompleteStatusMessage action pathFormat |> sprintf "Action undone: %s")
-
-    static member RedoingActionStatus action pathFormat =
-        MainController.ActionRunStatusMessage action pathFormat
-            |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    static member RedoActionStatus action pathFormat =
-        Message <| (MainController.ActionCompleteStatusMessage action pathFormat |> sprintf "Action redone: %s")
-
-    static member NoUndoActionsStatus = ErrorMessage "No more actions to undo"
-    static member NoRedoActionsStatus = ErrorMessage "No more actions to redo"
-    static member CannotUndoNonEmptyCreatedStatus node =
-        ErrorMessage <| sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
-    static member CannotUndoDeleteStatus permanent node =
-        ErrorMessage <| 
-            if permanent then
-                sprintf "Cannot undo deletion of %s" node.Description
-            else
-                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description

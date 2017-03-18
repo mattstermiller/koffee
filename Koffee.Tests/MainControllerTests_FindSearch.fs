@@ -44,7 +44,7 @@ let find char cursorStart =
 
     expected.CommandInputMode <- None
     expected.LastFind <- (Some char)
-    expected.Status <- Some <| MainController.FindStatus char
+    expected.Status <- Some <| MainStatus.find char
     assertEqualExceptCursor expected model
     model.Cursor
 
@@ -58,7 +58,7 @@ let search searchStr cursorStart =
 
     expected.CommandInputMode <- None
     expected.LastSearch <- (Some searchStr)
-    expected.Status <- Some <| MainController.SearchStatus searchStr
+    expected.Status <- Some <| MainStatus.search searchStr
     assertEqualExceptCursor expected model
     model.Cursor
 
@@ -72,7 +72,7 @@ let searchPrevious searchStr cursorStart =
 
     expected.CommandInputMode <- None
     expected.LastSearch <- (Some searchStr)
-    expected.Status <- Some <| MainController.SearchStatus searchStr
+    expected.Status <- Some <| MainStatus.search searchStr
     assertEqualExceptCursor expected model
     model.Cursor
 

@@ -76,7 +76,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
 
@@ -111,7 +111,7 @@ let ``Put item to move in same folder gives same-folder message``() =
     verify <@ fileSys.Move (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
-    expected.Status <- Some <| MainController.CannotMoveToSameFolderStatus
+    expected.Status <- Some <| MainStatus.cannotMoveToSameFolder
     assertAreEqual expected model
 
 
@@ -127,7 +127,7 @@ let ``Put item to move handles error by setting error status``() =
     let expectedAction = MovedItem (nodeDiffFolder, nodeSameFolder.Path)
     let expected = createModel()
     expected.ItemBuffer <- item
-    expected |> MainController.SetActionExceptionStatus expectedAction ex
+    expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
 
 
@@ -157,7 +157,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
 
@@ -205,7 +205,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     expected.Cursor <- 2 + existingCopies
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
 
@@ -221,7 +221,7 @@ let ``Put item to copy handles error by setting error status``() =
     let expectedAction = CopiedItem (nodeDiffFolder, nodeSameFolder.Path)
     let expected = createModel()
     expected.ItemBuffer <- item
-    expected |> MainController.SetActionExceptionStatus expectedAction ex
+    expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
 
 
@@ -243,7 +243,7 @@ let ``Confirm Overwrite answered 'n' with any item sets cancelled status`` isCop
 
     let expected = createModel()
     expected.ItemBuffer <- item
-    expected.Status <- Some <| MainController.CancelledStatus
+    expected.Status <- Some <| MainStatus.cancelled
     assertAreEqual expected model
 
 

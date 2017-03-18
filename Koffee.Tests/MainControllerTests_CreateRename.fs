@@ -65,7 +65,7 @@ let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -79,7 +79,7 @@ let ``Create folder handles error by setting error status``() =
     contr.ExecuteCommand model
 
     let expected = createModel()
-    expected |> MainController.SetActionExceptionStatus (CreatedItem createNode) ex
+    expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -102,7 +102,7 @@ let ``Rename calls fileSys.Move, reloads nodes and sets cursor``() =
     expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
-    expected.Status <- Some <| MainController.ActionCompleteStatus expectedAction model.PathFormat
+    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     comparer() |> assertAreEqualWith expected model
 
 [<Test>]
@@ -117,7 +117,7 @@ let ``Rename handles error by setting error status``() =
 
     let expected = createModel()
     expected.Cursor <- 1
-    expected |> MainController.SetActionExceptionStatus (RenamedItem (oldNodes.[1], newNodes.[1].Name)) ex
+    expected |> MainStatus.setActionExceptionStatus (RenamedItem (oldNodes.[1], newNodes.[1].Name)) ex
     comparer() |> assertAreEqualWith expected model
 
 

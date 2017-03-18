@@ -27,7 +27,7 @@
     <DocumentationFile>bin\Debug\Koffee.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <WarningsAsErrors>25</WarningsAsErrors>
+    <WarningsAsErrors>25,20</WarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>

@@ -58,6 +58,16 @@ _Capitalized letters indicate that the key is combined with Shift._
 
 ## Version History
 
+#### v0.2.1
+- Added Open Commandline
+- Path box now replaces "~" with user's directory
+- Window title now shows the current folder
+- Move, copy and delete operations now show busy indication
+- Fix crash when attempting to rename extension on items without an extension
+- Fix unauthorized error when attempting to delete read-only items
+- Fix empty item buffer appearing after executing a command
+- Fix margins of path text box and command panel
+
 #### v0.2.0  File & Folder Manipulation
 - Create, delete, rename, move, and copy files and folders
 - Undo/redo of file and folder actions

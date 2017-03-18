@@ -66,6 +66,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update controls to display status
+        this.UpdateStatus model.Status
         model.OnPropertyChanged <@ model.Status @> this.UpdateStatus
 
         // bind tab to switching focus

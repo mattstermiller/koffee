@@ -1,5 +1,6 @@
 Castle.Core
 FSharp.Desktop.UI
+FSharp.Quotations.Evaluator
 FsXaml.Wpf
 Rx-Core
 Rx-Interfaces

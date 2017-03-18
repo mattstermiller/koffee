@@ -3,9 +3,10 @@ framework >= net451
 redirects: on
 
 nuget Castle.Core
-nuget CompareNETObjects
+nuget CompareNETObjects content:none
 nuget Foq content:none
 nuget FSharp.Desktop.UI
+nuget FSharp.Quotations.Evaluator
 nuget FsUnit
 nuget FsXaml.Wpf
 nuget NUnit

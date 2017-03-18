@@ -12,7 +12,7 @@ NUGET
     FsUnit (2.3.2)
       FSharp.Core (>= 3.1.2.5)
       NUnit (3.5)
-    FsXaml.Wpf (2.1)
+    FsXaml.Wpf (3.1.2)
     NUnit (3.5)
     Rx-Core (2.2.5)
       Rx-Interfaces (>= 2.2.5)

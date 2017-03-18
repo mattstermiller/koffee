@@ -22,7 +22,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         keyEvent |> Observable.choose (fun evt ->
             if evt.Key = key then
                 evt.Handled <- true
-                Some (resultFunc())
+                Some <| resultFunc()
             else
                 None)
 
@@ -41,7 +41,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
             @>
 
-        let displayPath x =
+        // display path
+        let displayPath _ =
             window.PathBox.Text <- model.PathFormatted
             window.Title <-
                 model.Path.Name
@@ -51,29 +52,31 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         model.OnPropertyChanged <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
 
+        // display item in buffer
         window.BufferLabel.Content <- ""
         model.OnPropertyChanged <@ model.ItemBuffer @> (fun buffer ->
             let text = MainView.BufferStatus buffer
             window.BufferLabel.Content <- text
             window.BufferLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible)
 
+        // update command text selection
         model.OnPropertyChanged <@ model.CommandTextSelection @> (fun (start, len) ->
             window.CommandBox.Select(start, len))
 
-        // bind to the command input mode to update the UI
+        // update UI for the command input mode
         model.OnPropertyChanged <@ model.CommandInputMode @> (fun mode ->
             this.CommandInputModeChanged mode model.SelectedNode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
-        // update controls to display status
+        // update UI for status
         this.UpdateStatus model.Status
         model.OnPropertyChanged <@ model.Status @> this.UpdateStatus
 
-        // bind tab to switching focus
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
-        window.NodeGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
+        // bind Tab key to switch focus
+        window.PathBox.PreviewKeyDown.Add <| onKey Key.Tab window.NodeGrid.Focus
+        window.NodeGrid.PreviewKeyDown.Add <| onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
-            window.PathBox.Focus()))
+            window.PathBox.Focus())
 
         // on selection change, keep selected node in view, make sure node list is focused
         window.NodeGrid.SelectionChanged.Add (fun _ ->
@@ -89,9 +92,9 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
                 | None -> ())
 
         // escape and lost focus resets the input mode
-        window.PreviewKeyDown.Add (onKey Key.Escape (fun _ ->
+        window.PreviewKeyDown.Add <| onKey Key.Escape (fun () ->
             model.Status <- None
-            model.CommandInputMode <- None))
+            model.CommandInputMode <- None)
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 
         // make sure selected item gets set to the cursor

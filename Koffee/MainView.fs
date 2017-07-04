@@ -32,6 +32,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         window.NodeGrid.AddColumn("Type", converter = ValueConverters.UnionText())
         window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
+        window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
 
         // simple bindings
         Binding.OfExpression

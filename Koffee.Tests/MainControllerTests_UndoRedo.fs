@@ -10,15 +10,15 @@ open KellermanSoftware.CompareNetObjects
 open Testing
 
 let oldNodes = [
-    createNode "path" "one"
-    createNode "path" "two"
-    createNode "path" "three.txt"
+    createNode "path" "file 1"
+    createNode "path" "file 2"
+    createNode "path" "file 3.txt"
 ]
 
 let newNodes = [
-    createNode "path" "one"
-    createNode "path" "four"
-    createNode "path" "three.txt"
+    createNode "path" "file 1"
+    createNode "path" "file 2 new"
+    createNode "path" "file 3.txt"
 ]
 
 let withParent path node =

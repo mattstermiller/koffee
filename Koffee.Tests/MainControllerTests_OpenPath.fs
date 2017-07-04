@@ -10,14 +10,14 @@ open KellermanSoftware.CompareNetObjects
 open Testing
 
 let oldNodes = [
-    createNode "old" "old one"
-    createNode "old" "old two"
-    createNode "old" "old three"
+    createNode "old" "old 1"
+    createNode "old" "old 2"
+    createNode "old" "old 3"
 ]
 
 let newNodes = [
-    createNode "path" "one"
-    createNode "path" "two"
+    createNode "path" "new 1"
+    createNode "path" "new 2"
 ]
 
 let createModel () =

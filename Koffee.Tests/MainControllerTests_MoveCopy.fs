@@ -9,24 +9,24 @@ open Foq
 open KellermanSoftware.CompareNetObjects
 open Testing
 
-let nodeSameFolder = createNode "path" "two"
-let nodeDiffFolder = createNode "other" "two"
+let nodeSameFolder = createNode "path" "file 2"
+let nodeDiffFolder = createNode "other" "file 2"
 
 let oldNodes = [
-    createNode "path" "one"
-    createNode "path" "three"
+    createNode "path" "file 1"
+    createNode "path" "file 3"
 ]
 
 let nodeCopy num =
-    createNode "path" (MainController.GetCopyName "two" num)
+    createNode "path" (MainController.GetCopyName "file 2" num)
 
 let newNodes = [
-    createNode "path" "one"
-    createNode "path" "two"
-    nodeCopy 0
+    createNode "path" "file 1"
+    createNode "path" "file 2"
     nodeCopy 1
     nodeCopy 2
-    createNode "path" "three"
+    nodeCopy 0
+    createNode "path" "file 3"
 ]
 
 let createModel () =
@@ -197,12 +197,13 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     contr.Put false model |> Async.RunSynchronously
 
     let oldPath = nodeSameFolder.Path
-    let newPath = path.Join (MainController.GetCopyName nodeSameFolder.Name existingCopies)
+    let newName = MainController.GetCopyName nodeSameFolder.Name existingCopies
+    let newPath = path.Join newName
     verify <@ fileSys.Copy oldPath newPath @> once
     let expectedAction = CopiedItem (nodeSameFolder, newPath)
     let expected = createModel()
     expected.Nodes <- newNodes
-    expected.Cursor <- 2 + existingCopies
+    expected.Cursor <- newNodes |> List.findIndex (fun n -> n.Name = newName)
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat

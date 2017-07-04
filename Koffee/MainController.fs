@@ -54,6 +54,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | Recycle -> Async this.Recycle
         | PromptDelete -> Sync (this.StartInput (Confirm Delete))
         | TogglePathFormat -> Sync this.TogglePathFormat
+        | SortList field -> Sync (this.SortList field)
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> Sync this.OpenCommandLine
@@ -71,7 +72,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
 
     member this.OpenPath path select model =
         try
-            let nodes = fileSys.GetNodes path
+            let sortField, sortDesc = model.Sort
+            let sorter = SortField.SortByTypeThen sortField sortDesc
+            let nodes = fileSys.GetNodes path |> sorter
             if path <> model.Path then
                 model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
                 model.ForwardStack <- []
@@ -397,6 +400,14 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             | Windows -> Unix
             | Unix -> Windows
         model.Status <- Some <| MainStatus.changePathFormat model.PathFormat
+
+    member this.SortList field model =
+        let desc =
+            match model.Sort with
+            | f, desc when f = field -> not desc
+            | _ -> field = Modified
+        model.Sort <- field, desc
+        this.Refresh model
 
     member this.OpenExplorer model =
         if model.Path <> Path.Root then

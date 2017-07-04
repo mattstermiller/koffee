@@ -42,6 +42,24 @@ with
             | Some size -> size.ToString("N0")
             | None -> ""
 
+type SortField =
+    | Name
+    | Type
+    | Modified
+    | Size
+
+    static member SortByTypeThen field desc (list: Node list) =
+        let orderBy, thenBy =
+            if desc then Order.by, Order.thenByDesc
+            else Order.byDesc, Order.thenBy
+        let selector =
+            match field with
+            | Name -> (fun n -> n.Name.ToLower() :> obj)
+            | Type -> (fun n -> n.Type :> obj)
+            | Modified -> (fun n -> n.Modified :> obj)
+            | Size -> (fun n -> n.Size :> obj)
+        list |> orderBy (fun n -> n.Type) |> thenBy selector |> Seq.toList
+
 type RenamePart =
     | Begin
     | EndName
@@ -111,6 +129,7 @@ type MainModel() as this =
         this.Path <- Path.Root
         this.PathFormat <- Windows
         this.Nodes <- []
+        this.Sort <- Name, false
         this.BackStack <- []
         this.ForwardStack <- []
         this.UndoStack <- []
@@ -122,6 +141,7 @@ type MainModel() as this =
     abstract PathFormat: PathFormat with get, set
     abstract Status: StatusType option with get, set
     abstract Nodes: Node list with get, set
+    abstract Sort: SortField * desc: bool with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
     abstract CommandInputMode: CommandInput option with get, set
@@ -178,6 +198,7 @@ type MainEvents =
     | Undo
     | Redo
     | TogglePathFormat
+    | SortList of SortField
     | OpenExplorer
     | OpenCommandLine
     | OpenSettings
@@ -220,6 +241,7 @@ type MainEvents =
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
         | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
+        | SortList field -> sprintf "Sort by %A" field
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenSettings -> "Open Help/Settings"
@@ -257,6 +279,9 @@ type MainEvents =
         Undo
         Redo
         TogglePathFormat
+        SortList Name
+        SortList Modified
+        SortList Size
         OpenExplorer
         OpenCommandLine
         OpenSettings

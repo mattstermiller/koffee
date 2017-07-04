@@ -1,1 +1,7 @@
 ﻿PathFormatName: Windows
+Window:
+    IsMaximized: false
+    Left: 200
+    Top: 200
+    Width: 800
+    Height: 800

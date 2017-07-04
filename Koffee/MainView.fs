@@ -13,7 +13,7 @@ open Utility
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
-type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
+type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, config: Config) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
     let mutable currBindings = keyBindings
@@ -99,6 +99,27 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         let desiredCursor = model.Cursor
         model.Cursor <- -1
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
+
+        // load window settings
+        window.Left <- float config.Window.Left
+        window.Top <- float config.Window.Top
+        window.Width <- float config.Window.Width
+        window.Height <- float config.Window.Height
+        if config.Window.IsMaximized then
+            window.WindowState <- WindowState.Maximized
+
+        // setup saving window settings
+        window.StateChanged.Add (fun _ -> 
+            config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
+            config.Save())
+        window.LocationChanged.Add (fun _ ->
+            config.Window.Left <- int window.Left
+            config.Window.Top <- int window.Top
+            config.Save())
+        window.SizeChanged.Add (fun e -> 
+            config.Window.Width <- int window.Width
+            config.Window.Height <- int window.Height
+            config.Save())
 
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)

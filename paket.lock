@@ -5,6 +5,8 @@ NUGET
     Castle.Core (3.3.3)
     CompareNETObjects (3.6) - content: none
     Foq (1.7.1) - content: none
+    FSharp.Configuration (1.3)
+      FSharp.Core (>= 4.0.0.1)
     FSharp.Core (4.0.0.1)
     FSharp.Desktop.UI (0.7.1)
       Castle.Core (>= 3.3.3)

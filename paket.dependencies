@@ -7,6 +7,7 @@ nuget CompareNETObjects content:none
 nuget Foq content:none
 nuget FSharp.Desktop.UI
 nuget FSharp.Quotations.Evaluator
+nuget FSharp.Configuration
 nuget FsUnit
 nuget FsXaml.Wpf
 nuget NUnit

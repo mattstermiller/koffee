@@ -48,7 +48,7 @@ let createUnauthorizedFileSys () =
 
 let createController fileSys =
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory)
+    MainController(fileSys, settingsFactory, Config())
 
 
 [<TestCase(false)>]

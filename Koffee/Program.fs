@@ -13,11 +13,12 @@ let makeSettingsMvc () =
 [<EntryPoint>]
 [<System.STAThread>]
 let main args =
+    let config = Config()
     let model = MainModel.Create()
     let window = MainWindow()
     let view = MainView(window, KeyBinding.Defaults)
     let fileSys = FileSystemService()
-    let controller = MainController(fileSys, makeSettingsMvc)
+    let controller = MainController(config, fileSys, makeSettingsMvc)
     let mvc = Mvc(model, view, controller)
 
     if args.Length > 0 then

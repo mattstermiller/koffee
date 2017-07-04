@@ -3,13 +3,21 @@
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
+open ModelExtensions
+open Koffee.ConfigExt
 
-type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) =
+type MainController(fileSys: IFileSystemService,
+                    settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
+                    config: Config) =
     let runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
+            config.Load()
+            model.PathFormat <- config.PathFormat
+            model.OnPropertyChanged <@ model.PathFormat @> (fun pf -> config.PathFormat <- pf; config.Save())
+
             this.OpenUserPath (model.Path.Format Windows) model
             model.BackStack <- []
 

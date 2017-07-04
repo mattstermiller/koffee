@@ -62,6 +62,7 @@
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
+    <None Include="config.yaml" />
     <Content Include="paket.references" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
@@ -70,6 +71,7 @@
     <Compile Include="UIHelpers.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />
+    <Compile Include="Config.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="KeyBinding.fs" />
     <Compile Include="SettingsModel.fs" />

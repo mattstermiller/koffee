@@ -39,7 +39,7 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
         | OpenParent -> Sync this.ParentPath
         | Back -> Sync this.Back
         | Forward -> Sync this.Forward
-        | Refresh -> Sync (fun m -> this.OpenPath m.Path KeepSelect m)
+        | Refresh -> Sync this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
         | StartInput inputMode -> Sync (this.StartInput inputMode)
@@ -116,6 +116,9 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
             this.OpenPath path (SelectIndex cursor) model
             model.ForwardStack <- forwardTail
         | [] -> ()
+
+    member this.Refresh model =
+        this.OpenPath model.Path KeepSelect model
 
     member this.StartInput inputMode model =
         if inputMode.AllowedOnNodeType model.SelectedNode.Type then
@@ -292,16 +295,14 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
     member this.Undo model = async {
         match model.UndoStack with
         | action :: rest ->
-            let refreshIfOnPath (path: Path) =
-                if model.Path = path.Parent then
-                    this.OpenPath model.Path KeepSelect model
             match action with
                 | CreatedItem node ->
                     try
                         if fileSys.IsEmpty node.Path then
                             model.Status <- Some <| MainStatus.undoingCreate node
                             do! runAsync (fun () -> fileSys.Delete node.Path)
-                            refreshIfOnPath node.Path
+                            if model.Path = node.Path.Parent then
+                                this.Refresh model
                         else
                             model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
                     with | ex ->
@@ -341,7 +342,8 @@ type MainController(fileSys: IFileSystemService, settingsFactory: unit -> Mvc<Se
                             else fileSys.Recycle
                         model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
                         do! runAsync (fun () -> fileSysFunc newPath)
-                        refreshIfOnPath newPath
+                        if model.Path = newPath.Parent then
+                            this.Refresh model
                     with | ex ->
                         let action = DeletedItem ({ node with Path = newPath }, isDeletionPermanent)
                         model |> MainStatus.setActionExceptionStatus action ex

@@ -5,6 +5,7 @@ open System.Text.RegularExpressions
 open FSharp.Desktop.UI
 open Reflection
 open ModelExtensions
+open Utility
 
 type NodeType =
     | File
@@ -65,10 +66,7 @@ type CommandInput =
         match this with
         | Confirm Overwrite -> sprintf "File named \"%s\" already exists, overwrite y/n ?" node.Name
         | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
-        | _ ->
-            let caseName = GetUnionCaseName this
-            let name = Regex.Replace(caseName, @"(?<=[a-z])(?=[A-Z\d])", " ")
-            sprintf "%s:" name
+        | _ -> this |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
 
     member this.AllowedOnNodeType nodeType =
         match this with

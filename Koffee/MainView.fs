@@ -78,8 +78,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         // on selection change, keep selected node in view, make sure node list is focused
         window.NodeGrid.SelectionChanged.Add (fun _ ->
             this.KeepSelectedInView()
-            if not window.NodeGrid.IsFocused then
-                window.NodeGrid.Focus() |> ignore)
+            window.NodeGrid.Focus() |> ignore)
 
         // on resize, keep selected node in view, update the page size
         window.NodeGrid.SizeChanged.Add (fun _ ->
@@ -91,7 +90,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list) =
         // escape and lost focus resets the input mode
         window.PreviewKeyDown.Add <| onKey Key.Escape (fun () ->
             model.Status <- None
-            model.CommandInputMode <- None)
+            model.CommandInputMode <- None
+            window.NodeGrid.Focus() |> ignore)
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 
         // make sure selected item gets set to the cursor

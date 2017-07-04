@@ -9,12 +9,8 @@ type UnionText() =
         override this.Convert(value, targetType, _, _) =
             value |> GetUnionCaseName |> box
 
-        override this.ConvertBack(caseName, targetType, _, _) =
-            let case =
-                FSharpType.GetUnionCases targetType
-                |> Array.filter (fun uc -> uc.Name = caseName.ToString())
-                |> Array.head
-            FSharpValue.MakeUnion(case, null, false)
+        override this.ConvertBack(value, targetType, _, _) =
+            ParseUnionCaseUntyped targetType value |> Option.toObj
 
 type UnionValue() =
     let caseValue index value =

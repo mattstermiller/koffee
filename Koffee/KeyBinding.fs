@@ -47,7 +47,7 @@ let DefaultsAsString = [
     ("sm", SortList Modified)
     ("ss", SortList Size)
     ("<f9>", TogglePathFormat)
-    ("<c-e>", OpenExplorer)
+    ("<cs-e>", OpenExplorer)
     ("<cs-c>", OpenCommandLine)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)

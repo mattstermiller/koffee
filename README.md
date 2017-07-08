@@ -52,9 +52,11 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
 
 #### Other
-- Open Windows Explorer at your current location with `Ctrl + e`
+- Open Windows Explorer at your current location with `Ctrl + Shift + e`
 - Open Commandline at your current location with `Ctrl + Shift + c`
 - Toggle between Windows-style and Unix-style path formats with `F9`
+
+There are more commands at your disposal. Check the Settings window ful the full list of commands and their key bindings!
 
 ## Version History
 

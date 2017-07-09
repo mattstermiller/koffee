@@ -198,7 +198,6 @@ type MainEvents =
     | PromptDelete
     | Undo
     | Redo
-    | TogglePathFormat
     | SortList of SortField
     | OpenExplorer
     | OpenCommandLine
@@ -241,7 +240,6 @@ type MainEvents =
         | PromptDelete -> "Delete Permanently"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
-        | TogglePathFormat -> "Toggle Between Windows and Unix Path Format"
         | SortList field -> sprintf "Sort by %A" field
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
@@ -279,7 +277,6 @@ type MainEvents =
         PromptDelete
         Undo
         Redo
-        TogglePathFormat
         SortList Name
         SortList Modified
         SortList Size

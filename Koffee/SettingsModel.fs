@@ -14,4 +14,5 @@ type SettingsModel() =
     abstract KeyBindings: KeyBind list with get, set
 
 type SettingsEvents =
+    | PathFormatChanged of PathFormat
     | ShowFullPathInTitleChanged of bool

@@ -16,7 +16,6 @@ type MainController(fileSys: IFileSystemService,
         member this.InitModel model =
             config.Load()
             model.PathFormat <- config.PathFormat
-            model.OnPropertyChanged <@ model.PathFormat @> (fun pf -> config.PathFormat <- pf; config.Save())
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
             this.OpenUserPath (model.Path.Format Windows) model
@@ -62,7 +61,6 @@ type MainController(fileSys: IFileSystemService,
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
         | PromptDelete -> Sync (this.StartInput (Confirm Delete))
-        | TogglePathFormat -> Sync this.TogglePathFormat
         | SortList field -> Sync (this.SortList field)
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
@@ -403,13 +401,6 @@ type MainController(fileSys: IFileSystemService,
         | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
 
-    member this.TogglePathFormat model =
-        model.PathFormat <-
-            match model.PathFormat with
-            | Windows -> Unix
-            | Unix -> Windows
-        model.Status <- Some <| MainStatus.changePathFormat model.PathFormat
-
     member this.SortList field model =
         let desc =
             match model.Sort with
@@ -431,6 +422,8 @@ type MainController(fileSys: IFileSystemService,
     member this.OpenSettings model =
         let settings = settingsFactory()
         settings.StartDialog() |> ignore
+
+        model.PathFormat <- config.PathFormat
         model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
 

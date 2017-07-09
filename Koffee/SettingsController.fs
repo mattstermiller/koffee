@@ -2,6 +2,7 @@
 
 open System
 open FSharp.Desktop.UI
+open ConfigExt
 
 type SettingsController(config: Config) =
     interface IController<SettingsEvents, SettingsModel> with
@@ -20,5 +21,7 @@ type SettingsController(config: Config) =
                     })
 
         member x.Dispatcher = function
-            | ShowFullPathInTitleChanged value -> Sync (fun m ->
+            | PathFormatChanged value -> Sync (fun _ ->
+                config.PathFormat <- value; config.Save())
+            | ShowFullPathInTitleChanged value -> Sync (fun _ ->
                 config.Window.ShowFullPathInTitle <- value; config.Save())

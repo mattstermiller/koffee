@@ -17,6 +17,7 @@ type MainController(fileSys: IFileSystemService,
             config.Load()
             model.PathFormat <- config.PathFormat
             model.OnPropertyChanged <@ model.PathFormat @> (fun pf -> config.PathFormat <- pf; config.Save())
+            model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
             this.OpenUserPath (model.Path.Format Windows) model
             model.BackStack <- []
@@ -430,6 +431,7 @@ type MainController(fileSys: IFileSystemService,
     member this.OpenSettings model =
         let settings = settingsFactory()
         settings.StartDialog() |> ignore
+        model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
 
     member private this.SetCommandSelection cursorPos model =

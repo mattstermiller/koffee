@@ -45,12 +45,14 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         // display path
         let displayPath _ =
             window.PathBox.Text <- model.PathFormatted
+            let displayPath = if model.ShowFullPathInTitle then model.PathFormatted else model.Path.Name
             window.Title <-
-                model.Path.Name
+                displayPath
                 |> Str.ifEmpty model.PathFormatted
                 |> sprintf "%s  |  Koffee"
         bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
+        model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath
 
         // display item in buffer
         bindPropertyToFunc <@ model.ItemBuffer @> (fun buffer ->

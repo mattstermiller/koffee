@@ -3,11 +3,11 @@
 open System.Windows
 open FSharp.Desktop.UI
 
-let makeSettingsMvc () =
+let makeSettingsMvc config =
     let window = SettingsWindow()
     let model = SettingsModel.Create()
-    let view = SettingsView(window)
-    let controller = SettingsController()
+    let view = SettingsView(window, config)
+    let controller = SettingsController(config)
     Mvc(model, view, controller)
 
 [<EntryPoint>]
@@ -18,7 +18,8 @@ let main args =
     let window = MainWindow()
     let view = MainView(window, KeyBinding.Defaults, config)
     let fileSys = FileSystemService()
-    let controller = MainController(fileSys, makeSettingsMvc, config)
+    let settingsFactory = (fun () -> makeSettingsMvc config)
+    let controller = MainController(fileSys, settingsFactory, config)
     let mvc = Mvc(model, view, controller)
 
     if args.Length > 0 then

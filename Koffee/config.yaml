@@ -5,3 +5,4 @@ Window:
     Top: 200
     Width: 800
     Height: 800
+    ShowFullPathInTitle: false

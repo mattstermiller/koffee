@@ -1,5 +1,6 @@
 ﻿namespace Koffee
 
+open System
 open FSharp.Desktop.UI
 
 type KeyBind = {
@@ -13,4 +14,4 @@ type SettingsModel() =
     abstract KeyBindings: KeyBind list with get, set
 
 type SettingsEvents =
-    | NonEvent
+    | ShowFullPathInTitleChanged of bool

@@ -3,7 +3,7 @@
 open System
 open FSharp.Desktop.UI
 
-type SettingsController() =
+type SettingsController(config: Config) =
     interface IController<SettingsEvents, SettingsModel> with
         member this.InitModel model =
             model.KeyBindings <-
@@ -20,4 +20,5 @@ type SettingsController() =
                     })
 
         member x.Dispatcher = function
-            | NonEvent -> Sync ignore
+            | ShowFullPathInTitleChanged value -> Sync (fun m ->
+                config.Window.ShowFullPathInTitle <- value; config.Save())

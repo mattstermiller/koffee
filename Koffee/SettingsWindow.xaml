@@ -1,7 +1,7 @@
 ﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Koffee Settings" Width="650" Height="760">
     <Grid>
-        <Label x:Name="label" Content="Key Bindings:" HorizontalAlignment="Left" Margin="10,0,0,0" VerticalAlignment="Top"/>
-        <DataGrid x:Name="KeyBindings" Margin="0,26,0,10" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True">
+        <Label x:Name="label" Content="Key Bindings:" HorizontalAlignment="Left" Margin="5,31,0,0" VerticalAlignment="Top"/>
+        <DataGrid x:Name="KeyBindings" Margin="0,62,0,10" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True">
             <DataGrid.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
@@ -11,6 +11,7 @@
                 </Style>
             </DataGrid.Resources>
         </DataGrid>
-        <Label x:Name="label1" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0,0,10,0" VerticalAlignment="Top" HorizontalAlignment="Right"/>
+        <Label x:Name="label1" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0,31,5,0" VerticalAlignment="Top" HorizontalAlignment="Right"/>
+        <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show Full Path In Title Bar" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top"/>
     </Grid>
 </Window>

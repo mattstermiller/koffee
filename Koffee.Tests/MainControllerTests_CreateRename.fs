@@ -41,7 +41,7 @@ let createUnauthorizedFileSys () =
 
 let createController fileSys =
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config())
+    MainController(fileSys, settingsFactory, Config(), None)
 
 let comparer () =
     CompareLogic() |> ignoreMembers ["CommandText"]

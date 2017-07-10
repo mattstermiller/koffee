@@ -28,7 +28,7 @@ let createModel inputMode cursorStart =
 let createController () =
     let fileSys = Mock.Of<IFileSystemService>()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config())
+    MainController(fileSys, settingsFactory, Config(), None)
 
 let assertEqualExceptCursor expected actual =
     CompareLogic()

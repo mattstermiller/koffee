@@ -1,4 +1,7 @@
-﻿PathFormatName: Windows
+﻿StartupPathType: RestorePrevious
+DefaultPath: Drives
+PreviousPath: Drives
+PathFormatName: Windows
 Window:
     IsMaximized: false
     Left: 200

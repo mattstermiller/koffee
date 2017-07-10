@@ -13,19 +13,16 @@ let makeSettingsMvc config =
 [<EntryPoint>]
 [<System.STAThread>]
 let main args =
+    let commandLinePath = if args.Length > 0 then Some args.[0] else None
+
     let config = Config()
     let model = MainModel.Create()
     let window = MainWindow()
     let view = MainView(window, KeyBinding.Defaults, config)
     let fileSys = FileSystemService()
     let settingsFactory = (fun () -> makeSettingsMvc config)
-    let controller = MainController(fileSys, settingsFactory, config)
+    let controller = MainController(fileSys, settingsFactory, config, commandLinePath)
     let mvc = Mvc(model, view, controller)
-
-    if args.Length > 0 then
-        match Path.Parse args.[0] with
-        | Some p -> model.Path <- p
-        | None -> model.Status <- Some <| MainStatus.invalidPath args.[0]
 
     use eventLoop = mvc.Start()
 

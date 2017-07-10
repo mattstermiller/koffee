@@ -23,7 +23,7 @@ let createController () =
             .Setup(fun x -> <@ x.GetNodes (any()) @>).Returns(newNodes)
             .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config())
+    MainController(fileSys, settingsFactory, Config(), None)
 
 let history contrFunc backStack forwardStack =
     let model = createBaseTestModel()

@@ -37,7 +37,7 @@ let createController () =
             .Setup(fun x -> <@ x.GetNodes(createPath "bad path") @>).Raises(ex)
             .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config())
+    MainController(fileSys, settingsFactory, Config(), None)
 
 [<Test>]
 let ``Opening a valid path updates model correctly``() =

@@ -21,6 +21,10 @@ type SettingsController(config: Config) =
                     })
 
         member x.Dispatcher = function
+            | StartupPathChanged value -> Sync (fun _ ->
+                config.StartupPath <- value; config.Save())
+            | DefaultPathChanged value -> Sync (fun _ ->
+                config.DefaultPath <- value; config.Save())
             | PathFormatChanged value -> Sync (fun _ ->
                 config.PathFormat <- value; config.Save())
             | ShowFullPathInTitleChanged value -> Sync (fun _ ->

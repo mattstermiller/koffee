@@ -9,6 +9,10 @@ open System.IO
 open Reflection
 open Utility
 
+type StartupPath =
+    | RestorePrevious
+    | DefaultPath
+
 module ConfigExt =
     let private filePath =
         let appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
@@ -28,3 +32,7 @@ module ConfigExt =
         member this.PathFormat
             with get () = ParseUnionCase<PathFormat> this.PathFormatName |> Option.coalesce Windows
             and set value = this.PathFormatName <- GetUnionCaseName value
+
+        member this.StartupPath
+            with get () = ParseUnionCase<StartupPath> this.StartupPathType |> Option.coalesce RestorePrevious
+            and set value = this.StartupPathType <- GetUnionCaseName value

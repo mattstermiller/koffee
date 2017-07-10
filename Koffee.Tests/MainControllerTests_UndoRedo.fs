@@ -39,7 +39,7 @@ let fileSysMock () =
 
 let createController fileSys =
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config())
+    MainController(fileSys, settingsFactory, Config(), None)
 
 
 [<Test>]

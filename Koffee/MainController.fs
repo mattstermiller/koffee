@@ -3,12 +3,14 @@
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
+open Utility
 open ModelExtensions
 open Koffee.ConfigExt
 
 type MainController(fileSys: IFileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
-                    config: Config) =
+                    config: Config,
+                    commandLinePath: string option) =
     let runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
     let mutable taskRunning = false
 
@@ -18,7 +20,13 @@ type MainController(fileSys: IFileSystemService,
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
-            this.OpenUserPath (model.Path.Format Windows) model
+            let startupPath =
+                commandLinePath |> Option.coalesce (
+                    match config.StartupPath with
+                    | RestorePrevious -> config.PreviousPath
+                    | DefaultPath -> config.DefaultPath)
+
+            this.OpenUserPath (startupPath) model
             model.BackStack <- []
 
         member this.Dispatcher = this.LockingDispatcher

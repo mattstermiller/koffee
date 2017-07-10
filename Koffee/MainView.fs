@@ -123,6 +123,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             config.Window.Height <- int window.Height
             config.Save())
 
+        window.Closed.Add (fun _ ->
+            config.PreviousPath <- model.Path.Format Windows
+            config.Save())
+
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)
 

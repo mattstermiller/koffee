@@ -7,6 +7,7 @@ open System.Windows.Input
 open FSharp.Desktop.UI
 open UIHelpers
 open ConfigExt
+open System.Windows.Controls.Primitives
 
 type SettingsWindow = FsXaml.XAML<"SettingsWindow.xaml">
 
@@ -14,11 +15,15 @@ type SettingsView(window: SettingsWindow, config: Config) =
     inherit View<SettingsEvents, SettingsModel, SettingsWindow>(window)
 
     override this.SetBindings (model: SettingsModel) =
-        if config.PathFormat = Windows then
-            window.PathFormatWindows.IsChecked <- Nullable true
-        else
-            window.PathFormatUnix.IsChecked <- Nullable true
-        window.ShowFullPathInTitleBar.IsChecked <- config.Window.ShowFullPathInTitle |> Nullable
+        let check (ctl: ToggleButton) =
+            ctl.IsChecked <- Nullable true
+
+        check (if config.StartupPath = RestorePrevious then window.StartupPathPrevious else window.StartupPathDefault)
+        check (if config.PathFormat = Windows then window.PathFormatWindows else window.PathFormatUnix)
+        window.DefaultPath.Text <- config.DefaultPath
+
+        if config.Window.ShowFullPathInTitle then
+            check window.ShowFullPathInTitleBar
 
         Binding.OfExpression
             <@
@@ -32,8 +37,13 @@ type SettingsView(window: SettingsWindow, config: Config) =
         window.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W window.Close)
 
     override this.EventStreams = [
+        window.StartupPathPrevious.Checked |> Observable.mapTo (StartupPathChanged RestorePrevious)
+        window.StartupPathDefault.Checked |> Observable.mapTo (StartupPathChanged DefaultPath)
+        window.DefaultPath.LostFocus |> Observable.map (fun _ -> DefaultPathChanged (window.DefaultPath.Text))
+
         window.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
         window.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)
+
         window.ShowFullPathInTitleBar.Checked |> Observable.mapTo (ShowFullPathInTitleChanged true)
         window.ShowFullPathInTitleBar.Unchecked |> Observable.mapTo (ShowFullPathInTitleChanged false)
     ]

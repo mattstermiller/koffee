@@ -17,6 +17,7 @@ type MainController(fileSys: IFileSystemService,
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
             config.Load()
+            model.Path <- config.DefaultPath |> Path.Parse |> Option.coalesce Path.Root
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
@@ -27,7 +28,6 @@ type MainController(fileSys: IFileSystemService,
                     | DefaultPath -> config.DefaultPath)
 
             this.OpenUserPath (startupPath) model
-            model.BackStack <- []
 
         member this.Dispatcher = this.LockingDispatcher
 

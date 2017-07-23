@@ -20,7 +20,6 @@ type MainController(fileSys: IFileSystemService,
             model.Path <- config.DefaultPath |> Path.Parse |> Option.coalesce Path.Root
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
-            model.ShowHidden <- config.ShowHidden
 
             let startupPath =
                 commandLinePath |> Option.coalesce (
@@ -92,7 +91,7 @@ type MainController(fileSys: IFileSystemService,
         try
             let sortField, sortDesc = model.Sort
             let sorter = SortField.SortByTypeThen sortField sortDesc
-            let nodes = fileSys.GetNodes path model.ShowHidden |> sorter
+            let nodes = fileSys.GetNodes path config.ShowHidden |> sorter
             if path <> model.Path then
                 model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
                 model.ForwardStack <- []
@@ -448,12 +447,11 @@ type MainController(fileSys: IFileSystemService,
         | _ -> ()
 
     member this.ToggleHidden model =
-        model.ShowHidden <- not model.ShowHidden
-        config.ShowHidden <- model.ShowHidden
+        config.ShowHidden <- not config.ShowHidden
         config.Save()
 
         this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
-        model.Status <- Some <| MainStatus.toggleHidden model.ShowHidden
+        model.Status <- Some <| MainStatus.toggleHidden config.ShowHidden
 
     member this.OpenSettings model =
         let settings = settingsFactory()
@@ -461,7 +459,6 @@ type MainController(fileSys: IFileSystemService,
 
         model.PathFormat <- config.PathFormat
         model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
-        model.ShowHidden <- config.ShowHidden
         this.Refresh model
 
 

@@ -157,7 +157,6 @@ type MainModel() as this =
     abstract ItemBuffer: (Node * BufferAction) option with get, set
     abstract UndoStack: ItemAction list with get, set
     abstract RedoStack: ItemAction list with get, set
-    abstract ShowHidden: bool with get, set
     abstract ShowFullPathInTitle: bool with get, set
 
     member this.HasErrorStatus =

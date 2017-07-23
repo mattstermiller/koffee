@@ -75,6 +75,7 @@ type MainController(fileSys: IFileSystemService,
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> Sync this.OpenCommandLine
+        | OpenWithTextEditor -> Sync this.OpenWithTextEditor
         | Exit -> Sync ignore // handled by view
 
     member this.OpenUserPath pathStr model =
@@ -428,6 +429,11 @@ type MainController(fileSys: IFileSystemService,
         if model.Path <> Path.Root then
             fileSys.OpenCommandLine model.Path
             model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
+
+    member this.OpenWithTextEditor model =
+        match model.SelectedNode.Type with
+        | File -> fileSys.OpenWith config.TextEditor model.SelectedNode.Path
+        | _ -> ()
 
     member this.ToggleHidden model =
         model.ShowHidden <- not model.ShowHidden

@@ -21,6 +21,7 @@ type IFileSystemService =
     abstract OpenFile: Path -> unit
     abstract OpenExplorer: Path -> unit
     abstract OpenCommandLine: Path -> unit
+    abstract OpenWith: exePath: string -> itemPath: Path -> unit
 
 type FileSystemService() =
     let wpath (path: Path) = path.Format Windows
@@ -40,6 +41,7 @@ type FileSystemService() =
         override this.OpenFile path = this.OpenFile path
         override this.OpenExplorer path = this.OpenExplorer path
         override this.OpenCommandLine path = this.OpenCommandLine path
+        override this.OpenWith exePath itemPath = this.OpenWith exePath itemPath
 
     member this.GetNode path =
         let wp = wpath path
@@ -154,11 +156,14 @@ type FileSystemService() =
 
     member this.OpenExplorer path =
         if path <> Path.Root then
-            Process.Start("explorer.exe", String.Format("/select,\"{0}\"", wpath path)) |> ignore
+            Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath path)) |> ignore
 
     member this.OpenCommandLine path =
         if path <> Path.Root then
-            Process.Start("cmd.exe", String.Format("/k pushd \"{0}\"", wpath path)) |> ignore
+            Process.Start("cmd.exe", sprintf "/k pushd \"%s\"" (wpath path)) |> ignore
+
+    member this.OpenWith exePath itemPath =
+        Process.Start(exePath, sprintf "\"%s\"" (wpath itemPath)) |> ignore
 
 
     member private this.FileNode file = {

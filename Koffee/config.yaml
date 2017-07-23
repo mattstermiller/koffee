@@ -3,6 +3,7 @@ DefaultPath: Drives
 PreviousPath: Drives
 PathFormatName: Windows
 ShowHidden: false
+TextEditor: notepad.exe
 Window:
     IsMaximized: false
     Left: 200

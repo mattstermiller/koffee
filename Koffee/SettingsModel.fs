@@ -16,6 +16,7 @@ type SettingsModel() =
 type SettingsEvents =
     | StartupPathChanged of StartupPath
     | DefaultPathChanged of string
+    | TextEditorChanged of string
     | PathFormatChanged of PathFormat
     | ShowFullPathInTitleChanged of bool
     | ShowHiddenChanged of bool

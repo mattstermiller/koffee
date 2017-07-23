@@ -49,6 +49,7 @@ let DefaultsAsString = [
     ("<f9>", ToggleHidden)
     ("<cs-e>", OpenExplorer)
     ("<cs-c>", OpenCommandLine)
+    ("<cs-t>", OpenWithTextEditor)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)
     ("<c-w>", Exit)

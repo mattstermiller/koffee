@@ -22,6 +22,8 @@ type SettingsView(window: SettingsWindow, config: Config) =
         check (if config.PathFormat = Windows then window.PathFormatWindows else window.PathFormatUnix)
         window.DefaultPath.Text <- config.DefaultPath
 
+        window.TextEditor.Text <- config.TextEditor
+
         if config.Window.ShowFullPathInTitle then
             check window.ShowFullPathInTitleBar
         if config.ShowHidden then
@@ -42,6 +44,8 @@ type SettingsView(window: SettingsWindow, config: Config) =
         window.StartupPathPrevious.Checked |> Observable.mapTo (StartupPathChanged RestorePrevious)
         window.StartupPathDefault.Checked |> Observable.mapTo (StartupPathChanged DefaultPath)
         window.DefaultPath.LostFocus |> Observable.map (fun _ -> DefaultPathChanged (window.DefaultPath.Text))
+
+        window.TextEditor.LostFocus |> Observable.map (fun _ -> TextEditorChanged (window.TextEditor.Text))
 
         window.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
         window.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)

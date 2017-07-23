@@ -204,6 +204,7 @@ type MainEvents =
     | ToggleHidden
     | OpenExplorer
     | OpenCommandLine
+    | OpenWithTextEditor
     | OpenSettings
     | Exit
 
@@ -247,6 +248,7 @@ type MainEvents =
         | ToggleHidden -> "Show/Hide Hidden Folders and Files"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
+        | OpenWithTextEditor -> "Open Selected File With Text Editor"
         | OpenSettings -> "Open Help/Settings"
         | Exit -> "Exit"
 
@@ -287,6 +289,7 @@ type MainEvents =
         ToggleHidden
         OpenExplorer
         OpenCommandLine
+        OpenWithTextEditor
         OpenSettings
         Exit
     ]

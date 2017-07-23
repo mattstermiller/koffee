@@ -298,9 +298,7 @@ type MainController(fileSys: IFileSystemService,
                 else fileSys.Recycle
             model.Status <- MainStatus.runningAction action model.PathFormat
             do! runAsync (fun () -> fileSysFunc node.Path)
-            let cursor = model.Cursor
-            model.Nodes <- fileSys.GetNodes model.Path
-            model.Cursor <- min cursor (model.Nodes.Length-1)
+            this.Refresh model
             model |> this.PerformedAction action
         with | ex -> model |> MainStatus.setActionExceptionStatus action ex
     }

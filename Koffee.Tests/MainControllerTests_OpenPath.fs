@@ -30,11 +30,14 @@ let createModel () =
 let ex = UnauthorizedAccessException()
 
 let createController () =
+    let newPath = (createPath "path")
+    let oldPath = (createPath "old")
+    let badPath = (createPath "bad path")
     let fileSys =
         Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes(createPath "path") @>).Returns(newNodes)
-            .Setup(fun x -> <@ x.GetNodes(createPath "old") @>).Returns(oldNodes)
-            .Setup(fun x -> <@ x.GetNodes(createPath "bad path") @>).Raises(ex)
+            .Setup(fun x -> <@ x.GetNodes newPath (any()) @>).Returns(newNodes)
+            .Setup(fun x -> <@ x.GetNodes oldPath (any()) @>).Returns(oldNodes)
+            .Setup(fun x -> <@ x.GetNodes badPath (any()) @>).Raises(ex)
             .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory, Config(), None)

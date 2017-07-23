@@ -20,7 +20,7 @@ let prevStatus = Some <| Message "previous status"
 let createController () =
     let fileSys =
         Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes (any()) @>).Returns(newNodes)
+            .Setup(fun x -> <@ x.GetNodes (any()) (any()) @>).Returns(newNodes)
             .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory, Config(), None)

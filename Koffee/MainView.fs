@@ -234,6 +234,7 @@ module MainStatus =
     // actions
     let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path
     let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
+    let toggleHidden showing = Message <| sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
     let openFile path = Message <| sprintf "Opened File: %s" path
     let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path

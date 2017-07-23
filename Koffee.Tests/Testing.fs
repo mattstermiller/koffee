@@ -41,7 +41,8 @@ let assertAreEqual expected actual =
 let createPath pathStr = (Path.Parse ("/c/" + pathStr)).Value
 
 let createNode path name =
-    {Path = sprintf "%s/%s" path name |> createPath; Name = name; Type = Folder; Modified = None; Size = None}
+    { Path = sprintf "%s/%s" path name |> createPath; Name = name; Type = Folder;
+      Modified = None; Size = None; IsHidden = false }
 
 let createBaseTestModel() =
     let model = Model.Create<MainModel>()
@@ -61,4 +62,4 @@ let baseFileSysMock (newNodes: Node list) =
         | node :: _ -> node.Path.Parent
         | [] -> createPath "path"
     Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes path @>).Returns(newNodes)
+        .Setup(fun x -> <@ x.GetNodes path (any()) @>).Returns(newNodes)

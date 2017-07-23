@@ -125,7 +125,8 @@ let renameTextSelection cursorPosition fileName =
     let fileSys = createFileSys()
     let contr = createController fileSys
     let model = createModel()
-    let node = {Path = createPath "path3"; Name = fileName; Type = File; Modified = None; Size = None}
+    let node = { Path = createPath "path3"; Name = fileName; Type = File;
+                 Modified = None; Size = None; IsHidden = false }
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
     contr.StartInput (Rename cursorPosition) model

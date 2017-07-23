@@ -9,7 +9,7 @@ open Koffee
 
 type IFileSystemService =
     abstract GetNode: Path -> Node option
-    abstract GetNodes: Path -> Node list
+    abstract GetNodes: Path -> showHidden: bool-> Node list
     abstract Exists: Path -> bool
     abstract IsEmpty: Path -> bool
     abstract IsRecyclable: Path -> bool
@@ -28,7 +28,7 @@ type FileSystemService() =
 
     interface IFileSystemService with
         override this.GetNode path = this.GetNode path
-        override this.GetNodes path = this.GetNodes path
+        override this.GetNodes path showHidden = this.GetNodes path showHidden
         override this.Exists path = this.Exists path
         override this.IsEmpty node = this.IsEmpty node
         override this.IsRecyclable node = this.IsRecyclable node
@@ -44,13 +44,13 @@ type FileSystemService() =
     member this.GetNode path =
         let wp = wpath path
         if Directory.Exists wp then
-            wp |> this.FolderNode |> Some
+            DirectoryInfo(wp) |> this.FolderNode |> Some
         else if File.Exists wp then
             FileInfo(wp) |> this.FileNode |> Some
         else
             None
 
-    member this.GetNodes path =
+    member this.GetNodes path showHidden =
         let error msg parent =
             this.ErrorNode (Exception(msg)) parent |> List.singleton
         if path = Path.Root then
@@ -58,9 +58,13 @@ type FileSystemService() =
         else
             let wp = wpath path
             if Directory.Exists wp then
-                let folders = Directory.EnumerateDirectories wp |> Seq.map this.FolderNode
-                let files = DirectoryInfo(wp).GetFiles() |> Seq.map this.FileNode
-                let nodes = Seq.append folders files |> Seq.toList
+                let dir = DirectoryInfo(wp)
+                let folders = dir.GetDirectories() |> Seq.map this.FolderNode
+                let files = dir.GetFiles() |> Seq.map this.FileNode
+                let nodes =
+                    Seq.append folders files
+                    |> Seq.filter (fun n -> not n.IsHidden || showHidden)
+                    |> Seq.toList
                 if nodes.IsEmpty then
                     error "Empty Folder" path.Parent
                 else nodes
@@ -163,14 +167,16 @@ type FileSystemService() =
         Type = NodeType.File
         Modified = Some file.LastWriteTime
         Size = Some file.Length
+        IsHidden = file.Attributes.HasFlag FileAttributes.Hidden
     }
 
-    member private this.FolderNode path = {
-        Path = toPath path
-        Name = Path.GetFileName path
+    member private this.FolderNode dirInfo = {
+        Path = toPath dirInfo.FullName
+        Name = dirInfo.Name
         Type = NodeType.Folder
         Modified = None
         Size = None
+        IsHidden = dirInfo.Attributes.HasFlag FileAttributes.Hidden
     }
 
     member private this.DriveNode drive =
@@ -190,6 +196,7 @@ type FileSystemService() =
             Type = NodeType.Drive
             Modified = None
             Size = if drive.IsReady then Some drive.TotalSize else None
+            IsHidden = false
         }
 
     member private this.ErrorNode ex path =
@@ -200,6 +207,7 @@ type FileSystemService() =
             Type = NodeType.Error
             Modified = None
             Size = None
+            IsHidden = false
         }
 
     member private this.CannotActOnNodeType action nodeType =

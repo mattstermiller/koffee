@@ -15,6 +15,7 @@ let nodes names =
         Type = Folder
         Modified = None
         Size = None
+        IsHidden = false
     }
     names |> Seq.map toNode |> Seq.toList
 

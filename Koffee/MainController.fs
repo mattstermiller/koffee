@@ -70,6 +70,7 @@ type MainController(fileSys: IFileSystemService,
         | Recycle -> Async this.Recycle
         | PromptDelete -> Sync (this.StartInput (Confirm Delete))
         | SortList field -> Sync (this.SortList field)
+        | ToggleHidden -> Sync this.ToggleHidden
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> Sync this.OpenCommandLine
@@ -89,7 +90,7 @@ type MainController(fileSys: IFileSystemService,
         try
             let sortField, sortDesc = model.Sort
             let sorter = SortField.SortByTypeThen sortField sortDesc
-            let nodes = fileSys.GetNodes path |> sorter
+            let nodes = fileSys.GetNodes path model.ShowHidden |> sorter
             if path <> model.Path then
                 model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
                 model.ForwardStack <- []
@@ -220,7 +221,8 @@ type MainController(fileSys: IFileSystemService,
             this.OpenPath model.Path (SelectName name) model
             model |> this.PerformedAction (CreatedItem model.SelectedNode)
         with | ex ->
-            let action = CreatedItem {Path = model.Path; Name = name; Type = nodeType; Modified = None; Size = None}
+            let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
+                                       Modified = None; Size = None; IsHidden = false }
             model |> MainStatus.setActionExceptionStatus action ex
 
     member this.Rename node newName model =
@@ -425,6 +427,11 @@ type MainController(fileSys: IFileSystemService,
         if model.Path <> Path.Root then
             fileSys.OpenCommandLine model.Path
             model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
+
+    member this.ToggleHidden model =
+        model.ShowHidden <- not model.ShowHidden
+        this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
+        model.Status <- Some <| MainStatus.toggleHidden model.ShowHidden
 
     member this.OpenSettings model =
         let settings = settingsFactory()

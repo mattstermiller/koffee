@@ -21,6 +21,7 @@ type Node = {
     Type: NodeType
     Modified: DateTime option
     Size: int64 option
+    IsHidden: bool
 }
 with
     override this.ToString() = this.Path.Format Windows
@@ -154,6 +155,7 @@ type MainModel() as this =
     abstract ItemBuffer: (Node * BufferAction) option with get, set
     abstract UndoStack: ItemAction list with get, set
     abstract RedoStack: ItemAction list with get, set
+    abstract ShowHidden: bool with get, set
     abstract ShowFullPathInTitle: bool with get, set
 
     member this.HasErrorStatus =
@@ -199,6 +201,7 @@ type MainEvents =
     | Undo
     | Redo
     | SortList of SortField
+    | ToggleHidden
     | OpenExplorer
     | OpenCommandLine
     | OpenSettings
@@ -241,6 +244,7 @@ type MainEvents =
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
         | SortList field -> sprintf "Sort by %A" field
+        | ToggleHidden -> "Show/Hide Hidden Folders and Files"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenSettings -> "Open Help/Settings"
@@ -280,6 +284,7 @@ type MainEvents =
         SortList Name
         SortList Modified
         SortList Size
+        ToggleHidden
         OpenExplorer
         OpenCommandLine
         OpenSettings

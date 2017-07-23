@@ -46,6 +46,7 @@ let DefaultsAsString = [
     ("sn", SortList Name)
     ("sm", SortList Modified)
     ("ss", SortList Size)
+    ("<f9>", ToggleHidden)
     ("<cs-e>", OpenExplorer)
     ("<cs-c>", OpenCommandLine)
     ("?", OpenSettings)

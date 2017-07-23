@@ -16,10 +16,11 @@ type MainController(fileSys: IFileSystemService,
 
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
+            config.Changed.Add (fun _ ->
+                model.PathFormat <- config.PathFormat
+                model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
             config.Load()
             model.Path <- config.DefaultPath |> Path.Parse |> Option.coalesce Path.Root
-            model.PathFormat <- config.PathFormat
-            model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
 
             let startupPath =
                 commandLinePath |> Option.coalesce (

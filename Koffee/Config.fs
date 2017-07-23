@@ -28,7 +28,7 @@ module ConfigExt =
                     Directory.CreateDirectory dir |> ignore
                 this.Bookmarks.Clear()
                 File.WriteAllText(filePath, this.ToString())
-            this.Load filePath
+            this.LoadAndWatch filePath |> ignore
 
         member this.Save () = this.Save filePath
 

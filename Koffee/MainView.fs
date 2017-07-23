@@ -43,13 +43,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             @>
 
         // display path
-        let displayPath _ =
+        let displayPath _ = window.Dispatcher.Invoke(fun () ->
             window.PathBox.Text <- model.PathFormatted
             let displayPath = if model.ShowFullPathInTitle then model.PathFormatted else model.Path.Name
             window.Title <-
                 displayPath
                 |> Str.ifEmpty model.PathFormatted
-                |> sprintf "%s  |  Koffee"
+                |> sprintf "%s  |  Koffee")
         bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
         model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath

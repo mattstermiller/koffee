@@ -75,6 +75,8 @@ type ConfirmType =
 type CommandInput =
     | Find
     | Search
+    | GoToBookmark
+    | SetBookmark
     | CreateFile
     | CreateFolder
     | Rename of RenamePart
@@ -221,6 +223,8 @@ type MainEvents =
         | StartInput Search -> "Search For Items"
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
+        | StartInput GoToBookmark -> "Go To Bookmark"
+        | StartInput SetBookmark -> "Set Bookmark"
         | OpenPath path -> sprintf "Open Path \"%s\"" path
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"
@@ -264,6 +268,8 @@ type MainEvents =
         StartInput Search
         SearchNext
         SearchPrevious
+        StartInput GoToBookmark
+        StartInput SetBookmark
         OpenSelected
         OpenParent
         Back

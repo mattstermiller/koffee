@@ -230,6 +230,8 @@ module MainStatus =
     // navigation
     let find char = Message <| sprintf "Find %O" char
     let search searchStr = Message <| sprintf "Search \"%s\"" searchStr
+    let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
+    let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
 
     // actions
     let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path

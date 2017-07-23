@@ -162,6 +162,8 @@ type MainController(fileSys: IFileSystemService,
             | None -> ()
             // below are triggered by typing a char
             | Some Find -> ()
+            | Some GoToBookmark -> ()
+            | Some SetBookmark -> ()
             | Some (Confirm _) -> ()
 
     member this.CommandCharTyped char model = async {
@@ -169,6 +171,16 @@ type MainController(fileSys: IFileSystemService,
         | Some Find ->
             this.Find char model
             model.CommandInputMode <- None
+        | Some GoToBookmark ->
+            model.CommandInputMode <- None
+            match config.GetBookmark char with
+                | Some path -> this.OpenUserPath path model
+                | None -> model.Status <- Some <| MainStatus.noBookmark char
+        | Some SetBookmark ->
+            model.CommandInputMode <- None
+            config.SetBookmark char (model.Path.Format Windows)
+            config.Save()
+            model.Status <- Some <| MainStatus.setBookmark char model.PathFormatted
         | Some (Confirm confirmType) ->
             match char with
             | 'y' -> 

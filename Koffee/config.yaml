@@ -11,3 +11,6 @@ Window:
     Width: 800
     Height: 800
     ShowFullPathInTitle: false
+Bookmarks:
+    - Key: _w
+      Path: C:\Windows

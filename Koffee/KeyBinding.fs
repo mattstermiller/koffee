@@ -38,6 +38,8 @@ let DefaultsAsString = [
     ("/", StartInput Search)
     ("n", SearchNext)
     ("N", SearchPrevious)
+    ("'", StartInput GoToBookmark)
+    ("m", StartInput SetBookmark)
     ("d", StartMove)
     ("y", StartCopy)
     ("p", Put)

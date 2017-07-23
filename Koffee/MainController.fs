@@ -414,6 +414,7 @@ type MainController(fileSys: IFileSystemService,
             | _ -> field = Modified
         model.Sort <- field, desc
         this.Refresh model
+        model.Status <- Some <| MainStatus.sort field desc
 
     member this.OpenExplorer model =
         if model.Path <> Path.Root then

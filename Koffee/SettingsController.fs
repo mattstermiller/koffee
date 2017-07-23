@@ -29,3 +29,5 @@ type SettingsController(config: Config) =
                 config.PathFormat <- value; config.Save())
             | ShowFullPathInTitleChanged value -> Sync (fun _ ->
                 config.Window.ShowFullPathInTitle <- value; config.Save())
+            | ShowHiddenChanged value -> Sync (fun _ ->
+                config.ShowHidden <- value; config.Save())

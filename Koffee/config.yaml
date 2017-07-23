@@ -2,6 +2,7 @@
 DefaultPath: Drives
 PreviousPath: Drives
 PathFormatName: Windows
+ShowHidden: false
 Window:
     IsMaximized: false
     Left: 200

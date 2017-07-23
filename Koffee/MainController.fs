@@ -20,6 +20,7 @@ type MainController(fileSys: IFileSystemService,
             model.Path <- config.DefaultPath |> Path.Parse |> Option.coalesce Path.Root
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
+            model.ShowHidden <- config.ShowHidden
 
             let startupPath =
                 commandLinePath |> Option.coalesce (
@@ -430,6 +431,9 @@ type MainController(fileSys: IFileSystemService,
 
     member this.ToggleHidden model =
         model.ShowHidden <- not model.ShowHidden
+        config.ShowHidden <- model.ShowHidden
+        config.Save()
+
         this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
         model.Status <- Some <| MainStatus.toggleHidden model.ShowHidden
 
@@ -439,6 +443,8 @@ type MainController(fileSys: IFileSystemService,
 
         model.PathFormat <- config.PathFormat
         model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
+        model.ShowHidden <- config.ShowHidden
+        this.Refresh model
 
 
     member private this.SetCommandSelection cursorPos model =

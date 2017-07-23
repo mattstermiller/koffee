@@ -24,6 +24,8 @@ type SettingsView(window: SettingsWindow, config: Config) =
 
         if config.Window.ShowFullPathInTitle then
             check window.ShowFullPathInTitleBar
+        if config.ShowHidden then
+            check window.ShowHidden
 
         Binding.OfExpression
             <@
@@ -46,4 +48,7 @@ type SettingsView(window: SettingsWindow, config: Config) =
 
         window.ShowFullPathInTitleBar.Checked |> Observable.mapTo (ShowFullPathInTitleChanged true)
         window.ShowFullPathInTitleBar.Unchecked |> Observable.mapTo (ShowFullPathInTitleChanged false)
+
+        window.ShowHidden.Checked |> Observable.mapTo (ShowHiddenChanged true)
+        window.ShowHidden.Unchecked |> Observable.mapTo (ShowHiddenChanged false)
     ]

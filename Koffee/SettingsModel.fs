@@ -18,3 +18,4 @@ type SettingsEvents =
     | DefaultPathChanged of string
     | PathFormatChanged of PathFormat
     | ShowFullPathInTitleChanged of bool
+    | ShowHiddenChanged of bool

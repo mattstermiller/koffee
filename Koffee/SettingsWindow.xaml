@@ -8,6 +8,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Label x:Name="labelStartupPath" Content="Startup Path:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top"/>
@@ -21,10 +22,12 @@
 
         <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show Full Path In Title Bar" HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1" Grid.Row="1" Margin="5,3,0,0"/>
 
-        <Label x:Name="labelKeyBindings" Content="Key Bindings:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" Grid.Row="2"/>
-        <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0" VerticalAlignment="Top" HorizontalAlignment="Right" Grid.Row="2" Grid.ColumnSpan="2"/>
+        <CheckBox x:Name="ShowHidden" Content="Show Hidden Files and Folders" HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1" Grid.Row="2" Margin="5,3,0,0"/>
 
-        <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="3" Grid.ColumnSpan="2">
+        <Label x:Name="labelKeyBindings" Content="Key Bindings:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" Grid.Row="3"/>
+        <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0" VerticalAlignment="Top" HorizontalAlignment="Right" Grid.Row="3" Grid.ColumnSpan="2"/>
+
+        <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="4" Grid.ColumnSpan="2">
             <DataGrid.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>

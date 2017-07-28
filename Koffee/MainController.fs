@@ -164,6 +164,7 @@ type MainController(fileSys: IFileSystemService,
             | Some Find -> ()
             | Some GoToBookmark -> ()
             | Some SetBookmark -> ()
+            | Some DeleteBookmark -> ()
             | Some (Confirm _) -> ()
 
     member this.CommandCharTyped char model = async {
@@ -181,6 +182,14 @@ type MainController(fileSys: IFileSystemService,
             config.SetBookmark char (model.Path.Format Windows)
             config.Save()
             model.Status <- Some <| MainStatus.setBookmark char model.PathFormatted
+        | Some DeleteBookmark ->
+            model.CommandInputMode <- None
+            match config.GetBookmark char with
+                | Some path ->
+                    config.RemoveBookmark char
+                    config.Save()
+                    model.Status <- Some <| MainStatus.deletedBookmark char path
+                | None -> model.Status <- Some <| MainStatus.noBookmark char
         | Some (Confirm confirmType) ->
             match char with
             | 'y' -> 

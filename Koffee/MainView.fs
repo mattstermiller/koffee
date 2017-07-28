@@ -98,6 +98,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             window.NodeGrid.Focus() |> ignore)
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 
+        // pressing delete when viewing bookmarks allows delete
+        window.CommandBox.PreviewKeyDown.Add <| onKey Key.Delete (fun () ->
+            match model.CommandInputMode with
+            | Some GoToBookmark | Some SetBookmark ->
+                model.CommandInputMode <- Some DeleteBookmark
+            | _ -> ())
+
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor
         model.Cursor <- -1
@@ -199,7 +206,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
     member this.CommandInputModeChanged mode node =
         match mode with
         | Some inputMode ->
-            let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark]
+            let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
             if isBookmark then
                 let bookmarks =
                     match config.GetBookmarks() with
@@ -243,6 +250,7 @@ module MainStatus =
     let search searchStr = Message <| sprintf "Search \"%s\"" searchStr
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
+    let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path
 
     // actions
     let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path

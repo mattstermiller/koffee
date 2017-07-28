@@ -77,6 +77,7 @@ type CommandInput =
     | Search
     | GoToBookmark
     | SetBookmark
+    | DeleteBookmark
     | CreateFile
     | CreateFolder
     | Rename of RenamePart
@@ -224,6 +225,7 @@ type MainEvents =
         | SearchPrevious -> "Go To Previous Search Match"
         | StartInput GoToBookmark -> "Go To Bookmark"
         | StartInput SetBookmark -> "Set Bookmark"
+        | StartInput DeleteBookmark -> "Delete Bookmark"
         | OpenPath path -> sprintf "Open Path \"%s\"" path
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"

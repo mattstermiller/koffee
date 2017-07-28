@@ -66,3 +66,6 @@ module ConfigExt =
         member this.GetBookmark char =
             let key = bookmarkKey char
             this.Bookmarks |> Seq.tryFind (fun b -> b.Key = key) |> Option.map (fun b -> b.Path)
+
+        member this.GetBookmarks () =
+            this.Bookmarks |> Seq.map (fun b -> b.Key.[1], b.Path) |> dict

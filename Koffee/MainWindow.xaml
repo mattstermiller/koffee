@@ -4,6 +4,7 @@
             <GradientStop Color="#a15d14" Offset="0" />
             <GradientStop Color="#7c450b" Offset="1" />
         </LinearGradientBrush>
+        <SolidColorBrush x:Key="HintBrush" Color="#a15d14"/>
     </Window.Resources>
     <Grid>
         <TextBox x:Name="PathBox" Height="28" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top" FontSize="13"/>
@@ -13,6 +14,19 @@
                 <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}" Opacity="0.3"/>
             </DataGrid.Resources>
         </DataGrid>
+        <StackPanel x:Name="BookmarkPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,38" Background="{DynamicResource HintBrush}" Visibility="Hidden">
+            <Label Content="Bookmarks" Foreground="White" FontWeight="Bold" Margin="5,0,5,0"/>
+            <ItemsControl x:Name="Bookmarks">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="5,0,5,0">
+                            <Label Content="{Binding Key}" Foreground="White" FontWeight="Bold" Width="20"/>
+                            <Label Content="{Binding Value}" Foreground="White"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
         <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="30" Margin="4,0,0,4" VerticalAlignment="Bottom"/>
         <Label x:Name="BufferLabel" Content="buffer" HorizontalAlignment="Right" Height="30" Margin="0,0,4,4" VerticalAlignment="Bottom" Background="White" BorderThickness="2" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden"/>
         <DockPanel x:Name="CommandPanel" Background="{DynamicResource FocusBrush}" LastChildFill="True" Height="38" VerticalAlignment="Bottom" Visibility="Hidden">

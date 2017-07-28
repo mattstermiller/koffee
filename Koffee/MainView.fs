@@ -10,6 +10,7 @@ open FSharp.Desktop.UI
 open ModelExtensions
 open UIHelpers
 open Utility
+open ConfigExt
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
@@ -197,7 +198,16 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
     member this.CommandInputModeChanged mode node =
         match mode with
-        | Some inputMode -> this.ShowCommandBar (inputMode.Prompt node)
+        | Some inputMode ->
+            let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark]
+            if isBookmark then
+                let bookmarks =
+                    match config.GetBookmarks() with
+                    | bm when bm |> Seq.isEmpty -> [(' ', "No bookmarks set")] |> dict
+                    | bm -> bm
+                window.Bookmarks.ItemsSource <- bookmarks
+            window.BookmarkPanel.Visibility <- if isBookmark then Visibility.Visible else Visibility.Hidden
+            this.ShowCommandBar (inputMode.Prompt node)
         | None -> this.HideCommandBar ()
 
     member private this.ShowCommandBar label =
@@ -207,6 +217,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
     member private this.HideCommandBar () =
         window.CommandPanel.Visibility <- Visibility.Hidden
+        window.BookmarkPanel.Visibility <- Visibility.Hidden
         window.NodeGrid.Focus() |> ignore
 
     member this.KeepSelectedInView () =

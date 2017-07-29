@@ -216,9 +216,29 @@ type MainController(fileSys: IFileSystemService,
         | None -> ()
 
     member this.Search searchStr reverse model =
-        model.LastSearch <- Some searchStr
-        model.Status <- Some <| MainStatus.search searchStr
-        this.MoveCursorToNext (fun n -> Regex.IsMatch(n.Name, searchStr, RegexOptions.IgnoreCase)) reverse model
+        let search = if searchStr <> "" then Some searchStr else None
+        let searchStatus = search |> Option.map MainStatus.search
+
+        if search.IsNone || model.Status <> searchStatus then
+            let cursor = model.Cursor
+            model.Nodes <-
+                model.Nodes
+                |> Seq.map (fun n ->
+                    let isMatch =
+                        match search with
+                        | Some str -> Regex.IsMatch(n.Name, str, RegexOptions.IgnoreCase)
+                        | None -> false
+                    if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
+                    else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
+                    else n)
+                |> Seq.toList
+            model.Cursor <- cursor
+            model.Status <- searchStatus
+
+        if search.IsSome then
+            model.LastSearch <- search
+
+        this.MoveCursorToNext (fun n -> n.IsSearchMatch) reverse model
 
     member this.SearchNext reverse model =
         match model.LastSearch with
@@ -245,7 +265,7 @@ type MainController(fileSys: IFileSystemService,
             model |> this.PerformedAction (CreatedItem model.SelectedNode)
         with | ex ->
             let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
-                                       Modified = None; Size = None; IsHidden = false }
+                                       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
             model |> MainStatus.setActionExceptionStatus action ex
 
     member this.Rename node newName model =

@@ -8,8 +8,11 @@
     </Window.Resources>
     <Grid>
         <TextBox x:Name="PathBox" Height="28" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top" FontSize="13"/>
-        <DataGrid x:Name="NodeGrid" Margin="0,28,0,38" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+        <DataGrid x:Name="NodeGrid" Margin="0,28,0,38" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
             <DataGrid.Resources>
+                <Style TargetType="DataGrid">
+                    <Setter Property="AlternatingRowBackground" Value="#eaeaea"/>
+                </Style>
                 <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}"/>
                 <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}" Opacity="0.3"/>
             </DataGrid.Resources>
@@ -21,6 +24,9 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding IsHidden}" Value="true">
                             <Setter Property="Foreground" Value="DarkGray"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsSearchMatch}" Value="true">
+                            <Setter Property="Background" Value="#ecbe68"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

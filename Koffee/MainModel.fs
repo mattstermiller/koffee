@@ -22,6 +22,7 @@ type Node = {
     Modified: DateTime option
     Size: int64 option
     IsHidden: bool
+    IsSearchMatch: bool
 }
 with
     override this.ToString() = this.Path.Format Windows

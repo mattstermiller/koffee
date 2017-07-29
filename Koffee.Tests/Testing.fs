@@ -42,7 +42,7 @@ let createPath pathStr = (Path.Parse ("/c/" + pathStr)).Value
 
 let createNode path name =
     { Path = sprintf "%s/%s" path name |> createPath; Name = name; Type = Folder;
-      Modified = None; Size = None; IsHidden = false }
+      Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
 
 let createBaseTestModel() =
     let model = Model.Create<MainModel>()

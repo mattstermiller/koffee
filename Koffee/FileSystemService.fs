@@ -173,6 +173,7 @@ type FileSystemService() =
         Modified = Some file.LastWriteTime
         Size = Some file.Length
         IsHidden = file.Attributes.HasFlag FileAttributes.Hidden
+        IsSearchMatch = false
     }
 
     member private this.FolderNode dirInfo = {
@@ -182,6 +183,7 @@ type FileSystemService() =
         Modified = None
         Size = None
         IsHidden = dirInfo.Attributes.HasFlag FileAttributes.Hidden
+        IsSearchMatch = false
     }
 
     member private this.DriveNode drive =
@@ -202,6 +204,7 @@ type FileSystemService() =
             Modified = None
             Size = if drive.IsReady then Some drive.TotalSize else None
             IsHidden = false
+            IsSearchMatch = false
         }
 
     member private this.ErrorNode ex path =
@@ -213,6 +216,7 @@ type FileSystemService() =
             Modified = None
             Size = None
             IsHidden = false
+            IsSearchMatch = false
         }
 
     member private this.CannotActOnNodeType action nodeType =

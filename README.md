@@ -19,31 +19,40 @@ _Capitalized letters indicate that the key is combined with Shift._
 - `j` to move the cursor down
 - `k` to move the cursor up
 - `h` to go up to the parent folder
-- `l` or `enter` to open the selected folder or file
+- `l` or `Enter` to open the selected folder or file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
 - `tab` switches between the main view and the path box
-- `?` opens the settings window, which displays the hotkeys for all commands. _(This window will allow you to edit the hotkeys and other settings in the future.)_
+- `?` opens the Settings window, which displays the hotkeys for all commands.
 - `Ctrl + w` to exit
 
-#### Jumping to Items in the Current Folder
-- `Ctrl + j` and `Ctrl + k` move the cursor by half-pages at a time.
-- `gg` (press `g` twice) jumps to the first item, and `G` jumps to the last item.
-- Press `f` then any character to jump to the next item beginning with that character. _(Note that this is case sensitive, so `a` is not the same as `A`.)_ For example, pressing `fa` will jump to the first file or folder starting with "a". Then press `;` to continue jumping to more items starting with that same character.
-- Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `enter` to jump to the next item containing the search term in its name. Then press `n` to go to the next match, or `N` to go to the previous match. The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
+#### Advanced Navigation
+- **Scroll quickly**
+    - `Ctrl + j` and `Ctrl + k` move the cursor by half-pages at a time.
+    - `gg` (press `g` twice) jumps to the first item, and `G` jumps to the last item.
+- **Jump to item**: Press `f` then any character to jump to the next item beginning with that character. _(Note that this is case sensitive, so `a` is not the same as `A`.)_ For example, pressing `fa` will jump to the first file or folder starting with "a". Then press `;` to continue jumping to more items starting with that same character.
+- **Search**: Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `Enter` to jump to the next item containing the search term in its name. Then press `n` to go to the next match, or `N` to go to the previous match. The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
+- **Bookmarks**
+    - Set a bookmark by pressing `m`. The list of bookmarks already set are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
+    - Go to a bookmark by pressing `'`. The list of bookmarks are shown. Enter one of the bookmark characters to go to that bookmark.
+    - When viewing bookmarks, press `Delete` then a bookmark character to delete that bookmark.
+- **Sorting**
+    - Press `sn` to sort by name, ascending then descending.
+    - Press `sm` to sort by modified date, descending then ascending.
+    - Press `ss` to sort by size, ascending then descending.
 
 #### File & Folder Manipulation
-- **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `enter`.
+- **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `Enter`.
 - **Rename**: There are several ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
     - Press `a` to start with the cursor at the end of the name, before the extension
     - Press `A` to start with the cursor at the end of the extension
     - Press `c` to start with the name (without extension) selected so that typing will replace the name
     - Press `C` to start with the extension selected so that typing will replace the extension
-    - When you are done editing the name, press `enter`
+    - When you are done editing the name, press `Enter`
 - **Move / Copy**
     1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed at the lower-right corner of the window.
-    2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it.
+    2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite folders, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
 - **Delete**
     - Press `Delete` to send the currently selected item to the Recycle Bin. If the item is too large to fit in the Recycle Bin, a message will be shown instead.
     - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
@@ -54,17 +63,17 @@ _Capitalized letters indicate that the key is combined with Shift._
 #### Other
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
 - Open Commandline at your current location with `Ctrl + Shift + c`
-- Toggle between Windows-style and Unix-style path formats with `F9`
+- Open the currently selected file with your text editor (configured in the Settings window) with `Ctrl + Shift + t`
+- Show/hide hidden files and folders with `F9`
 
-There are more commands at your disposal. Check the Settings window ful the full list of commands and their key bindings!
+There are more commands at your disposal. Open the Settings window with `?` for the full list of commands and their key bindings!
 
 ## Planned Features
 - Search sub-folders
-- Option to remember previous location
+- Select multiple items
 - Configurable hotkeys
-- Bookmarks: quickly save and jump to a folder and/or item
-- Themes
 - Batch renames with regular expressions
 - Split view
+- Themes
 - And more...
 

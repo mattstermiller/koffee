@@ -1,4 +1,4 @@
-﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Koffee" Width="800" Height="800">
+﻿<Window Title="Koffee" Width="800" Height="800" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:my="clr-namespace:Koffee;assembly=Koffee">
     <Window.Resources>
         <LinearGradientBrush x:Key="FocusBrush" StartPoint="0,0" EndPoint="0,1">
             <GradientStop Color="#a15d14" Offset="0" />
@@ -13,6 +13,18 @@
                 <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}"/>
                 <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}" Opacity="0.3"/>
             </DataGrid.Resources>
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow"> 
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Type}" Value="{x:Static my:NodeType.Folder}">
+                            <Setter Property="Foreground" Value="#7c450b"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsHidden}" Value="true">
+                            <Setter Property="Foreground" Value="DarkGray"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
         </DataGrid>
         <StackPanel x:Name="BookmarkPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,38" Background="{DynamicResource HintBrush}" Visibility="Hidden">
             <Label Content="Bookmarks" Foreground="White" FontWeight="Bold" Margin="5,0,5,0"/>

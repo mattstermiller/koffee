@@ -137,6 +137,10 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
     override this.EventStreams = [
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)
+        window.PathBox.PreviewKeyDown |> Observable.choose (fun keyEvt ->
+            match this.TriggerKeyBindings keyEvt with
+            | Some Exit -> Some Exit
+            | _ -> keyEvt.Handled <- false; None)
 
         window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
 

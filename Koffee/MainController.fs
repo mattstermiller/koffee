@@ -217,9 +217,9 @@ type MainController(fileSys: IFileSystemService,
 
     member this.Search searchStr reverse model =
         let search = if searchStr <> "" then Some searchStr else None
-        let searchStatus = search |> Option.map MainStatus.search
 
-        if search.IsNone || model.Status <> searchStatus then
+        // if search is different or empty (to clear results), update node flags
+        if search.IsNone || not <| MainStatus.isSearchStatus searchStr model.Status then
             let cursor = model.Cursor
             model.Nodes <-
                 model.Nodes
@@ -233,7 +233,8 @@ type MainController(fileSys: IFileSystemService,
                     else n)
                 |> Seq.toList
             model.Cursor <- cursor
-            model.Status <- searchStatus
+            let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
+            model.Status <- search |> Option.map (MainStatus.search matches)
 
         if search.IsSome then
             model.LastSearch <- search

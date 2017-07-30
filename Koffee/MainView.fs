@@ -251,7 +251,11 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 module MainStatus =
     // navigation
     let find char = Message <| sprintf "Find %O" char
-    let search searchStr = Message <| sprintf "Search \"%s\"" searchStr
+    let search matches searchStr = Message <| sprintf "Search \"%s\" found %i matches" searchStr matches
+    let isSearchStatus searchStr status =
+        match status with
+        | Some (Message s) -> s.StartsWith(sprintf "Search \"%s\"" searchStr)
+        | _ -> false
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

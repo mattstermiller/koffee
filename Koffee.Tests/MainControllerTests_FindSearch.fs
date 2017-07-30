@@ -76,68 +76,57 @@ with
         { Cursor = model.Cursor
           Count = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length }
 
-let search searchStr cursorStart =
-    let model = createModel (Some Search) cursorStart
-    model.CommandText <- searchStr
-    let expected = createModel (Some Search) cursorStart
-
-    let contr = createController()
-    contr.ExecuteCommand model
-
+let assertSearchGiven reverse searchStr cursorStart expectedResult =
     let search = if searchStr <> "" then Some searchStr else None
-    expected.CommandInputMode <- None
-    expected.LastSearch <- search
-    expected.Status <- search |> Option.map MainStatus.search
-    assertEqualExceptCursor expected model
-    SearchResult.fromModel model
-
-let searchPrevious searchStr cursorStart =
     let model = createModel None cursorStart
-    model.LastSearch <- Some searchStr
+    model.LastSearch <- search
     let expected = createModel None cursorStart
 
     let contr = createController()
-    contr.SearchNext true model
+    contr.SearchNext reverse model
 
     expected.CommandInputMode <- None
-    expected.LastSearch <- (Some searchStr)
-    expected.Status <- Some <| MainStatus.search searchStr
+    expected.LastSearch <- search
+    expected.Status <- search |> Option.map (MainStatus.search expectedResult.Count)
     assertEqualExceptCursor expected model
-    SearchResult.fromModel model
+    SearchResult.fromModel model |> shouldEqual expectedResult
+
+let assertSearch = assertSearchGiven false
+let assertSearchPrevious = assertSearchGiven true
 
 [<Test>]
 let ``Search that matches nothing should not change the cursor``() =
-    search "abc" 1 |> shouldEqual { Cursor = 1; Count = 0 }
+    assertSearch "abc" 1 { Cursor = 1; Count = 0 }
 
 [<Test>]
 let ``Search that matches only the current node should not change the cursor``() =
-    search "ob" 1 |> shouldEqual { Cursor = 1; Count = 1 }
+    assertSearch "ob" 1 { Cursor = 1; Count = 1 }
 
 [<Test>]
 let ``Search that matches the current and next node should set the cursor to the next index``() =
-    search "a" 2 |> shouldEqual { Cursor = 3; Count = 4 }
+    assertSearch "a" 2 { Cursor = 3; Count = 4 }
 
 [<Test>]
 let ``Search that matches a node wrapping around should set the cursor to the that index``() =
-    search "ob" 2 |> shouldEqual { Cursor = 1; Count = 1 }
+    assertSearch "ob" 2 { Cursor = 1; Count = 1 }
 
 [<Test>]
 let ``Search empy string matches nothing``() =
-    search "" 2 |> shouldEqual { Cursor = 2; Count = 0 }
+    assertSearch "" 2 { Cursor = 2; Count = 0 }
 
 
 [<Test>]
 let ``Search previous that matches nothing should not change the cursor``() =
-    searchPrevious "abc" 1 |> shouldEqual { Cursor = 1; Count = 0 }
+    assertSearchPrevious "abc" 1 { Cursor = 1; Count = 0 }
 
 [<Test>]
 let ``Search previous that matches only the current node should not change the cursor``() =
-    searchPrevious "ob" 1 |> shouldEqual { Cursor = 1; Count = 1 }
+    assertSearchPrevious "ob" 1 { Cursor = 1; Count = 1 }
 
 [<Test>]
 let ``Search previous that matches the current and previous node should set the cursor to the next index``() =
-    searchPrevious "a" 3 |> shouldEqual { Cursor = 2; Count = 4 }
+    assertSearchPrevious "a" 3 { Cursor = 2; Count = 4 }
 
 [<Test>]
 let ``Search previous that matches a node wrapping around should set the cursor to the that index``() =
-    searchPrevious "rys" 2 |> shouldEqual { Cursor = 3; Count = 1 }
+    assertSearchPrevious "rys" 2 { Cursor = 3; Count = 1 }

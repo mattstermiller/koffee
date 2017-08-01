@@ -52,8 +52,8 @@ type MainController(fileSys: IFileSystemService,
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
         | OpenPath p -> Sync (this.OpenUserPath p)
-        | OpenSelected -> Sync this.SelectedPath
-        | OpenParent -> Sync this.ParentPath
+        | OpenSelected -> Sync this.OpenSelected
+        | OpenParent -> Sync this.OpenParent
         | Back -> Sync this.Back
         | Forward -> Sync this.Forward
         | Refresh -> Sync this.Refresh
@@ -110,16 +110,19 @@ type MainController(fileSys: IFileSystemService,
             model.Status <- None
         with | ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
 
-    member this.SelectedPath model =
+    member this.OpenSelected model =
         let path = model.SelectedNode.Path
         match model.SelectedNode.Type with
             | Folder | Drive | Error ->
                 this.OpenPath path KeepSelect model
             | File ->
-                fileSys.OpenFile path
-                model.Status <- Some <| MainStatus.openFile (path.Format model.PathFormat)
+                try
+                    fileSys.OpenFile path
+                    model.Status <- Some <| MainStatus.openFile (path.Format model.PathFormat)
+                with | ex ->
+                    model.Status <- Some <| MainStatus.couldNotOpenFile path.Name ex.Message
 
-    member this.ParentPath model =
+    member this.OpenParent model =
         this.OpenPath model.Path.Parent (SelectName model.Path.Name) model
 
     member this.Back model =

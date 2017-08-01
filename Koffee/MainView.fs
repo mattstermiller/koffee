@@ -265,6 +265,7 @@ module MainStatus =
     let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
     let toggleHidden showing = Message <| sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
     let openFile path = Message <| sprintf "Opened File: %s" path
+    let couldNotOpenFile name error = ErrorMessage <| sprintf "Could not open %s: %s" name error
     let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
     let openTextEditor path = Message <| sprintf "Opened text editor to: %s" path

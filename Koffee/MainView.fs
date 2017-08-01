@@ -267,6 +267,8 @@ module MainStatus =
     let openFile path = Message <| sprintf "Opened File: %s" path
     let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
+    let openTextEditor path = Message <| sprintf "Opened text editor to: %s" path
+    let couldNotOpenTextEditor error = ErrorMessage <| sprintf "Could not open text editor: %s" error
 
     let private runningActionMessage action pathFormat =
         match action with

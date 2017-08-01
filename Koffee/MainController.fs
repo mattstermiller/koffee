@@ -474,7 +474,12 @@ type MainController(fileSys: IFileSystemService,
 
     member this.OpenWithTextEditor model =
         match model.SelectedNode.Type with
-        | File -> fileSys.OpenWith config.TextEditor model.SelectedNode.Path
+        | File ->
+            try
+                fileSys.OpenWith config.TextEditor model.SelectedNode.Path
+                model.Status <- Some <| MainStatus.openTextEditor (model.SelectedNode.Path.Format model.PathFormat)
+            with | ex ->
+                model.Status <- Some <| MainStatus.couldNotOpenTextEditor ex.Message
         | _ -> ()
 
     member this.ToggleHidden model =

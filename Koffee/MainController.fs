@@ -202,6 +202,11 @@ type MainController(fileSys: IFileSystemService,
                     | Delete -> do! this.Delete model.SelectedNode true model
             | 'n' ->
                 model.CommandInputMode <- None
+                match confirmType with
+                    | Overwrite when not config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
+                        // if we were temporarily showing hidden files, refresh
+                        this.Refresh model
+                    | _ -> ()
                 model.Status <- Some <| MainStatus.cancelled
             | _ ->
                 model.CommandText <- ""
@@ -312,20 +317,27 @@ type MainController(fileSys: IFileSystemService,
                     else
                         node.Name
                 let newPath = model.Path.Join newName
-                if fileSys.Exists newPath && not overwrite then
-                    this.StartInput (Confirm Overwrite) model
-                else
-                    let fileSysAction, action =
-                        match bufferAction with
-                        | Move -> (fileSys.Move, MovedItem (node, newPath))
-                        | Copy -> (fileSys.Copy, CopiedItem (node, newPath))
-                    try
-                        model.Status <- MainStatus.runningAction action model.PathFormat
-                        do! runAsync (fun () -> fileSysAction node.Path newPath)
-                        this.OpenPath model.Path (SelectName newName) model
-                        model.ItemBuffer <- None
-                        model |> this.PerformedAction action
-                    with | ex -> model |> MainStatus.setActionExceptionStatus action ex
+                match fileSys.GetNode newPath with
+                    | Some existing when not overwrite ->
+                        // refresh node list to make sure we can see the existing file
+                        // if the existing node is hidden, temporarily override ShowHidden
+                        let overrideShowHidden = existing.IsHidden && not config.ShowHidden
+                        if overrideShowHidden then config.ShowHidden <- true
+                        this.OpenPath model.Path (SelectName existing.Name) model
+                        if overrideShowHidden then config.ShowHidden <- false
+                        this.StartInput (Confirm Overwrite) model
+                    | _ ->
+                        let fileSysAction, action =
+                            match bufferAction with
+                            | Move -> (fileSys.Move, MovedItem (node, newPath))
+                            | Copy -> (fileSys.Copy, CopiedItem (node, newPath))
+                        try
+                            model.Status <- MainStatus.runningAction action model.PathFormat
+                            do! runAsync (fun () -> fileSysAction node.Path newPath)
+                            this.OpenPath model.Path (SelectName newName) model
+                            model.ItemBuffer <- None
+                            model |> this.PerformedAction action
+                        with | ex -> model |> MainStatus.setActionExceptionStatus action ex
         | None -> ()
     }
 

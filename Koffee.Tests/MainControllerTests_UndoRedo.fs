@@ -35,7 +35,8 @@ let createModel () =
 let ex = UnauthorizedAccessException()
 
 let fileSysMock () =
-    baseFileSysMock newNodes
+    baseFileSysMock(newNodes)
+        .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(None)
 
 let createController fileSys =
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
@@ -353,7 +354,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let copyNode = oldNodes.[1]
     let refreshedCopyNode = { copyNode with Modified = modified }
     let fileSys =
-        fileSysMock()
+        baseFileSysMock(newNodes)
             .Setup(fun x -> <@ x.GetNode copyNode.Path @>).Returns(Some refreshedCopyNode)
             .Create()
     let contr = createController fileSys
@@ -390,7 +391,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     let copyNode = oldNodes.[1]
     let refreshedCopyNode = { copyNode with Modified = time |> Option.map (fun t -> t.AddDays(1.0)) }
     let fileSys =
-        fileSysMock()
+        baseFileSysMock(newNodes)
             .Setup(fun x -> <@ x.GetNode copyNode.Path @>).Returns(Some refreshedCopyNode)
             .Create()
     let contr = createController fileSys
@@ -417,11 +418,11 @@ let ``Undo copy item handles error by setting error status and consumes action``
     let copyNode = oldNodes.[1]
     let fileSys =
         if throwOnGetNode then
-            fileSysMock()
+            baseFileSysMock(newNodes)
                 .Setup(fun x -> <@ x.GetNode (any()) @>).Raises(ex)
                 .Create()
         else
-            fileSysMock()
+            baseFileSysMock(newNodes)
                 .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(Some copyNode)
                 .Setup(fun x -> <@ x.Recycle (any()) @>).Raises(ex)
                 .Setup(fun x -> <@ x.Delete (any()) @>).Raises(ex)

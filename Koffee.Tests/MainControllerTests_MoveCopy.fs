@@ -22,7 +22,7 @@ let nodeCopy num =
 
 let newNodes = [
     createNode "path" "file 1"
-    createNode "path" "file 2"
+    nodeSameFolder
     nodeCopy 1
     nodeCopy 2
     nodeCopy 0
@@ -38,10 +38,13 @@ let createModel () =
 
 let ex = UnauthorizedAccessException()
 
-let fileSysMock () = baseFileSysMock newNodes
+let fileSysMock getNodeReturnsSome =
+    let node = if getNodeReturnsSome then Some nodeSameFolder else None
+    baseFileSysMock(newNodes)
+        .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(node)
 
 let createUnauthorizedFileSys () =
-    fileSysMock()
+    fileSysMock(false)
         .Setup(fun x -> <@ x.Move (any()) (any()) @>).Raises(ex)
         .Setup(fun x -> <@ x.Copy (any()) (any()) @>).Raises(ex)
         .Create()
@@ -54,10 +57,7 @@ let createController fileSys =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to move in different folder calls file sys move`` (overwrite: bool) =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(overwrite)
-            .Create()
+    let fileSys = fileSysMock(overwrite).Create()
     let contr = createController fileSys
     let model = createModel()
     model.ItemBuffer <- Some (nodeDiffFolder, Move)
@@ -82,10 +82,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
 
 [<Test>]
 let ``Put item to move in different folder with item of same name prompts for overwrite``() =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(true)
-            .Create()
+    let fileSys = fileSysMock(true).Create()
     let contr = createController fileSys
     let item = Some (nodeDiffFolder, Move)
     let model = createModel()
@@ -95,13 +92,15 @@ let ``Put item to move in different folder with item of same name prompts for ov
     verify <@ fileSys.Move (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
+    expected.Nodes <- newNodes
+    expected.Cursor <- Seq.findIndex ((=) nodeSameFolder) newNodes
     expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
 
 
 [<Test>]
 let ``Put item to move in same folder gives same-folder message``() =
-    let fileSys = fileSysMock().Create()
+    let fileSys = fileSysMock(false).Create()
     let contr = createController fileSys
     let item = Some (nodeSameFolder, Move)
     let model = createModel()
@@ -135,10 +134,7 @@ let ``Put item to move handles error by setting error status``() =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to copy in different folder calls file sys copy`` (overwrite: bool) =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(overwrite)
-            .Create()
+    let fileSys = fileSysMock(overwrite).Create()
     let contr = createController fileSys
     let model = createModel()
     model.ItemBuffer <- Some (nodeDiffFolder, Copy)
@@ -163,10 +159,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
 
 [<Test>]
 let ``Put item to copy in different folder with item of same name prompts for overwrite``() =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(true)
-            .Create()
+    let fileSys = fileSysMock(true).Create()
     let contr = createController fileSys
     let item = Some (nodeDiffFolder, Copy)
     let model = createModel()
@@ -176,6 +169,8 @@ let ``Put item to copy in different folder with item of same name prompts for ov
     verify <@ fileSys.Copy (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
+    expected.Nodes <- newNodes
+    expected.Cursor <- Seq.findIndex ((=) nodeSameFolder) newNodes
     expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
 
@@ -186,8 +181,10 @@ let ``Put item to copy in different folder with item of same name prompts for ov
 let ``Put item to copy in same folder calls file sys copy with new name`` existingCopies =
     let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
     let fileSys =
-        fileSysMock()
+        baseFileSysMock(newNodes)
             .Setup(fun x -> <@ x.Exists (is(fun p -> List.contains p existingPaths)) @>).Returns(true)
+            .Setup(fun x -> <@ x.GetNode (is(fun p -> List.contains p existingPaths)) @>).Returns(Some nodeSameFolder)
+            .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(None)
             .Create()
     let contr = createController fileSys
     let item = Some (nodeSameFolder, Copy)
@@ -230,10 +227,7 @@ let ``Put item to copy handles error by setting error status``() =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Confirm Overwrite answered 'n' with any item sets cancelled status`` isCopy =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(true)
-            .Create()
+    let fileSys = fileSysMock(true).Create()
     let contr = createController fileSys
     let action = if isCopy then Copy else Move
     let item = Some (nodeDiffFolder, action)
@@ -253,10 +247,7 @@ let ``Confirm Overwrite answered 'n' with any item sets cancelled status`` isCop
 [<TestCase(true, 'h')>]
 [<TestCase(true, 'z')>]
 let ``Confirm Overwrite answered with any key besides 'y' or 'n' does nothing`` isCopy answer =
-    let fileSys =
-        fileSysMock()
-            .Setup(fun x -> <@ x.Exists (any()) @>).Returns(true)
-            .Create()
+    let fileSys = fileSysMock(true).Create()
     let contr = createController fileSys
     let action = if isCopy then Copy else Move
     let item = Some (nodeDiffFolder, action)

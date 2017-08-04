@@ -123,8 +123,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
             config.Save())
         window.LocationChanged.Add (fun _ ->
-            config.Window.Left <- int window.Left
-            config.Window.Top <- int window.Top
+            config.Window.Left <- int window.Left |> max 0
+            config.Window.Top <- int window.Top |> max 0
             config.Save())
         window.SizeChanged.Add (fun e -> 
             config.Window.Width <- int window.Width

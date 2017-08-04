@@ -111,6 +111,7 @@ type FileSystemService() =
 
     member this.Move currentPath newPath =
         let moveFile source dest =
+            this.PrepForOverwrite <| FileInfo dest
             FileSystem.MoveFile(source, dest, true)
         let rec moveDir source dest =
             if Directory.Exists dest then
@@ -133,6 +134,9 @@ type FileSystemService() =
     member this.Copy currentPath newPath =
         let source = wpath currentPath
         let dest = wpath newPath
+        let copyFile source dest =
+            this.PrepForOverwrite <| FileInfo dest
+            File.Copy(source, dest, true)
         if Directory.Exists source then
             let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
             // copy folder structure
@@ -141,9 +145,9 @@ type FileSystemService() =
                 |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
             // copy files
             Directory.GetFiles(source, "*", SearchOption.AllDirectories)
-                |> Seq.iter (fun file -> File.Copy(file, getDest file, true))
+                |> Seq.iter (fun file -> copyFile file (getDest file))
         else
-            File.Copy(source, dest, true)
+            copyFile source dest
 
     member this.Recycle path =
         let wp = wpath path
@@ -154,14 +158,13 @@ type FileSystemService() =
 
     member this.Delete path =
         let wp = wpath path
-        // need to clear attributes since the Delete API refuses to delete read-only files
-        let resetAttr p = File.SetAttributes(p, FileAttributes.Normal);
-        if Directory.Exists wp then
-            Directory.GetFiles(wp, "*", SearchOption.AllDirectories)
-                |> Seq.iter (fun file -> resetAttr file)
+        let dir = DirectoryInfo(wp)
+        if dir.Exists then
+            dir.EnumerateFiles("*", SearchOption.AllDirectories)
+                |> Seq.iter this.PrepForOverwrite
             Directory.Delete(wp, true)
         else
-            resetAttr wp
+            this.PrepForOverwrite <| FileInfo wp
             File.Delete wp
 
     member this.OpenFile path =
@@ -178,6 +181,14 @@ type FileSystemService() =
     member this.OpenWith exePath itemPath =
         Process.Start(exePath, sprintf "\"%s\"" (wpath itemPath)) |> ignore
 
+
+    member private this.PrepForOverwrite file =
+        if file.Exists then
+            if file.Attributes.HasFlag FileAttributes.System then
+                raise <| UnauthorizedAccessException(sprintf "%s is a System file." file.Name)
+            let flagsToClear = FileAttributes.ReadOnly ||| FileAttributes.Hidden
+            if unbox<int> (file.Attributes &&& flagsToClear) <> 0 then
+                file.Attributes <- file.Attributes &&& (~~~flagsToClear)
 
     member private this.FileNode file = {
         Path = toPath file.FullName

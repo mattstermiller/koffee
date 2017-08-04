@@ -110,12 +110,25 @@ type FileSystemService() =
             | _ -> failwith (this.CannotActOnNodeType "create" nodeType)
 
     member this.Move currentPath newPath =
+        let moveFile source dest =
+            FileSystem.MoveFile(source, dest, true)
+        let rec moveDir source dest =
+            if Directory.Exists dest then
+                // if dest directory exists, merge contents
+                let moveItem moveFunc sourceItem =
+                    let destPath = Path.Combine(dest, Path.GetFileName(sourceItem))
+                    moveFunc sourceItem destPath
+                Directory.EnumerateFiles(source) |> Seq.iter (moveItem moveFile)
+                Directory.EnumerateDirectories(source) |> Seq.iter (moveItem moveDir)
+            else
+                Directory.Move(source, dest)
         let source = wpath currentPath
         let dest = wpath newPath
         if Directory.Exists source then
-            Directory.Move(source, dest)
+            moveDir source dest
+            Directory.Delete(source, true)
         else
-            File.Move(source, dest)
+            moveFile source dest
 
     member this.Copy currentPath newPath =
         let source = wpath currentPath

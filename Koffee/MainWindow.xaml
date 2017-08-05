@@ -21,6 +21,7 @@
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Type}" Value="{x:Static my:NodeType.Folder}">
                             <Setter Property="Foreground" Value="#7c450b"/>
+                            <Setter Property="FontWeight" Value="DemiBold"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding IsHidden}" Value="true">
                             <Setter Property="Foreground" Value="DarkGray"/>

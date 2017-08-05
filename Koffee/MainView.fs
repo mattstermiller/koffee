@@ -31,7 +31,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         // setup grid
         window.NodeGrid.AddColumn("Name", widthWeight = 3.0)
         window.NodeGrid.AddColumn("Type", converter = ValueConverters.UnionText())
-        window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = "yyyy-MM-dd  HH:mm")
+        window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
         window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
 
@@ -67,7 +67,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
         // update UI for the command input mode
         bindPropertyToFunc <@ model.CommandInputMode @> (fun mode ->
-            this.CommandInputModeChanged mode model.SelectedNode
+            this.CommandInputModeChanged mode model.SelectedNode model.ItemBuffer
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update UI for status
@@ -207,7 +207,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         if wasBusy && not isBusy then
             window.NodeGrid.Focus() |> ignore
 
-    member this.CommandInputModeChanged mode node =
+    member this.CommandInputModeChanged mode node itemBuffer =
         match mode with
         | Some inputMode ->
             let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
@@ -218,7 +218,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
             window.BookmarkPanel.Visibility <- if isBookmark then Visibility.Visible else Visibility.Hidden
-            this.ShowCommandBar (inputMode.Prompt node)
+            this.ShowCommandBar (inputMode.Prompt node (itemBuffer |> Option.map fst))
         | None -> this.HideCommandBar ()
 
     member private this.ShowCommandBar label =

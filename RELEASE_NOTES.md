@@ -8,6 +8,7 @@
 - Added color for folders and hidden items
 - Added search highlighting and match count
 - Added date and size comparison for file overwrite prompt
+- Replaced Rename "replace extension" has been replaced with "replace full name"
 - Window size and position are now remembered
 - Escape and Exit command now work when the path text box is focused
 - Fixes crash when opening a file fails

@@ -55,7 +55,7 @@ type RenamePart =
     | EndName
     | End
     | ReplaceName
-    | ReplaceExt
+    | ReplaceAll
 
 type ConfirmType =
     | Overwrite
@@ -244,7 +244,7 @@ type MainEvents =
         | StartInput (Rename EndName) -> "Rename Item (Append to Name)"
         | StartInput (Rename End) -> "Rename Item (Append to Extension)"
         | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
-        | StartInput (Rename ReplaceExt) -> "Rename Item (Replace Extension)"
+        | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
         | StartInput (Confirm _) -> ""
         | CommandCharTyped _ -> ""
         | ExecuteCommand -> "Execute the Currently Entered Command"
@@ -288,7 +288,7 @@ type MainEvents =
         StartInput (Rename EndName)
         StartInput (Rename End)
         StartInput (Rename ReplaceName)
-        StartInput (Rename ReplaceExt)
+        StartInput (Rename ReplaceAll)
         StartMove
         StartCopy
         Put

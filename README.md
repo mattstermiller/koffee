@@ -48,7 +48,7 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `a` to start with the cursor at the end of the name, before the extension
     - Press `A` to start with the cursor at the end of the extension
     - Press `c` to start with the name (without extension) selected so that typing will replace the name
-    - Press `C` to start with the extension selected so that typing will replace the extension
+    - Press `C` to start with the full name selected
     - When you are done editing the name, press `Enter`
 - **Move / Copy**
     1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed at the lower-right corner of the window.

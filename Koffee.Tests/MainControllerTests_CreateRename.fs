@@ -156,13 +156,13 @@ let ``StartInput for rename replace name with no name sets command text and sele
     renameTextSelection ReplaceName ".txt" |> shouldEqual (0, 0)
 
 [<Test>]
-let ``StartInput for rename replace extension sets command text and selection``() =
-    renameTextSelection ReplaceExt "three.txt.old" |> shouldEqual (10, 3)
+let ``StartInput for rename replace all sets command text and selection``() =
+    renameTextSelection ReplaceAll "three.txt.old" |> shouldEqual (0, 13)
 
 [<Test>]
-let ``StartInput for rename replace extension with no extension sets command text and selection``() =
-    renameTextSelection ReplaceExt "three" |> shouldEqual (5, 0)
+let ``StartInput for rename replace all with no extension sets command text and selection``() =
+    renameTextSelection ReplaceAll "three" |> shouldEqual (0, 5)
 
 [<Test>]
-let ``StartInput for rename replace extension with just dot sets command text and selection``() =
-    renameTextSelection ReplaceExt "three." |> shouldEqual (6, 0)
+let ``StartInput for rename replace all with just dot sets command text and selection``() =
+    renameTextSelection ReplaceAll "three." |> shouldEqual (0, 6)

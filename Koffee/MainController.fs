@@ -521,14 +521,10 @@ type MainController(fileSys: IFileSystemService,
             model.CommandTextSelection <-
                 match pos with
                 | Begin -> (0, 0)
-                | EndName  -> (name.Length, 0)
-                | End  -> (fullName.Length, 0)
+                | EndName -> (name.Length, 0)
+                | End -> (fullName.Length, 0)
                 | ReplaceName -> (0, name.Length)
-                | ReplaceExt ->
-                    if ext.Length > 0 then
-                        (name.Length + 1, ext.Length - 1)
-                    else
-                        (name.Length, 0)
+                | ReplaceAll -> (0, fullName.Length)
         | None -> ()
 
 

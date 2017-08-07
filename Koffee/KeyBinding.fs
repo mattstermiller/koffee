@@ -32,7 +32,7 @@ let DefaultsAsString = [
     ("a", StartInput (Rename EndName))
     ("A", StartInput (Rename End))
     ("c", StartInput (Rename ReplaceName))
-    ("C", StartInput (Rename ReplaceExt))
+    ("C", StartInput (Rename ReplaceAll))
     ("f", StartInput Find)
     (";", FindNext)
     ("/", StartInput Search)

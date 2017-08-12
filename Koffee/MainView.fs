@@ -10,6 +10,7 @@ open FSharp.Desktop.UI
 open ModelExtensions
 open UIHelpers
 open Utility
+open Reflection
 open ConfigExt
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
@@ -218,8 +219,30 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
             window.BookmarkPanel.Visibility <- if isBookmark then Visibility.Visible else Visibility.Hidden
-            this.ShowCommandBar (inputMode.Prompt node (itemBuffer |> Option.map fst))
+            this.ShowCommandBar (inputMode |> this.GetPrompt node (itemBuffer |> Option.map fst))
         | None -> this.HideCommandBar ()
+
+    member this.GetPrompt (node: Node) (item: Node option) = function
+        | Confirm Overwrite ->
+            match node.Type with
+            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" node.Name
+            | File ->
+                let sourceModified = item |> Option.bind (fun n -> n.Modified)
+                let sourceSize = item |> Option.bind (fun n -> n.Size)
+                match sourceModified, sourceSize, node.Modified, node.Size with
+                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                    let compare a b less greater =
+                        if a = b then "same"
+                        else if a < b then less
+                        else greater
+                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                        node.Name
+                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" node.Name
+            | _ -> ""
+        | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
+        | inputType -> inputType |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
 
     member private this.ShowCommandBar label =
         window.CommandLabel.Content <- label

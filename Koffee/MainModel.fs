@@ -3,7 +3,6 @@
 open System
 open System.Text.RegularExpressions
 open FSharp.Desktop.UI
-open Reflection
 open ModelExtensions
 open Utility
 
@@ -71,29 +70,6 @@ type CommandInput =
     | CreateFolder
     | Rename of RenamePart
     | Confirm of ConfirmType
-
-    member this.Prompt (node: Node) (item: Node option) =
-        match this with
-        | Confirm Overwrite ->
-            match node.Type with
-            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" node.Name
-            | File ->
-                let sourceModified = item |> Option.bind (fun n -> n.Modified)
-                let sourceSize = item |> Option.bind (fun n -> n.Size)
-                match sourceModified, sourceSize, node.Modified, node.Size with
-                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                    let compare a b less greater =
-                        if a = b then "same"
-                        else if a < b then less
-                        else greater
-                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                        node.Name
-                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" node.Name
-            | _ -> ""
-        | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
-        | _ -> this |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
 
     member this.AllowedOnNodeType nodeType =
         match this with

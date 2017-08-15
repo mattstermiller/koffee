@@ -287,11 +287,11 @@ module MainStatus =
     let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path
     let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
     let toggleHidden showing = Message <| sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
-    let openFile path = Message <| sprintf "Opened File: %s" path
+    let openFile name = Message <| sprintf "Opened File: %s" name
     let couldNotOpenFile name error = ErrorMessage <| sprintf "Could not open %s: %s" name error
     let openExplorer path = Message <| sprintf "Opened Windows Explorer to: %s" path
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
-    let openTextEditor path = Message <| sprintf "Opened text editor to: %s" path
+    let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name
     let couldNotOpenTextEditor error = ErrorMessage <| sprintf "Could not open text editor: %s" error
 
     let private runningActionMessage action pathFormat =

@@ -118,7 +118,7 @@ type MainController(fileSys: IFileSystemService,
             | File ->
                 try
                     fileSys.OpenFile path
-                    model.Status <- Some <| MainStatus.openFile (path.Format model.PathFormat)
+                    model.Status <- Some <| MainStatus.openFile model.SelectedNode.Name
                 with | ex ->
                     model.Status <- Some <| MainStatus.couldNotOpenFile path.Name ex.Message
 
@@ -492,7 +492,7 @@ type MainController(fileSys: IFileSystemService,
         | File ->
             try
                 fileSys.OpenWith config.TextEditor model.SelectedNode.Path
-                model.Status <- Some <| MainStatus.openTextEditor (model.SelectedNode.Path.Format model.PathFormat)
+                model.Status <- Some <| MainStatus.openTextEditor model.SelectedNode.Name
             with | ex ->
                 model.Status <- Some <| MainStatus.couldNotOpenTextEditor ex.Message
         | _ -> ()

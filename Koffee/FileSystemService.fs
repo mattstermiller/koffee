@@ -9,7 +9,7 @@ open Koffee
 
 type IFileSystemService =
     abstract GetNode: Path -> Node option
-    abstract GetNodes: Path -> showHidden: bool-> Node list
+    abstract GetNodes: showHidden: bool -> Path -> Node list
     abstract Exists: Path -> bool
     abstract IsEmpty: Path -> bool
     abstract IsRecyclable: Path -> bool
@@ -29,7 +29,7 @@ type FileSystemService() =
 
     interface IFileSystemService with
         override this.GetNode path = this.GetNode path
-        override this.GetNodes path showHidden = this.GetNodes path showHidden
+        override this.GetNodes showHidden path = this.GetNodes showHidden path
         override this.Exists path = this.Exists path
         override this.IsEmpty node = this.IsEmpty node
         override this.IsRecyclable node = this.IsRecyclable node
@@ -52,7 +52,7 @@ type FileSystemService() =
         else
             None
 
-    member this.GetNodes path showHidden =
+    member this.GetNodes showHidden path =
         let error msg path =
             this.ErrorNode (Exception(msg)) path |> List.singleton
         if path = Path.Root then

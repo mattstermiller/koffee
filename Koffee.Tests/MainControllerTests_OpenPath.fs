@@ -49,15 +49,15 @@ let createController pathCase =
         match pathCase with
         | Same ->
             Mock<IFileSystemService>()
-                .Setup(fun x -> <@ x.GetNodes pathArg (any()) @>).Returns(oldNodes)
+                .Setup(fun x -> <@ x.GetNodes (any()) pathArg @>).Returns(oldNodes)
                 .Create()
         | Different ->
             Mock<IFileSystemService>()
-                .Setup(fun x -> <@ x.GetNodes pathArg (any()) @>).Returns(newNodes)
+                .Setup(fun x -> <@ x.GetNodes (any()) pathArg @>).Returns(newNodes)
                 .Create()
         | Inaccessible ->
             Mock<IFileSystemService>()
-                .Setup(fun x -> <@ x.GetNodes pathArg (any()) @>).Raises(ex)
+                .Setup(fun x -> <@ x.GetNodes (any()) pathArg @>).Raises(ex)
                 .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory, Config(), None)

@@ -92,7 +92,7 @@ type MainController(fileSys: IFileSystemService,
         try
             let sortField, sortDesc = model.Sort
             let sorter = SortField.SortByTypeThen sortField sortDesc
-            let nodes = fileSys.GetNodes path config.ShowHidden |> sorter
+            let nodes = fileSys.GetNodes config.ShowHidden path |> sorter
             if path <> model.Path then
                 model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
                 model.ForwardStack <- []

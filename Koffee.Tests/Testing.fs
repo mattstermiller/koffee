@@ -62,4 +62,4 @@ let baseFileSysMock (newNodes: Node list) =
         | node :: _ -> node.Path.Parent
         | [] -> createPath "path"
     Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes path (any()) @>).Returns(newNodes)
+        .Setup(fun x -> <@ x.GetNodes (any()) path @>).Returns(newNodes)

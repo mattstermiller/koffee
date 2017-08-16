@@ -7,7 +7,19 @@ open NUnit.Framework
 open FsUnitTyped
 open Foq
 open KellermanSoftware.CompareNetObjects
+open Utility
 open Testing
+
+type PathCase =
+    | Same
+    | Different
+    | Inaccessible
+
+type TestCase = {
+    GetPath: PathCase
+    Select: SelectType
+    ExpectedCursor: int option
+}
 
 let oldNodes = [
     createNode "old" "old 1"
@@ -29,49 +41,69 @@ let createModel () =
 
 let ex = UnauthorizedAccessException()
 
-let createController () =
-    let newPath = (createPath "path")
-    let oldPath = (createPath "old")
-    let badPath = (createPath "bad path")
+let path = createPath "path"
+
+let createController pathCase =
+    let pathArg = path
     let fileSys =
-        Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes newPath (any()) @>).Returns(newNodes)
-            .Setup(fun x -> <@ x.GetNodes oldPath (any()) @>).Returns(oldNodes)
-            .Setup(fun x -> <@ x.GetNodes badPath (any()) @>).Raises(ex)
-            .Create()
+        match pathCase with
+        | Same ->
+            Mock<IFileSystemService>()
+                .Setup(fun x -> <@ x.GetNodes pathArg (any()) @>).Returns(oldNodes)
+                .Create()
+        | Different ->
+            Mock<IFileSystemService>()
+                .Setup(fun x -> <@ x.GetNodes pathArg (any()) @>).Returns(newNodes)
+                .Create()
+        | Inaccessible ->
+            Mock<IFileSystemService>()
+                .Setup(fun x -> <@ x.GetNodes pathArg (any()) @>).Raises(ex)
+                .Create()
     let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
     MainController(fileSys, settingsFactory, Config(), None)
 
-[<Test>]
-let ``Opening a valid path updates model correctly``() =
+let test case =
+    let contr = createController case.GetPath
     let model = createModel()
-    let contr = createController()
-    contr.OpenPath (createPath "path") (SelectIndex 1) model
+    match case.GetPath with
+        | Same -> model.Path <- path
+        | _ -> ()
+
+    contr.OpenPath path case.Select model
 
     let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Path <- createPath "path"
-    expected.Cursor <- 1
-    expected.BackStack <- (createPath "old", 2) :: expected.BackStack
-    expected.ForwardStack <- []
+    match case.GetPath with
+        | Same ->
+            expected.Path <- path
+            case.ExpectedCursor |> Option.iter (fun c ->
+                expected.Cursor <- c)
+        | Different ->
+            let prevPath = expected.Path
+            let prevCursor = expected.Cursor
+            expected.Nodes <- newNodes
+            expected.Path <- path
+            expected.Cursor <- case.ExpectedCursor |> Option.coalesce prevCursor
+            expected.BackStack <- (prevPath, prevCursor) :: expected.BackStack
+            expected.ForwardStack <- []
+        | Inaccessible ->
+            expected.Status <- Some <| StatusType.fromExn "open path" ex
+
     assertAreEqual expected model
+
+[<Test>]
+let ``Opening a valid path updates model correctly``() =
+    test { GetPath = Different
+           Select = (SelectIndex 1)
+           ExpectedCursor = Some 1 }
 
 [<Test>]
 let ``Opening same path does not modify navigation history``() =
-    let model = createModel()
-    let contr = createController()
-    contr.OpenPath (createPath "old") (SelectIndex 1) model
-
-    let expected = createModel()
-    expected.Cursor <- 1
-    assertAreEqual expected model
+    test { GetPath = Same
+           Select = (SelectIndex 1)
+           ExpectedCursor = Some 1 }
 
 [<Test>]
 let ``Opening a path that throws on GetNodes sets error status only``() =
-    let model = createModel()
-    let contr = createController()
-    contr.OpenPath (createPath "bad path") (SelectIndex 0) model
-
-    let expected = createModel()
-    expected.Status <- Some <| StatusType.fromExn "open path" ex
-    assertAreEqual expected model
+    test { GetPath = Inaccessible
+           Select = (SelectIndex 1)
+           ExpectedCursor = None }

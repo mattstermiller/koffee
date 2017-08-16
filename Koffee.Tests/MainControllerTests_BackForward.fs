@@ -1,94 +1,87 @@
 ﻿module Koffee.MainControllerTests_BackForward
 
-open System.Windows.Input
-open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
-open Foq
 open Testing
 
-let newNodes = [
-    createNode "path" "one"
-    createNode "path" "two"
-    createNode "path" "three"
-    createNode "path" "four"
-    createNode "path" "five"
-]
+type TestResult = {
+    Path: string
+    Cursor: int
+    BackStack: (string * int) list
+    ForwardStack: (string * int) list
+}
 
-let prevStatus = Some <| Message "previous status"
-
-let createController () =
-    let fileSys =
-        Mock<IFileSystemService>()
-            .Setup(fun x -> <@ x.GetNodes (any()) (any()) @>).Returns(newNodes)
-            .Create()
-    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config(), None)
-
-let history contrFunc backStack forwardStack =
+let history handler backStack forwardStack =
     let model = createBaseTestModel()
     model.BackStack <- backStack |> List.map (fun (p, c) -> (createPath p, c))
     model.ForwardStack <- forwardStack |> List.map (fun (p, c) -> (createPath p, c))
     model.Path <- createPath "path"
     model.Cursor <- 1
-    model.Status <- prevStatus
-    let contr = createController()
-    contrFunc contr model
-    model
 
-let back = history (fun contr -> contr.Back)
-let forward = history (fun contr -> contr.Forward)
+    let openPath path select (model: MainModel) =
+        model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
+        model.ForwardStack <- []
+        model.Path <- path
+        model.Cursor <-
+            match select with
+            | SelectIndex c -> c
+            | _ -> failwith "unexpected select type"
+
+    handler openPath model
+
+    let pathStr (path: Path, c) = (path.Name, c)
+    { Path = model.Path.Name
+      Cursor = model.Cursor
+      BackStack = model.BackStack |> List.map pathStr
+      ForwardStack = model.ForwardStack |> List.map pathStr }
+
+let back = history MainHandler.back
+let forward = history MainHandler.forward
 
 [<Test>]
 let ``Back without history does nothing``() =
-    let model = back [] []
-    model.Path |> shouldEqual (createPath "path")
-    model.Cursor |> shouldEqual 1
-    model.BackStack |> shouldEqual []
-    model.ForwardStack |> shouldEqual []
-    model.Status |> shouldEqual prevStatus
+    back [] ["fwd", 2]
+    |> shouldEqual { Path = "path"
+                     Cursor = 1
+                     BackStack = []
+                     ForwardStack = ["fwd", 2] }
 
 [<Test>]
 let ``Back with simple history changes path and stacks``() =
-    let model = back ["back", 2] []
-    model.Path |> shouldEqual (createPath "back")
-    model.Cursor |> shouldEqual 2
-    model.BackStack |> shouldEqual []
-    model.ForwardStack |> shouldEqual [createPath "path", 1]
-    model.Status |> shouldEqual None
+    back ["back", 2] []
+    |> shouldEqual { Path = "back"
+                     Cursor = 2
+                     BackStack = []
+                     ForwardStack = ["path", 1] }
 
 [<Test>]
 let ``Back with more history changes path and stacks``() =
-    let model = back ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
-    model.Path |> shouldEqual (createPath "back1")
-    model.Cursor |> shouldEqual 2
-    model.BackStack |> shouldEqual [createPath "back2", 3]
-    model.ForwardStack |> shouldEqual [createPath "path", 1; createPath "fwd1", 4; createPath "fwd2", 5]
-    model.Status |> shouldEqual None
+    back ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
+    |> shouldEqual { Path = "back1"
+                     Cursor = 2
+                     BackStack = ["back2", 3]
+                     ForwardStack = ["path", 1; "fwd1", 4; "fwd2", 5] }
 
 [<Test>]
 let ``Forward without history does nothing``() =
-    let model = forward [] []
-    model.Path |> shouldEqual (createPath "path")
-    model.Cursor |> shouldEqual 1
-    model.BackStack |> shouldEqual []
-    model.ForwardStack |> shouldEqual []
-    model.Status |> shouldEqual prevStatus
+    forward ["back", 2] []
+    |> shouldEqual { Path = "path"
+                     Cursor = 1
+                     BackStack = ["back", 2]
+                     ForwardStack = [] }
 
 [<Test>]
 let ``Forward with simple history changes path and stacks``() =
-    let model = forward [] ["fwd", 2]
-    model.Path |> shouldEqual (createPath "fwd")
-    model.Cursor |> shouldEqual 2
-    model.BackStack |> shouldEqual [createPath "path", 1]
-    model.ForwardStack |> shouldEqual []
-    model.Status |> shouldEqual None
+    forward [] ["fwd", 2]
+    |> shouldEqual { Path = "fwd"
+                     Cursor = 2
+                     BackStack = ["path", 1]
+                     ForwardStack = [] }
 
 [<Test>]
 let ``Forward with more history changes path and stacks``() =
-    let model = forward ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
-    model.Path |> shouldEqual (createPath "fwd1")
-    model.Cursor |> shouldEqual 4
-    model.BackStack |> shouldEqual [createPath "path", 1; createPath "back1", 2; createPath "back2", 3]
-    model.ForwardStack |> shouldEqual [createPath "fwd2", 5]
-    model.Status |> shouldEqual None
+    forward ["back1", 2; "back2", 3] ["fwd1", 4; "fwd2", 5]
+    |> shouldEqual { Path = "fwd1"
+                     Cursor = 4
+                     BackStack = ["path", 1; "back1", 2; "back2", 3]
+                     ForwardStack = ["fwd2", 5] }

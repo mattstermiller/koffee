@@ -1,14 +1,10 @@
 ﻿module Koffee.MainControllerTests_OpenPath
 
 open System
-open System.Windows.Input
-open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
-open Foq
-open KellermanSoftware.CompareNetObjects
-open Utility
 open Testing
+open Utility
 
 type PathCase =
     | Same

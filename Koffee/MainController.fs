@@ -30,6 +30,22 @@ module MainHandler =
             model.Status <- None
         with | ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
 
+    let back openPath (model: MainModel) =
+        match model.BackStack with
+        | (path, cursor) :: backTail ->
+            let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
+            openPath path (SelectIndex cursor) model
+            model.BackStack <- backTail
+            model.ForwardStack <- newForwardStack
+        | [] -> ()
+
+    let forward openPath (model: MainModel) =
+        match model.ForwardStack with
+        | (path, cursor) :: forwardTail ->
+            openPath path (SelectIndex cursor) model
+            model.ForwardStack <- forwardTail
+        | [] -> ()
+
 type MainController(fileSys: IFileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     config: Config,
@@ -129,21 +145,8 @@ type MainController(fileSys: IFileSystemService,
     member this.OpenParent model =
         this.OpenPath model.Path.Parent (SelectName model.Path.Name) model
 
-    member this.Back model =
-        match model.BackStack with
-        | (path, cursor) :: backTail ->
-            let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
-            this.OpenPath path (SelectIndex cursor) model
-            model.BackStack <- backTail
-            model.ForwardStack <- newForwardStack
-        | [] -> ()
-
-    member this.Forward model =
-        match model.ForwardStack with
-        | (path, cursor) :: forwardTail ->
-            this.OpenPath path (SelectIndex cursor) model
-            model.ForwardStack <- forwardTail
-        | [] -> ()
+    member this.Back = MainHandler.back this.OpenPath
+    member this.Forward = MainHandler.forward this.OpenPath
 
     member this.Refresh model =
         this.OpenPath model.Path KeepSelect model

@@ -7,6 +7,29 @@ open Utility
 open ModelExtensions
 open Koffee.ConfigExt
 
+module MainHandler =
+    let openPath getNodes path select (model: MainModel) =
+        try
+            let sortField, sortDesc = model.Sort
+            let sorter = SortField.SortByTypeThen sortField sortDesc
+            let nodes = getNodes path |> sorter
+            if path <> model.Path then
+                model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
+                model.ForwardStack <- []
+                model.Path <- path
+                model.Cursor <- 0
+            let keepCursor = model.Cursor
+            model.Nodes <- nodes
+            model.SetCursor (
+                match select with
+                | SelectIndex index -> index
+                | SelectName name ->
+                    List.tryFindIndex (fun n -> n.Name = name) nodes
+                    |> (fun i -> defaultArg i model.Cursor)
+                | KeepSelect -> keepCursor)
+            model.Status <- None
+        with | ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
+
 type MainController(fileSys: IFileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     config: Config,
@@ -88,27 +111,7 @@ type MainController(fileSys: IFileSystemService,
                 this.OpenPath path KeepSelect model
         | None -> model.Status <- Some <| MainStatus.invalidPath pathStr
 
-    member this.OpenPath path select model =
-        try
-            let sortField, sortDesc = model.Sort
-            let sorter = SortField.SortByTypeThen sortField sortDesc
-            let nodes = fileSys.GetNodes config.ShowHidden path |> sorter
-            if path <> model.Path then
-                model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-                model.ForwardStack <- []
-                model.Path <- path
-                model.Cursor <- 0
-            let keepCursor = model.Cursor
-            model.Nodes <- nodes
-            model.SetCursor (
-                match select with
-                | SelectIndex index -> index
-                | SelectName name ->
-                    List.tryFindIndex (fun n -> n.Name = name) nodes
-                    |> (fun i -> defaultArg i model.Cursor)
-                | KeepSelect -> keepCursor)
-            model.Status <- None
-        with | ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
+    member this.OpenPath = MainHandler.openPath (fileSys.GetNodes config.ShowHidden)
 
     member this.OpenSelected model =
         let path = model.SelectedNode.Path

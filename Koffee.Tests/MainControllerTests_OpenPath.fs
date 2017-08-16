@@ -41,35 +41,20 @@ let createModel () =
 
 let ex = UnauthorizedAccessException()
 
-let path = createPath "path"
-
-let createController pathCase =
-    let pathArg = path
-    let fileSys =
-        match pathCase with
-        | Same ->
-            Mock<IFileSystemService>()
-                .Setup(fun x -> <@ x.GetNodes (any()) pathArg @>).Returns(oldNodes)
-                .Create()
-        | Different ->
-            Mock<IFileSystemService>()
-                .Setup(fun x -> <@ x.GetNodes (any()) pathArg @>).Returns(newNodes)
-                .Create()
-        | Inaccessible ->
-            Mock<IFileSystemService>()
-                .Setup(fun x -> <@ x.GetNodes (any()) pathArg @>).Raises(ex)
-                .Create()
-    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config(), None)
-
 let test case =
-    let contr = createController case.GetPath
+    let path = createPath "path"
+    let getNodes =
+        match case.GetPath with
+        | Same -> (fun _ -> oldNodes)
+        | Different -> (fun _ -> newNodes)
+        | Inaccessible -> (fun _ -> raise ex)
+
     let model = createModel()
     match case.GetPath with
         | Same -> model.Path <- path
         | _ -> ()
 
-    contr.OpenPath path case.Select model
+    MainHandler.openPath getNodes path case.Select model
 
     let expected = createModel()
     match case.GetPath with

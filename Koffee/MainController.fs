@@ -28,7 +28,7 @@ module MainHandler =
                     |> Option.coalesce model.Cursor
                 | KeepSelect -> keepCursor)
             model.Status <- None
-        with | ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
+        with ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
 
     let back openPath (model: MainModel) =
         match model.BackStack with
@@ -96,6 +96,30 @@ module MainHandler =
         match model.LastSearch with
         | Some str -> search str reverse model
         | None -> ()
+
+    let performedAction action (model: MainModel) =
+        model.UndoStack <- action :: model.UndoStack
+        model.RedoStack <- []
+        model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
+
+    let create fsCreate openPath nodeType name (model: MainModel) =
+        try
+            fsCreate nodeType (model.Path.Join name)
+            openPath model.Path (SelectName name) model
+            model |> performedAction (CreatedItem model.SelectedNode)
+        with ex ->
+            let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
+                                       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+            model |> MainStatus.setActionExceptionStatus action ex
+
+    let rename fsMove openPath node newName (model: MainModel) =
+        let action = RenamedItem (node, newName)
+        try
+            let newPath = node.Path.Parent.Join newName
+            fsMove node.Path newPath
+            openPath model.Path (SelectName newName) model
+            model |> performedAction action
+        with ex -> model |> MainStatus.setActionExceptionStatus action ex
 
 
 type MainController(fileSys: IFileSystemService,
@@ -272,24 +296,8 @@ type MainController(fileSys: IFileSystemService,
         | _ -> ()
     }
 
-    member private this.Create nodeType name model =
-        try
-            fileSys.Create nodeType (model.Path.Join name)
-            this.OpenPath model.Path (SelectName name) model
-            model |> this.PerformedAction (CreatedItem model.SelectedNode)
-        with | ex ->
-            let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
-                                       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-            model |> MainStatus.setActionExceptionStatus action ex
-
-    member this.Rename node newName model =
-        let action = RenamedItem (node, newName)
-        try
-            let newPath = node.Path.Parent.Join newName
-            fileSys.Move node.Path newPath
-            this.OpenPath model.Path (SelectName newName) model
-            model |> this.PerformedAction action
-        with | ex -> model |> MainStatus.setActionExceptionStatus action ex
+    member private this.Create = MainHandler.create fileSys.Create this.OpenPath
+    member this.Rename = MainHandler.rename fileSys.Move this.OpenPath
 
     member this.StartMove model =
         match model.SelectedNode.Type with
@@ -341,7 +349,7 @@ type MainController(fileSys: IFileSystemService,
                             do! runAsync (fun () -> fileSysAction node.Path newPath)
                             this.OpenPath model.Path (SelectName newName) model
                             model.ItemBuffer <- None
-                            model |> this.PerformedAction action
+                            model |> MainHandler.performedAction action
                         with | ex -> model |> MainStatus.setActionExceptionStatus action ex
         | None -> ()
     }
@@ -365,14 +373,9 @@ type MainController(fileSys: IFileSystemService,
             model.Status <- MainStatus.runningAction action model.PathFormat
             do! runAsync (fun () -> fileSysFunc node.Path)
             this.Refresh model
-            model |> this.PerformedAction action
+            model |> MainHandler.performedAction action
         with | ex -> model |> MainStatus.setActionExceptionStatus action ex
     }
-
-    member private this.PerformedAction action model =
-        model.UndoStack <- action :: model.UndoStack
-        model.RedoStack <- []
-        model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
 
     member this.Undo model = async {
         match model.UndoStack with

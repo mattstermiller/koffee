@@ -20,31 +20,23 @@ let nodes names =
     }
     names |> Seq.map toNode |> Seq.toList
 
-let createModel inputMode cursorStart =
+let createModel cursorStart =
     let model = createBaseTestModel()
     model.Nodes <- "alice,bob,charlie,crystal,apple,cherry".Split(',') |> nodes
     model.Cursor <- cursorStart
-    model.CommandInputMode <- inputMode
     model
-
-let createController () =
-    let fileSys = Mock.Of<IFileSystemService>()
-    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config(), None)
 
 let assertEqualExceptCursor expected actual =
     CompareLogic()
-        |> ignoreMembers ["Cursor"; "Nodes"; "CommandText"]
-        |> assertAreEqualWith expected actual
+    |> ignoreMembers ["Cursor"; "Nodes"; "CommandText"]
+    |> assertAreEqualWith expected actual
 
 let find char cursorStart =
-    let model = createModel (Some Find) cursorStart
-    let expected = createModel (Some Find) cursorStart
+    let model = createModel cursorStart
+    let expected = createModel cursorStart
 
-    let contr = createController()
-    Async.RunSynchronously <| contr.CommandCharTyped char model
+    MainHandler.find char model
 
-    expected.CommandInputMode <- None
     expected.LastFind <- (Some char)
     expected.Status <- Some <| MainStatus.find char
     assertEqualExceptCursor expected model
@@ -78,13 +70,12 @@ with
 
 let assertSearchGiven reverse searchStr cursorStart expectedResult =
     let search = if searchStr <> "" then Some searchStr else None
-    let model = createModel None cursorStart
+    let model = createModel cursorStart
     model.LastSearch <- search
-    let expected = createModel None cursorStart
+    let expected = createModel cursorStart
 
     MainHandler.searchNext reverse model
 
-    expected.CommandInputMode <- None
     expected.LastSearch <- search
     expected.Status <- search |> Option.map (MainStatus.search expectedResult.Count)
     assertEqualExceptCursor expected model

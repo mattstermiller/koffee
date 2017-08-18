@@ -82,8 +82,7 @@ let assertSearchGiven reverse searchStr cursorStart expectedResult =
     model.LastSearch <- search
     let expected = createModel None cursorStart
 
-    let contr = createController()
-    contr.SearchNext reverse model
+    MainHandler.searchNext reverse model
 
     expected.CommandInputMode <- None
     expected.LastSearch <- search

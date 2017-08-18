@@ -25,7 +25,7 @@ module MainHandler =
                 | SelectIndex index -> index
                 | SelectName name ->
                     List.tryFindIndex (fun n -> n.Name = name) nodes
-                    |> (fun i -> defaultArg i model.Cursor)
+                    |> Option.coalesce model.Cursor
                 | KeepSelect -> keepCursor)
             model.Status <- None
         with | ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
@@ -45,6 +45,58 @@ module MainHandler =
             openPath path (SelectIndex cursor) model
             model.ForwardStack <- forwardTail
         | [] -> ()
+
+    let private moveCursorToNext predicate reverse (model: MainModel) =
+        let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
+        let items =
+            if reverse then
+                Seq.append indexed.[model.Cursor..] indexed.[0..(model.Cursor-1)]
+                |> Seq.rev
+            else
+                Seq.append indexed.[(model.Cursor+1)..] indexed.[0..model.Cursor]
+        items
+        |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
+        |> Seq.tryHead
+        |> Option.iter (fun index -> model.SetCursor index)
+
+    let find char (model: MainModel) =
+        model.LastFind <- Some char
+        model.Status <- Some <| MainStatus.find char
+        moveCursorToNext (fun n -> n.Name.[0] = char) false model
+
+    let findNext (model: MainModel) =
+        match model.LastFind with
+        | Some c -> find c model
+        | None -> ()
+
+    let search searchStr reverse (model: MainModel) =
+        let search = if searchStr <> "" then Some searchStr else None
+
+        // if search is different or empty (to clear results), update node flags
+        if search.IsNone || not <| MainStatus.isSearchStatus searchStr model.Status then
+            let cursor = model.Cursor
+            model.Nodes <- model.Nodes |> List.map (fun n ->
+                let isMatch =
+                    match search with
+                    | Some s -> Regex.IsMatch(n.Name, s, RegexOptions.IgnoreCase)
+                    | None -> false
+                if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
+                else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
+                else n)
+            model.Cursor <- cursor
+            let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
+            model.Status <- search |> Option.map (MainStatus.search matches)
+
+        if search.IsSome then
+            model.LastSearch <- search
+
+        moveCursorToNext (fun n -> n.IsSearchMatch) reverse model
+
+    let searchNext reverse (model: MainModel) =
+        match model.LastSearch with
+        | Some str -> search str reverse model
+        | None -> ()
+
 
 type MainController(fileSys: IFileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
@@ -101,9 +153,9 @@ type MainController(fileSys: IFileSystemService,
         | StartInput inputMode -> Sync (this.StartInput inputMode)
         | ExecuteCommand -> Sync this.ExecuteCommand
         | CommandCharTyped c -> Async (this.CommandCharTyped c)
-        | FindNext -> Sync this.FindNext
-        | SearchNext -> Sync (this.SearchNext false)
-        | SearchPrevious -> Sync (this.SearchNext true)
+        | FindNext -> Sync MainHandler.findNext
+        | SearchNext -> Sync (MainHandler.searchNext false)
+        | SearchPrevious -> Sync (MainHandler.searchNext true)
         | StartMove -> Sync this.StartMove
         | StartCopy -> Sync this.StartCopy
         | Put -> Async (this.Put false)
@@ -165,7 +217,7 @@ type MainController(fileSys: IFileSystemService,
         let mode = model.CommandInputMode
         model.CommandInputMode <- None
         match mode with
-            | Some Search -> this.Search model.CommandText false model
+            | Some Search -> MainHandler.search model.CommandText false model
             | Some CreateFile -> this.Create File model.CommandText model
             | Some CreateFolder -> this.Create Folder model.CommandText model
             | Some (Rename _) -> this.Rename model.SelectedNode model.CommandText model
@@ -180,7 +232,7 @@ type MainController(fileSys: IFileSystemService,
     member this.CommandCharTyped char model = async {
         match model.CommandInputMode with
         | Some Find ->
-            this.Find char model
+            MainHandler.find char model
             model.CommandInputMode <- None
         | Some GoToBookmark ->
             model.CommandInputMode <- None
@@ -219,60 +271,6 @@ type MainController(fileSys: IFileSystemService,
                 model.CommandText <- ""
         | _ -> ()
     }
-
-    member this.Find char model =
-        model.LastFind <- Some char
-        model.Status <- Some <| MainStatus.find char
-        this.MoveCursorToNext (fun n -> n.Name.[0] = char) false model
-
-    member this.FindNext model =
-        match model.LastFind with
-        | Some c -> this.Find c model
-        | None -> ()
-
-    member this.Search searchStr reverse model =
-        let search = if searchStr <> "" then Some searchStr else None
-
-        // if search is different or empty (to clear results), update node flags
-        if search.IsNone || not <| MainStatus.isSearchStatus searchStr model.Status then
-            let cursor = model.Cursor
-            model.Nodes <-
-                model.Nodes
-                |> Seq.map (fun n ->
-                    let isMatch =
-                        match search with
-                        | Some str -> Regex.IsMatch(n.Name, str, RegexOptions.IgnoreCase)
-                        | None -> false
-                    if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
-                    else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
-                    else n)
-                |> Seq.toList
-            model.Cursor <- cursor
-            let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
-            model.Status <- search |> Option.map (MainStatus.search matches)
-
-        if search.IsSome then
-            model.LastSearch <- search
-
-        this.MoveCursorToNext (fun n -> n.IsSearchMatch) reverse model
-
-    member this.SearchNext reverse model =
-        match model.LastSearch with
-        | Some str -> this.Search str reverse model
-        | None -> ()
-
-    member this.MoveCursorToNext predicate reverse model =
-        let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
-        let items =
-            if reverse then
-                Seq.append indexed.[model.Cursor..] indexed.[0..(model.Cursor-1)]
-                |> Seq.rev
-            else
-                Seq.append indexed.[(model.Cursor+1)..] indexed.[0..model.Cursor]
-        items
-            |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
-            |> Seq.tryHead
-            |> Option.iter (fun index -> model.SetCursor index)
 
     member private this.Create nodeType name model =
         try

@@ -51,11 +51,11 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `C` to start with the full name selected
     - When you are done editing the name, press `Enter`
 - **Move / Copy**
-    1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed at the lower-right corner of the window.
-    2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite folders, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
+    1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed in the lower-right corner of the window.
+    2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
 - **Delete**
-    - Press `Delete` to send the currently selected item to the Recycle Bin. If the item is too large to fit in the Recycle Bin, a message will be shown instead.
-    - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press any other key to cancel.
+    - Press `Delete` to send the currently selected item to the Recycle Bin. If the item is too large to fit in the Recycle Bin, an error message will be shown instead.
+    - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.

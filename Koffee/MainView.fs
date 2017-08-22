@@ -100,11 +100,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 
         // pressing delete when viewing bookmarks allows delete
-        window.CommandBox.PreviewKeyDown.Add <| onKey Key.Delete (fun () ->
-            match model.CommandInputMode with
-            | Some GoToBookmark | Some SetBookmark ->
-                model.CommandInputMode <- Some DeleteBookmark
-            | _ -> ())
+        window.CommandBox.PreviewKeyDown.Add (fun evt ->
+            if evt.Key = Key.Delete then
+                match model.CommandInputMode with
+                | Some GoToBookmark | Some SetBookmark ->
+                    evt.Handled <- true
+                    model.CommandInputMode <- Some DeleteBookmark
+                | _ -> ())
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor

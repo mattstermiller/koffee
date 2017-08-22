@@ -121,13 +121,13 @@ type FileSystemService() =
                     moveFunc sourceItem destPath
                 Directory.EnumerateFiles(source) |> Seq.iter (moveItem moveFile)
                 Directory.EnumerateDirectories(source) |> Seq.iter (moveItem moveDir)
+                Directory.Delete(source)
             else
                 Directory.Move(source, dest)
         let source = wpath currentPath
         let dest = wpath newPath
         if Directory.Exists source then
             moveDir source dest
-            Directory.Delete(source, true)
         else
             moveFile source dest
 

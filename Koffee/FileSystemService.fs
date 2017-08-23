@@ -19,7 +19,7 @@ type IFileSystemService =
     abstract Recycle: Path -> unit
     abstract Delete: Path -> unit
     abstract OpenFile: Path -> unit
-    abstract OpenExplorer: Path -> unit
+    abstract OpenExplorer: Node -> unit
     abstract OpenCommandLine: Path -> unit
     abstract OpenWith: exePath: string -> itemPath: Path -> unit
 
@@ -39,7 +39,7 @@ type FileSystemService() =
         override this.Recycle node = this.Recycle node
         override this.Delete node = this.Delete node
         override this.OpenFile path = this.OpenFile path
-        override this.OpenExplorer path = this.OpenExplorer path
+        override this.OpenExplorer node = this.OpenExplorer node
         override this.OpenCommandLine path = this.OpenCommandLine path
         override this.OpenWith exePath itemPath = this.OpenWith exePath itemPath
 
@@ -53,8 +53,8 @@ type FileSystemService() =
             None
 
     member this.GetNodes path showHidden =
-        let error msg parent =
-            this.ErrorNode (Exception(msg)) parent |> List.singleton
+        let error msg path =
+            this.ErrorNode (Exception(msg)) path |> List.singleton
         if path = Path.Root then
             DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
         else
@@ -68,7 +68,9 @@ type FileSystemService() =
                     |> Seq.filter (fun n -> not n.IsHidden || showHidden)
                     |> Seq.toList
                 if nodes.IsEmpty then
-                    error "Empty Folder" path.Parent
+                    { Path = path; Name = "<Empty Folder>"; Type = Empty
+                      Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+                    |> List.singleton
                 else nodes
             else error "Path does not exist" Path.Root
 
@@ -170,9 +172,14 @@ type FileSystemService() =
     member this.OpenFile path =
         Process.Start(wpath path) |> ignore
 
-    member this.OpenExplorer path =
-        if path <> Path.Root then
-            Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath path)) |> ignore
+    member this.OpenExplorer node =
+        match node.Type with
+        | File | Folder when node.Path <> Path.Root ->
+            Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath node.Path)) |> ignore
+        | Drive | Empty ->
+            Process.Start("explorer.exe", sprintf "\"%s\"" (wpath node.Path)) |> ignore
+        | _ ->
+            Process.Start("explorer.exe") |> ignore
 
     member this.OpenCommandLine path =
         if path <> Path.Root then

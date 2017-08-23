@@ -121,6 +121,7 @@ type MainController(fileSys: IFileSystemService,
                     model.Status <- Some <| MainStatus.openFile model.SelectedNode.Name
                 with | ex ->
                     model.Status <- Some <| MainStatus.couldNotOpenFile path.Name ex.Message
+            | Empty -> ()
 
     member this.OpenParent model =
         this.OpenPath model.Path.Parent (SelectName model.Path.Name) model
@@ -478,9 +479,8 @@ type MainController(fileSys: IFileSystemService,
         model.Status <- Some <| MainStatus.sort field desc
 
     member this.OpenExplorer model =
-        if model.Path <> Path.Root then
-            fileSys.OpenExplorer model.SelectedNode.Path
-            model.Status <- Some <| MainStatus.openExplorer model.PathFormatted
+        fileSys.OpenExplorer model.SelectedNode
+        model.Status <- Some <| MainStatus.openExplorer
 
     member this.OpenCommandLine model =
         if model.Path <> Path.Root then

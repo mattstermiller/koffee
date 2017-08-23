@@ -10,6 +10,7 @@ type NodeType =
     | File
     | Folder
     | Drive
+    | Empty
     | Error
 
     override this.ToString() = (sprintf "%A" this).ToLower()

@@ -170,7 +170,9 @@ type FileSystemService() =
             File.Delete wp
 
     member this.OpenFile path =
-        Process.Start(wpath path) |> ignore
+        let pinfo = ProcessStartInfo(wpath path)
+        pinfo.WorkingDirectory <- wpath path.Parent
+        Process.Start(pinfo) |> ignore
 
     member this.OpenExplorer node =
         match node.Type with

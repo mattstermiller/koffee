@@ -65,9 +65,7 @@ module MainHandler =
         moveCursorToNext (fun n -> n.Name.[0] = char) false model
 
     let findNext (model: MainModel) =
-        match model.LastFind with
-        | Some c -> find c model
-        | None -> ()
+        model.LastFind |> Option.iter (fun c -> find c model)
 
     let search searchStr reverse (model: MainModel) =
         let search = if searchStr <> "" then Some searchStr else None
@@ -76,10 +74,8 @@ module MainHandler =
         if search.IsNone || not <| MainStatus.isSearchStatus searchStr model.Status then
             let cursor = model.Cursor
             model.Nodes <- model.Nodes |> List.map (fun n ->
-                let isMatch =
-                    match search with
-                    | Some s -> Regex.IsMatch(n.Name, s, RegexOptions.IgnoreCase)
-                    | None -> false
+                let isMatch = search |> Option.exists (fun s ->
+                    Regex.IsMatch(n.Name, s, RegexOptions.IgnoreCase))
                 if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
                 else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
                 else n)
@@ -93,9 +89,7 @@ module MainHandler =
         moveCursorToNext (fun n -> n.IsSearchMatch) reverse model
 
     let searchNext reverse (model: MainModel) =
-        match model.LastSearch with
-        | Some str -> search str reverse model
-        | None -> ()
+        model.LastSearch |> Option.iter (fun s -> search s reverse model)
 
     let performedAction action (model: MainModel) =
         model.UndoStack <- action :: model.UndoStack
@@ -521,8 +515,7 @@ type MainController(fileSys: IFileSystemService,
 
 
     member private this.SetCommandSelection cursorPos model =
-        match cursorPos with
-        | Some pos ->
+        cursorPos |> Option.iter (fun pos ->
             let fullName = model.CommandText
             let (name, ext) = Path.SplitName fullName
             model.CommandTextSelection <-
@@ -532,7 +525,7 @@ type MainController(fileSys: IFileSystemService,
                 | End -> (fullName.Length, 0)
                 | ReplaceName -> (0, name.Length)
                 | ReplaceAll -> (0, fullName.Length)
-        | None -> ()
+        )
 
 
     static member GetCopyName name i =

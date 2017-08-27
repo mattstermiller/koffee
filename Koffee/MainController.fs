@@ -46,6 +46,29 @@ module MainHandler =
             model.ForwardStack <- forwardTail
         | [] -> ()
 
+    let private setCommandSelection cursorPos (model: MainModel) =
+        cursorPos |> Option.iter (fun pos ->
+            let fullName = model.CommandText
+            let (name, ext) = Path.SplitName fullName
+            model.CommandTextSelection <-
+                match pos with
+                | Begin -> (0, 0)
+                | EndName -> (name.Length, 0)
+                | End -> (fullName.Length, 0)
+                | ReplaceName -> (0, name.Length)
+                | ReplaceAll -> (0, fullName.Length)
+        )
+
+    let startInput (inputMode: CommandInput) (model: MainModel) =
+        if inputMode.AllowedOnNodeType model.SelectedNode.Type then
+            let text, pos =
+                match inputMode with
+                    | Rename pos -> model.SelectedNode.Name, (Some pos)
+                    | _ -> "", None
+            model.CommandInputMode <- Some inputMode
+            model.CommandText <- text
+            setCommandSelection pos model
+
     let private moveCursorToNext predicate reverse (model: MainModel) =
         let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
         let items =
@@ -221,15 +244,7 @@ type MainController(fileSys: IFileSystemService,
     member this.Refresh model =
         this.OpenPath model.Path KeepSelect model
 
-    member this.StartInput inputMode model =
-        if inputMode.AllowedOnNodeType model.SelectedNode.Type then
-            let text, pos =
-                match inputMode with
-                    | Rename pos -> model.SelectedNode.Name, (Some pos)
-                    | _ -> "", None
-            model.CommandInputMode <- Some inputMode
-            model.CommandText <- text
-            this.SetCommandSelection pos model
+    member this.StartInput = MainHandler.startInput
 
     member this.ExecuteCommand model =
         let mode = model.CommandInputMode
@@ -512,21 +527,6 @@ type MainController(fileSys: IFileSystemService,
         model.PathFormat <- config.PathFormat
         model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
         this.Refresh model
-
-
-    member private this.SetCommandSelection cursorPos model =
-        cursorPos |> Option.iter (fun pos ->
-            let fullName = model.CommandText
-            let (name, ext) = Path.SplitName fullName
-            model.CommandTextSelection <-
-                match pos with
-                | Begin -> (0, 0)
-                | EndName -> (name.Length, 0)
-                | End -> (fullName.Length, 0)
-                | ReplaceName -> (0, name.Length)
-                | ReplaceAll -> (0, fullName.Length)
-        )
-
 
     static member GetCopyName name i =
         let (nameNoExt, ext) = Path.SplitName name

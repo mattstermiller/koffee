@@ -30,35 +30,21 @@ let createModel () =
 
 let ex = UnauthorizedAccessException()
 
-let createFileSys () =
-    (baseFileSysMock newNodes).Create()
-
-let createUnauthorizedFileSys () =
-    (baseFileSysMock newNodes)
-        .Setup(fun x -> <@ x.Create (any()) (any()) @>).Raises(ex)
-        .Setup(fun x -> <@ x.Move (any()) (any()) @>).Raises(ex)
-        .Create()
-
-let createController fileSys =
-    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config(), None)
-
 let comparer () =
     CompareLogic() |> ignoreMembers ["CommandText"]
 
 [<Test>]
-let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
-    let fileSys = createFileSys()
-    let contr = createController fileSys
+let ``Create folder calls fsCreate, openPath and sets status``() =
+    let mutable created : (NodeType * Path) option = None
+    let fsCreate nodeType path = created <- Some (nodeType, path)
+    let openPath path select (model: MainModel) =
+        model.Nodes <- newNodes
+        model.Cursor <- 1
     let createNode = newNodes.[1]
     let model = createModel()
-    model.CommandInputMode <- Some CreateFolder
-    model.CommandText <- createNode.Name
-    contr.ExecuteCommand model
+    MainHandler.create fsCreate openPath Folder createNode.Name model
 
-    let nodeType = createNode.Type
-    let path = createNode.Path
-    verify <@ fileSys.Create nodeType path @> once
+    created |> shouldEqual (Some (createNode.Type, createNode.Path))
     let expectedAction = CreatedItem createNode
     let expected = createModel()
     expected.Nodes <- newNodes
@@ -66,36 +52,33 @@ let ``Create folder calls fileSys.Create, reloads nodes and sets cursor``() =
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    comparer() |> assertAreEqualWith expected model
+    assertAreEqualWith expected model (comparer())
 
 [<Test>]
 let ``Create folder handles error by setting error status``() =
-    let fileSys = createUnauthorizedFileSys()
-    let contr = createController fileSys
+    let fsCreate nodeType path = raise ex
+    let openPath path select (model: MainModel) = failwith "this should not be called"
     let createNode = newNodes.[1]
     let model = createModel()
-    model.CommandInputMode <- Some CreateFolder
-    model.CommandText <- createNode.Name
-    contr.ExecuteCommand model
+    MainHandler.create fsCreate openPath Folder createNode.Name model
 
     let expected = createModel()
     expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex
-    comparer() |> assertAreEqualWith expected model
+    assertAreEqualWith expected model (comparer())
 
 [<Test>]
-let ``Rename calls fileSys.Move, reloads nodes and sets cursor``() =
-    let fileSys = createFileSys()
-    let contr = createController fileSys
+let ``Rename calls fsMove, openPath and sets status``() =
+    let mutable renamed : (Path * Path) option = None
+    let fsMove path newPath = renamed <- Some (path, newPath)
+    let openPath path select (model: MainModel) =
+        model.Nodes <- newNodes
+        model.Cursor <- 1
     let newName = newNodes.[1].Name
     let model = createModel()
     model.Cursor <- 1
-    model.CommandInputMode <- Some (Rename Begin)
-    model.CommandText <- newName
-    contr.ExecuteCommand model
+    MainHandler.rename fsMove openPath oldNodes.[1] newName model
 
-    let oldPath = oldNodes.[1].Path
-    let newPath = newNodes.[1].Path
-    verify <@ fileSys.Move oldPath newPath @> once
+    renamed |> shouldEqual (Some (oldNodes.[1].Path, newNodes.[1].Path))
     let expectedAction = RenamedItem (oldNodes.[1], newName)
     let expected = createModel()
     expected.Nodes <- newNodes
@@ -103,33 +86,29 @@ let ``Rename calls fileSys.Move, reloads nodes and sets cursor``() =
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    comparer() |> assertAreEqualWith expected model
+    assertAreEqualWith expected model (comparer())
 
 [<Test>]
 let ``Rename handles error by setting error status``() =
-    let fileSys = createUnauthorizedFileSys()
-    let contr = createController fileSys
+    let fsMove path newPath = raise ex
+    let openPath path select (model: MainModel) = failwith "this should not be called"
+    let newName = newNodes.[1].Name
     let model = createModel()
     model.Cursor <- 1
-    model.CommandInputMode <- Some (Rename Begin)
-    model.CommandText <- newNodes.[1].Name
-    contr.ExecuteCommand model
+    MainHandler.rename fsMove openPath oldNodes.[1] newName model
 
     let expected = createModel()
     expected.Cursor <- 1
     expected |> MainStatus.setActionExceptionStatus (RenamedItem (oldNodes.[1], newNodes.[1].Name)) ex
-    comparer() |> assertAreEqualWith expected model
+    assertAreEqualWith expected model (comparer())
 
 
 let renameTextSelection cursorPosition fileName =
-    let fileSys = createFileSys()
-    let contr = createController fileSys
+    let node = createNode "path" fileName
     let model = createModel()
-    let node = { Path = createPath "path3"; Name = fileName; Type = File;
-                 Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
-    contr.StartInput (Rename cursorPosition) model
+    MainHandler.startInput (Rename cursorPosition) model
 
     model.CommandInputMode |> shouldEqual (Some (Rename cursorPosition))
     model.CommandText |> shouldEqual node.Name

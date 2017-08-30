@@ -50,7 +50,7 @@ let test case =
         | Same -> model.Path <- path
         | _ -> ()
 
-    MainLogic.openPath getNodes path case.Select model
+    MainLogic.Navigation.openPath getNodes path case.Select model
 
     let expected = createModel()
     match case.GetPath with

@@ -18,7 +18,7 @@ let oldNodes = [
 ]
 
 let nodeCopy num =
-    createNode "path" (MainLogic.getCopyName "file 2" num)
+    createNode "path" (MainLogic.Action.getCopyName "file 2" num)
 
 let newNodes = [
     createNode "path" "file 1"
@@ -194,7 +194,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     contr.Put false model |> Async.RunSynchronously
 
     let oldPath = nodeSameFolder.Path
-    let newName = MainLogic.getCopyName nodeSameFolder.Name existingCopies
+    let newName = MainLogic.Action.getCopyName nodeSameFolder.Name existingCopies
     let newPath = path.Join newName
     verify <@ fileSys.Copy oldPath newPath @> once
     let expectedAction = CopiedItem (nodeSameFolder, newPath)

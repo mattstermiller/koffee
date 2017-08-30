@@ -356,7 +356,7 @@ type MainController(fileSys: IFileSystemService,
         | Refresh -> Sync this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
-        | StartInput inputMode -> Sync (MainLogic.startInput inputMode)
+        | StartInput inputMode -> Sync (MainLogic.Action.startInput inputMode)
         | ExecuteCommand -> Sync this.ExecuteCommand
         | CommandCharTyped c -> Async (this.CommandCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
@@ -366,7 +366,6 @@ type MainController(fileSys: IFileSystemService,
         | StartCopy -> Sync (MainLogic.Action.bufferItem Copy)
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
-        | PromptDelete -> Sync (MainLogic.startInput (Confirm Delete))
         | SortList field -> Sync (MainLogic.Navigation.sortList this.Refresh field)
         | ToggleHidden -> Sync this.ToggleHidden
         | OpenSettings -> Sync this.OpenSettings

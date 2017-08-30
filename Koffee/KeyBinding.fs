@@ -44,7 +44,7 @@ let DefaultsAsString = [
     ("y", StartCopy)
     ("p", Put)
     ("<delete>", Recycle)
-    ("<s-delete>", PromptDelete)
+    ("<s-delete>", StartInput (Confirm Delete))
     ("sn", SortList Name)
     ("sm", SortList Modified)
     ("ss", SortList Size)

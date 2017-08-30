@@ -42,7 +42,7 @@ let ``Create folder calls fsCreate, openPath and sets status``() =
         model.Cursor <- 1
     let createNode = newNodes.[1]
     let model = createModel()
-    MainHandler.create fsCreate openPath Folder createNode.Name model
+    MainLogic.create fsCreate openPath Folder createNode.Name model
 
     created |> shouldEqual (Some (createNode.Type, createNode.Path))
     let expectedAction = CreatedItem createNode
@@ -60,7 +60,7 @@ let ``Create folder handles error by setting error status``() =
     let openPath path select (model: MainModel) = failwith "this should not be called"
     let createNode = newNodes.[1]
     let model = createModel()
-    MainHandler.create fsCreate openPath Folder createNode.Name model
+    MainLogic.create fsCreate openPath Folder createNode.Name model
 
     let expected = createModel()
     expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex
@@ -76,7 +76,7 @@ let ``Rename calls fsMove, openPath and sets status``() =
     let newName = newNodes.[1].Name
     let model = createModel()
     model.Cursor <- 1
-    MainHandler.rename fsMove openPath oldNodes.[1] newName model
+    MainLogic.rename fsMove openPath oldNodes.[1] newName model
 
     renamed |> shouldEqual (Some (oldNodes.[1].Path, newNodes.[1].Path))
     let expectedAction = RenamedItem (oldNodes.[1], newName)
@@ -95,7 +95,7 @@ let ``Rename handles error by setting error status``() =
     let newName = newNodes.[1].Name
     let model = createModel()
     model.Cursor <- 1
-    MainHandler.rename fsMove openPath oldNodes.[1] newName model
+    MainLogic.rename fsMove openPath oldNodes.[1] newName model
 
     let expected = createModel()
     expected.Cursor <- 1
@@ -108,7 +108,7 @@ let renameTextSelection cursorPosition fileName =
     let model = createModel()
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
-    MainHandler.startInput (Rename cursorPosition) model
+    MainLogic.startInput (Rename cursorPosition) model
 
     model.CommandInputMode |> shouldEqual (Some (Rename cursorPosition))
     model.CommandText |> shouldEqual node.Name

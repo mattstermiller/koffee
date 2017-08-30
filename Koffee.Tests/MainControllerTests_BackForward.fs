@@ -35,8 +35,8 @@ let history handler backStack forwardStack =
       BackStack = model.BackStack |> List.map pathStr
       ForwardStack = model.ForwardStack |> List.map pathStr }
 
-let back = history MainHandler.back
-let forward = history MainHandler.forward
+let back = history MainLogic.back
+let forward = history MainLogic.forward
 
 [<Test>]
 let ``Back without history does nothing``() =

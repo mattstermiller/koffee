@@ -7,7 +7,7 @@ open Utility
 open ModelExtensions
 open Koffee.ConfigExt
 
-module MainHandler =
+module MainLogic =
     let initModel (config: Config) openUserPath commandLinePath (model: MainModel) =
         config.Changed.Add (fun _ ->
             model.PathFormat <- config.PathFormat
@@ -333,7 +333,7 @@ type MainController(fileSys: IFileSystemService,
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with
-        member this.InitModel model = MainHandler.initModel config this.OpenUserPath commandLinePath model
+        member this.InitModel model = MainLogic.initModel config this.OpenUserPath commandLinePath model
         member this.Dispatcher = this.LockingDispatcher
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =
@@ -355,25 +355,25 @@ type MainController(fileSys: IFileSystemService,
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
         | OpenPath p -> Sync (this.OpenUserPath p)
-        | OpenSelected -> Sync (MainHandler.openSelected this.OpenPath fileSys.OpenFile)
+        | OpenSelected -> Sync (MainLogic.openSelected this.OpenPath fileSys.OpenFile)
         | OpenParent -> Sync (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
-        | Back -> Sync (MainHandler.back this.OpenPath)
-        | Forward -> Sync (MainHandler.forward this.OpenPath)
+        | Back -> Sync (MainLogic.back this.OpenPath)
+        | Forward -> Sync (MainLogic.forward this.OpenPath)
         | Refresh -> Sync this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
-        | StartInput inputMode -> Sync (MainHandler.startInput inputMode)
+        | StartInput inputMode -> Sync (MainLogic.startInput inputMode)
         | ExecuteCommand -> Sync this.ExecuteCommand
         | CommandCharTyped c -> Async (this.CommandCharTyped c)
-        | FindNext -> Sync MainHandler.findNext
-        | SearchNext -> Sync (MainHandler.searchNext false)
-        | SearchPrevious -> Sync (MainHandler.searchNext true)
-        | StartMove -> Sync (MainHandler.bufferItem Move)
-        | StartCopy -> Sync (MainHandler.bufferItem Copy)
+        | FindNext -> Sync MainLogic.findNext
+        | SearchNext -> Sync (MainLogic.searchNext false)
+        | SearchPrevious -> Sync (MainLogic.searchNext true)
+        | StartMove -> Sync (MainLogic.bufferItem Move)
+        | StartCopy -> Sync (MainLogic.bufferItem Copy)
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
-        | PromptDelete -> Sync (MainHandler.startInput (Confirm Delete))
-        | SortList field -> Sync (MainHandler.sortList this.Refresh field)
+        | PromptDelete -> Sync (MainLogic.startInput (Confirm Delete))
+        | SortList field -> Sync (MainLogic.sortList this.Refresh field)
         | ToggleHidden -> Sync this.ToggleHidden
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
@@ -381,8 +381,8 @@ type MainController(fileSys: IFileSystemService,
         | OpenWithTextEditor -> Sync this.OpenWithTextEditor
         | Exit -> Sync ignore // handled by view
 
-    member this.OpenPath = MainHandler.openPath (fileSys.GetNodes config.ShowHidden)
-    member this.OpenUserPath = MainHandler.openUserPath fileSys.GetNode this.OpenPath
+    member this.OpenPath = MainLogic.openPath (fileSys.GetNodes config.ShowHidden)
+    member this.OpenUserPath = MainLogic.openUserPath fileSys.GetNode this.OpenPath
     member this.Refresh model = this.OpenPath model.Path KeepSelect model
 
     member this.ToggleHidden model =
@@ -395,7 +395,7 @@ type MainController(fileSys: IFileSystemService,
         let mode = model.CommandInputMode
         model.CommandInputMode <- None
         match mode with
-        | Some Search -> MainHandler.search model.CommandText false model
+        | Some Search -> MainLogic.search model.CommandText false model
         | Some CreateFile -> this.Create File model.CommandText model
         | Some CreateFolder -> this.Create Folder model.CommandText model
         | Some (Rename _) -> this.Rename model.SelectedNode model.CommandText model
@@ -404,7 +404,7 @@ type MainController(fileSys: IFileSystemService,
     member this.CommandCharTyped char model = async {
         match model.CommandInputMode with
         | Some Find ->
-            MainHandler.find char model
+            MainLogic.find char model
             model.CommandInputMode <- None
         | Some GoToBookmark ->
             model.CommandInputMode <- None
@@ -444,24 +444,24 @@ type MainController(fileSys: IFileSystemService,
         | _ -> ()
     }
 
-    member this.Create = MainHandler.create fileSys.Create this.OpenPath
-    member this.Rename = MainHandler.rename fileSys.Move this.OpenPath
-    member this.Put = MainHandler.put config fileSys.Exists fileSys.GetNode fileSys.Move fileSys.Copy this.OpenPath
-    member this.Recycle = MainHandler.recycle fileSys.IsRecyclable this.Delete
-    member this.Delete = MainHandler.delete fileSys.Delete fileSys.Recycle this.Refresh
+    member this.Create = MainLogic.create fileSys.Create this.OpenPath
+    member this.Rename = MainLogic.rename fileSys.Move this.OpenPath
+    member this.Put = MainLogic.put config fileSys.Exists fileSys.GetNode fileSys.Move fileSys.Copy this.OpenPath
+    member this.Recycle = MainLogic.recycle fileSys.IsRecyclable this.Delete
+    member this.Delete = MainLogic.delete fileSys.Delete fileSys.Recycle this.Refresh
 
     member this.Undo model = async {
         match model.UndoStack with
         | action :: rest ->
             match action with
             | CreatedItem node ->
-                do! MainHandler.undoCreate fileSys.IsEmpty fileSys.Delete this.Refresh node model
+                do! MainLogic.undoCreate fileSys.IsEmpty fileSys.Delete this.Refresh node model
             | RenamedItem (oldNode, curName) ->
-                MainHandler.undoRename fileSys.Move this.OpenPath oldNode curName model
+                MainLogic.undoRename fileSys.Move this.OpenPath oldNode curName model
             | MovedItem (node, newPath) ->
-                do! MainHandler.undoMove fileSys.Exists fileSys.Move this.OpenPath node newPath model
+                do! MainLogic.undoMove fileSys.Exists fileSys.Move this.OpenPath node newPath model
             | CopiedItem (node, newPath) ->
-                do! MainHandler.undoCopy fileSys.GetNode fileSys.Delete fileSys.Recycle this.Refresh node newPath model
+                do! MainLogic.undoCopy fileSys.GetNode fileSys.Delete fileSys.Recycle this.Refresh node newPath model
             | DeletedItem (node, permanent) ->
                 model.Status <- Some <| MainStatus.cannotUndoDelete permanent node
 

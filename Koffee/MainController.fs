@@ -292,19 +292,21 @@ module MainLogic =
                 do! runAsync (fun () -> fileSysFunc newPath)
                 if model.Path = newPath.Parent then
                     refresh model
-            with ex ->
+            with e ->
                 let action = DeletedItem ({ node with Path = newPath }, isDeletionPermanent)
-                model |> MainStatus.setActionExceptionStatus action ex
+                model |> MainStatus.setActionExceptionStatus action e
         }
 
         let recycle isRecyclable delete (model: MainModel) = async {
             let node = model.SelectedNode
             model.Status <- Some <| MainStatus.checkingIsRecyclable
-            let! canRecycle = runAsync (fun () -> isRecyclable node.Path)
-            if canRecycle then
-                do! delete node false model
-            else
-                model.Status <- Some <| MainStatus.cannotRecycle node
+            try
+                let! canRecycle = runAsync (fun () -> isRecyclable node.Path)
+                if canRecycle then
+                    do! delete node false model
+                else
+                    model.Status <- Some <| MainStatus.cannotRecycle node
+            with e -> model |> MainStatus.setActionExceptionStatus (DeletedItem (node, false)) e
         }
 
         let delete fsDelete fsRecycle refresh node permanent (model: MainModel) = async {
@@ -315,7 +317,7 @@ module MainLogic =
                 do! runAsync (fun () -> fileSysFunc node.Path)
                 refresh model
                 model |> performedAction action
-            with ex -> model |> MainStatus.setActionExceptionStatus action ex
+            with e -> model |> MainStatus.setActionExceptionStatus action e
         }
 
 

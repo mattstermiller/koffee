@@ -45,17 +45,16 @@ let ``Recycle sets status message when not recyclable``() =
     expected.Status <- Some <| MainStatus.cannotRecycle oldNodes.[1]
     assertAreEqual expected model
 
-// TODO: handle error from isRecyclable
-//[<Test>]
-//let ``Recycle handles error by setting error status``() =
-//    let delete node permanent _ = async { failwith "delete should not be called" }
-//    let isRecyclable = (fun _ -> raise ex)
-//    let model = createModel()
-//    MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
-//
-//    let expected = createModel()
-//    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
-//    assertAreEqual expected model
+[<Test>]
+let ``Recycle handles error by setting error status``() =
+    let delete node permanent _ = async { failwith "delete should not be called" }
+    let isRecyclable = (fun _ -> raise ex)
+    let model = createModel()
+    MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
+
+    let expected = createModel()
+    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
+    assertAreEqual expected model
 
 
 [<TestCase(true)>]

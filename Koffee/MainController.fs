@@ -323,7 +323,7 @@ type MainController(fileSys: IFileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     config: Config,
                     commandLinePath: string option) =
-    let runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
+    // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with

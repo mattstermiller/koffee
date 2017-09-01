@@ -1,20 +1,13 @@
 ﻿module Koffee.MainControllerTests_Delete
 
-open System
-open System.Windows.Input
-open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
-open Foq
-open KellermanSoftware.CompareNetObjects
 open Testing
 
 let oldNodes = [
     createNode "path" "one"
     createNode "path" "two"
 ]
-
-let newNodes = [oldNodes.[0]]
 
 let createModel () =
     let model = createBaseTestModel()
@@ -23,139 +16,86 @@ let createModel () =
     model.Cursor <- 1
     model
 
-let ex = UnauthorizedAccessException()
-
-let createFileSys () =
-    (baseFileSysMock newNodes)
-        .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(true)
-        .Create()
-
-let createNoRecycleFileSys () =
-    (baseFileSysMock newNodes)
-        .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(false)
-        .Create()
-
-let createUnauthorizedFileSys () =
-    (baseFileSysMock newNodes)
-        .Setup(fun x -> <@ x.IsRecyclable (any()) @>).Returns(true)
-        .Setup(fun x -> <@ x.Recycle (any()) @>).Raises(ex)
-        .Setup(fun x -> <@ x.Delete (any()) @>).Raises(ex)
-        .Create()
-
-let createController fileSys =
-    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config(), None)
+let ex = System.UnauthorizedAccessException()
 
 [<TestCase(0)>]
 [<TestCase(1)>]
-let ``Recycle calls file sys recycle and sets message`` cursor =
-    let fileSys = createFileSys()
-    let contr = createController fileSys
+let ``Recycle calls delete non-permanent and sets message`` cursor =
+    let mutable deleted : (Node * bool) option = None
+    let delete node permanent _ = async { deleted <- Some (node, permanent) }
+    let isRecyclable = (fun _ -> true)
     let model = createModel()
     model.Cursor <- cursor
-    contr.Recycle model |> Async.RunSynchronously
+    MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
 
-    let expectedPath = oldNodes.[cursor].Path
-    verify <@ fileSys.Recycle expectedPath @> once
-    let expectedAction = DeletedItem (oldNodes.[cursor], false)
+    deleted |> shouldEqual (Some (oldNodes.[cursor], false))
     let expected = createModel()
-    expected.CommandInputMode <- None
-    expected.Nodes <- newNodes
-    expected.Cursor <- 0
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
+    expected.Cursor <- cursor
+    expected.Status <- Some <| MainStatus.checkingIsRecyclable
     assertAreEqual expected model
 
 [<Test>]
 let ``Recycle sets status message when not recyclable``() =
-    let fileSys = createNoRecycleFileSys()
-    let contr = createController fileSys
+    let delete node permanent _ = async { failwith "delete should not be called" }
+    let isRecyclable = (fun _ -> false)
     let model = createModel()
-    contr.Recycle model |> Async.RunSynchronously
+    MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
 
     let expected = createModel()
     expected.Status <- Some <| MainStatus.cannotRecycle oldNodes.[1]
     assertAreEqual expected model
 
-[<Test>]
-let ``Recycle handles error by setting error status``() =
-    let fileSys = createUnauthorizedFileSys()
-    let contr = createController fileSys
+// TODO: handle error from isRecyclable
+//[<Test>]
+//let ``Recycle handles error by setting error status``() =
+//    let delete node permanent _ = async { failwith "delete should not be called" }
+//    let isRecyclable = (fun _ -> raise ex)
+//    let model = createModel()
+//    MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
+//
+//    let expected = createModel()
+//    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
+//    assertAreEqual expected model
+
+
+[<TestCase(true)>]
+[<TestCase(false)>]
+let ``Delete calls correct file sys func and sets message`` permanent =
+    let mutable deleted = None
+    let fsDelete p = deleted <- Some p
+    let mutable recycled = None
+    let fsRecycle p = recycled <- Some p
+    let mutable refreshed = false
+    let refresh _ = refreshed <- true
     let model = createModel()
-    contr.Recycle model |> Async.RunSynchronously
+    let node = oldNodes.[0]
+    MainLogic.Action.delete fsDelete fsRecycle refresh node permanent model |> Async.RunSynchronously
 
+    if permanent then
+        deleted |> shouldEqual (Some node.Path)
+        recycled |> shouldEqual None
+    else 
+        deleted |> shouldEqual None
+        recycled |> shouldEqual (Some node.Path)
+    refreshed |> shouldEqual true
+    let expectedAction = DeletedItem (oldNodes.[0], permanent)
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], false)) ex
-    assertAreEqual expected model
-
-
-[<TestCase(0)>]
-[<TestCase(1)>]
-let ``Delete prompt answered "y" calls file sys delete and sets message`` cursor =
-    let fileSys = createNoRecycleFileSys()
-    let contr = createController fileSys
-    let model = createModel()
-    model.Cursor <- cursor
-    model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped 'y' model |> Async.RunSynchronously
-
-    let expectedPath = oldNodes.[cursor].Path
-    verify <@ fileSys.Delete expectedPath @> once
-    let expectedAction = DeletedItem (oldNodes.[cursor], true)
-    let expected = createModel()
-    expected.CommandInputMode <- None
-    expected.Nodes <- newNodes
-    expected.Cursor <- 0
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
-
 [<Test>]
-let ``Delete prompt answered "y" handles error by setting error status``() =
-    let fileSys = createUnauthorizedFileSys()
-    let contr = createController fileSys
+let ``Delete handles error by setting error status``() =
+    let fsDelete _ = raise ex
+    let fsRecycle _ = ()
+    let mutable refreshed = false
+    let refresh _ = refreshed <- true
     let model = createModel()
-    model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped 'y' model |> Async.RunSynchronously
+    let node = oldNodes.[0]
+    MainLogic.Action.delete fsDelete fsRecycle refresh node true model |> Async.RunSynchronously
 
+    refreshed |> shouldEqual false
     let expected = createModel()
-    expected.CommandInputMode <- None
-    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[1], true)) ex
+    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[0], true)) ex
     assertAreEqual expected model
-
-
-[<Test>]
-let ``Delete prompt answered with "n" sets cancelled status`` =
-    let fileSys = createFileSys()
-    let contr = createController fileSys
-    let model = createModel()
-    model.CommandInputMode <- Some (Confirm Delete)
-    contr.CommandCharTyped 'n' model |> Async.RunSynchronously
-
-    verify <@ fileSys.Delete (any()) @> never
-    let expected = createModel()
-    expected.CommandInputMode <- None
-    expected.Status <- Some <| MainStatus.cancelled
-    assertAreEqual expected model
-
-
-[<TestCase('h')>]
-[<TestCase('x')>]
-[<TestCase('q')>]
-let ``Delete prompt answered with any key besides "y" or "n" does nothing`` char =
-    let fileSys = createFileSys()
-    let contr = createController fileSys
-    let model = createModel()
-    model.CommandInputMode <- Some (Confirm Delete)
-    model.CommandText <- "test"
-    contr.CommandCharTyped char model |> Async.RunSynchronously
-
-    verify <@ fileSys.Delete (any()) @> never
-    let expected = createModel()
-    expected.CommandInputMode <- Some (Confirm Delete)
-    expected.CommandText <- ""
-    assertAreEqual expected model
-

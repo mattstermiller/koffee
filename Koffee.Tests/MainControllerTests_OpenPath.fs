@@ -1,6 +1,5 @@
 ﻿module Koffee.MainControllerTests_OpenPath
 
-open System
 open NUnit.Framework
 open FsUnitTyped
 open Testing
@@ -35,7 +34,7 @@ let createModel () =
     model.Cursor <- 2
     model
 
-let ex = UnauthorizedAccessException()
+let ex = System.UnauthorizedAccessException()
 
 let test case =
     let path = createPath "path"

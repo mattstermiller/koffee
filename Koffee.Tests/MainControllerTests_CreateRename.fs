@@ -1,11 +1,7 @@
 ﻿module Koffee.MainControllerTests_CreateRename
 
-open System
-open System.Windows.Input
-open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
-open Foq
 open KellermanSoftware.CompareNetObjects
 open Testing
 
@@ -28,7 +24,7 @@ let createModel () =
     model.CommandTextSelection <- (1, 1)
     model
 
-let ex = UnauthorizedAccessException()
+let ex = System.UnauthorizedAccessException()
 
 let comparer () =
     CompareLogic() |> ignoreMembers ["CommandText"]

@@ -1,10 +1,7 @@
 ﻿module Koffee.MainControllerTests_FindSearch
 
-open System.Windows.Input
-open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
-open Foq
 open Testing
 open KellermanSoftware.CompareNetObjects
 

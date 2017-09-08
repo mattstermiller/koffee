@@ -182,7 +182,6 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
     let fileSys =
         baseFileSysMock(newNodes)
-            .Setup(fun x -> <@ x.Exists (is(fun p -> List.contains p existingPaths)) @>).Returns(true)
             .Setup(fun x -> <@ x.GetNode (is(fun p -> List.contains p existingPaths)) @>).Returns(Some nodeSameFolder)
             .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(None)
             .Create()

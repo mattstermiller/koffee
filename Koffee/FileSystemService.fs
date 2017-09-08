@@ -10,7 +10,6 @@ open Koffee
 type IFileSystemService =
     abstract GetNode: Path -> Node option
     abstract GetNodes: showHidden: bool -> Path -> Node list
-    abstract Exists: Path -> bool
     abstract IsEmpty: Path -> bool
     abstract IsRecyclable: Path -> bool
     abstract Create: NodeType -> Path -> unit
@@ -30,7 +29,6 @@ type FileSystemService() =
     interface IFileSystemService with
         override this.GetNode path = this.GetNode path
         override this.GetNodes showHidden path = this.GetNodes showHidden path
-        override this.Exists path = this.Exists path
         override this.IsEmpty node = this.IsEmpty node
         override this.IsRecyclable node = this.IsRecyclable node
         override this.Create nodeType path = this.Create nodeType path
@@ -75,10 +73,6 @@ type FileSystemService() =
                     |> List.singleton
                 else nodes
             else error "Path does not exist" Path.Root
-
-    member this.Exists path =
-        let wp = wpath path
-        File.Exists wp || Directory.Exists wp
 
     member this.IsEmpty path =
         let wp = wpath path

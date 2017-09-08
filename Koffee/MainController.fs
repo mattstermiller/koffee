@@ -224,8 +224,9 @@ module MainLogic =
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
-        let put (config: Config) exists getNode move copy openPath overwrite (model: MainModel) = async {
+        let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
             match model.ItemBuffer with
+            | None -> ()
             | Some (node, bufferAction) ->
                 let sameFolder = node.Path.Parent = model.Path
                 if bufferAction = Move && sameFolder then
@@ -233,11 +234,11 @@ module MainLogic =
                 else
                     let newName =
                         if bufferAction = Copy && sameFolder then
-                            Seq.init 99 (getCopyName node.Name)
-                            |> Seq.pick
-                                (fun name ->
-                                    let path = model.Path.Join name
-                                    if not (exists path) then Some name else None)
+                            let exists name =
+                                match getNode (model.Path.Join name) with
+                                | Some _ -> true
+                                | None -> false
+                            Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
                         else
                             node.Name
                     let newPath = model.Path.Join newName
@@ -262,14 +263,14 @@ module MainLogic =
                             model.ItemBuffer <- None
                             model |> performedAction action
                         with ex -> model |> MainStatus.setActionExceptionStatus action ex
-            | None -> ()
         }
 
-        let undoMove exists move openPath node newPath (model: MainModel) = async {
-            if exists newPath then
+        let undoMove getNode move openPath node newPath (model: MainModel) = async {
+            match getNode newPath with
+            | Some _ ->
                 // todo: prompt for overwrite here
                 model.Status <- Some <| ErrorMessage (sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name)
-            else
+            | None ->
                 try
                     model.Status <- Some <| MainStatus.undoingMove node
                     do! runAsync (fun () -> move newPath node.Path)
@@ -441,7 +442,7 @@ type MainController(fileSys: IFileSystemService,
 
     member this.Create = MainLogic.Action.create fileSys.Create this.OpenPath
     member this.Rename = MainLogic.Action.rename fileSys.Move this.OpenPath
-    member this.Put = MainLogic.Action.put config fileSys.Exists fileSys.GetNode fileSys.Move fileSys.Copy this.OpenPath
+    member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy this.OpenPath
     member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
 
@@ -454,7 +455,7 @@ type MainController(fileSys: IFileSystemService,
             | RenamedItem (oldNode, curName) ->
                 MainLogic.Action.undoRename fileSys.Move this.OpenPath oldNode curName model
             | MovedItem (node, newPath) ->
-                do! MainLogic.Action.undoMove fileSys.Exists fileSys.Move this.OpenPath node newPath model
+                do! MainLogic.Action.undoMove fileSys.GetNode fileSys.Move this.OpenPath node newPath model
             | CopiedItem (node, newPath) ->
                 do! MainLogic.Action.undoCopy fileSys.GetNode fileSys.Delete fileSys.Recycle this.Refresh node newPath model
             | DeletedItem (node, permanent) ->

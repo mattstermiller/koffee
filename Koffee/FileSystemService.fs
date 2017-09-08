@@ -45,10 +45,12 @@ type FileSystemService() =
 
     member this.GetNode path =
         let wp = wpath path
-        if Directory.Exists wp then
-            DirectoryInfo(wp) |> this.FolderNode |> Some
-        else if File.Exists wp then
-            FileInfo(wp) |> this.FileNode |> Some
+        let dir = DirectoryInfo(wp)
+        let file = lazy FileInfo(wp)
+        if dir.Exists then
+            dir |> this.FolderNode |> Some
+        else if file.Value.Exists then
+            file.Value |> this.FileNode |> Some
         else
             None
 

@@ -38,227 +38,150 @@ let createModel () =
 
 let ex = UnauthorizedAccessException()
 
-let fileSysMock getNodeReturnsSome =
-    let node = if getNodeReturnsSome then Some nodeSameFolder else None
-    baseFileSysMock(newNodes)
-        .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(node)
+[<TestCase(false, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, false)>]
+[<TestCase(true, true)>]
+let ``Put item to move or copy in different folder with item of same name prompts for overwrite`` doCopy existingHidden =
+    let src = nodeDiffFolder
+    let dest = { nodeSameFolder with IsHidden = existingHidden }
+    let config = Config()
+    let getNode _ = Some dest
+    let move _ _ = failwith "move should not be called"
+    let copy _ _ = failwith "copy should not be called"
+    let openPath p s (m: MainModel) =
+        m.Nodes <- newNodes
+        if s = SelectName (dest.Name) then
+            m.Cursor <- 2
+        if existingHidden && not config.ShowHidden then
+            failwith "config should be temporarily be set to show hidden, but was not"
+    let item = Some (src, if doCopy then Copy else Move)
+    let model = createModel()
+    model.ItemBuffer <- item
+    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
-let createUnauthorizedFileSys () =
-    fileSysMock(false)
-        .Setup(fun x -> <@ x.Move (any()) (any()) @>).Raises(ex)
-        .Setup(fun x -> <@ x.Copy (any()) (any()) @>).Raises(ex)
-        .Create()
+    let expected = createModel()
+    expected.ItemBuffer <- item
+    expected.Nodes <- newNodes
+    expected.Cursor <- 2
+    expected.CommandInputMode <- Some (Confirm Overwrite)
+    assertAreEqual expected model
+    config.ShowHidden |> shouldEqual false
 
-let createController fileSys =
-    let settingsFactory () = Mock.Of<Mvc<SettingsEvents, SettingsModel>>()
-    MainController(fileSys, settingsFactory, Config(), None)
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Put item to move or copy handles error by setting error status`` doCopy =
+    let src = nodeDiffFolder
+    let dest = nodeSameFolder
+    let config = Config()
+    let getNode _ = None
+    let move _ _ = if not doCopy then raise ex else failwith "move should not be called"
+    let copy _ _ = if doCopy then raise ex else failwith "copy should not be called"
+    let openPath p s (m: MainModel) = m.Nodes <- newNodes
+    let item = Some (src, if doCopy then Copy else Move)
+    let model = createModel()
+    model.ItemBuffer <- item
+    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
+    let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
+    let expected = createModel()
+    expected.ItemBuffer <- item
+    expected |> MainStatus.setActionExceptionStatus expectedAction ex
+    assertAreEqual expected model
+
+// move tests
 
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to move in different folder calls file sys move`` (overwrite: bool) =
-    let fileSys = fileSysMock(overwrite).Create()
-    let contr = createController fileSys
+    let src = nodeDiffFolder
+    let dest = nodeSameFolder
+    let config = Config()
+    let getNode _ = if overwrite then Some dest else None
+    let mutable moved = None
+    let move s d = moved <- Some (s, d)
+    let copy _ _ = failwith "copy should not be called"
+    let openPath p _ (m: MainModel) = m.Nodes <- newNodes
     let model = createModel()
-    model.ItemBuffer <- Some (nodeDiffFolder, Move)
-    if overwrite then
-        model.CommandInputMode <- Some (Confirm Overwrite)
-        contr.CommandCharTyped 'y' model |> Async.RunSynchronously
-    else
-        contr.Put false model |> Async.RunSynchronously
+    model.ItemBuffer <- Some (src, Move)
+    MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
 
-    let oldPath = nodeDiffFolder.Path
-    let newPath = nodeSameFolder.Path
-    verify <@ fileSys.Move oldPath newPath @> once
-    let expectedAction = MovedItem (nodeDiffFolder, newPath)
+    moved |> shouldEqual (Some (src.Path, dest.Path))
+    let expectedAction = MovedItem (src, dest.Path)
     let expected = createModel()
     expected.Nodes <- newNodes
-    expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
-
-[<Test>]
-let ``Put item to move in different folder with item of same name prompts for overwrite``() =
-    let fileSys = fileSysMock(true).Create()
-    let contr = createController fileSys
-    let item = Some (nodeDiffFolder, Move)
-    let model = createModel()
-    model.ItemBuffer <- item
-    contr.Put false model |> Async.RunSynchronously
-
-    verify <@ fileSys.Move (any()) (any()) @> never
-    let expected = createModel()
-    expected.ItemBuffer <- item
-    expected.Nodes <- newNodes
-    expected.Cursor <- Seq.findIndex ((=) nodeSameFolder) newNodes
-    expected.CommandInputMode <- Some (Confirm Overwrite)
-    assertAreEqual expected model
-
-
 [<Test>]
 let ``Put item to move in same folder gives same-folder message``() =
-    let fileSys = fileSysMock(false).Create()
-    let contr = createController fileSys
-    let item = Some (nodeSameFolder, Move)
+    let src = nodeSameFolder
+    let config = Config()
+    let getNode _ = None
+    let move _ _ = failwith "move should not be called"
+    let copy _ _ = failwith "copy should not be called"
+    let openPath p s (m: MainModel) = m.Nodes <- newNodes
+    let item = Some (src, Move)
     let model = createModel()
     model.ItemBuffer <- item
-    contr.Put false model |> Async.RunSynchronously
+    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
-    verify <@ fileSys.Move (any()) (any()) @> never
     let expected = createModel()
     expected.ItemBuffer <- item
     expected.Status <- Some <| MainStatus.cannotMoveToSameFolder
     assertAreEqual expected model
 
-
-[<Test>]
-let ``Put item to move handles error by setting error status``() =
-    let fileSys = createUnauthorizedFileSys()
-    let contr = createController fileSys
-    let item = Some (nodeDiffFolder, Move)
-    let model = createModel()
-    model.ItemBuffer <- item
-    contr.Put false model |> Async.RunSynchronously
-
-    let expectedAction = MovedItem (nodeDiffFolder, nodeSameFolder.Path)
-    let expected = createModel()
-    expected.ItemBuffer <- item
-    expected |> MainStatus.setActionExceptionStatus expectedAction ex
-    assertAreEqual expected model
-
-
+// copy tests
 
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to copy in different folder calls file sys copy`` (overwrite: bool) =
-    let fileSys = fileSysMock(overwrite).Create()
-    let contr = createController fileSys
+    let src = nodeDiffFolder
+    let dest = nodeSameFolder
+    let config = Config()
+    let getNode _ = if overwrite then Some dest else None
+    let move _ _ = failwith "move should not be called"
+    let mutable copied = None
+    let copy s d = copied <- Some (s, d)
+    let openPath p _ (m: MainModel) = m.Nodes <- newNodes
     let model = createModel()
-    model.ItemBuffer <- Some (nodeDiffFolder, Copy)
-    if overwrite then
-        model.CommandInputMode <- Some (Confirm Overwrite)
-        contr.CommandCharTyped 'y' model |> Async.RunSynchronously
-    else
-        contr.Put false model |> Async.RunSynchronously
+    model.ItemBuffer <- Some (src, Copy)
+    MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
 
-    let curPath = nodeDiffFolder.Path
-    let newPath = nodeSameFolder.Path
-    verify <@ fileSys.Copy curPath newPath @> once
-    let expectedAction = CopiedItem (nodeDiffFolder, newPath)
+    copied |> shouldEqual (Some (src.Path, dest.Path))
+    let expectedAction = CopiedItem (src, dest.Path)
     let expected = createModel()
     expected.Nodes <- newNodes
-    expected.Cursor <- 1
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
-
-
-[<Test>]
-let ``Put item to copy in different folder with item of same name prompts for overwrite``() =
-    let fileSys = fileSysMock(true).Create()
-    let contr = createController fileSys
-    let item = Some (nodeDiffFolder, Copy)
-    let model = createModel()
-    model.ItemBuffer <- item
-    contr.Put false model |> Async.RunSynchronously
-
-    verify <@ fileSys.Copy (any()) (any()) @> never
-    let expected = createModel()
-    expected.ItemBuffer <- item
-    expected.Nodes <- newNodes
-    expected.Cursor <- Seq.findIndex ((=) nodeSameFolder) newNodes
-    expected.CommandInputMode <- Some (Confirm Overwrite)
-    assertAreEqual expected model
-
 
 [<TestCase(0)>]
 [<TestCase(1)>]
 [<TestCase(2)>]
 let ``Put item to copy in same folder calls file sys copy with new name`` existingCopies =
+    let src = nodeSameFolder
+    let config = Config()
     let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
-    let fileSys =
-        baseFileSysMock(newNodes)
-            .Setup(fun x -> <@ x.GetNode (is(fun p -> List.contains p existingPaths)) @>).Returns(Some nodeSameFolder)
-            .Setup(fun x -> <@ x.GetNode (any()) @>).Returns(None)
-            .Create()
-    let contr = createController fileSys
-    let item = Some (nodeSameFolder, Copy)
+    let getNode p = if existingPaths |> List.contains p then Some src else None
+    let move _ _ = failwith "move should not be called"
+    let mutable copied = None
+    let copy s d = copied <- Some (s, d)
+    let openPath p _ (m: MainModel) = m.Nodes <- newNodes
     let model = createModel()
-    let path = model.Path
-    model.ItemBuffer <- item
-    contr.Put false model |> Async.RunSynchronously
+    model.ItemBuffer <- Some (src, Copy)
+    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
-    let oldPath = nodeSameFolder.Path
-    let newName = MainLogic.Action.getCopyName nodeSameFolder.Name existingCopies
-    let newPath = path.Join newName
-    verify <@ fileSys.Copy oldPath newPath @> once
-    let expectedAction = CopiedItem (nodeSameFolder, newPath)
+    let destName = MainLogic.Action.getCopyName src.Name existingCopies
+    let destPath = model.Path.Join destName
+    copied |> shouldEqual (Some (src.Path, destPath))
+    let expectedAction = CopiedItem (nodeSameFolder, destPath)
     let expected = createModel()
     expected.Nodes <- newNodes
-    expected.Cursor <- newNodes |> List.findIndex (fun n -> n.Name = newName)
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
-
-
-[<Test>]
-let ``Put item to copy handles error by setting error status``() =
-    let fileSys = createUnauthorizedFileSys()
-    let contr = createController fileSys
-    let item = Some (nodeDiffFolder, Copy)
-    let model = createModel()
-    model.ItemBuffer <- item
-    contr.Put false model |> Async.RunSynchronously
-
-    let expectedAction = CopiedItem (nodeDiffFolder, nodeSameFolder.Path)
-    let expected = createModel()
-    expected.ItemBuffer <- item
-    expected |> MainStatus.setActionExceptionStatus expectedAction ex
-    assertAreEqual expected model
-
-
-
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Confirm Overwrite answered 'n' with any item sets cancelled status`` isCopy =
-    let fileSys = fileSysMock(true).Create()
-    let contr = createController fileSys
-    let action = if isCopy then Copy else Move
-    let item = Some (nodeDiffFolder, action)
-    let model = createModel()
-    model.ItemBuffer <- item
-    model.CommandInputMode <- Some (Confirm Overwrite)
-    contr.CommandCharTyped 'n' model |> Async.RunSynchronously
-
-    let expected = createModel()
-    expected.ItemBuffer <- item
-    expected.Status <- Some <| MainStatus.cancelled
-    assertAreEqual expected model
-
-
-[<TestCase(false, 'h')>]
-[<TestCase(false, 'z')>]
-[<TestCase(true, 'h')>]
-[<TestCase(true, 'z')>]
-let ``Confirm Overwrite answered with any key besides 'y' or 'n' does nothing`` isCopy answer =
-    let fileSys = fileSysMock(true).Create()
-    let contr = createController fileSys
-    let action = if isCopy then Copy else Move
-    let item = Some (nodeDiffFolder, action)
-    let model = createModel()
-    model.ItemBuffer <- item
-    model.CommandInputMode <- Some (Confirm Overwrite)
-    model.CommandText <- "test"
-    contr.CommandCharTyped answer model |> Async.RunSynchronously
-
-    let expected = createModel()
-    expected.ItemBuffer <- item
-    expected.CommandInputMode <- Some (Confirm Overwrite)
-    expected.CommandText <- ""
-    assertAreEqual expected model
-

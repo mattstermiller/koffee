@@ -6,7 +6,6 @@ open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
 open Foq
-open KellermanSoftware.CompareNetObjects
 open Testing
 
 let nodeSameFolder = createNode "path" "file 2"
@@ -49,12 +48,13 @@ let ``Put item to move or copy in different folder with item of same name prompt
     let getNode _ = Some dest
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
-    let openPath p s (m: MainModel) =
-        m.Nodes <- newNodes
+    let mutable openedHidden = None
+    let openPath p s (model: MainModel) =
+        model.Path <- p
+        model.Nodes <- newNodes
         if s = SelectName (dest.Name) then
-            m.Cursor <- 2
-        if existingHidden && not config.ShowHidden then
-            failwith "config should be temporarily be set to show hidden, but was not"
+            model.Cursor <- 2
+        openedHidden <- Some config.ShowHidden
     let item = Some (src, if doCopy then Copy else Move)
     let model = createModel()
     model.ItemBuffer <- item
@@ -67,6 +67,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
     expected.CommandInputMode <- Some (Confirm Overwrite)
     assertAreEqual expected model
     config.ShowHidden |> shouldEqual false
+    openedHidden |> shouldEqual (Some existingHidden)
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -77,7 +78,9 @@ let ``Put item to move or copy handles error by setting error status`` doCopy =
     let getNode _ = None
     let move _ _ = if not doCopy then raise ex else failwith "move should not be called"
     let copy _ _ = if doCopy then raise ex else failwith "copy should not be called"
-    let openPath p s (m: MainModel) = m.Nodes <- newNodes
+    let openPath p _ (model: MainModel) =
+        model.Path <- p
+        model.Nodes <- newNodes
     let item = Some (src, if doCopy then Copy else Move)
     let model = createModel()
     model.ItemBuffer <- item
@@ -101,7 +104,9 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let mutable moved = None
     let move s d = moved <- Some (s, d)
     let copy _ _ = failwith "copy should not be called"
-    let openPath p _ (m: MainModel) = m.Nodes <- newNodes
+    let openPath p _ (model: MainModel) =
+        model.Path <- p
+        model.Nodes <- newNodes
     let model = createModel()
     model.ItemBuffer <- Some (src, Move)
     MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
@@ -122,7 +127,9 @@ let ``Put item to move in same folder gives same-folder message``() =
     let getNode _ = None
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
-    let openPath p s (m: MainModel) = m.Nodes <- newNodes
+    let openPath p _ (model: MainModel) =
+        model.Path <- p
+        model.Nodes <- newNodes
     let item = Some (src, Move)
     let model = createModel()
     model.ItemBuffer <- item
@@ -145,7 +152,9 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d = copied <- Some (s, d)
-    let openPath p _ (m: MainModel) = m.Nodes <- newNodes
+    let openPath p _ (model: MainModel) =
+        model.Path <- p
+        model.Nodes <- newNodes
     let model = createModel()
     model.ItemBuffer <- Some (src, Copy)
     MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
@@ -170,7 +179,9 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d = copied <- Some (s, d)
-    let openPath p _ (m: MainModel) = m.Nodes <- newNodes
+    let openPath p _ (m: MainModel) =
+        m.Path <- p
+        m.Nodes <- newNodes
     let model = createModel()
     model.ItemBuffer <- Some (src, Copy)
     MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously

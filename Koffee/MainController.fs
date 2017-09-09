@@ -193,11 +193,11 @@ module MainLogic =
                 model |> MainStatus.setActionExceptionStatus action ex
         }
 
-        let rename fsMove openPath node newName (model: MainModel) =
+        let rename move openPath node newName (model: MainModel) =
             let action = RenamedItem (node, newName)
             try
                 let newPath = node.Path.Parent.Join newName
-                fsMove node.Path newPath
+                move node.Path newPath
                 openPath model.Path (SelectName newName) model
                 model |> performedAction action
             with ex -> model |> MainStatus.setActionExceptionStatus action ex

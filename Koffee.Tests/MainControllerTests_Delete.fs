@@ -21,9 +21,9 @@ let ex = System.UnauthorizedAccessException()
 [<TestCase(0)>]
 [<TestCase(1)>]
 let ``Recycle calls delete non-permanent and sets message`` cursor =
-    let mutable deleted : (Node * bool) option = None
+    let mutable deleted = None
     let delete node permanent _ = async { deleted <- Some (node, permanent) }
-    let isRecyclable = (fun _ -> true)
+    let isRecyclable _ = true
     let model = createModel()
     model.Cursor <- cursor
     MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
@@ -36,8 +36,8 @@ let ``Recycle calls delete non-permanent and sets message`` cursor =
 
 [<Test>]
 let ``Recycle sets status message when not recyclable``() =
-    let delete node permanent _ = async { failwith "delete should not be called" }
-    let isRecyclable = (fun _ -> false)
+    let delete _ _ _ = async { failwith "delete should not be called" }
+    let isRecyclable _ = false
     let model = createModel()
     MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
 
@@ -47,8 +47,8 @@ let ``Recycle sets status message when not recyclable``() =
 
 [<Test>]
 let ``Recycle handles error by setting error status``() =
-    let delete node permanent _ = async { failwith "delete should not be called" }
-    let isRecyclable = (fun _ -> raise ex)
+    let delete _ _ _ = async { failwith "delete should not be called" }
+    let isRecyclable _ = raise ex
     let model = createModel()
     MainLogic.Action.recycle isRecyclable delete model |> Async.RunSynchronously
 
@@ -87,7 +87,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
 [<Test>]
 let ``Delete handles error by setting error status``() =
     let fsDelete _ = raise ex
-    let fsRecycle _ = ()
+    let fsRecycle _ = failwith "recycle should not be called"
     let mutable refreshed = false
     let refresh _ = refreshed <- true
     let model = createModel()

@@ -202,9 +202,9 @@ module MainLogic =
                 model |> performedAction action
             with ex -> model |> MainStatus.setActionExceptionStatus action ex
 
-        let undoRename move openPath oldNode curName (model: MainModel) =
+        let undoRename move openPath oldNode currentName (model: MainModel) =
             let parentPath = oldNode.Path.Parent
-            let node = { oldNode with Name = curName; Path = parentPath.Join curName}
+            let node = { oldNode with Name = currentName; Path = parentPath.Join currentName}
             try
                 move node.Path oldNode.Path
                 openPath parentPath (SelectName oldNode.Name) model
@@ -265,36 +265,36 @@ module MainLogic =
                         with ex -> model |> MainStatus.setActionExceptionStatus action ex
         }
 
-        let undoMove getNode move openPath node newPath (model: MainModel) = async {
-            match getNode newPath with
+        let undoMove getNode move openPath node currentPath (model: MainModel) = async {
+            match getNode currentPath with // TODO: this is the wrong path, need to check the new destination instead
             | Some _ ->
-                // todo: prompt for overwrite here
+                // TODO: prompt for overwrite here?
                 model.Status <- Some <| ErrorMessage (sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name)
             | None ->
                 try
                     model.Status <- Some <| MainStatus.undoingMove node
-                    do! runAsync (fun () -> move newPath node.Path)
+                    do! runAsync (fun () -> move currentPath node.Path)
                     openPath node.Path.Parent (SelectName node.Name) model
                 with ex ->
-                    let action = MovedItem ({ node with Path = newPath }, node.Path)
+                    let action = MovedItem ({ node with Path = currentPath }, node.Path)
                     model |> MainStatus.setActionExceptionStatus action ex
         }
 
-        let undoCopy getNode fsDelete fsRecycle refresh node (newPath: Path) (model: MainModel) = async {
+        let undoCopy getNode fsDelete fsRecycle refresh node (currentPath: Path) (model: MainModel) = async {
             let mutable isDeletionPermanent = false
             try
-                let copyModified = getNode newPath |> Option.bind (fun n -> n.Modified)
+                let copyModified = getNode currentPath |> Option.bind (fun n -> n.Modified)
                 isDeletionPermanent <-
                     match node.Modified, copyModified with
                     | Some orig, Some copy when orig = copy -> true
                     | _ -> false
                 let fileSysFunc = if isDeletionPermanent then fsDelete else fsRecycle
                 model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
-                do! runAsync (fun () -> fileSysFunc newPath)
-                if model.Path = newPath.Parent then
+                do! runAsync (fun () -> fileSysFunc currentPath)
+                if model.Path = currentPath.Parent then
                     refresh model
             with e ->
-                let action = DeletedItem ({ node with Path = newPath }, isDeletionPermanent)
+                let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
                 model |> MainStatus.setActionExceptionStatus action e
         }
 

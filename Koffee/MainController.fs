@@ -323,7 +323,7 @@ module MainLogic =
         }
 
 
-type MainController(fileSys: IFileSystemService,
+type MainController(fileSys: FileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     config: Config,
                     commandLinePath: string option) =

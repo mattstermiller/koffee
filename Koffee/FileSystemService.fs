@@ -7,39 +7,9 @@ open System.Diagnostics
 open Microsoft.VisualBasic.FileIO
 open Koffee
 
-type IFileSystemService =
-    abstract GetNode: Path -> Node option
-    abstract GetNodes: showHidden: bool -> Path -> Node list
-    abstract IsEmpty: Path -> bool
-    abstract IsRecyclable: Path -> bool
-    abstract Create: NodeType -> Path -> unit
-    abstract Move: currentPath: Path -> newPath: Path -> unit
-    abstract Copy: currentPath: Path -> newPath: Path -> unit
-    abstract Recycle: Path -> unit
-    abstract Delete: Path -> unit
-    abstract OpenFile: Path -> unit
-    abstract OpenExplorer: Node -> unit
-    abstract OpenCommandLine: Path -> unit
-    abstract OpenWith: exePath: string -> itemPath: Path -> unit
-
 type FileSystemService() =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
-
-    interface IFileSystemService with
-        override this.GetNode path = this.GetNode path
-        override this.GetNodes showHidden path = this.GetNodes showHidden path
-        override this.IsEmpty node = this.IsEmpty node
-        override this.IsRecyclable node = this.IsRecyclable node
-        override this.Create nodeType path = this.Create nodeType path
-        override this.Move currentPath newPath = this.Move currentPath newPath
-        override this.Copy currentPath newPath = this.Copy currentPath newPath
-        override this.Recycle node = this.Recycle node
-        override this.Delete node = this.Delete node
-        override this.OpenFile path = this.OpenFile path
-        override this.OpenExplorer node = this.OpenExplorer node
-        override this.OpenCommandLine path = this.OpenCommandLine path
-        override this.OpenWith exePath itemPath = this.OpenWith exePath itemPath
 
     member this.GetNode path =
         let wp = wpath path

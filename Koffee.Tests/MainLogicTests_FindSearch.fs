@@ -1,4 +1,4 @@
-﻿module Koffee.MainControllerTests_FindSearch
+﻿module Koffee.MainLogicTests_FindSearch
 
 open NUnit.Framework
 open FsUnitTyped

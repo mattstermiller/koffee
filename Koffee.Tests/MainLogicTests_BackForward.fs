@@ -1,4 +1,4 @@
-﻿module Koffee.MainControllerTests_BackForward
+﻿module Koffee.MainLogicTests_BackForward
 
 open NUnit.Framework
 open FsUnitTyped

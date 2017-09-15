@@ -1,4 +1,4 @@
-﻿module Koffee.MainControllerTests_MoveCopy
+﻿module Koffee.MainLogicTests_MoveCopy
 
 open System
 open System.Windows.Input

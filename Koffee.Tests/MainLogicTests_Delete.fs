@@ -1,4 +1,4 @@
-﻿module Koffee.MainControllerTests_Delete
+﻿module Koffee.MainLogicTests_Delete
 
 open NUnit.Framework
 open FsUnitTyped
@@ -73,7 +73,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     if permanent then
         deleted |> shouldEqual (Some node.Path)
         recycled |> shouldEqual None
-    else 
+    else
         deleted |> shouldEqual None
         recycled |> shouldEqual (Some node.Path)
     refreshed |> shouldEqual true

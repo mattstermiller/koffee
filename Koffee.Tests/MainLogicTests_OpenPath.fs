@@ -1,4 +1,4 @@
-﻿module Koffee.MainControllerTests_OpenPath
+﻿module Koffee.MainLogicTests_OpenPath
 
 open NUnit.Framework
 open FsUnitTyped

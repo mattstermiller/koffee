@@ -1,11 +1,11 @@
-﻿module Koffee.MainControllerTests_CreateRename
+﻿module Koffee.MainLogicTests_CreateRename
 
 open NUnit.Framework
 open FsUnitTyped
 open Testing
 
 let oldNodes = [
-    createNode "path" "one"  
+    createNode "path" "one"
     createNode "path" "two"
 ]
 

@@ -7,7 +7,6 @@ open KellermanSoftware.CompareNetObjects.TypeComparers
 open FSharp.Desktop.UI
 open Koffee
 open ModelExtensions
-open Foq
 
 type StructuralEqualityComparer() =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
@@ -55,11 +54,3 @@ let createBaseTestModel() =
     // simulate grid losing selected item (bound to cursor) when data source changes
     model.OnPropertyChanged <@ model.Nodes @> (fun _ -> model.Cursor <- -1)
     model
-
-let baseFileSysMock (newNodes: Node list) =
-    let path =
-        match newNodes with
-        | node :: _ -> node.Path.Parent
-        | [] -> createPath "path"
-    Mock<IFileSystemService>()
-        .Setup(fun x -> <@ x.GetNodes path (any()) @>).Returns(newNodes)

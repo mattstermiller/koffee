@@ -88,9 +88,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         // on resize, keep selected node in view, update the page size
         window.NodeGrid.SizeChanged.Add (fun _ ->
             this.KeepSelectedInView()
-            match this.ItemsPerPage with
-                | Some i -> model.PageSize <- i
-                | None -> ())
+            this.ItemsPerPage |> Option.iter (fun i -> model.PageSize <- i))
 
         // escape and lost focus resets the input mode
         window.PreviewKeyDown.Add <| onKey Key.Escape (fun () ->
@@ -352,6 +350,8 @@ module MainStatus =
     let noRedoActions = ErrorMessage "No more actions to redo"
     let cannotUndoNonEmptyCreated (node: Node) =
         ErrorMessage <| sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
+    let cannotUndoMoveToExisting node =
+        ErrorMessage <| sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name
     let cannotUndoDelete permanent (node: Node) =
         ErrorMessage <| 
             if permanent then

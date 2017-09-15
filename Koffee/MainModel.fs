@@ -182,7 +182,6 @@ type MainEvents =
     | StartCopy
     | Put
     | Recycle
-    | PromptDelete
     | Undo
     | Redo
     | SortList of SortField
@@ -222,6 +221,7 @@ type MainEvents =
         | StartInput (Rename End) -> "Rename Item (Append to Extension)"
         | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
         | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
+        | StartInput (Confirm Delete) -> "Delete Permanently"
         | StartInput (Confirm _) -> ""
         | CommandCharTyped _ -> ""
         | ExecuteCommand -> "Execute the Currently Entered Command"
@@ -229,7 +229,6 @@ type MainEvents =
         | StartCopy -> "Start Copy Item"
         | Put -> "Put Item to Move/Copy in Current Folder"
         | Recycle -> "Send to Recycle Bin"
-        | PromptDelete -> "Delete Permanently"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
         | SortList field -> sprintf "Sort by %A" field
@@ -266,11 +265,11 @@ type MainEvents =
         StartInput (Rename End)
         StartInput (Rename ReplaceName)
         StartInput (Rename ReplaceAll)
+        StartInput (Confirm Delete)
         StartMove
         StartCopy
         Put
         Recycle
-        PromptDelete
         Undo
         Redo
         SortList Name

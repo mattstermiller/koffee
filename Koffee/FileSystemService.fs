@@ -7,52 +7,22 @@ open System.Diagnostics
 open Microsoft.VisualBasic.FileIO
 open Koffee
 
-type IFileSystemService =
-    abstract GetNode: Path -> Node option
-    abstract GetNodes: Path -> showHidden: bool-> Node list
-    abstract Exists: Path -> bool
-    abstract IsEmpty: Path -> bool
-    abstract IsRecyclable: Path -> bool
-    abstract Create: NodeType -> Path -> unit
-    abstract Move: currentPath: Path -> newPath: Path -> unit
-    abstract Copy: currentPath: Path -> newPath: Path -> unit
-    abstract Recycle: Path -> unit
-    abstract Delete: Path -> unit
-    abstract OpenFile: Path -> unit
-    abstract OpenExplorer: Node -> unit
-    abstract OpenCommandLine: Path -> unit
-    abstract OpenWith: exePath: string -> itemPath: Path -> unit
-
 type FileSystemService() =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
 
-    interface IFileSystemService with
-        override this.GetNode path = this.GetNode path
-        override this.GetNodes path showHidden = this.GetNodes path showHidden
-        override this.Exists path = this.Exists path
-        override this.IsEmpty node = this.IsEmpty node
-        override this.IsRecyclable node = this.IsRecyclable node
-        override this.Create nodeType path = this.Create nodeType path
-        override this.Move currentPath newPath = this.Move currentPath newPath
-        override this.Copy currentPath newPath = this.Copy currentPath newPath
-        override this.Recycle node = this.Recycle node
-        override this.Delete node = this.Delete node
-        override this.OpenFile path = this.OpenFile path
-        override this.OpenExplorer node = this.OpenExplorer node
-        override this.OpenCommandLine path = this.OpenCommandLine path
-        override this.OpenWith exePath itemPath = this.OpenWith exePath itemPath
-
     member this.GetNode path =
         let wp = wpath path
-        if Directory.Exists wp then
-            DirectoryInfo(wp) |> this.FolderNode |> Some
-        else if File.Exists wp then
-            FileInfo(wp) |> this.FileNode |> Some
+        let dir = DirectoryInfo(wp)
+        let file = lazy FileInfo(wp)
+        if dir.Exists then
+            dir |> this.FolderNode |> Some
+        else if file.Value.Exists then
+            file.Value |> this.FileNode |> Some
         else
             None
 
-    member this.GetNodes path showHidden =
+    member this.GetNodes showHidden path =
         let error msg path =
             this.ErrorNode (Exception(msg)) path |> List.singleton
         if path = Path.Root then
@@ -73,10 +43,6 @@ type FileSystemService() =
                     |> List.singleton
                 else nodes
             else error "Path does not exist" Path.Root
-
-    member this.Exists path =
-        let wp = wpath path
-        File.Exists wp || Directory.Exists wp
 
     member this.IsEmpty path =
         let wp = wpath path

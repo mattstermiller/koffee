@@ -16,17 +16,13 @@ let oldNodes = [
     createNode "path" "file 3"
 ]
 
-let nodeCopy num =
-    createNode "path" (MainLogic.Action.getCopyName "file 2" num)
-
 let newNodes = [
     createNode "path" "file 1"
     nodeSameFolder
-    nodeCopy 1
-    nodeCopy 2
-    nodeCopy 0
-    createNode "path" "file 3"
 ]
+
+let nodeCopy num =
+    createNode "path" (MainLogic.Action.getCopyName "file 2" num)
 
 let createModel () =
     let model = createBaseTestModel()
@@ -140,6 +136,68 @@ let ``Put item to move in same folder gives same-folder message``() =
     expected.Status <- Some <| MainStatus.cannotMoveToSameFolder
     assertAreEqual expected model
 
+// undo move tests
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo move item moves it back`` curPathDifferent =
+    let prevNode = newNodes.[1]
+    let curNode = oldNodes.[1]
+    let getNode _ = None
+    let mutable moved = None
+    let move s d = moved <- Some (s, d)
+    let mutable selected = None
+    let openPath p s (model: MainModel) =
+        model.Nodes <- newNodes
+        model.Path <- p
+        model.Status <- None
+        selected <- Some s
+    let model = createModel()
+    if curPathDifferent then
+        model.Path <- createPath "other"
+    MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
+
+    moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
+    selected |> shouldEqual (Some (SelectName prevNode.Name))
+    let expectedAction = MovedItem (prevNode, curNode.Path)
+    let expected = createModel()
+    expected.Nodes <- newNodes
+    assertAreEqual expected model
+
+[<Test>]
+let ``Undo move item when previous path is occupied sets error status``() =
+    let prevNode = newNodes.[1]
+    let curNode = oldNodes.[1]
+    // TODO: this is the bug, it should check against prevNode.Path
+    let getNode p = if p = curNode.Path then Some prevNode else None
+    let move _ _ = failwith "move should not be called"
+    let openPath _ _ _ = failwith "openPath should not be called"
+    let model = createModel()
+    model.Path <- createPath "other"
+    MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
+
+    let expected = createModel()
+    expected.Path <- createPath "other"
+    expected.Status <- Some <| MainStatus.cannotUndoMoveToExisting prevNode
+    assertAreEqual expected model
+
+[<Test>]
+let ``Undo move item handles error by setting error status``() =
+    let prevNode = newNodes.[1]
+    let curNode = oldNodes.[1]
+    let getNode _ = None
+    let move _ _ = raise ex
+    let openPath _ _ _ = failwith "openPath should not be called"
+    let model = createModel()
+    model.Path <- createPath "other"
+    MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
+
+    let expectedAction = MovedItem (curNode, prevNode.Path)
+    let expected = createModel()
+    expected.Path <- createPath "other"
+    expected |> MainStatus.setActionExceptionStatus expectedAction ex
+    assertAreEqual expected model
+
 // copy tests
 
 [<TestCase(false)>]
@@ -195,4 +253,68 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     expected.UndoStack <- expectedAction :: expected.UndoStack
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
+    assertAreEqual expected model
+
+// undo copy tests
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferent =
+    let modified = Some (DateTime(2000, 1, 1))
+    let original = { nodeDiffFolder with Modified = modified }
+    let copied = { nodeSameFolder with Modified = modified }
+    let getNode p = if p = copied.Path then Some copied else None
+    let model = createModel()
+    let mutable deleted = None
+    let delete p =
+        deleted <- Some p
+        model.Status <- None
+    let recycle _ = failwith "recycle should not be called"
+    let refresh (model: MainModel) = model.Nodes <- newNodes
+    if curPathDifferent then
+        model.Path <- createPath "other"
+    MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
+
+    deleted |> shouldEqual (Some copied.Path)
+    let expected = createModel()
+    if curPathDifferent then
+        expected.Path <- createPath "other"
+    else
+        expected.Nodes <- newNodes
+    assertAreEqual expected model
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo copy item when copy has different or no timestamp recycles copy`` hasTimestamp =
+    let time = if hasTimestamp then Some (DateTime(2000, 1, 1)) else None
+    let original = { nodeDiffFolder with Modified = time }
+    let copied = { nodeSameFolder with Modified = time |> Option.map (fun t -> t.AddDays(1.0)) }
+    let getNode p = if p = copied.Path then Some copied else None
+    let delete _ = failwith "delete should not be called"
+    let model = createModel()
+    let mutable recycled = None
+    let recycle p =
+        recycled <- Some p
+        model.Status <- None
+    let refresh (model: MainModel) = model.Nodes <- newNodes
+    MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
+
+    recycled |> shouldEqual (Some copied.Path)
+    let expected = createModel()
+    expected.Nodes <- newNodes
+    assertAreEqual expected model
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo copy item handles error by setting error status and consumes action`` throwOnGetNode =
+    let original = nodeDiffFolder
+    let copied = nodeSameFolder
+    let getNode _ = if throwOnGetNode then raise ex else None
+    let fsFunc _ = if throwOnGetNode then () else raise ex
+    let refresh _ = failwith "refresh should not be called"
+    let model = createModel()
+    MainLogic.Action.undoCopy getNode fsFunc fsFunc refresh original copied.Path model |> Async.RunSynchronously
+
+    let expected = createModel()
+    expected |> MainStatus.setActionExceptionStatus (DeletedItem (copied, false)) ex
     assertAreEqual expected model

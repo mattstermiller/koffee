@@ -350,6 +350,8 @@ module MainStatus =
     let noRedoActions = ErrorMessage "No more actions to redo"
     let cannotUndoNonEmptyCreated (node: Node) =
         ErrorMessage <| sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
+    let cannotUndoMoveToExisting node =
+        ErrorMessage <| sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name
     let cannotUndoDelete permanent (node: Node) =
         ErrorMessage <| 
             if permanent then

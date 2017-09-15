@@ -25,6 +25,7 @@ let createModel () =
 
 let ex = System.UnauthorizedAccessException()
 
+// create tests
 
 [<Test>]
 let ``Create folder calls file sys create, openPath and sets status``() =
@@ -59,6 +60,8 @@ let ``Create folder handles error by setting error status``() =
     let expected = createModel()
     expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex
     assertAreEqual expected model
+
+// rename tests
 
 [<Test>]
 let ``Rename calls file sys move, openPath and sets status``() =
@@ -95,6 +98,46 @@ let ``Rename handles error by setting error status``() =
     expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
 
+// undo rename tests
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo rename item names file back to original`` curPathDifferent =
+    let mutable moved = None
+    let move s d = moved <- Some (s, d)
+    let mutable selected = None
+    let openPath p select (model: MainModel) =
+        model.Path <- p
+        model.Nodes <- newNodes
+        selected <- Some select
+    let prevNode = newNodes.[1]
+    let curNode = oldNodes.[1]
+    let model = createModel()
+    if curPathDifferent then
+        model.Path <- createPath "other"
+    MainLogic.Action.undoRename move openPath prevNode curNode.Name model
+
+    moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
+    selected |> shouldEqual (Some (SelectName prevNode.Name))
+    let expected = createModel()
+    expected.Nodes <- newNodes
+    assertAreEqual expected model
+
+[<Test>]
+let ``Undo rename item handles error by setting error status``() =
+    let move _ _ = raise ex
+    let openPath _ _ _ = failwith "openPath should not be called"
+    let prevNode = newNodes.[1]
+    let curNode = oldNodes.[1]
+    let model = createModel()
+    MainLogic.Action.undoRename move openPath prevNode curNode.Name model
+
+    let expectedAction = RenamedItem (curNode, prevNode.Name)
+    let expected = createModel()
+    expected |> MainStatus.setActionExceptionStatus expectedAction ex
+    assertAreEqual expected model
+
+// start rename selection tests
 
 let renameTextSelection cursorPosition fileName =
     let node = createNode "path" fileName

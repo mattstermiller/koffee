@@ -269,14 +269,15 @@ module MainLogic =
             match getNode currentPath with // TODO: this is the wrong path, need to check the new destination instead
             | Some _ ->
                 // TODO: prompt for overwrite here?
-                model.Status <- Some <| ErrorMessage (sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name)
+                model.Status <- Some <| MainStatus.cannotUndoMoveToExisting node
             | None ->
                 try
                     model.Status <- Some <| MainStatus.undoingMove node
                     do! runAsync (fun () -> move currentPath node.Path)
                     openPath node.Path.Parent (SelectName node.Name) model
                 with ex ->
-                    let action = MovedItem ({ node with Path = currentPath }, node.Path)
+                    let from = { node with Path = currentPath; Name = currentPath.Name }
+                    let action = MovedItem (from, node.Path)
                     model |> MainStatus.setActionExceptionStatus action ex
         }
 

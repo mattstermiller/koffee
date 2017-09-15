@@ -1,11 +1,8 @@
 ﻿module Koffee.MainLogicTests_MoveCopy
 
 open System
-open System.Windows.Input
-open FSharp.Desktop.UI
 open NUnit.Framework
 open FsUnitTyped
-open Foq
 open Testing
 
 let nodeSameFolder = createNode "path" "file 2"

@@ -266,7 +266,7 @@ module MainLogic =
         }
 
         let undoMove getNode move openPath node currentPath (model: MainModel) = async {
-            match getNode currentPath with // TODO: this is the wrong path, need to check the new destination instead
+            match getNode node.Path with
             | Some _ ->
                 // TODO: prompt for overwrite here?
                 model.Status <- Some <| MainStatus.cannotUndoMoveToExisting node

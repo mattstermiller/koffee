@@ -165,8 +165,7 @@ let ``Undo move item moves it back`` curPathDifferent =
 let ``Undo move item when previous path is occupied sets error status``() =
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
-    // TODO: this is the bug, it should check against prevNode.Path
-    let getNode p = if p = curNode.Path then Some prevNode else None
+    let getNode p = if p = prevNode.Path then Some prevNode else None
     let move _ _ = failwith "move should not be called"
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()

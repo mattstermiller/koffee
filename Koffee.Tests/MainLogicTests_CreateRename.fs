@@ -29,6 +29,7 @@ let ex = System.UnauthorizedAccessException()
 
 [<Test>]
 let ``Create folder calls file sys create, openPath and sets status``() =
+    let getNode _ = None
     let mutable created = None
     let create nodeType path = created <- Some (nodeType, path)
     let openPath p _ (model: MainModel) =
@@ -37,7 +38,7 @@ let ``Create folder calls file sys create, openPath and sets status``() =
         model.Cursor <- 1
     let createNode = newNodes.[1]
     let model = createModel()
-    MainLogic.Action.create create openPath Folder createNode.Name model
+    MainLogic.Action.create getNode create openPath Folder createNode.Name model
 
     created |> shouldEqual (Some (createNode.Type, createNode.Path))
     let expectedAction = CreatedItem createNode
@@ -50,12 +51,31 @@ let ``Create folder calls file sys create, openPath and sets status``() =
     assertAreEqual expected model
 
 [<Test>]
+let ``Create folder sets error status when item already exists at path``() =
+    let existing = oldNodes.[1]
+    let getNode _ = Some existing
+    let create _ _ = failwith "create should not be called"
+    let openPath p select (model: MainModel) =
+        model.Path <- p
+        if select = SelectName existing.Name then
+            model.Cursor <- 1
+    let createNode = newNodes.[1]
+    let model = createModel()
+    MainLogic.Action.create getNode create openPath Folder createNode.Name model
+
+    let expected = createModel()
+    expected.Cursor <- 1
+    expected.Status <- Some <| MainStatus.cannotCreateAlreadyExists Folder createNode.Name
+    assertAreEqual expected model
+
+[<Test>]
 let ``Create folder handles error by setting error status``() =
-    let create nodeType path = raise ex
+    let getNode _ = None
+    let create _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let createNode = newNodes.[1]
     let model = createModel()
-    MainLogic.Action.create create openPath Folder createNode.Name model
+    MainLogic.Action.create getNode create openPath Folder createNode.Name model
 
     let expected = createModel()
     expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex

@@ -169,11 +169,17 @@ module MainLogic =
                 model.CommandText <- text
                 setCommandSelection pos model
 
-        let create fsCreate openPath nodeType name (model: MainModel) =
+        let create getNode fsCreate openPath nodeType name (model: MainModel) =
             try
-                fsCreate nodeType (model.Path.Join name)
-                openPath model.Path (SelectName name) model
-                model |> performedAction (CreatedItem model.SelectedNode)
+                let createPath = model.Path.Join name
+                match getNode createPath with
+                | None ->
+                    fsCreate nodeType createPath
+                    openPath model.Path (SelectName name) model
+                    model |> performedAction (CreatedItem model.SelectedNode)
+                | Some existing ->
+                    openPath model.Path (SelectName existing.Name) model
+                    model.Status <- Some <| MainStatus.cannotCreateAlreadyExists nodeType name
             with ex ->
                 let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
                                            Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
@@ -441,7 +447,7 @@ type MainController(fileSys: FileSystemService,
         | _ -> ()
     }
 
-    member this.Create = MainLogic.Action.create fileSys.Create this.OpenPath
+    member this.Create = MainLogic.Action.create fileSys.GetNode fileSys.Create this.OpenPath
     member this.Rename = MainLogic.Action.rename fileSys.Move this.OpenPath
     member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy this.OpenPath
     member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete

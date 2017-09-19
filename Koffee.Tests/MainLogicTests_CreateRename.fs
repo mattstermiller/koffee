@@ -32,10 +32,12 @@ let ``Create folder calls file sys create, openPath and sets status``() =
     let getNode _ = None
     let mutable created = None
     let create nodeType path = created <- Some (nodeType, path)
-    let openPath p _ (model: MainModel) =
+    let mutable selected = None
+    let openPath p s (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         model.Cursor <- 1
+        selected <- Some s
     let createNode = newNodes.[1]
     let model = createModel()
     MainLogic.Action.create getNode create openPath Folder createNode.Name model
@@ -49,24 +51,25 @@ let ``Create folder calls file sys create, openPath and sets status``() =
     expected.RedoStack <- []
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
+    selected |> shouldEqual (Some (SelectName createNode.Name))
 
 [<Test>]
 let ``Create folder sets error status when item already exists at path``() =
     let existing = oldNodes.[1]
     let getNode _ = Some existing
     let create _ _ = failwith "create should not be called"
-    let openPath p select (model: MainModel) =
+    let mutable selected = None
+    let openPath p s (model: MainModel) =
         model.Path <- p
-        if select = SelectName existing.Name then
-            model.Cursor <- 1
+        selected <- Some s
     let createNode = newNodes.[1]
     let model = createModel()
     MainLogic.Action.create getNode create openPath Folder createNode.Name model
 
     let expected = createModel()
-    expected.Cursor <- 1
     expected.Status <- Some <| MainStatus.cannotCreateAlreadyExists Folder createNode.Name
     assertAreEqual expected model
+    selected |> shouldEqual (Some (SelectName existing.Name))
 
 [<Test>]
 let ``Create folder handles error by setting error status``() =
@@ -79,6 +82,59 @@ let ``Create folder handles error by setting error status``() =
 
     let expected = createModel()
     expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex
+    assertAreEqual expected model
+
+// undo create tests
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo create empty node calls delete`` curPathDifferent =
+    let isEmpty _ = true
+    let model = createModel()
+    let mutable deleted = None
+    let delete p =
+        deleted <- Some p
+        model.Status <- None
+    let refresh (model: MainModel) =
+        model.Nodes <- newNodes
+    let createdNode = oldNodes.[1]
+    if curPathDifferent then
+        model.Path <- createPath "other"
+    MainLogic.Action.undoCreate isEmpty delete refresh createdNode model |> Async.RunSynchronously
+
+    deleted |> shouldEqual (Some createdNode.Path)
+    let expected = createModel()
+    if curPathDifferent then
+        expected.Path <- createPath "other"
+    else
+        expected.Nodes <- newNodes
+    assertAreEqual expected model
+
+[<Test>]
+let ``Undo create non-empty node sets status only``() =
+    let isEmpty _ = false
+    let delete _ = failwith "delete should not be called"
+    let refresh _ = failwith "refresh should not be called"
+    let createdNode = oldNodes.[1]
+    let model = createModel()
+    MainLogic.Action.undoCreate isEmpty delete refresh createdNode model |> Async.RunSynchronously
+
+    let expected = createModel()
+    expected.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated createdNode
+    assertAreEqual expected model
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo create handles error by setting error status`` isEmptyThrows =
+    let isEmpty _ = if isEmptyThrows then raise ex else true
+    let delete _ = if not isEmptyThrows then raise ex else failwith "delete should not be called"
+    let refresh _ = failwith "refresh should not be called"
+    let createdNode = oldNodes.[1]
+    let model = createModel()
+    MainLogic.Action.undoCreate isEmpty delete refresh createdNode model |> Async.RunSynchronously
+
+    let expected = createModel()
+    expected |> MainStatus.setActionExceptionStatus (DeletedItem (createdNode, true)) ex
     assertAreEqual expected model
 
 // rename tests
@@ -109,12 +165,10 @@ let ``Rename handles error by setting error status``() =
     let openPath _ _ _ = failwith "openPath should not be called"
     let newName = newNodes.[1].Name
     let model = createModel()
-    model.Cursor <- 1
     MainLogic.Action.rename move openPath oldNodes.[1] newName model
 
     let expectedAction = RenamedItem (oldNodes.[1], newNodes.[1].Name)
     let expected = createModel()
-    expected.Cursor <- 1
     expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
 

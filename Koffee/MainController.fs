@@ -22,11 +22,11 @@ module MainLogic =
         openUserPath (startupPath) model
 
     module Navigation =
-        let openPath getNodes path select (model: MainModel) =
+        let openPath getNodes (showHidden: bool) path select (model: MainModel) =
             try
                 let sortField, sortDesc = model.Sort
                 let sorter = SortField.SortByTypeThen sortField sortDesc
-                let nodes = getNodes path |> sorter
+                let nodes = getNodes showHidden path |> sorter
                 if path <> model.Path then
                     model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
                     model.ForwardStack <- []
@@ -251,11 +251,8 @@ module MainLogic =
                     match getNode newPath with
                     | Some existing when not overwrite ->
                         // refresh node list to make sure we can see the existing file
-                        // if the existing node is hidden, temporarily override ShowHidden
-                        let overrideShowHidden = existing.IsHidden && not config.ShowHidden
-                        if overrideShowHidden then config.ShowHidden <- true
-                        openPath model.Path (SelectName existing.Name) model
-                        if overrideShowHidden then config.ShowHidden <- false
+                        let showHidden = config.ShowHidden || existing.IsHidden
+                        openPath showHidden model.Path (SelectName existing.Name) model
                         startInput (Confirm (Overwrite existing)) model
                     | _ ->
                         let fileSysAction, action =
@@ -265,7 +262,7 @@ module MainLogic =
                         try
                             model.Status <- MainStatus.runningAction action model.PathFormat
                             do! runAsync (fun () -> fileSysAction node.Path newPath)
-                            openPath model.Path (SelectName newName) model
+                            openPath config.ShowHidden model.Path (SelectName newName) model
                             model.ItemBuffer <- None
                             model |> performedAction action
                         with ex -> model |> MainStatus.setActionExceptionStatus action ex
@@ -384,7 +381,7 @@ type MainController(fileSys: FileSystemService,
         | OpenWithTextEditor -> Sync this.OpenWithTextEditor
         | Exit -> Sync ignore // handled by view
 
-    member this.OpenPath = MainLogic.Navigation.openPath (fileSys.GetNodes config.ShowHidden)
+    member this.OpenPath = MainLogic.Navigation.openPath fileSys.GetNodes config.ShowHidden
     member this.OpenUserPath = MainLogic.Navigation.openUserPath fileSys.GetNode this.OpenPath
     member this.Refresh model = this.OpenPath model.Path KeepSelect model
 
@@ -449,7 +446,7 @@ type MainController(fileSys: FileSystemService,
 
     member this.Create = MainLogic.Action.create fileSys.GetNode fileSys.Create this.OpenPath
     member this.Rename = MainLogic.Action.rename fileSys.Move this.OpenPath
-    member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy this.OpenPath
+    member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
     member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
 

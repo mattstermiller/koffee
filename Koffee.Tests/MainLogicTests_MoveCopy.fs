@@ -42,12 +42,12 @@ let ``Put item to move or copy in different folder with item of same name prompt
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
     let mutable openedHidden = None
-    let openPath p s (model: MainModel) =
+    let openPath sh p s (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         if s = SelectName (dest.Name) then
             model.Cursor <- 2
-        openedHidden <- Some config.ShowHidden
+        openedHidden <- Some sh
     let item = Some (src, if doCopy then Copy else Move)
     let model = createModel()
     model.ItemBuffer <- item
@@ -59,8 +59,8 @@ let ``Put item to move or copy in different folder with item of same name prompt
     expected.Cursor <- 2
     expected.CommandInputMode <- Some (Confirm (Overwrite dest))
     assertAreEqual expected model
-    config.ShowHidden |> shouldEqual false
     openedHidden |> shouldEqual (Some existingHidden)
+    config.ShowHidden |> shouldEqual false
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -71,7 +71,7 @@ let ``Put item to move or copy handles error by setting error status`` doCopy =
     let getNode _ = None
     let move _ _ = if not doCopy then raise ex else failwith "move should not be called"
     let copy _ _ = if doCopy then raise ex else failwith "copy should not be called"
-    let openPath p _ (model: MainModel) =
+    let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
     let item = Some (src, if doCopy then Copy else Move)
@@ -97,7 +97,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let mutable moved = None
     let move s d = moved <- Some (s, d)
     let copy _ _ = failwith "copy should not be called"
-    let openPath p _ (model: MainModel) =
+    let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
     let model = createModel()
@@ -120,7 +120,7 @@ let ``Put item to move in same folder gives same-folder message``() =
     let getNode _ = None
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
-    let openPath p _ (model: MainModel) =
+    let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
     let item = Some (src, Move)
@@ -206,7 +206,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d = copied <- Some (s, d)
-    let openPath p _ (model: MainModel) =
+    let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
     let model = createModel()
@@ -233,7 +233,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d = copied <- Some (s, d)
-    let openPath p _ (m: MainModel) =
+    let openPath _ p _ (m: MainModel) =
         m.Path <- p
         m.Nodes <- newNodes
     let model = createModel()

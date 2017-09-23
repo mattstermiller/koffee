@@ -21,6 +21,7 @@ let DefaultsAsString = [
     ("h", OpenParent)
     ("H", Back)
     ("L", Forward)
+    ("r", Refresh)
     ("<f5>", Refresh)
     ("u", Undo)
     ("<c-z>", Undo)

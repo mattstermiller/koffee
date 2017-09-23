@@ -142,9 +142,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             match this.TriggerKeyBindings keyEvt with
             | Some Exit -> Some Exit
             | _ -> keyEvt.Handled <- false; None)
-
+        window.SettingsButton.Click |> Observable.mapTo OpenSettings
         window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
-
         window.CommandBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> ExecuteCommand)
         window.CommandBox.PreviewTextInput |> Observable.choose this.CommandTextInput
     ]

@@ -7,7 +7,8 @@
         <SolidColorBrush x:Key="HintBrush" Color="#a15d14"/>
     </Window.Resources>
     <Grid>
-        <TextBox x:Name="PathBox" Height="28" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top" FontSize="13"/>
+        <TextBox x:Name="PathBox" Height="28" TextWrapping="Wrap" Text="/c/path" VerticalAlignment="Top" FontSize="13" Margin="0,0,23,0"/>
+        <Button x:Name="SettingsButton" Content="?" VerticalAlignment="Top" Height="28" HorizontalAlignment="Right" Width="23"/>
         <DataGrid x:Name="NodeGrid" Margin="0,28,0,38" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
             <DataGrid.Resources>
                 <Style TargetType="DataGrid">
@@ -17,7 +18,7 @@
                 <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}" Opacity="0.3"/>
             </DataGrid.Resources>
             <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow"> 
+                <Style TargetType="DataGridRow">
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Type}" Value="{x:Static my:NodeType.Folder}">
                             <Setter Property="Foreground" Value="#7c450b"/>

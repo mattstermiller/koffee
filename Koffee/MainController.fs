@@ -179,7 +179,7 @@ module MainLogic =
                     model |> performedAction (CreatedItem model.SelectedNode)
                 | Some existing ->
                     openPath model.Path (SelectName existing.Name) model
-                    model.Status <- Some <| MainStatus.cannotCreateAlreadyExists nodeType name
+                    model.Status <- Some <| MainStatus.cannotCreateAlreadyExists nodeType name existing.IsHidden
             with ex ->
                 let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
                                            Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }

@@ -53,9 +53,10 @@ let ``Create folder calls file sys create, openPath and sets status``() =
     assertAreEqual expected model
     selected |> shouldEqual (Some (SelectName createNode.Name))
 
-[<Test>]
-let ``Create folder sets error status when item already exists at path``() =
-    let existing = oldNodes.[1]
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Create folder sets error status when item already exists at path`` existingHidden =
+    let existing = { oldNodes.[1] with IsHidden = existingHidden }
     let getNode _ = Some existing
     let create _ _ = failwith "create should not be called"
     let mutable selected = None
@@ -67,7 +68,7 @@ let ``Create folder sets error status when item already exists at path``() =
     MainLogic.Action.create getNode create openPath Folder createNode.Name model
 
     let expected = createModel()
-    expected.Status <- Some <| MainStatus.cannotCreateAlreadyExists Folder createNode.Name
+    expected.Status <- Some <| MainStatus.cannotCreateAlreadyExists Folder createNode.Name existingHidden
     assertAreEqual expected model
     selected |> shouldEqual (Some (SelectName existing.Name))
 

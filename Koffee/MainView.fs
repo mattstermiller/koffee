@@ -315,8 +315,9 @@ module MainStatus =
     let actionComplete action pathFormat =
         actionCompleteMessage action pathFormat |> Message
 
-    let cannotCreateAlreadyExists (nodeType: NodeType) name =
-        ErrorMessage <| sprintf "Cannot create %O %s because an item with that name already exists" nodeType name
+    let cannotCreateAlreadyExists (nodeType: NodeType) name hidden =
+        let append = if hidden then " (hidden)" else ""
+        ErrorMessage <| sprintf "Cannot create %O \"%s\" because an item with that name already exists%s" nodeType name append
     let cannotRecycle (node: Node) =
         ErrorMessage <| sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
     let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"

@@ -57,7 +57,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
     expected.ItemBuffer <- item
     expected.Nodes <- newNodes
     expected.Cursor <- 2
-    expected.CommandInputMode <- Some (Confirm Overwrite)
+    expected.CommandInputMode <- Some (Confirm (Overwrite dest))
     assertAreEqual expected model
     config.ShowHidden |> shouldEqual false
     openedHidden |> shouldEqual (Some existingHidden)

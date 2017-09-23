@@ -58,7 +58,7 @@ type RenamePart =
     | ReplaceAll
 
 type ConfirmType =
-    | Overwrite
+    | Overwrite of Node
     | Delete
 
 type CommandInput =

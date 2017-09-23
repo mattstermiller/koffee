@@ -223,7 +223,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         | None -> this.HideCommandBar ()
 
     member this.GetPrompt (node: Node) (item: Node option) = function
-        | Confirm Overwrite ->
+        | Confirm (Overwrite node) ->
             match node.Type with
             | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" node.Name
             | File ->

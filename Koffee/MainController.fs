@@ -256,7 +256,7 @@ module MainLogic =
                         if overrideShowHidden then config.ShowHidden <- true
                         openPath model.Path (SelectName existing.Name) model
                         if overrideShowHidden then config.ShowHidden <- false
-                        startInput (Confirm Overwrite) model
+                        startInput (Confirm (Overwrite existing)) model
                     | _ ->
                         let fileSysAction, action =
                             match bufferAction with
@@ -432,12 +432,12 @@ type MainController(fileSys: FileSystemService,
             | 'y' ->
                 model.CommandInputMode <- None
                 match confirmType with
-                | Overwrite -> do! this.Put true model
+                | Overwrite _ -> do! this.Put true model
                 | Delete -> do! this.Delete model.SelectedNode true model
             | 'n' ->
                 model.CommandInputMode <- None
                 match confirmType with
-                | Overwrite when not config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
+                | Overwrite _ when not config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
                     // if we were temporarily showing hidden files, refresh
                     this.Refresh model
                 | _ -> ()

@@ -199,21 +199,29 @@ module MainLogic =
                 model |> MainStatus.setActionExceptionStatus action ex
         }
 
-        let rename move openPath node newName (model: MainModel) =
+        let rename getNode move openPath node newName (model: MainModel) =
             let action = RenamedItem (node, newName)
             try
                 let newPath = node.Path.Parent.Join newName
-                move node.Path newPath
-                openPath model.Path (SelectName newName) model
-                model |> performedAction action
+                match getNode newPath with
+                | Some existing ->
+                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists node.Type newName existing.IsHidden
+                | None ->
+                    move node.Path newPath
+                    openPath model.Path (SelectName newName) model
+                    model |> performedAction action
             with ex -> model |> MainStatus.setActionExceptionStatus action ex
 
-        let undoRename move openPath oldNode currentName (model: MainModel) =
+        let undoRename getNode move openPath oldNode currentName (model: MainModel) =
             let parentPath = oldNode.Path.Parent
             let currentPath = parentPath.Join currentName
             try
-                move currentPath oldNode.Path
-                openPath parentPath (SelectName oldNode.Name) model
+                match getNode oldNode.Path with
+                | Some existing ->
+                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists oldNode.Type oldNode.Name existing.IsHidden
+                | None ->
+                    move currentPath oldNode.Path
+                    openPath parentPath (SelectName oldNode.Name) model
             with ex ->
                 let node = { oldNode with Name = currentName; Path = currentPath }
                 let action = RenamedItem (node, oldNode.Name)
@@ -443,7 +451,7 @@ type MainController(fileSys: FileSystemService,
     }
 
     member this.Create = MainLogic.Action.create fileSys.GetNode fileSys.Create this.OpenPath
-    member this.Rename = MainLogic.Action.rename fileSys.Move this.OpenPath
+    member this.Rename = MainLogic.Action.rename fileSys.GetNode fileSys.Move this.OpenPath
     member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
     member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
@@ -455,7 +463,7 @@ type MainController(fileSys: FileSystemService,
             | CreatedItem node ->
                 do! MainLogic.Action.undoCreate fileSys.IsEmpty fileSys.Delete this.Refresh node model
             | RenamedItem (oldNode, curName) ->
-                MainLogic.Action.undoRename fileSys.Move this.OpenPath oldNode curName model
+                MainLogic.Action.undoRename fileSys.GetNode fileSys.Move this.OpenPath oldNode curName model
             | MovedItem (node, newPath) ->
                 do! MainLogic.Action.undoMove fileSys.GetNode fileSys.Move this.OpenPath node newPath model
             | CopiedItem (node, newPath) ->

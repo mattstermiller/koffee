@@ -142,17 +142,19 @@ let ``Undo create handles error by setting error status`` isEmptyThrows =
 
 [<Test>]
 let ``Rename calls file sys move, openPath and sets status``() =
+    let currentNode = oldNodes.[1]
+    let renamedNode = newNodes.[1]
+    let getNode _ = None
     let mutable renamed = None
     let move s d = renamed <- Some (s, d)
     let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
-    let newName = newNodes.[1].Name
     let model = createModel()
-    MainLogic.Action.rename move openPath oldNodes.[1] newName model
+    MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
 
-    renamed |> shouldEqual (Some (oldNodes.[1].Path, newNodes.[1].Path))
-    let expectedAction = RenamedItem (oldNodes.[1], newName)
+    renamed |> shouldEqual (Some (currentNode.Path, renamedNode.Path))
+    let expectedAction = RenamedItem (currentNode, renamedNode.Name)
     let expected = createModel()
     expected.Nodes <- newNodes
     expected.UndoStack <- expectedAction :: expected.UndoStack
@@ -160,15 +162,32 @@ let ``Rename calls file sys move, openPath and sets status``() =
     expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
     assertAreEqual expected model
 
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Rename to path with existing item sets error status`` existingHidden =
+    let currentNode = oldNodes.[1]
+    let renamedNode = { newNodes.[1] with IsHidden = existingHidden }
+    let getNode p = if p = renamedNode.Path then Some renamedNode else None
+    let move _ _ = failwith "move should not be called"
+    let openPath _ _ _ = failwith "openPath should not be called"
+    let model = createModel()
+    MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
+
+    let expected = createModel()
+    expected.Status <- Some <| MainStatus.cannotRenameAlreadyExists Folder renamedNode.Name existingHidden
+    assertAreEqual expected model
+
 [<Test>]
 let ``Rename handles error by setting error status``() =
+    let currentNode = oldNodes.[1]
+    let renamedNode = newNodes.[1]
+    let getNode _ = None
     let move _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
-    let newName = newNodes.[1].Name
     let model = createModel()
-    MainLogic.Action.rename move openPath oldNodes.[1] newName model
+    MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
 
-    let expectedAction = RenamedItem (oldNodes.[1], newNodes.[1].Name)
+    let expectedAction = RenamedItem (currentNode, renamedNode.Name)
     let expected = createModel()
     expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
@@ -178,6 +197,7 @@ let ``Rename handles error by setting error status``() =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo rename item names file back to original`` curPathDifferent =
+    let getNode _ = None
     let mutable moved = None
     let move s d = moved <- Some (s, d)
     let mutable selected = None
@@ -190,7 +210,7 @@ let ``Undo rename item names file back to original`` curPathDifferent =
     let model = createModel()
     if curPathDifferent then
         model.Path <- createPath "other"
-    MainLogic.Action.undoRename move openPath prevNode curNode.Name model
+    MainLogic.Action.undoRename getNode move openPath prevNode curNode.Name model
 
     moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
     selected |> shouldEqual (Some (SelectName prevNode.Name))
@@ -198,14 +218,30 @@ let ``Undo rename item names file back to original`` curPathDifferent =
     expected.Nodes <- newNodes
     assertAreEqual expected model
 
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo rename to path with existing item sets error status`` existingHidden =
+    let prevNode = { newNodes.[1] with IsHidden = existingHidden }
+    let curNode = oldNodes.[1]
+    let getNode p = if p = prevNode.Path then Some prevNode else None
+    let move _ _ = failwith "move should not be called"
+    let openPath _ _ _ = failwith "openPath should not be called"
+    let model = createModel()
+    MainLogic.Action.undoRename getNode move openPath prevNode curNode.Name model
+
+    let expected = createModel()
+    expected.Status <- Some <| MainStatus.cannotRenameAlreadyExists Folder prevNode.Name existingHidden
+    assertAreEqual expected model
+
 [<Test>]
 let ``Undo rename item handles error by setting error status``() =
+    let getNode _ = None
     let move _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
     let model = createModel()
-    MainLogic.Action.undoRename move openPath prevNode curNode.Name model
+    MainLogic.Action.undoRename getNode move openPath prevNode curNode.Name model
 
     let expectedAction = RenamedItem (curNode, prevNode.Name)
     let expected = createModel()

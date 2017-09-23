@@ -30,7 +30,7 @@ let versionRegex = @"\d\.\d\.\d"
 let getVersion () =
     use reader = new StreamReader(getPath "RELEASE_NOTES.md")
     lineSeq reader
-    |> Seq.choose (regexGroup (sprintf @"\#{3} v(%s)" versionRegex))
+    |> Seq.choose (regexGroup (sprintf @"\#{3} (%s)" versionRegex))
     |> Seq.tryHead
 
 let replaceInFile lineRegex regex (replacement: string) file =

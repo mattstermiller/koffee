@@ -1,6 +1,16 @@
 # Release Notes
 
-### v0.3.0  Settings and Bookmarks
+### 0.3.1
+- Adds Settings button
+- Fixed moving a folder reporting a false error message and not refreshing
+- Fixed delete key not working in command input box
+- Fixed opening Windows Explorer in an empty folder opening parent instead
+- Fixed working directory for processes for opened files 
+- Fixed undo move checking the wrong path for existing file
+- Fixed create and rename overwriting existing files, now they give error message
+- Fixed minimizing resets remembered window position and maximized state
+
+### 0.3.0  Settings and Bookmarks
 - Added ability to set, go to, and delete bookmarked locations
 - Added sort by name, size, or modified ascending/descending
 - Added Open With Text Editor command and setting for text editor path
@@ -8,7 +18,7 @@
 - Added color for folders and hidden items
 - Added search highlighting and match count
 - Added date and size comparison for file overwrite prompt
-- Replaced Rename "replace extension" has been replaced with "replace full name"
+- Replaced Rename command "replace extension" with "replace full name"
 - Window size and position are now remembered
 - Escape and Exit command now work when the path text box is focused
 - Fixes crash when opening a file fails
@@ -16,7 +26,7 @@
 - Fixes overwriting for move
 - Fixes overwriting readonly and hidden files
 
-### v0.2.1
+### 0.2.1
 - Added Open Commandline
 - Path box now replaces "~" with user's directory
 - Window title now shows the current folder
@@ -26,7 +36,7 @@
 - Fix empty item buffer appearing after executing a command
 - Fix margins of path text box and command panel
 
-### v0.2.0  File & Folder Manipulation
+### 0.2.0  File & Folder Manipulation
 - Create, delete, rename, move, and copy files and folders
 - Undo/redo of file and folder actions
 - Back/forward navigation
@@ -34,7 +44,7 @@
 - Support for opening a path passed in as an argument to the executable
 - Added icon and simple thematic elements
 
-### v0.1.0  Initial Release
+### 0.1.0  Initial Release
 - Local file system navigation with VIM hotkeys
 - Find by first character and search with regular expression in current folder
 - Toggle between Windows and Unix-style path formats

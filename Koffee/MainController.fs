@@ -4,7 +4,6 @@ open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Utility
-open ModelExtensions
 open Koffee.ConfigExt
 
 module MainLogic =
@@ -39,7 +38,7 @@ module MainLogic =
                     | SelectIndex index -> index
                     | SelectName name ->
                         List.tryFindIndex (fun n -> n.Name = name) nodes
-                        |> Option.coalesce model.Cursor
+                        |> Option.coalesce keepCursor
                     | KeepSelect -> keepCursor)
                 model.Status <- None
             with ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
@@ -95,16 +94,17 @@ module MainLogic =
     module Cursor =
         let private moveCursorToNext predicate reverse (model: MainModel) =
             let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
+            let c = model.Cursor
             let items =
                 if reverse then
-                    Seq.append indexed.[model.Cursor..] indexed.[0..(model.Cursor-1)]
+                    Seq.append indexed.[c..] indexed.[0..(c-1)]
                     |> Seq.rev
                 else
-                    Seq.append indexed.[(model.Cursor+1)..] indexed.[0..model.Cursor]
+                    Seq.append indexed.[(c+1)..] indexed.[0..c]
             items
-            |> Seq.choose (fun (i, n) -> if predicate n then Some i else None)
+            |> Seq.filter (snd >> predicate)
             |> Seq.tryHead
-            |> Option.iter (fun index -> model.SetCursor index)
+            |> Option.iter (fun (i, n) -> model.SetCursor i)
 
         let find char (model: MainModel) =
             model.LastFind <- Some char
@@ -149,7 +149,7 @@ module MainLogic =
         let private setCommandSelection cursorPos (model: MainModel) =
             cursorPos |> Option.iter (fun pos ->
                 let fullName = model.CommandText
-                let (name, ext) = Path.SplitName fullName
+                let name, ext = Path.SplitName fullName
                 model.CommandTextSelection <-
                     match pos with
                     | Begin -> (0, 0)
@@ -163,8 +163,8 @@ module MainLogic =
             if inputMode.AllowedOnNodeType model.SelectedNode.Type then
                 let text, pos =
                     match inputMode with
-                        | Rename pos -> model.SelectedNode.Name, (Some pos)
-                        | _ -> "", None
+                    | Rename pos -> model.SelectedNode.Name, (Some pos)
+                    | _ -> "", None
                 model.CommandInputMode <- Some inputMode
                 model.CommandText <- text
                 setCommandSelection pos model
@@ -210,11 +210,12 @@ module MainLogic =
 
         let undoRename move openPath oldNode currentName (model: MainModel) =
             let parentPath = oldNode.Path.Parent
-            let node = { oldNode with Name = currentName; Path = parentPath.Join currentName}
+            let currentPath = parentPath.Join currentName
             try
-                move node.Path oldNode.Path
+                move currentPath oldNode.Path
                 openPath parentPath (SelectName oldNode.Name) model
             with ex ->
+                let node = { oldNode with Name = currentName; Path = currentPath }
                 let action = RenamedItem (node, oldNode.Name)
                 model |> MainStatus.setActionExceptionStatus action ex
 
@@ -240,10 +241,7 @@ module MainLogic =
                 else
                     let newName =
                         if bufferAction = Copy && sameFolder then
-                            let exists name =
-                                match getNode (model.Path.Join name) with
-                                | Some _ -> true
-                                | None -> false
+                            let exists name = Option.isSome (getNode (model.Path.Join name))
                             Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
                         else
                             node.Name

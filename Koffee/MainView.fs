@@ -121,12 +121,14 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
         // setup saving window settings
         window.StateChanged.Add (fun _ -> 
-            config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
-            config.Save())
+            if window.WindowState <> WindowState.Minimized then
+                config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
+                config.Save())
         window.LocationChanged.Add (fun _ ->
-            config.Window.Left <- int window.Left |> max 0
-            config.Window.Top <- int window.Top |> max 0
-            config.Save())
+            if window.Left >= 0.0 && window.Top >= 0.0 then
+                config.Window.Left <- int window.Left
+                config.Window.Top <- int window.Top
+                config.Save())
         window.SizeChanged.Add (fun e -> 
             config.Window.Width <- int window.Width
             config.Window.Height <- int window.Height

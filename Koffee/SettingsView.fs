@@ -40,19 +40,24 @@ type SettingsView(window: SettingsWindow, config: Config) =
         window.PreviewKeyDown.Add (onKey Key.Escape window.Close)
         window.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W window.Close)
 
-    override this.EventStreams = [
-        window.StartupPathPrevious.Checked |> Observable.mapTo (StartupPathChanged RestorePrevious)
-        window.StartupPathDefault.Checked |> Observable.mapTo (StartupPathChanged DefaultPath)
-        window.DefaultPath.LostFocus |> Observable.map (fun _ -> DefaultPathChanged (window.DefaultPath.Text))
+    override this.EventStreams =
+        let textBoxChanged evt (textBox: Controls.TextBox) =
+            textBox.LostFocus |> Observable.map (fun _ -> evt (textBox.Text))
 
-        window.TextEditor.LostFocus |> Observable.map (fun _ -> TextEditorChanged (window.TextEditor.Text))
+        let checkedChanged evt (checkBox: Controls.CheckBox) =
+            (checkBox.Checked |> Observable.mapTo (evt true),
+             checkBox.Unchecked |> Observable.mapTo (evt false))
+            ||> Observable.merge
 
-        window.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
-        window.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)
+        [ window.StartupPathPrevious.Checked |> Observable.mapTo (StartupPathChanged RestorePrevious)
+          window.StartupPathDefault.Checked |> Observable.mapTo (StartupPathChanged DefaultPath)
+          window.DefaultPath |> textBoxChanged DefaultPathChanged
 
-        window.ShowFullPathInTitleBar.Checked |> Observable.mapTo (ShowFullPathInTitleChanged true)
-        window.ShowFullPathInTitleBar.Unchecked |> Observable.mapTo (ShowFullPathInTitleChanged false)
+          window.TextEditor |> textBoxChanged TextEditorChanged
 
-        window.ShowHidden.Checked |> Observable.mapTo (ShowHiddenChanged true)
-        window.ShowHidden.Unchecked |> Observable.mapTo (ShowHiddenChanged false)
-    ]
+          window.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
+          window.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)
+
+          window.ShowFullPathInTitleBar |> checkedChanged ShowFullPathInTitleChanged
+          window.ShowHidden |> checkedChanged ShowHiddenChanged
+        ]

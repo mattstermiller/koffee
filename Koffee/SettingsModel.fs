@@ -17,6 +17,7 @@ type SettingsEvents =
     | StartupPathChanged of StartupPath
     | DefaultPathChanged of string
     | TextEditorChanged of string
+    | CommandlinePathChanged of string
     | PathFormatChanged of PathFormat
     | ShowFullPathInTitleChanged of bool
     | ShowHiddenChanged of bool

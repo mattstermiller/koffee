@@ -4,6 +4,7 @@ PreviousPath: Drives
 PathFormatName: Windows
 ShowHidden: false
 TextEditor: notepad.exe
+CommandlinePath: cmd.exe
 Window:
     IsMaximized: false
     Left: 200

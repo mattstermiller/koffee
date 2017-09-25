@@ -136,9 +136,8 @@ type FileSystemService() =
             File.Delete wp
 
     member this.OpenFile path =
-        let pinfo = ProcessStartInfo(wpath path)
-        pinfo.WorkingDirectory <- wpath path.Parent
-        Process.Start(pinfo) |> ignore
+        ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
+        |> Process.Start |> ignore
 
     member this.OpenExplorer node =
         match node.Type with
@@ -149,12 +148,9 @@ type FileSystemService() =
         | _ ->
             Process.Start("explorer.exe") |> ignore
 
-    member this.OpenCommandLine path =
-        if path <> Path.Root then
-            Process.Start("cmd.exe", sprintf "/k pushd \"%s\"" (wpath path)) |> ignore
-
-    member this.OpenWith exePath itemPath =
-        Process.Start(exePath, sprintf "\"%s\"" (wpath itemPath)) |> ignore
+    member this.LaunchApp exePath workingPath args =
+        ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
+        |> Process.Start |> ignore
 
 
     member private this.PrepForOverwrite file =

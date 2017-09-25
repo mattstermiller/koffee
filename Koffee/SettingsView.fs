@@ -23,6 +23,7 @@ type SettingsView(window: SettingsWindow, config: Config) =
         window.DefaultPath.Text <- config.DefaultPath
 
         window.TextEditor.Text <- config.TextEditor
+        window.CommandlinePath.Text <- config.CommandlinePath
 
         if config.Window.ShowFullPathInTitle then
             check window.ShowFullPathInTitleBar
@@ -54,6 +55,7 @@ type SettingsView(window: SettingsWindow, config: Config) =
           window.DefaultPath |> textBoxChanged DefaultPathChanged
 
           window.TextEditor |> textBoxChanged TextEditorChanged
+          window.CommandlinePath |> textBoxChanged CommandlinePathChanged
 
           window.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
           window.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)

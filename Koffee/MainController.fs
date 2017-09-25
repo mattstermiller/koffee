@@ -520,14 +520,18 @@ type MainController(fileSys: FileSystemService,
 
     member this.OpenCommandLine model =
         if model.Path <> Path.Root then
-            fileSys.OpenCommandLine model.Path
-            model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
+            try
+                fileSys.LaunchApp config.CommandlinePath model.Path ""
+                model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
+            with ex ->
+                model.Status <- Some <| ErrorMessage ex.Message // TODO
 
     member this.OpenWithTextEditor model =
         match model.SelectedNode.Type with
         | File ->
             try
-                fileSys.OpenWith config.TextEditor model.SelectedNode.Path
+                let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
+                fileSys.LaunchApp config.TextEditor model.Path args
                 model.Status <- Some <| MainStatus.openTextEditor model.SelectedNode.Name
             with ex ->
                 model.Status <- Some <| MainStatus.couldNotOpenTextEditor ex.Message

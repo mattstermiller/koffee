@@ -2,22 +2,21 @@
 
 open System
 open FSharp.Desktop.UI
+open Utility
 open ConfigExt
 
 type SettingsController(config: Config) =
     interface IController<SettingsEvents, SettingsModel> with
-        member this.InitModel model =
+        member x.InitModel model =
             model.KeyBindings <-
                 MainEvents.Bindable
                 |> List.map (fun evt ->
-                    let keys =
+                    { EventName = evt.FriendlyName
+                      BoundKeys =
                         KeyBinding.DefaultsAsString
-                        |> List.choose (fun (key, bound) ->
-                            if bound = evt then Some key
-                            else None)
-                    {
-                        EventName = evt.FriendlyName
-                        BoundKeys = String.Join(" OR ", keys)
+                        |> List.filter (snd >> ((=) evt))
+                        |> List.map fst
+                        |> Str.join " OR "
                     })
 
         member x.Dispatcher = function

@@ -48,7 +48,7 @@
             </ItemsControl>
         </StackPanel>
         <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="30" Margin="4,0,0,4" VerticalAlignment="Bottom"/>
-        <Label x:Name="BufferLabel" Content="buffer" HorizontalAlignment="Right" Height="30" Margin="0,0,4,4" VerticalAlignment="Bottom" Background="White" BorderThickness="2" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden"/>
+        <Label x:Name="RegisterLabel" Content="register" HorizontalAlignment="Right" Height="30" Margin="0,0,4,4" VerticalAlignment="Bottom" Background="White" BorderThickness="2" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden"/>
         <DockPanel x:Name="CommandPanel" Background="{DynamicResource FocusBrush}" LastChildFill="True" Height="38" VerticalAlignment="Bottom" Visibility="Hidden">
             <Label x:Name="CommandLabel" Content="Command:" Foreground="White" HorizontalAlignment="Left" Height="26" VerticalAlignment="Center" DockPanel.Dock="Left"/>
             <TextBox x:Name="CommandBox" TextWrapping="NoWrap" Width="Auto" Height="23" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,5,0"/>

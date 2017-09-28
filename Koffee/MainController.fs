@@ -227,10 +227,10 @@ module MainLogic =
                 let action = RenamedItem (node, oldNode.Name)
                 model |> MainStatus.setActionExceptionStatus action ex
 
-        let bufferItem action (model: MainModel) =
+        let registerItem action (model: MainModel) =
             match model.SelectedNode.Type with
             | File | Folder ->
-                model.ItemBuffer <- Some (model.SelectedNode, action)
+                model.YankRegister <- Some (model.SelectedNode, action)
                 model.Status <- None
             | _ -> ()
 
@@ -240,15 +240,15 @@ module MainLogic =
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
         let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
-            match model.ItemBuffer with
+            match model.YankRegister with
             | None -> ()
-            | Some (node, bufferAction) ->
+            | Some (node, registerAction) ->
                 let sameFolder = node.Path.Parent = model.Path
-                if bufferAction = Move && sameFolder then
+                if registerAction = Move && sameFolder then
                     model.Status <- Some MainStatus.cannotMoveToSameFolder
                 else
                     let newName =
-                        if bufferAction = Copy && sameFolder then
+                        if registerAction = Copy && sameFolder then
                             let exists name = Option.isSome (getNode (model.Path.Join name))
                             Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
                         else
@@ -262,14 +262,14 @@ module MainLogic =
                         startInput (Confirm (Overwrite existing)) model
                     | _ ->
                         let fileSysAction, action =
-                            match bufferAction with
+                            match registerAction with
                             | Move -> (move, MovedItem (node, newPath))
                             | Copy -> (copy, CopiedItem (node, newPath))
                         try
                             model.Status <- MainStatus.runningAction action model.PathFormat
                             do! runAsync (fun () -> fileSysAction node.Path newPath)
                             openPath config.ShowHidden model.Path (SelectName newName) model
-                            model.ItemBuffer <- None
+                            model.YankRegister <- None
                             model |> performedAction action
                         with ex -> model |> MainStatus.setActionExceptionStatus action ex
         }
@@ -375,8 +375,8 @@ type MainController(fileSys: FileSystemService,
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
         | SearchPrevious -> Sync (MainLogic.Cursor.searchNext true)
-        | StartMove -> Sync (MainLogic.Action.bufferItem Move)
-        | StartCopy -> Sync (MainLogic.Action.bufferItem Copy)
+        | StartMove -> Sync (MainLogic.Action.registerItem Move)
+        | StartCopy -> Sync (MainLogic.Action.registerItem Copy)
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
         | SortList field -> Sync (MainLogic.Navigation.sortList this.Refresh field)
@@ -499,11 +499,11 @@ type MainController(fileSys: FileSystemService,
                     | MovedItem _ -> Move
                     | _ -> Copy
                 goToPath newPath
-                let buffer = model.ItemBuffer
-                model.ItemBuffer <- Some (node, moveOrCopy)
+                let register = model.YankRegister
+                model.YankRegister <- Some (node, moveOrCopy)
                 model.Status <- MainStatus.redoingAction action model.PathFormat
                 do! this.Put false model
-                model.ItemBuffer <- buffer
+                model.YankRegister <- register
             | DeletedItem (node, permanent) ->
                 goToPath node.Path
                 model.Status <- MainStatus.redoingAction action model.PathFormat

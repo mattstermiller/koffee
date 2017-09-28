@@ -56,11 +56,11 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
         model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath
 
-        // display item in buffer
-        bindPropertyToFunc <@ model.ItemBuffer @> (fun buffer ->
-            let text = MainView.BufferStatus buffer
-            window.BufferLabel.Content <- text
-            window.BufferLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible)
+        // display item in register
+        bindPropertyToFunc <@ model.YankRegister @> (fun register ->
+            let text = MainView.RegisterStatus register
+            window.RegisterLabel.Content <- text
+            window.RegisterLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible)
 
         // update command text selection
         bindPropertyToFunc <@ model.CommandTextSelection @> (fun (start, len) ->
@@ -68,7 +68,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
         // update UI for the command input mode
         bindPropertyToFunc <@ model.CommandInputMode @> (fun mode ->
-            this.CommandInputModeChanged mode model.SelectedNode model.ItemBuffer
+            this.CommandInputModeChanged mode model.SelectedNode model.YankRegister
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update UI for status
@@ -215,7 +215,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         if wasBusy && not isBusy then
             window.NodeGrid.Focus() |> ignore
 
-    member this.CommandInputModeChanged mode node itemBuffer =
+    member this.CommandInputModeChanged mode node yankRegister =
         match mode with
         | Some inputMode ->
             let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
@@ -226,7 +226,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
             window.BookmarkPanel.Visibility <- if isBookmark then Visibility.Visible else Visibility.Hidden
-            this.ShowCommandBar (inputMode |> this.GetPrompt node (itemBuffer |> Option.map fst))
+            this.ShowCommandBar (inputMode |> this.GetPrompt node (yankRegister |> Option.map fst))
         | None -> this.HideCommandBar ()
 
     member this.GetPrompt (node: Node) (item: Node option) = function
@@ -273,8 +273,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         else
             None
 
-    static member BufferStatus buffer =
-        match buffer with
+    static member RegisterStatus = function
         | Some (node, action) -> sprintf "%A %A: %s" action node.Type node.Name
         | None -> ""
 

@@ -34,3 +34,5 @@ type SettingsController(config: Config) =
                 config.Window.ShowFullPathInTitle <- value; config.Save())
             | ShowHiddenChanged value -> Sync (fun _ ->
                 config.ShowHidden <- value; config.Save())
+            | RefreshWindowOnActivate value -> Sync (fun _ ->
+                config.Window.RefreshOnActivate <- value; config.Save())

@@ -139,6 +139,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             config.Save())
 
     override this.EventStreams = [
+        window.Activated |> Observable.choose this.Activated
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)
         window.PathBox.PreviewKeyDown |> Observable.choose (fun keyEvt ->
             match this.TriggerKeyBindings keyEvt with
@@ -149,6 +150,11 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         window.CommandBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> ExecuteCommand)
         window.CommandBox.PreviewTextInput |> Observable.choose this.CommandTextInput
     ]
+
+    member this.Activated _ =
+        if config.Window.RefreshOnActivate then
+            Some Refresh
+        else None
 
     member this.CommandTextInput keyEvt =
         match keyEvt.Text.ToCharArray() with

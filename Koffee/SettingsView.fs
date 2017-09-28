@@ -29,6 +29,8 @@ type SettingsView(window: SettingsWindow, config: Config) =
             check window.ShowFullPathInTitleBar
         if config.ShowHidden then
             check window.ShowHidden
+        if config.Window.RefreshOnActivate then
+            check window.RefreshOnActivate
 
         Binding.OfExpression
             <@
@@ -62,4 +64,5 @@ type SettingsView(window: SettingsWindow, config: Config) =
 
           window.ShowFullPathInTitleBar |> checkedChanged ShowFullPathInTitleChanged
           window.ShowHidden |> checkedChanged ShowHiddenChanged
+          window.RefreshOnActivate |> checkedChanged RefreshWindowOnActivate
         ]

@@ -239,39 +239,44 @@ module MainLogic =
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
+        let putItem (config: Config) getNode move copy openPath overwrite node registerAction (model: MainModel) = async {
+            let sameFolder = node.Path.Parent = model.Path
+            if registerAction = Move && sameFolder then
+                model.Status <- Some MainStatus.cannotMoveToSameFolder
+            else
+                let newName =
+                    if registerAction = Copy && sameFolder then
+                        let exists name = Option.isSome (getNode (model.Path.Join name))
+                        Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
+                    else
+                        node.Name
+                let newPath = model.Path.Join newName
+                match getNode newPath with
+                | Some existing when not overwrite ->
+                    // refresh node list to make sure we can see the existing file
+                    let showHidden = config.ShowHidden || existing.IsHidden
+                    openPath showHidden model.Path (SelectName existing.Name) model
+                    startInput (Confirm (Overwrite existing)) model
+                | _ ->
+                    let fileSysAction, action =
+                        match registerAction with
+                        | Move -> (move, MovedItem (node, newPath))
+                        | Copy -> (copy, CopiedItem (node, newPath))
+                    try
+                        model.Status <- MainStatus.runningAction action model.PathFormat
+                        do! runAsync (fun () -> fileSysAction node.Path newPath)
+                        openPath config.ShowHidden model.Path (SelectName newName) model
+                        model |> performedAction action
+                    with ex -> model |> MainStatus.setActionExceptionStatus action ex
+        }
+
         let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
             match model.YankRegister with
             | None -> ()
             | Some (node, registerAction) ->
-                let sameFolder = node.Path.Parent = model.Path
-                if registerAction = Move && sameFolder then
-                    model.Status <- Some MainStatus.cannotMoveToSameFolder
-                else
-                    let newName =
-                        if registerAction = Copy && sameFolder then
-                            let exists name = Option.isSome (getNode (model.Path.Join name))
-                            Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
-                        else
-                            node.Name
-                    let newPath = model.Path.Join newName
-                    match getNode newPath with
-                    | Some existing when not overwrite ->
-                        // refresh node list to make sure we can see the existing file
-                        let showHidden = config.ShowHidden || existing.IsHidden
-                        openPath showHidden model.Path (SelectName existing.Name) model
-                        startInput (Confirm (Overwrite existing)) model
-                    | _ ->
-                        let fileSysAction, action =
-                            match registerAction with
-                            | Move -> (move, MovedItem (node, newPath))
-                            | Copy -> (copy, CopiedItem (node, newPath))
-                        try
-                            model.Status <- MainStatus.runningAction action model.PathFormat
-                            do! runAsync (fun () -> fileSysAction node.Path newPath)
-                            openPath config.ShowHidden model.Path (SelectName newName) model
-                            model.YankRegister <- None
-                            model |> performedAction action
-                        with ex -> model |> MainStatus.setActionExceptionStatus action ex
+                do! putItem config getNode move copy openPath overwrite node registerAction model
+                if not model.HasErrorStatus && model.CommandInputMode.IsNone then
+                    model.YankRegister <- None
         }
 
         let undoMove getNode move openPath node currentPath (model: MainModel) = async {
@@ -453,6 +458,7 @@ type MainController(fileSys: FileSystemService,
     member this.Create = MainLogic.Action.create fileSys.GetNode fileSys.Create this.OpenPath
     member this.Rename = MainLogic.Action.rename fileSys.GetNode fileSys.Move this.OpenPath
     member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
+    member this.PutItem = MainLogic.Action.putItem config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes) false
     member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
 
@@ -499,11 +505,8 @@ type MainController(fileSys: FileSystemService,
                     | MovedItem _ -> Move
                     | _ -> Copy
                 goToPath newPath
-                let register = model.YankRegister
-                model.YankRegister <- Some (node, moveOrCopy)
                 model.Status <- MainStatus.redoingAction action model.PathFormat
-                do! this.Put false model
-                model.YankRegister <- register
+                do! this.PutItem node moveOrCopy model
             | DeletedItem (node, permanent) ->
                 goToPath node.Path
                 model.Status <- MainStatus.redoingAction action model.PathFormat

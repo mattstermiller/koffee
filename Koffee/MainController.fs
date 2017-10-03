@@ -7,8 +7,11 @@ open Utility
 open Koffee.ConfigExt
 
 module MainLogic =
-    let initModel (config: Config) openUserPath commandLinePath (model: MainModel) =
+    let initModel (config: Config) getNode openUserPath commandLinePath (model: MainModel) =
         config.Changed.Add (fun _ ->
+            model.YankRegister <- config.YankRegister
+                                  |> Option.bind (fun (path, action) ->
+                                      (getNode path, Some action) ||> Option.map2 (fun p a -> p, a))
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
@@ -227,7 +230,7 @@ module MainLogic =
                 let action = RenamedItem (node, oldNode.Name)
                 model |> MainStatus.setActionExceptionStatus action ex
 
-        let registerItem action (model: MainModel) =
+        let registerItem (config: Config) action (model: MainModel) =
             match model.SelectedNode.Type with
             | File | Folder ->
                 model.YankRegister <- Some (model.SelectedNode, action)
@@ -345,7 +348,7 @@ type MainController(fileSys: FileSystemService,
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with
-        member this.InitModel model = MainLogic.initModel config this.OpenUserPath commandLinePath model
+        member this.InitModel model = MainLogic.initModel config fileSys.GetNode this.OpenUserPath commandLinePath model
         member this.Dispatcher = this.LockingDispatcher
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =
@@ -380,8 +383,8 @@ type MainController(fileSys: FileSystemService,
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
         | SearchPrevious -> Sync (MainLogic.Cursor.searchNext true)
-        | StartMove -> Sync (MainLogic.Action.registerItem Move)
-        | StartCopy -> Sync (MainLogic.Action.registerItem Copy)
+        | StartMove -> Sync (MainLogic.Action.registerItem config Move)
+        | StartCopy -> Sync (MainLogic.Action.registerItem config Copy)
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
         | SortList field -> Sync (MainLogic.Navigation.sortList this.Refresh field)

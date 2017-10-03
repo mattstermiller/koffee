@@ -5,6 +5,8 @@ PathFormatName: Windows
 ShowHidden: false
 TextEditor: notepad.exe
 CommandlinePath: cmd.exe
+YankRegisterAction: ""
+YankRegisterPath: ""
 Window:
     IsMaximized: false
     Left: 200

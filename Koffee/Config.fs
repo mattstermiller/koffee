@@ -40,6 +40,19 @@ module ConfigExt =
             with get () = ParseUnionCase<StartupPath> this.StartupPathType |> Option.coalesce RestorePrevious
             and set value = this.StartupPathType <- GetUnionCaseName value
 
+        member this.YankRegister
+            with get () =
+                let path = Koffee.Path.Parse this.YankRegisterPath
+                let action = ParseUnionCase<RegisterAction> this.YankRegisterAction
+                (path, action) ||> Option.map2 (fun p a -> p, a)
+            and set (value: (Koffee.Path * RegisterAction) option) =
+                let path, action =
+                    match value with
+                    | Some (path, action) -> path.Format Windows, GetUnionCaseName action
+                    | None -> "", ""
+                this.YankRegisterPath <- path
+                this.YankRegisterAction <- action
+
         member this.SetBookmark char path =
             this.RemoveBookmark char
             let bookmark = Config.Bookmarks_Item_Type()

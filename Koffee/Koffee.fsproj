@@ -75,8 +75,8 @@
     <Compile Include="UIHelpers.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />
-    <Compile Include="Config.fs" />
     <Compile Include="MainModel.fs" />
+    <Compile Include="Config.fs" />
     <Compile Include="KeyBinding.fs" />
     <Compile Include="SettingsModel.fs" />
     <Resource Include="SettingsWindow.xaml" />

@@ -56,11 +56,14 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
         model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath
 
-        // display item in register
+        // register display and save
         bindPropertyToFunc <@ model.YankRegister @> (fun register ->
+            config.YankRegister <- register |> Option.map (fun (node, action) -> node.Path, action)
+            config.Save()
             let text = MainView.RegisterStatus register
-            window.RegisterLabel.Content <- text
-            window.RegisterLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible)
+            window.Dispatcher.Invoke (fun () ->
+                window.RegisterLabel.Content <- text
+                window.RegisterLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible))
 
         // update command text selection
         bindPropertyToFunc <@ model.CommandTextSelection @> (fun (start, len) ->

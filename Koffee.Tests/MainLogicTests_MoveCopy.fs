@@ -48,7 +48,8 @@ let ``Put item to move or copy in different folder with item of same name prompt
         if s = SelectName (dest.Name) then
             model.Cursor <- 2
         openedHidden <- Some sh
-    let item = Some (src, if doCopy then Copy else Move)
+    let action = if doCopy then Copy else Move
+    let item = Some (src, action)
     let model = createModel()
     model.YankRegister <- item
     MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
@@ -57,7 +58,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
     expected.YankRegister <- item
     expected.Nodes <- newNodes
     expected.Cursor <- 2
-    expected.CommandInputMode <- Some (Confirm (Overwrite dest))
+    expected.CommandInputMode <- Some (Confirm (Overwrite (action, src, dest)))
     assertAreEqual expected model
     openedHidden |> shouldEqual (Some existingHidden)
     config.ShowHidden |> shouldEqual false

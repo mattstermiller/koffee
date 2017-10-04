@@ -57,8 +57,12 @@ type RenamePart =
     | ReplaceName
     | ReplaceAll
 
+type PutAction =
+    | Move
+    | Copy
+
 type ConfirmType =
-    | Overwrite of Node
+    | Overwrite of PutAction * src: Node * dest: Node
     | Delete
 
 type CommandInput =
@@ -79,10 +83,6 @@ type CommandInput =
             | File | Folder -> true
             | _ -> false
         | _ -> true
-
-type PutAction =
-    | Move
-    | Copy
 
 type ItemAction =
     | CreatedItem of Node

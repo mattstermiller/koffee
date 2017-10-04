@@ -259,7 +259,7 @@ module MainLogic =
                     // refresh node list to make sure we can see the existing file
                     let showHidden = config.ShowHidden || existing.IsHidden
                     openPath showHidden model.Path (SelectName existing.Name) model
-                    startInput (Confirm (Overwrite existing)) model
+                    startInput (Confirm (Overwrite (putAction, node, existing))) model
                 | _ ->
                     let fileSysAction, action =
                         match putAction with
@@ -443,7 +443,10 @@ type MainController(fileSys: FileSystemService,
             | 'y' ->
                 model.CommandInputMode <- None
                 match confirmType with
-                | Overwrite _ -> do! this.Put true model
+                | Overwrite (action, src, _) ->
+                    do! this.PutItem true src action model
+                    if not model.HasErrorStatus then
+                        model.YankRegister <- None
                 | Delete -> do! this.Delete model.SelectedNode true model
             | 'n' ->
                 model.CommandInputMode <- None
@@ -461,7 +464,7 @@ type MainController(fileSys: FileSystemService,
     member this.Create = MainLogic.Action.create fileSys.GetNode fileSys.Create this.OpenPath
     member this.Rename = MainLogic.Action.rename fileSys.GetNode fileSys.Move this.OpenPath
     member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
-    member this.PutItem = MainLogic.Action.putItem config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes) false
+    member this.PutItem = MainLogic.Action.putItem config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
     member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
 
@@ -509,7 +512,7 @@ type MainController(fileSys: FileSystemService,
                     | _ -> Copy
                 goToPath newPath
                 model.Status <- MainStatus.redoingAction action model.PathFormat
-                do! this.PutItem node moveOrCopy model
+                do! this.PutItem false node moveOrCopy model
             | DeletedItem (node, permanent) ->
                 goToPath node.Path
                 model.Status <- MainStatus.redoingAction action model.PathFormat

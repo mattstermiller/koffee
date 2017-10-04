@@ -71,7 +71,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
         // update UI for the command input mode
         bindPropertyToFunc <@ model.CommandInputMode @> (fun mode ->
-            this.CommandInputModeChanged mode model.SelectedNode model.YankRegister
+            this.CommandInputModeChanged mode model.SelectedNode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update UI for status
@@ -218,7 +218,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         if wasBusy && not isBusy then
             window.NodeGrid.Focus() |> ignore
 
-    member this.CommandInputModeChanged mode node yankRegister =
+    member this.CommandInputModeChanged mode node =
         match mode with
         | Some inputMode ->
             let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
@@ -229,27 +229,25 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
             window.BookmarkPanel.Visible <- isBookmark
-            this.ShowCommandBar (inputMode |> this.GetPrompt node (yankRegister |> Option.map fst))
+            this.ShowCommandBar (inputMode |> this.GetPrompt node)
         | None -> this.HideCommandBar ()
 
-    member this.GetPrompt (node: Node) (item: Node option) = function
-        | Confirm (Overwrite node) ->
-            match node.Type with
-            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" node.Name
+    member this.GetPrompt (node: Node) = function
+        | Confirm (Overwrite (_, src, dest)) ->
+            match dest.Type with
+            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
             | File ->
-                let sourceModified = item |> Option.bind (fun n -> n.Modified)
-                let sourceSize = item |> Option.bind (fun n -> n.Size)
-                match sourceModified, sourceSize, node.Modified, node.Size with
+                match src.Modified, src.Size, dest.Modified, dest.Size with
                 | Some srcModified, Some srcSize, Some destModified, Some destSize ->
                     let compare a b less greater =
                         if a = b then "same"
                         else if a < b then less
                         else greater
                     sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                        node.Name
+                        dest.Name
                         (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
                         (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" node.Name
+                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
             | _ -> ""
         | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
         | inputType -> inputType |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"

@@ -28,6 +28,11 @@ let bindPropertyToFunc (propertyExpr: Expr<'a>) bindFunc =
         model.OnPropertyChanged propertyExpr bindFunc
     | _ -> failwith "Invalid property expression. It must be a property of this model type."
 
+type UIElement with
+    member this.Visible
+        with get () = this.Visibility <> Visibility.Hidden
+        and set value = this.Visibility <- if value then Visibility.Visible else Visibility.Hidden
+
 type DataGrid with
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter,
                            ?format: string) =

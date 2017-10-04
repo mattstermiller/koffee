@@ -63,7 +63,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             let text = MainView.RegisterStatus register
             window.Dispatcher.Invoke (fun () ->
                 window.RegisterLabel.Content <- text
-                window.RegisterLabel.Visibility <- if text = "" then Visibility.Hidden else Visibility.Visible))
+                window.RegisterLabel.Visible <- text <> ""))
 
         // update command text selection
         bindPropertyToFunc <@ model.CommandTextSelection @> (fun (start, len) ->
@@ -228,7 +228,7 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
                     | bm when bm |> Seq.isEmpty -> [(' ', "No bookmarks set")] |> dict
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
-            window.BookmarkPanel.Visibility <- if isBookmark then Visibility.Visible else Visibility.Hidden
+            window.BookmarkPanel.Visible <- isBookmark
             this.ShowCommandBar (inputMode |> this.GetPrompt node (yankRegister |> Option.map fst))
         | None -> this.HideCommandBar ()
 
@@ -256,12 +256,12 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
 
     member private this.ShowCommandBar label =
         window.CommandLabel.Content <- label
-        window.CommandPanel.Visibility <- Visibility.Visible
+        window.CommandPanel.Visible <- true
         window.CommandBox.Focus() |> ignore
 
     member private this.HideCommandBar () =
-        window.CommandPanel.Visibility <- Visibility.Hidden
-        window.BookmarkPanel.Visibility <- Visibility.Hidden
+        window.CommandPanel.Visible <- false
+        window.BookmarkPanel.Visible <- false
         window.NodeGrid.Focus() |> ignore
 
     member this.KeepSelectedInView () =

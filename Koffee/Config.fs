@@ -43,9 +43,9 @@ module ConfigExt =
         member this.YankRegister
             with get () =
                 let path = Koffee.Path.Parse this.YankRegisterPath
-                let action = ParseUnionCase<RegisterAction> this.YankRegisterAction
+                let action = ParseUnionCase<PutAction> this.YankRegisterAction
                 (path, action) ||> Option.map2 (fun p a -> p, a)
-            and set (value: (Koffee.Path * RegisterAction) option) =
+            and set (value: (Koffee.Path * PutAction) option) =
                 let path, action =
                     match value with
                     | Some (path, action) -> path.Format Windows, GetUnionCaseName action

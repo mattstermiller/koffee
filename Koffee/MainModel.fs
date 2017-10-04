@@ -80,7 +80,7 @@ type CommandInput =
             | _ -> false
         | _ -> true
 
-type RegisterAction =
+type PutAction =
     | Move
     | Copy
 
@@ -138,7 +138,7 @@ type MainModel() as this =
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
     abstract ForwardStack: (Path * int) list with get, set
-    abstract YankRegister: (Node * RegisterAction) option with get, set
+    abstract YankRegister: (Node * PutAction) option with get, set
     abstract UndoStack: ItemAction list with get, set
     abstract RedoStack: ItemAction list with get, set
     abstract ShowFullPathInTitle: bool with get, set

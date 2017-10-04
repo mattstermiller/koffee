@@ -242,13 +242,13 @@ module MainLogic =
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
-        let putItem (config: Config) getNode move copy openPath overwrite node registerAction (model: MainModel) = async {
+        let putItem (config: Config) getNode move copy openPath overwrite node putAction (model: MainModel) = async {
             let sameFolder = node.Path.Parent = model.Path
-            if registerAction = Move && sameFolder then
+            if putAction = Move && sameFolder then
                 model.Status <- Some MainStatus.cannotMoveToSameFolder
             else
                 let newName =
-                    if registerAction = Copy && sameFolder then
+                    if putAction = Copy && sameFolder then
                         let exists name = Option.isSome (getNode (model.Path.Join name))
                         Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
                     else
@@ -262,7 +262,7 @@ module MainLogic =
                     startInput (Confirm (Overwrite existing)) model
                 | _ ->
                     let fileSysAction, action =
-                        match registerAction with
+                        match putAction with
                         | Move -> (move, MovedItem (node, newPath))
                         | Copy -> (copy, CopiedItem (node, newPath))
                     try
@@ -276,8 +276,8 @@ module MainLogic =
         let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
             match model.YankRegister with
             | None -> ()
-            | Some (node, registerAction) ->
-                do! putItem config getNode move copy openPath overwrite node registerAction model
+            | Some (node, putAction) ->
+                do! putItem config getNode move copy openPath overwrite node putAction model
                 if not model.HasErrorStatus && model.CommandInputMode.IsNone then
                     model.YankRegister <- None
         }

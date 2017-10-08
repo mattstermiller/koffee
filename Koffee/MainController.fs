@@ -15,13 +15,14 @@ module MainLogic =
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
+        let defaultPath = config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
         let startupPath =
             commandLinePath |> Option.defaultValue (
                 match config.StartupPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
-        model.Path <- config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
-        openUserPath (startupPath) model
+        model.Path <- defaultPath
+        openUserPath startupPath model
 
     module Navigation =
         let openPath getNodes (showHidden: bool) path select (model: MainModel) =

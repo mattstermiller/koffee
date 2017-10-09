@@ -16,15 +16,6 @@ module MainLogic =
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
 
-        match startupOptions.Location with
-        | Some (left, top) -> config.Window.Left <- left
-                              config.Window.Top <- top
-        | None -> ()
-        match startupOptions.Size with
-        | Some (width, height) -> config.Window.Width <- width
-                                  config.Window.Height <- height
-        | None -> ()
-
         let defaultPath = config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
         let startupPath =
             startupOptions.StartupPath |> Option.defaultValue (
@@ -32,6 +23,8 @@ module MainLogic =
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
         model.Path <- defaultPath
+        model.WindowLocation <- startupOptions.Location |> Option.defaultValue (config.Window.Left, config.Window.Top)
+        model.WindowSize <- startupOptions.Size |> Option.defaultValue (config.Window.Width, config.Window.Height)
         openUserPath startupPath model
 
     module Navigation =
@@ -400,6 +393,7 @@ type MainController(fileSys: FileSystemService,
         | Recycle -> Async this.Recycle
         | SortList field -> Sync (MainLogic.Navigation.sortList this.Refresh field)
         | ToggleHidden -> Sync this.ToggleHidden
+        | OpenSplitScreenWindow -> Sync this.OpenSplitScreenWindow
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> Sync this.OpenCommandLine
@@ -533,6 +527,17 @@ type MainController(fileSys: FileSystemService,
             model.Status <- Some <| MainStatus.redoAction action model.PathFormat
         | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
+
+    member this.OpenSplitScreenWindow model =
+        match Path.Parse System.AppDomain.CurrentDomain.BaseDirectory with
+        | None -> model.Status <- Some <| ErrorMessage "Could not determine Koffee.exe path"
+        | Some folder ->
+            let path = (folder.Join "Koffee.exe").Format Windows
+            let left, top = model.WindowLocation
+            let width, height = model.WindowSize
+            let args = sprintf "%s --location=%i,%i --size=%i,%i"
+                               (model.Path.Format Windows) (left + width) top width height
+            fileSys.LaunchApp path folder args
 
     member this.OpenExplorer model =
         fileSys.OpenExplorer model.SelectedNode

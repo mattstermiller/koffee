@@ -50,6 +50,7 @@ let DefaultsAsString = [
     ("sm", SortList Modified)
     ("ss", SortList Size)
     ("<f9>", ToggleHidden)
+    ("<c-n>", OpenSplitScreenWindow)
     ("<cs-e>", OpenExplorer)
     ("<cs-c>", OpenCommandLine)
     ("<cs-t>", OpenWithTextEditor)

@@ -123,6 +123,8 @@ type MainModel() as this =
         this.RedoStack <- []
         this.CommandText <- ""
         this.CommandTextSelection <- 0, 0
+        this.WindowLocation <- 0, 0
+        this.WindowSize <- 800, 800
 
     abstract Path: Path with get, set
     abstract PathFormat: PathFormat with get, set
@@ -142,6 +144,8 @@ type MainModel() as this =
     abstract UndoStack: ItemAction list with get, set
     abstract RedoStack: ItemAction list with get, set
     abstract ShowFullPathInTitle: bool with get, set
+    abstract WindowLocation: int * int with get, set
+    abstract WindowSize: int * int with get, set
 
     member this.HasErrorStatus =
         match this.Status with
@@ -186,6 +190,7 @@ type MainEvents =
     | Redo
     | SortList of SortField
     | ToggleHidden
+    | OpenSplitScreenWindow
     | OpenExplorer
     | OpenCommandLine
     | OpenWithTextEditor
@@ -233,6 +238,7 @@ type MainEvents =
         | Redo -> "Redo Action"
         | SortList field -> sprintf "Sort by %A" field
         | ToggleHidden -> "Show/Hide Hidden Folders and Files"
+        | OpenSplitScreenWindow -> "Open New Window for Split Screen"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenWithTextEditor -> "Open Selected File With Text Editor"
@@ -276,6 +282,7 @@ type MainEvents =
         SortList Modified
         SortList Size
         ToggleHidden
+        OpenSplitScreenWindow
         OpenExplorer
         OpenCommandLine
         OpenWithTextEditor

@@ -116,10 +116,12 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
         // load window settings
-        window.Left <- float config.Window.Left
-        window.Top <- float config.Window.Top
-        window.Width <- float config.Window.Width
-        window.Height <- float config.Window.Height
+        bindPropertyToFunc <@ model.WindowLocation @> (fun (left, top) ->
+            if int window.Left <> left then window.Left <- float left
+            if int window.Top <> top then window.Top <- float top)
+        bindPropertyToFunc <@ model.WindowSize @> (fun (width, height) ->
+            if int window.Width <> width then window.Width <- float width
+            if int window.Height <> height then window.Height <- float height)
         if config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
@@ -133,11 +135,13 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
                 if window.Left >= 0.0 && window.Top >= 0.0 then
                     config.Window.Left <- int window.Left
                     config.Window.Top <- int window.Top
+                    model.WindowLocation <- (config.Window.Left, config.Window.Top)
                     config.Save()))
         window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ -> 
             window.Dispatcher.Invoke(fun () ->
                 config.Window.Width <- int window.Width
                 config.Window.Height <- int window.Height
+                model.WindowSize <- (config.Window.Width, config.Window.Height)
                 config.Save()))
 
         window.Closed.Add (fun _ ->

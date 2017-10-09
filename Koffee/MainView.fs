@@ -7,6 +7,7 @@ open System.Windows.Input
 open System.Windows.Controls
 open System.Windows.Media
 open FSharp.Desktop.UI
+open System.Reactive.Linq
 open ModelExtensions
 open UIHelpers
 open Utility
@@ -127,15 +128,17 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             if window.WindowState <> WindowState.Minimized then
                 config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
                 config.Save())
-        window.LocationChanged.Add (fun _ ->
-            if window.Left >= 0.0 && window.Top >= 0.0 then
-                config.Window.Left <- int window.Left
-                config.Window.Top <- int window.Top
-                config.Save())
-        window.SizeChanged.Add (fun e -> 
-            config.Window.Width <- int window.Width
-            config.Window.Height <- int window.Height
-            config.Save())
+        window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ ->
+            window.Dispatcher.Invoke(fun () ->
+                if window.Left >= 0.0 && window.Top >= 0.0 then
+                    config.Window.Left <- int window.Left
+                    config.Window.Top <- int window.Top
+                    config.Save()))
+        window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ -> 
+            window.Dispatcher.Invoke(fun () ->
+                config.Window.Width <- int window.Width
+                config.Window.Height <- int window.Height
+                config.Save()))
 
         window.Closed.Add (fun _ ->
             config.PreviousPath <- model.Path.Format Windows

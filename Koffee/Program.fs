@@ -2,6 +2,7 @@
 
 open System.Windows
 open FSharp.Desktop.UI
+open ProgramOptions
 
 let makeSettingsMvc config =
     let model = SettingsModel.Create()
@@ -9,22 +10,22 @@ let makeSettingsMvc config =
     let controller = SettingsController(config)
     Mvc(model, view, controller)
 
-let makeMainMvc config commandLinePath =
+let makeMainMvc config options =
     let model = MainModel.Create()
     let window = MainWindow()
     let view = MainView(window, KeyBinding.Defaults, config)
     let fileSys = FileSystemService()
     let settingsFactory = (fun () -> makeSettingsMvc config)
-    let controller = MainController(fileSys, settingsFactory, config, commandLinePath)
+    let controller = MainController(fileSys, settingsFactory, config, options)
     (Mvc(model, view, controller), window)
 
 [<EntryPoint>]
 [<System.STAThread>]
 let main args =
-    let commandLinePath = if args.Length > 0 then Some args.[0] else None
+    let options = parseArgs (Array.toList args)
 
     let config = Config()
-    let (mvc, window) = makeMainMvc config commandLinePath
+    let (mvc, window) = makeMainMvc config options
 
     use eventLoop = mvc.Start()
 

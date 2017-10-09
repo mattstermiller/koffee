@@ -7,7 +7,7 @@ open Utility
 open Koffee.ConfigExt
 
 module MainLogic =
-    let initModel (config: Config) getNode openUserPath commandLinePath (model: MainModel) =
+    let initModel (config: Config) getNode openUserPath startupOptions (model: MainModel) =
         config.Changed.Add (fun _ ->
             model.YankRegister <- config.YankRegister
                                   |> Option.bind (fun (path, action) ->
@@ -15,9 +15,19 @@ module MainLogic =
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
+
+        match startupOptions.Location with
+        | Some (left, top) -> config.Window.Left <- left
+                              config.Window.Top <- top
+        | None -> ()
+        match startupOptions.Size with
+        | Some (width, height) -> config.Window.Width <- width
+                                  config.Window.Height <- height
+        | None -> ()
+
         let defaultPath = config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
         let startupPath =
-            commandLinePath |> Option.defaultValue (
+            startupOptions.StartupPath |> Option.defaultValue (
                 match config.StartupPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
@@ -344,12 +354,12 @@ module MainLogic =
 type MainController(fileSys: FileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     config: Config,
-                    commandLinePath: string option) =
+                    startupOptions) =
     // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with
-        member this.InitModel model = MainLogic.initModel config fileSys.GetNode this.OpenUserPath commandLinePath model
+        member this.InitModel model = MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions model
         member this.Dispatcher = this.LockingDispatcher
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =

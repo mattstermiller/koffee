@@ -85,6 +85,7 @@
     <Compile Include="FileSystemService.fs" />
     <Resource Include="MainWindow.xaml" />
     <Compile Include="MainView.fs" />
+    <Compile Include="ProgramOptions.fs" />
     <Compile Include="MainController.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

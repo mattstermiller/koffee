@@ -1,6 +1,5 @@
 ﻿namespace Koffee
 
-open System.ComponentModel
 open System.Windows
 open System.Windows.Data
 open System.Windows.Input
@@ -16,7 +15,10 @@ open ConfigExt
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
-type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, config: Config) =
+type MainView(window: MainWindow,
+              keyBindings: (KeyCombo * MainEvents) list,
+              config: Config,
+              startupOptions: StartupOptions) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
     let mutable currBindings = keyBindings
@@ -126,23 +128,27 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
             window.WindowState <- WindowState.Maximized
 
         // setup saving window settings
-        window.StateChanged.Add (fun _ -> 
-            if window.WindowState <> WindowState.Minimized then
-                config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
-                config.Save())
+        let saveWindowSettings = startupOptions.Location.IsNone && startupOptions.Size.IsNone
+        if saveWindowSettings then
+            window.StateChanged.Add (fun _ -> 
+                if window.WindowState <> WindowState.Minimized then
+                    config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
+                    config.Save())
         window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ ->
             window.Dispatcher.Invoke(fun () ->
                 if window.Left >= 0.0 && window.Top >= 0.0 then
-                    config.Window.Left <- int window.Left
-                    config.Window.Top <- int window.Top
-                    model.WindowLocation <- (config.Window.Left, config.Window.Top)
-                    config.Save()))
+                    model.WindowLocation <- (int window.Left, int window.Top)
+                    if saveWindowSettings then
+                        config.Window.Left <- int window.Left
+                        config.Window.Top <- int window.Top
+                        config.Save()))
         window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ -> 
             window.Dispatcher.Invoke(fun () ->
-                config.Window.Width <- int window.Width
-                config.Window.Height <- int window.Height
-                model.WindowSize <- (config.Window.Width, config.Window.Height)
-                config.Save()))
+                model.WindowSize <- (int window.Width, int window.Height)
+                if saveWindowSettings then
+                    config.Window.Width <- int window.Width
+                    config.Window.Height <- int window.Height
+                    config.Save()))
 
         window.Closed.Add (fun _ ->
             config.PreviousPath <- model.Path.Format Windows

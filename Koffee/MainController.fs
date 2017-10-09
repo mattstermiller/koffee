@@ -3,7 +3,6 @@
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
-open Utility
 open Koffee.ConfigExt
 
 module MainLogic =

@@ -4,16 +4,12 @@ open System.Text.RegularExpressions
 open System.Linq
 
 type Option<'a> with
-    static member coalesce defaultValue option =
-        defaultArg option defaultValue
-
     static member pair a b =
         match a, b with
         | Some av, Some bv -> Some (av, bv)
         | _ -> None
 
     static member mapPair f = Option.map (fun (a, b) -> f a, f b)
-        
 
 module Str =
     let ifEmpty fallback str =

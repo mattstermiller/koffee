@@ -16,11 +16,11 @@ module MainLogic =
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
         let startupPath =
-            commandLinePath |> Option.coalesce (
+            commandLinePath |> Option.defaultValue (
                 match config.StartupPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
-        model.Path <- config.DefaultPath |> Path.Parse |> Option.coalesce Path.Root
+        model.Path <- config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
         openUserPath (startupPath) model
 
     module Navigation =
@@ -41,7 +41,7 @@ module MainLogic =
                     | SelectIndex index -> index
                     | SelectName name ->
                         List.tryFindIndex (fun n -> n.Name = name) nodes
-                        |> Option.coalesce keepCursor
+                        |> Option.defaultValue keepCursor
                     | KeepSelect -> keepCursor)
                 model.Status <- None
             with ex -> model.Status <- Some <| StatusType.fromExn "open path" ex

@@ -33,11 +33,11 @@ module ConfigExt =
         member this.Save () = this.Save filePath
 
         member this.PathFormat
-            with get () = ParseUnionCase<PathFormat> this.PathFormatName |> Option.coalesce Windows
+            with get () = ParseUnionCase<PathFormat> this.PathFormatName |> Option.defaultValue Windows
             and set value = this.PathFormatName <- GetUnionCaseName value
 
         member this.StartupPath
-            with get () = ParseUnionCase<StartupPath> this.StartupPathType |> Option.coalesce RestorePrevious
+            with get () = ParseUnionCase<StartupPath> this.StartupPathType |> Option.defaultValue RestorePrevious
             and set value = this.StartupPathType <- GetUnionCaseName value
 
         member this.YankRegister

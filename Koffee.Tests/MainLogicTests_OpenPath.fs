@@ -62,7 +62,7 @@ let test case =
             let prevCursor = expected.Cursor
             expected.Nodes <- newNodes
             expected.Path <- path
-            expected.Cursor <- case.ExpectedCursor |> Option.coalesce prevCursor
+            expected.Cursor <- case.ExpectedCursor |> Option.defaultValue prevCursor
             expected.BackStack <- (prevPath, prevCursor) :: expected.BackStack
             expected.ForwardStack <- []
         | Inaccessible ->

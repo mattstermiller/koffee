@@ -30,7 +30,7 @@ with
     member this.Description =
         sprintf "%O \"%s\"" this.Type this.Name
 
-    member this.SizeFormatted = this.Size |> Option.map Format.fileSize |> Option.coalesce ""
+    member this.SizeFormatted = this.Size |> Option.map Format.fileSize |> Option.defaultValue ""
 
 type SortField =
     | Name

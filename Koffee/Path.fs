@@ -88,7 +88,7 @@ type Path private (path: string) =
         else
             IOPath.GetDirectoryName path
             |> Option.ofObj
-            |> Option.coalesce root
+            |> Option.defaultValue root
             |> Path
 
     member this.Join name =

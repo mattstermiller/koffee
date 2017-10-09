@@ -269,8 +269,8 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
     member this.ItemsPerPage =
         if window.NodeGrid.HasItems then
             let index = window.NodeGrid.SelectedIndex |> max 0
-            let row = window.NodeGrid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
-            window.NodeGrid.ActualHeight / row.ActualHeight |> int |> Some
+            let row = window.NodeGrid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow |> Option.ofObj
+            row |> Option.map (fun row -> window.NodeGrid.ActualHeight / row.ActualHeight |> int)
         else
             None
 

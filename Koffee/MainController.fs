@@ -4,6 +4,7 @@ open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Koffee.ConfigExt
+open Utility
 
 module MainLogic =
     let initModel (config: Config) getNode openUserPath startupOptions (model: MainModel) =
@@ -345,6 +346,7 @@ module MainLogic =
 
 type MainController(fileSys: FileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
+                    getScreenBounds: unit -> Rectangle,
                     config: Config,
                     startupOptions) =
     // TODO: use a property on the model for this, perhaps the Status?
@@ -531,9 +533,15 @@ type MainController(fileSys: FileSystemService,
         match Path.Parse System.AppDomain.CurrentDomain.BaseDirectory with
         | None -> model.Status <- Some <| ErrorMessage "Could not determine Koffee.exe path"
         | Some folder ->
-            let path = (folder.Join "Koffee.exe").Format Windows
+            let mapFst f t = (fst t |> f, snd t)
+            let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
+                          |> Rect.fit (getScreenBounds())
+            model.WindowLocation <- fitRect.Location
+            model.WindowSize <- fitRect.Size |> mapFst (flip (/) 2)
+
             let left, top = model.WindowLocation
             let width, height = model.WindowSize
+            let path = (folder.Join "Koffee.exe").Format Windows
             let args = sprintf "%s --location=%i,%i --size=%i,%i"
                                (model.Path.Format Windows) (left + width) top width height
             fileSys.LaunchApp path folder args

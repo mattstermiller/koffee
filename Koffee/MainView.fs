@@ -136,7 +136,7 @@ type MainView(window: MainWindow,
                     config.Save())
         window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ ->
             window.Dispatcher.Invoke(fun () ->
-                if window.Left >= 0.0 && window.Top >= 0.0 then
+                if window.Left > -window.Width && window.Top > -window.Height then
                     model.WindowLocation <- (int window.Left, int window.Top)
                     if saveWindowSettings then
                         config.Window.Left <- int window.Left

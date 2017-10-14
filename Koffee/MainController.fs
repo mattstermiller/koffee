@@ -3,11 +3,11 @@
 open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
-open Utility
 open Koffee.ConfigExt
+open Utility
 
 module MainLogic =
-    let initModel (config: Config) getNode openUserPath commandLinePath (model: MainModel) =
+    let initModel (config: Config) getNode openUserPath startupOptions (model: MainModel) =
         config.Changed.Add (fun _ ->
             model.YankRegister <- config.YankRegister
                                   |> Option.bind (fun (path, action) ->
@@ -15,13 +15,17 @@ module MainLogic =
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
+
+        let defaultPath = config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
         let startupPath =
-            commandLinePath |> Option.defaultValue (
+            startupOptions.StartupPath |> Option.defaultValue (
                 match config.StartupPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
-        model.Path <- config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
-        openUserPath (startupPath) model
+        model.Path <- defaultPath
+        model.WindowLocation <- startupOptions.Location |> Option.defaultValue (config.Window.Left, config.Window.Top)
+        model.WindowSize <- startupOptions.Size |> Option.defaultValue (config.Window.Width, config.Window.Height)
+        openUserPath startupPath model
 
     module Navigation =
         let openPath getNodes (showHidden: bool) path select (model: MainModel) =
@@ -342,13 +346,14 @@ module MainLogic =
 
 type MainController(fileSys: FileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
+                    getScreenBounds: unit -> Rectangle,
                     config: Config,
-                    commandLinePath: string option) =
+                    startupOptions) =
     // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with
-        member this.InitModel model = MainLogic.initModel config fileSys.GetNode this.OpenUserPath commandLinePath model
+        member this.InitModel model = MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions model
         member this.Dispatcher = this.LockingDispatcher
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =
@@ -389,6 +394,7 @@ type MainController(fileSys: FileSystemService,
         | Recycle -> Async this.Recycle
         | SortList field -> Sync (MainLogic.Navigation.sortList this.Refresh field)
         | ToggleHidden -> Sync this.ToggleHidden
+        | OpenSplitScreenWindow -> Sync this.OpenSplitScreenWindow
         | OpenSettings -> Sync this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> Sync this.OpenCommandLine
@@ -522,6 +528,23 @@ type MainController(fileSys: FileSystemService,
             model.Status <- Some <| MainStatus.redoAction action model.PathFormat
         | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
+
+    member this.OpenSplitScreenWindow model =
+        match Path.Parse System.AppDomain.CurrentDomain.BaseDirectory with
+        | None -> model.Status <- Some <| ErrorMessage "Could not determine Koffee.exe path"
+        | Some folder ->
+            let mapFst f t = (fst t |> f, snd t)
+            let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
+                          |> Rect.fit (getScreenBounds())
+            model.WindowLocation <- fitRect.Location
+            model.WindowSize <- fitRect.Size |> mapFst (flip (/) 2)
+
+            let left, top = model.WindowLocation
+            let width, height = model.WindowSize
+            let path = (folder.Join "Koffee.exe").Format Windows
+            let args = sprintf "%s --location=%i,%i --size=%i,%i"
+                               (model.Path.Format Windows) (left + width) top width height
+            fileSys.LaunchApp path folder args
 
     member this.OpenExplorer model =
         fileSys.OpenExplorer model.SelectedNode

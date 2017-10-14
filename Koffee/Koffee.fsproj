@@ -84,6 +84,7 @@
     <Compile Include="SettingsController.fs" />
     <Compile Include="FileSystemService.fs" />
     <Resource Include="MainWindow.xaml" />
+    <Compile Include="ProgramOptions.fs" />
     <Compile Include="MainView.fs" />
     <Compile Include="MainController.fs" />
     <Compile Include="Program.fs" />
@@ -103,7 +104,9 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
     <Reference Include="System.Data.Linq" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Numerics" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xaml" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />

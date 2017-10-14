@@ -1,12 +1,12 @@
 ﻿namespace Koffee
 
-open System.ComponentModel
 open System.Windows
 open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Controls
 open System.Windows.Media
 open FSharp.Desktop.UI
+open System.Reactive.Linq
 open ModelExtensions
 open UIHelpers
 open Utility
@@ -15,7 +15,10 @@ open ConfigExt
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
-type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, config: Config) =
+type MainView(window: MainWindow,
+              keyBindings: (KeyCombo * MainEvents) list,
+              config: Config,
+              startupOptions: StartupOptions) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
     let mutable currBindings = keyBindings
@@ -115,27 +118,37 @@ type MainView(window: MainWindow, keyBindings: (KeyCombo * MainEvents) list, con
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
         // load window settings
-        window.Left <- float config.Window.Left
-        window.Top <- float config.Window.Top
-        window.Width <- float config.Window.Width
-        window.Height <- float config.Window.Height
+        bindPropertyToFunc <@ model.WindowLocation @> (fun (left, top) ->
+            if int window.Left <> left then window.Left <- float left
+            if int window.Top <> top then window.Top <- float top)
+        bindPropertyToFunc <@ model.WindowSize @> (fun (width, height) ->
+            if int window.Width <> width then window.Width <- float width
+            if int window.Height <> height then window.Height <- float height)
         if config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
         // setup saving window settings
-        window.StateChanged.Add (fun _ -> 
-            if window.WindowState <> WindowState.Minimized then
-                config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
-                config.Save())
-        window.LocationChanged.Add (fun _ ->
-            if window.Left >= 0.0 && window.Top >= 0.0 then
-                config.Window.Left <- int window.Left
-                config.Window.Top <- int window.Top
-                config.Save())
-        window.SizeChanged.Add (fun e -> 
-            config.Window.Width <- int window.Width
-            config.Window.Height <- int window.Height
-            config.Save())
+        let saveWindowSettings = startupOptions.Location.IsNone && startupOptions.Size.IsNone
+        if saveWindowSettings then
+            window.StateChanged.Add (fun _ -> 
+                if window.WindowState <> WindowState.Minimized then
+                    config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
+                    config.Save())
+        window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ ->
+            window.Dispatcher.Invoke(fun () ->
+                if window.Left > -window.Width && window.Top > -window.Height then
+                    model.WindowLocation <- (int window.Left, int window.Top)
+                    if saveWindowSettings then
+                        config.Window.Left <- int window.Left
+                        config.Window.Top <- int window.Top
+                        config.Save()))
+        window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ -> 
+            window.Dispatcher.Invoke(fun () ->
+                model.WindowSize <- (int window.Width, int window.Height)
+                if saveWindowSettings then
+                    config.Window.Width <- int window.Width
+                    config.Window.Height <- int window.Height
+                    config.Save()))
 
         window.Closed.Add (fun _ ->
             config.PreviousPath <- model.Path.Format Windows

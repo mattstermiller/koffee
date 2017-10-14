@@ -1,6 +1,5 @@
 ﻿module UIHelpers
 
-open System.ComponentModel
 open System.Windows
 open System.Windows.Data
 open System.Windows.Controls
@@ -9,6 +8,7 @@ open FSharp.Desktop.UI
 open FSharp.Quotations
 open ModelExtensions
 open Reflection
+open Utility
 
 let onKey key action (evt: KeyEventArgs) =
     if evt.Key = key then
@@ -53,3 +53,14 @@ type DataGrid with
         col.Binding <- binding
 
         this.Columns.Add col
+
+type Window with
+    member this.GetScreen () =
+        Forms.Screen.FromHandle(Interop.WindowInteropHelper(this).Handle) 
+
+    member this.GetScreenWorkingArea () =
+        let area = this.GetScreen().WorkingArea
+        { Left = area.Left
+          Top = area.Top
+          Width = area.Width
+          Height = area.Height }

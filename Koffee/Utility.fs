@@ -3,6 +3,8 @@
 open System.Text.RegularExpressions
 open System.Linq
 
+let flip f a b = f b a
+
 type Option<'a> with
     static member pair a b =
         match a, b with
@@ -50,3 +52,31 @@ module Order =
     let byDesc f s = Enumerable.OrderByDescending(s, (fun x -> f x))
     let thenBy f s = Enumerable.ThenBy(s, (fun x -> f x))
     let thenByDesc f s = Enumerable.ThenByDescending(s, (fun x -> f x))
+
+type Rectangle = {
+    Left: int
+    Top: int
+    Width: int
+    Height: int
+}
+with
+    member this.Right = this.Left + this.Width
+    member this.Bottom = this.Top + this.Height
+    member this.Location = (this.Left, this.Top)
+    member this.Size = (this.Width, this.Height)
+
+module Rect =
+    let ofPairs loc size = { Left = fst loc; Top = snd loc; Width = fst size; Height = snd size }
+
+    let fit container r =
+        let fitDim cl cs l s =
+            let s = min s cs
+            let l = l |> max cl
+                      |> min (cl + cs - s)
+            (l, s)
+        let left, width = (r.Left, r.Width) ||> fitDim container.Left container.Width
+        let top, height = (r.Top, r.Height) ||> fitDim container.Top container.Height
+        { Left = left
+          Top = top
+          Width = width
+          Height = height }

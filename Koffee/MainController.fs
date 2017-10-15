@@ -464,8 +464,7 @@ type MainController(fileSys: FileSystemService,
                     this.Refresh model
                 | _ -> ()
                 model.Status <- Some <| MainStatus.cancelled
-            | _ ->
-                model.CommandText <- ""
+            | _ -> ()
         | _ -> ()
     }
 

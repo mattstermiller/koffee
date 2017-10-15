@@ -103,6 +103,18 @@ type MainView(window: MainWindow,
             window.NodeGrid.Focus() |> ignore)
         window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
 
+        // suppress text input for character prompts
+        window.Loaded.Add (fun _ ->
+            window.CommandBox.PreviewTextInput.Add (fun evt ->
+                match model.CommandInputMode with
+                | Some Find
+                | Some GoToBookmark
+                | Some SetBookmark
+                | Some DeleteBookmark
+                | Some (Confirm _) ->
+                    evt.Handled <- true
+                | _ -> ()))
+
         // pressing delete when viewing bookmarks allows delete
         window.CommandBox.PreviewKeyDown.Add (fun evt ->
             if evt.Key = Key.Delete then

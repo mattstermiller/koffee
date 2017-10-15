@@ -153,18 +153,16 @@ module MainLogic =
             model.RedoStack <- []
             model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
 
-        let private setCommandSelection cursorPos (model: MainModel) =
-            cursorPos |> Option.iter (fun pos ->
-                let fullName = model.CommandText
-                let name, ext = Path.SplitName fullName
-                model.CommandTextSelection <-
-                    match pos with
-                    | Begin -> (0, 0)
-                    | EndName -> (name.Length, 0)
-                    | End -> (fullName.Length, 0)
-                    | ReplaceName -> (0, name.Length)
-                    | ReplaceAll -> (0, fullName.Length)
-            )
+        let private setCommandSelection (model: MainModel) cursorPos =
+            let fullName = model.CommandText
+            let name, ext = Path.SplitName fullName
+            model.CommandTextSelection <-
+                match cursorPos with
+                | Begin -> (0, 0)
+                | EndName -> (name.Length, 0)
+                | End -> (fullName.Length, 0)
+                | ReplaceName -> (0, name.Length)
+                | ReplaceAll -> (0, fullName.Length)
 
         let startInput (inputMode: CommandInput) (model: MainModel) =
             if inputMode.AllowedOnNodeType model.SelectedNode.Type then
@@ -174,7 +172,7 @@ module MainLogic =
                     | _ -> "", None
                 model.CommandInputMode <- Some inputMode
                 model.CommandText <- text
-                setCommandSelection pos model
+                pos |> Option.iter (setCommandSelection model)
 
         let create getNode fsCreate openPath nodeType name (model: MainModel) =
             try

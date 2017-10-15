@@ -542,7 +542,7 @@ type MainController(fileSys: FileSystemService,
             let left, top = model.WindowLocation
             let width, height = model.WindowSize
             let path = (folder.Join "Koffee.exe").Format Windows
-            let args = sprintf "%s --location=%i,%i --size=%i,%i"
+            let args = sprintf "\"%s\" --location=%i,%i --size=%i,%i"
                                (model.Path.Format Windows) (left + width) top width height
             fileSys.LaunchApp path folder args
 

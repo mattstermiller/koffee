@@ -424,6 +424,11 @@ type MainController(fileSys: FileSystemService,
         | _ -> ()
 
     member this.CommandCharTyped char model = async {
+        let setBookmark char (path: Path) =
+            let winPath = path.Format Windows
+            config.SetBookmark char winPath
+            config.Save()
+            model.Status <- Some <| MainStatus.setBookmark char winPath
         match model.CommandInputMode with
         | Some Find ->
             MainLogic.Cursor.find char model
@@ -434,10 +439,13 @@ type MainController(fileSys: FileSystemService,
             | Some path -> this.OpenUserPath path model
             | None -> model.Status <- Some <| MainStatus.noBookmark char
         | Some SetBookmark ->
-            model.CommandInputMode <- None
-            config.SetBookmark char (model.Path.Format Windows)
-            config.Save()
-            model.Status <- Some <| MainStatus.setBookmark char model.PathFormatted
+            match config.GetBookmark char |> Option.bind Path.Parse with
+            | Some existingPath ->
+                let confirm = Confirm (OverwriteBookmark (char, existingPath))
+                MainLogic.Action.startInput confirm model
+            | None -> 
+                model.CommandInputMode <- None
+                setBookmark char model.Path
         | Some DeleteBookmark ->
             model.CommandInputMode <- None
             match config.GetBookmark char with
@@ -456,6 +464,7 @@ type MainController(fileSys: FileSystemService,
                     if not model.HasErrorStatus then
                         model.YankRegister <- None
                 | Delete -> do! this.Delete model.SelectedNode true model
+                | OverwriteBookmark (char, _) -> setBookmark char model.Path
             | 'n' ->
                 model.CommandInputMode <- None
                 match confirmType with

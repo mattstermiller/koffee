@@ -74,7 +74,7 @@ type MainView(window: MainWindow,
 
         // update UI for the command input mode
         bindPropertyToFunc <@ model.CommandInputMode @> (fun mode ->
-            this.CommandInputModeChanged mode model.SelectedNode
+            this.CommandInputModeChanged mode model.PathFormat model.SelectedNode
             if mode.IsNone then model.CommandTextSelection <- (999, 0))
 
         // update UI for status
@@ -243,7 +243,7 @@ type MainView(window: MainWindow,
         if wasBusy && not isBusy then
             window.NodeGrid.Focus() |> ignore
 
-    member this.CommandInputModeChanged mode node =
+    member this.CommandInputModeChanged mode pathFormat node =
         match mode with
         | Some inputMode ->
             let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
@@ -254,10 +254,10 @@ type MainView(window: MainWindow,
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
             window.BookmarkPanel.Visible <- isBookmark
-            this.ShowCommandBar (inputMode |> this.GetPrompt node)
+            this.ShowCommandBar (inputMode |> this.GetPrompt pathFormat node)
         | None -> this.HideCommandBar ()
 
-    member this.GetPrompt (node: Node) = function
+    member this.GetPrompt pathFormat (node: Node) = function
         | Confirm (Overwrite (_, src, dest)) ->
             match dest.Type with
             | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
@@ -275,6 +275,8 @@ type MainView(window: MainWindow,
                 | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
             | _ -> ""
         | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
+        | Confirm (OverwriteBookmark (char, existingPath)) ->
+            sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | inputType -> inputType |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
 
     member private this.ShowCommandBar label =

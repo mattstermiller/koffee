@@ -64,6 +64,7 @@ type PutAction =
 type ConfirmType =
     | Overwrite of PutAction * src: Node * dest: Node
     | Delete
+    | OverwriteBookmark of char * existingPath: Path
 
 type CommandInput =
     | Find

@@ -210,9 +210,11 @@ module MainLogic =
             let action = RenamedItem (node, newName)
             try
                 let newPath = node.Path.Parent.Join newName
-                match getNode newPath with
-                | Some existing ->
-                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists node.Type newName existing.IsHidden
+                let existing = if Str.equalsIgnoreCase node.Name newName then None
+                               else getNode newPath
+                match existing with
+                | Some existingNode ->
+                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists node.Type newName existingNode.IsHidden
                 | None ->
                     move node.Path newPath
                     openPath model.Path (SelectName newName) model
@@ -223,9 +225,11 @@ module MainLogic =
             let parentPath = oldNode.Path.Parent
             let currentPath = parentPath.Join currentName
             try
-                match getNode oldNode.Path with
-                | Some existing ->
-                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists oldNode.Type oldNode.Name existing.IsHidden
+                let existing = if Str.equalsIgnoreCase oldNode.Name currentName then None
+                               else getNode oldNode.Path
+                match existing with
+                | Some existingNode ->
+                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists oldNode.Type oldNode.Name existingNode.IsHidden
                 | None ->
                     move currentPath oldNode.Path
                     openPath parentPath (SelectName oldNode.Name) model

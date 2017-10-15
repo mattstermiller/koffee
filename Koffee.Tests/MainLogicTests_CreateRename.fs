@@ -140,11 +140,12 @@ let ``Undo create handles error by setting error status`` isEmptyThrows =
 
 // rename tests
 
-[<Test>]
-let ``Rename calls file sys move, openPath and sets status``() =
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let currentNode = oldNodes.[1]
-    let renamedNode = newNodes.[1]
-    let getNode _ = None
+    let renamedNode = if diffCaseOnly then currentNode else newNodes.[1]
+    let getNode _ = if diffCaseOnly then Some currentNode else None
     let mutable renamed = None
     let move s d = renamed <- Some (s, d)
     let openPath p _ (model: MainModel) =
@@ -194,10 +195,14 @@ let ``Rename handles error by setting error status``() =
 
 // undo rename tests
 
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Undo rename item names file back to original`` curPathDifferent =
-    let getNode _ = None
+[<TestCase(false, false)>]
+[<TestCase(true, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, true)>]
+let ``Undo rename item names file back to original`` curPathDifferent diffCaseOnly =
+    let prevNode = newNodes.[1]
+    let curNode = if diffCaseOnly then prevNode else oldNodes.[1]
+    let getNode _ = if diffCaseOnly then Some curNode else None
     let mutable moved = None
     let move s d = moved <- Some (s, d)
     let mutable selected = None
@@ -205,8 +210,6 @@ let ``Undo rename item names file back to original`` curPathDifferent =
         model.Path <- p
         model.Nodes <- newNodes
         selected <- Some select
-    let prevNode = newNodes.[1]
-    let curNode = oldNodes.[1]
     let model = createModel()
     if curPathDifferent then
         model.Path <- createPath "other"

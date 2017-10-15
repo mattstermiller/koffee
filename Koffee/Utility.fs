@@ -18,6 +18,8 @@ module Str =
         if System.String.IsNullOrEmpty str then fallback
         else str
 
+    let equalsIgnoreCase a b = System.String.Equals(a, b, System.StringComparison.CurrentCultureIgnoreCase)
+
     let join sep (strs: string seq) = System.String.Join(sep, strs)
 
     let readableIdentifier str =

@@ -6,6 +6,7 @@ open System.Text.RegularExpressions
 open System.Diagnostics
 open Microsoft.VisualBasic.FileIO
 open Koffee
+open Utility
 
 type FileSystemService() =
     let wpath (path: Path) = path.Format Windows
@@ -94,10 +95,15 @@ type FileSystemService() =
                 Directory.Move(source, dest)
         let source = wpath currentPath
         let dest = wpath newPath
-        if Directory.Exists source then
-            moveDir source dest
+        if Str.equalsIgnoreCase source dest then
+            let temp = sprintf "_rename_%s" currentPath.Name |> currentPath.Parent.Join
+            this.Move currentPath temp
+            this.Move temp newPath
         else
-            moveFile source dest
+            if Directory.Exists source then
+                moveDir source dest
+            else
+                moveFile source dest
 
     member this.Copy currentPath newPath =
         let source = wpath currentPath

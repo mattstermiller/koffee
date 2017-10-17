@@ -107,21 +107,16 @@ type MainView(window: MainWindow,
         window.Loaded.Add (fun _ ->
             window.InputBox.PreviewTextInput.Add (fun evt ->
                 match model.InputMode with
-                | Some Find
-                | Some GoToBookmark
-                | Some SetBookmark
-                | Some DeleteBookmark
-                | Some (Confirm _) ->
-                    evt.Handled <- true
+                | Some (Prompt _) | Some (Confirm _) -> evt.Handled <- true
                 | _ -> ()))
 
         // pressing delete when viewing bookmarks allows delete
         window.InputBox.PreviewKeyDown.Add (fun evt ->
             if evt.Key = Key.Delete then
                 match model.InputMode with
-                | Some GoToBookmark | Some SetBookmark ->
+                | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
                     evt.Handled <- true
-                    model.InputMode <- Some DeleteBookmark
+                    model.InputMode <- Some (Prompt DeleteBookmark)
                 | _ -> ())
 
         // make sure selected item gets set to the cursor
@@ -246,38 +241,47 @@ type MainView(window: MainWindow,
     member this.InputModeChanged mode pathFormat node =
         match mode with
         | Some inputMode ->
-            let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
-            if isBookmark then
+            match inputMode with
+            | Prompt GoToBookmark
+            | Prompt SetBookmark
+            | Prompt DeleteBookmark ->
                 let bookmarks =
                     match config.GetBookmarks() with
                     | bm when bm |> Seq.isEmpty -> [(' ', "No bookmarks set")] |> dict
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
-            window.BookmarkPanel.Visible <- isBookmark
+                window.BookmarkPanel.Visible <- true
+            | _ ->
+                window.BookmarkPanel.Visible <- false
             this.ShowInputBar (inputMode |> this.GetPrompt pathFormat node)
         | None -> this.HideInputBar ()
 
-    member this.GetPrompt pathFormat (node: Node) = function
-        | Confirm (Overwrite (_, src, dest)) ->
-            match dest.Type with
-            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
-            | File ->
-                match src.Modified, src.Size, dest.Modified, dest.Size with
-                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                    let compare a b less greater =
-                        if a = b then "same"
-                        else if a < b then less
-                        else greater
-                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                        dest.Name
-                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
-            | _ -> ""
-        | Confirm Delete -> sprintf "Permanently delete %s y/n ?" node.Description
-        | Confirm (OverwriteBookmark (char, existingPath)) ->
-            sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
-        | inputType -> inputType |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
+    member this.GetPrompt pathFormat (node: Node) =
+        let caseName (case: obj) = case |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
+        function
+        | Confirm confirmType ->
+            match confirmType with
+            | Overwrite (_, src, dest) ->
+                match dest.Type with
+                | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
+                | File ->
+                    match src.Modified, src.Size, dest.Modified, dest.Size with
+                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                        let compare a b less greater =
+                            if a = b then "same"
+                            else if a < b then less
+                            else greater
+                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                            dest.Name
+                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
+                | _ -> ""
+            | Delete -> sprintf "Permanently delete %s y/n ?" node.Description
+            | OverwriteBookmark (char, existingPath) ->
+                sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
+        | Prompt promptType -> promptType |> caseName
+        | Input inputType -> inputType |> caseName
 
     member private this.ShowInputBar label =
         window.InputLabel.Content <- label

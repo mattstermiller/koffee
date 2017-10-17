@@ -61,25 +61,30 @@ type PutAction =
     | Move
     | Copy
 
+type PromptType =
+    | Find
+    | GoToBookmark
+    | SetBookmark
+    | DeleteBookmark
+
 type ConfirmType =
     | Overwrite of PutAction * src: Node * dest: Node
     | Delete
     | OverwriteBookmark of char * existingPath: Path
 
-type InputMode =
-    | Find
+type InputType =
     | Search
-    | GoToBookmark
-    | SetBookmark
-    | DeleteBookmark
     | CreateFile
     | CreateFolder
     | Rename of RenamePart
-    | Confirm of ConfirmType
 
+type InputMode =
+    | Prompt of PromptType
+    | Confirm of ConfirmType
+    | Input of InputType
     member this.AllowedOnNodeType nodeType =
         match this with
-        | Rename _ ->
+        | Input (Rename _) ->
             match nodeType with
             | File | Folder -> true
             | _ -> false
@@ -180,7 +185,9 @@ type MainEvents =
     | Back
     | Forward
     | Refresh
-    | StartInput of InputMode
+    | StartPrompt of PromptType
+    | StartConfirm of ConfirmType
+    | StartInput of InputType
     | SubmitInput
     | InputCharTyped of char
     | StartMove
@@ -206,14 +213,14 @@ type MainEvents =
         | CursorDownHalfPage -> "Move Cursor Down Half Page"
         | CursorToFirst -> "Move Cursor to First Item"
         | CursorToLast -> "Move Cursor to Last Item"
-        | StartInput Find -> "Find Item Beginning With Character"
+        | StartPrompt Find -> "Find Item Beginning With Character"
         | FindNext -> "Go To Next Find Match"
         | StartInput Search -> "Search For Items"
         | SearchNext -> "Go To Next Search Match"
         | SearchPrevious -> "Go To Previous Search Match"
-        | StartInput GoToBookmark -> "Go To Bookmark"
-        | StartInput SetBookmark -> "Set Bookmark"
-        | StartInput DeleteBookmark -> "Delete Bookmark"
+        | StartPrompt GoToBookmark -> "Go To Bookmark"
+        | StartPrompt SetBookmark -> "Set Bookmark"
+        | StartPrompt DeleteBookmark -> "Delete Bookmark"
         | OpenPath path -> sprintf "Open Path \"%s\"" path
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"
@@ -227,8 +234,8 @@ type MainEvents =
         | StartInput (Rename End) -> "Rename Item (Append to Extension)"
         | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
         | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
-        | StartInput (Confirm Delete) -> "Delete Permanently"
-        | StartInput (Confirm _) -> ""
+        | StartConfirm Delete -> "Delete Permanently"
+        | StartConfirm _ -> ""
         | InputCharTyped _ -> ""
         | SubmitInput -> "Submit Input for the Current Command"
         | StartMove -> "Start Move Item"
@@ -253,13 +260,13 @@ type MainEvents =
         CursorDownHalfPage
         CursorToFirst
         CursorToLast
-        StartInput Find
+        StartPrompt Find
         FindNext
         StartInput Search
         SearchNext
         SearchPrevious
-        StartInput GoToBookmark
-        StartInput SetBookmark
+        StartPrompt GoToBookmark
+        StartPrompt SetBookmark
         OpenSelected
         OpenParent
         Back
@@ -272,7 +279,7 @@ type MainEvents =
         StartInput (Rename End)
         StartInput (Rename ReplaceName)
         StartInput (Rename ReplaceAll)
-        StartInput (Confirm Delete)
+        StartConfirm Delete
         StartMove
         StartCopy
         Put

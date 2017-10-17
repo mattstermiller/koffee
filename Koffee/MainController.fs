@@ -168,7 +168,7 @@ module MainLogic =
             if inputMode.AllowedOnNodeType model.SelectedNode.Type then
                 let text, pos =
                     match inputMode with
-                    | Rename pos -> model.SelectedNode.Name, (Some pos)
+                    | Input (Rename pos) -> model.SelectedNode.Name, (Some pos)
                     | _ -> "", None
                 model.InputMode <- Some inputMode
                 model.InputText <- text
@@ -265,7 +265,7 @@ module MainLogic =
                     // refresh node list to make sure we can see the existing file
                     let showHidden = config.ShowHidden || existing.IsHidden
                     openPath showHidden model.Path (SelectName existing.Name) model
-                    startInput (Confirm (Overwrite (putAction, node, existing))) model
+                    model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
                 | _ ->
                     let fileSysAction, action =
                         match putAction with
@@ -384,7 +384,9 @@ type MainController(fileSys: FileSystemService,
         | Refresh -> Sync this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
-        | StartInput inputMode -> Sync (MainLogic.Action.startInput inputMode)
+        | StartPrompt promptType -> Sync (MainLogic.Action.startInput (Prompt promptType))
+        | StartConfirm confirmType -> Sync (MainLogic.Action.startInput (Confirm confirmType))
+        | StartInput inputType -> Sync (MainLogic.Action.startInput (Input inputType))
         | SubmitInput -> Sync this.SubmitInput
         | InputCharTyped c -> Async (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
@@ -417,10 +419,12 @@ type MainController(fileSys: FileSystemService,
         let mode = model.InputMode
         model.InputMode <- None
         match mode with
-        | Some Search -> MainLogic.Cursor.search model.InputText false model
-        | Some CreateFile -> this.Create File model.InputText model
-        | Some CreateFolder -> this.Create Folder model.InputText model
-        | Some (Rename _) -> this.Rename model.SelectedNode model.InputText model
+        | Some (Input mode) ->
+            match mode with
+            | Search -> MainLogic.Cursor.search model.InputText false model
+            | CreateFile -> this.Create File model.InputText model
+            | CreateFolder -> this.Create Folder model.InputText model
+            | Rename _ -> this.Rename model.SelectedNode model.InputText model
         | _ -> ()
 
     member this.InputCharTyped char model = async {
@@ -430,30 +434,31 @@ type MainController(fileSys: FileSystemService,
             config.Save()
             model.Status <- Some <| MainStatus.setBookmark char winPath
         match model.InputMode with
-        | Some Find ->
-            MainLogic.Cursor.find char model
-            model.InputMode <- None
-        | Some GoToBookmark ->
-            model.InputMode <- None
-            match config.GetBookmark char with
-            | Some path -> this.OpenUserPath path model
-            | None -> model.Status <- Some <| MainStatus.noBookmark char
-        | Some SetBookmark ->
-            match config.GetBookmark char |> Option.bind Path.Parse with
-            | Some existingPath ->
-                let confirm = Confirm (OverwriteBookmark (char, existingPath))
-                MainLogic.Action.startInput confirm model
-            | None -> 
+        | Some (Prompt mode) ->
+            match mode with
+            | Find ->
+                MainLogic.Cursor.find char model
                 model.InputMode <- None
-                setBookmark char model.Path
-        | Some DeleteBookmark ->
-            model.InputMode <- None
-            match config.GetBookmark char with
-            | Some path ->
-                config.RemoveBookmark char
-                config.Save()
-                model.Status <- Some <| MainStatus.deletedBookmark char path
-            | None -> model.Status <- Some <| MainStatus.noBookmark char
+            | GoToBookmark ->
+                model.InputMode <- None
+                match config.GetBookmark char with
+                | Some path -> this.OpenUserPath path model
+                | None -> model.Status <- Some <| MainStatus.noBookmark char
+            | SetBookmark ->
+                match config.GetBookmark char |> Option.bind Path.Parse with
+                | Some existingPath ->
+                    model.InputMode <- Some (Confirm (OverwriteBookmark (char, existingPath)))
+                | None -> 
+                    model.InputMode <- None
+                    setBookmark char model.Path
+            | DeleteBookmark ->
+                model.InputMode <- None
+                match config.GetBookmark char with
+                | Some path ->
+                    config.RemoveBookmark char
+                    config.Save()
+                    model.Status <- Some <| MainStatus.deletedBookmark char path
+                | None -> model.Status <- Some <| MainStatus.noBookmark char
         | Some (Confirm confirmType) ->
             match char with
             | 'y' ->

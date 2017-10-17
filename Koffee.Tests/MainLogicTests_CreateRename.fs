@@ -258,9 +258,10 @@ let renameTextSelection cursorPosition fileName =
     let model = createModel()
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
-    MainLogic.Action.startInput (Rename cursorPosition) model
+    let inputMode = Input (Rename cursorPosition)
+    MainLogic.Action.startInput inputMode model
 
-    model.InputMode |> shouldEqual (Some (Rename cursorPosition))
+    model.InputMode |> shouldEqual (Some inputMode)
     model.InputText |> shouldEqual node.Name
     model.InputTextSelection
 

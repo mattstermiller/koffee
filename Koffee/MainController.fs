@@ -153,10 +153,10 @@ module MainLogic =
             model.RedoStack <- []
             model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
 
-        let private setCommandSelection (model: MainModel) cursorPos =
-            let fullName = model.CommandText
+        let private setInputSelection (model: MainModel) cursorPos =
+            let fullName = model.InputText
             let name, ext = Path.SplitName fullName
-            model.CommandTextSelection <-
+            model.InputTextSelection <-
                 match cursorPos with
                 | Begin -> (0, 0)
                 | EndName -> (name.Length, 0)
@@ -164,15 +164,15 @@ module MainLogic =
                 | ReplaceName -> (0, name.Length)
                 | ReplaceAll -> (0, fullName.Length)
 
-        let startInput (inputMode: CommandInput) (model: MainModel) =
+        let startInput (inputMode: InputMode) (model: MainModel) =
             if inputMode.AllowedOnNodeType model.SelectedNode.Type then
                 let text, pos =
                     match inputMode with
                     | Rename pos -> model.SelectedNode.Name, (Some pos)
                     | _ -> "", None
-                model.CommandInputMode <- Some inputMode
-                model.CommandText <- text
-                pos |> Option.iter (setCommandSelection model)
+                model.InputMode <- Some inputMode
+                model.InputText <- text
+                pos |> Option.iter (setInputSelection model)
 
         let create getNode fsCreate openPath nodeType name (model: MainModel) =
             try
@@ -284,7 +284,7 @@ module MainLogic =
             | None -> ()
             | Some (node, putAction) ->
                 do! putItem config getNode move copy openPath overwrite node putAction model
-                if not model.HasErrorStatus && model.CommandInputMode.IsNone then
+                if not model.HasErrorStatus && model.InputMode.IsNone then
                     model.YankRegister <- None
         }
 
@@ -385,8 +385,8 @@ type MainController(fileSys: FileSystemService,
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
         | StartInput inputMode -> Sync (MainLogic.Action.startInput inputMode)
-        | ExecuteCommand -> Sync this.ExecuteCommand
-        | CommandCharTyped c -> Async (this.CommandCharTyped c)
+        | SubmitInput -> Sync this.SubmitInput
+        | InputCharTyped c -> Async (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
         | SearchPrevious -> Sync (MainLogic.Cursor.searchNext true)
@@ -413,28 +413,28 @@ type MainController(fileSys: FileSystemService,
         this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
         model.Status <- Some <| MainStatus.toggleHidden config.ShowHidden
 
-    member this.ExecuteCommand model =
-        let mode = model.CommandInputMode
-        model.CommandInputMode <- None
+    member this.SubmitInput model =
+        let mode = model.InputMode
+        model.InputMode <- None
         match mode with
-        | Some Search -> MainLogic.Cursor.search model.CommandText false model
-        | Some CreateFile -> this.Create File model.CommandText model
-        | Some CreateFolder -> this.Create Folder model.CommandText model
-        | Some (Rename _) -> this.Rename model.SelectedNode model.CommandText model
+        | Some Search -> MainLogic.Cursor.search model.InputText false model
+        | Some CreateFile -> this.Create File model.InputText model
+        | Some CreateFolder -> this.Create Folder model.InputText model
+        | Some (Rename _) -> this.Rename model.SelectedNode model.InputText model
         | _ -> ()
 
-    member this.CommandCharTyped char model = async {
+    member this.InputCharTyped char model = async {
         let setBookmark char (path: Path) =
             let winPath = path.Format Windows
             config.SetBookmark char winPath
             config.Save()
             model.Status <- Some <| MainStatus.setBookmark char winPath
-        match model.CommandInputMode with
+        match model.InputMode with
         | Some Find ->
             MainLogic.Cursor.find char model
-            model.CommandInputMode <- None
+            model.InputMode <- None
         | Some GoToBookmark ->
-            model.CommandInputMode <- None
+            model.InputMode <- None
             match config.GetBookmark char with
             | Some path -> this.OpenUserPath path model
             | None -> model.Status <- Some <| MainStatus.noBookmark char
@@ -444,10 +444,10 @@ type MainController(fileSys: FileSystemService,
                 let confirm = Confirm (OverwriteBookmark (char, existingPath))
                 MainLogic.Action.startInput confirm model
             | None -> 
-                model.CommandInputMode <- None
+                model.InputMode <- None
                 setBookmark char model.Path
         | Some DeleteBookmark ->
-            model.CommandInputMode <- None
+            model.InputMode <- None
             match config.GetBookmark char with
             | Some path ->
                 config.RemoveBookmark char
@@ -457,7 +457,7 @@ type MainController(fileSys: FileSystemService,
         | Some (Confirm confirmType) ->
             match char with
             | 'y' ->
-                model.CommandInputMode <- None
+                model.InputMode <- None
                 match confirmType with
                 | Overwrite (action, src, _) ->
                     do! this.PutItem true src action model
@@ -466,7 +466,7 @@ type MainController(fileSys: FileSystemService,
                 | Delete -> do! this.Delete model.SelectedNode true model
                 | OverwriteBookmark (char, _) -> setBookmark char model.Path
             | 'n' ->
-                model.CommandInputMode <- None
+                model.InputMode <- None
                 match confirmType with
                 | Overwrite _ when not config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
                     // if we were temporarily showing hidden files, refresh

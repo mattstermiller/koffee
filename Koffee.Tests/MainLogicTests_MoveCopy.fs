@@ -58,7 +58,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
     expected.YankRegister <- item
     expected.Nodes <- newNodes
     expected.Cursor <- 2
-    expected.CommandInputMode <- Some (Confirm (Overwrite (action, src, dest)))
+    expected.InputMode <- Some (Confirm (Overwrite (action, src, dest)))
     assertAreEqual expected model
     openedHidden |> shouldEqual (Some existingHidden)
     config.ShowHidden |> shouldEqual false

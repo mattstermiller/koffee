@@ -44,7 +44,7 @@ type MainView(window: MainWindow,
             <@
                 window.NodeGrid.ItemsSource <- model.Nodes
                 window.NodeGrid.SelectedIndex <- model.Cursor
-                window.CommandBox.Text <- model.CommandText |> BindingOptions.UpdateSourceOnChange
+                window.InputBox.Text <- model.InputText |> BindingOptions.UpdateSourceOnChange
             @>
 
         // display path
@@ -68,14 +68,14 @@ type MainView(window: MainWindow,
                 window.RegisterLabel.Content <- text
                 window.RegisterLabel.Visible <- text <> ""))
 
-        // update command text selection
-        bindPropertyToFunc <@ model.CommandTextSelection @> (fun (start, len) ->
-            window.CommandBox.Select(start, len))
+        // update input text selection
+        bindPropertyToFunc <@ model.InputTextSelection @> (fun (start, len) ->
+            window.InputBox.Select(start, len))
 
-        // update UI for the command input mode
-        bindPropertyToFunc <@ model.CommandInputMode @> (fun mode ->
-            this.CommandInputModeChanged mode model.PathFormat model.SelectedNode
-            if mode.IsNone then model.CommandTextSelection <- (999, 0))
+        // update UI for the input input mode
+        bindPropertyToFunc <@ model.InputMode @> (fun mode ->
+            this.InputModeChanged mode model.PathFormat model.SelectedNode
+            if mode.IsNone then model.InputTextSelection <- (999, 0))
 
         // update UI for status
         bindPropertyToFunc <@ model.Status @> this.UpdateStatus
@@ -99,14 +99,14 @@ type MainView(window: MainWindow,
         // escape and lost focus resets the input mode
         window.PreviewKeyDown.Add <| onKey Key.Escape (fun () ->
             model.Status <- None
-            model.CommandInputMode <- None
+            model.InputMode <- None
             window.NodeGrid.Focus() |> ignore)
-        window.CommandBox.LostFocus.Add (fun _ -> model.CommandInputMode <- None)
+        window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
 
         // suppress text input for character prompts
         window.Loaded.Add (fun _ ->
-            window.CommandBox.PreviewTextInput.Add (fun evt ->
-                match model.CommandInputMode with
+            window.InputBox.PreviewTextInput.Add (fun evt ->
+                match model.InputMode with
                 | Some Find
                 | Some GoToBookmark
                 | Some SetBookmark
@@ -116,12 +116,12 @@ type MainView(window: MainWindow,
                 | _ -> ()))
 
         // pressing delete when viewing bookmarks allows delete
-        window.CommandBox.PreviewKeyDown.Add (fun evt ->
+        window.InputBox.PreviewKeyDown.Add (fun evt ->
             if evt.Key = Key.Delete then
-                match model.CommandInputMode with
+                match model.InputMode with
                 | Some GoToBookmark | Some SetBookmark ->
                     evt.Handled <- true
-                    model.CommandInputMode <- Some DeleteBookmark
+                    model.InputMode <- Some DeleteBookmark
                 | _ -> ())
 
         // make sure selected item gets set to the cursor
@@ -175,8 +175,8 @@ type MainView(window: MainWindow,
             | _ -> keyEvt.Handled <- false; None)
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
         window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
-        window.CommandBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> ExecuteCommand)
-        window.CommandBox.PreviewTextInput |> Observable.choose this.CommandTextInput
+        window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
+        window.InputBox.PreviewTextInput |> Observable.choose this.InputKey
     ]
 
     member this.Activated _ =
@@ -184,9 +184,9 @@ type MainView(window: MainWindow,
             Some Refresh
         else None
 
-    member this.CommandTextInput keyEvt =
+    member this.InputKey keyEvt =
         match keyEvt.Text.ToCharArray() with
-        | [| c |] -> Some (CommandCharTyped c)
+        | [| c |] -> Some (InputCharTyped c)
         | _ -> None
 
     member this.TriggerKeyBindings evt =
@@ -243,7 +243,7 @@ type MainView(window: MainWindow,
         if wasBusy && not isBusy then
             window.NodeGrid.Focus() |> ignore
 
-    member this.CommandInputModeChanged mode pathFormat node =
+    member this.InputModeChanged mode pathFormat node =
         match mode with
         | Some inputMode ->
             let isBookmark = Seq.contains inputMode [GoToBookmark; SetBookmark; DeleteBookmark]
@@ -254,8 +254,8 @@ type MainView(window: MainWindow,
                     | bm -> bm
                 window.Bookmarks.ItemsSource <- bookmarks
             window.BookmarkPanel.Visible <- isBookmark
-            this.ShowCommandBar (inputMode |> this.GetPrompt pathFormat node)
-        | None -> this.HideCommandBar ()
+            this.ShowInputBar (inputMode |> this.GetPrompt pathFormat node)
+        | None -> this.HideInputBar ()
 
     member this.GetPrompt pathFormat (node: Node) = function
         | Confirm (Overwrite (_, src, dest)) ->
@@ -279,13 +279,13 @@ type MainView(window: MainWindow,
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | inputType -> inputType |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
 
-    member private this.ShowCommandBar label =
-        window.CommandLabel.Content <- label
-        window.CommandPanel.Visible <- true
-        window.CommandBox.Focus() |> ignore
+    member private this.ShowInputBar label =
+        window.InputLabel.Content <- label
+        window.InputPanel.Visible <- true
+        window.InputBox.Focus() |> ignore
 
-    member private this.HideCommandBar () =
-        window.CommandPanel.Visible <- false
+    member private this.HideInputBar () =
+        window.InputPanel.Visible <- false
         window.BookmarkPanel.Visible <- false
         window.NodeGrid.Focus() |> ignore
 

@@ -66,7 +66,7 @@ type ConfirmType =
     | Delete
     | OverwriteBookmark of char * existingPath: Path
 
-type CommandInput =
+type InputMode =
     | Find
     | Search
     | GoToBookmark
@@ -122,8 +122,8 @@ type MainModel() as this =
         this.ForwardStack <- []
         this.UndoStack <- []
         this.RedoStack <- []
-        this.CommandText <- ""
-        this.CommandTextSelection <- 0, 0
+        this.InputText <- ""
+        this.InputTextSelection <- 0, 0
         this.WindowLocation <- 0, 0
         this.WindowSize <- 800, 800
 
@@ -134,9 +134,9 @@ type MainModel() as this =
     abstract Sort: SortField * desc: bool with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
-    abstract CommandInputMode: CommandInput option with get, set
-    abstract CommandText: string with get, set
-    abstract CommandTextSelection: start:int * len:int with get, set
+    abstract InputMode: InputMode option with get, set
+    abstract InputText: string with get, set
+    abstract InputTextSelection: start:int * len:int with get, set
     abstract LastFind: char option with get, set
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
@@ -180,9 +180,9 @@ type MainEvents =
     | Back
     | Forward
     | Refresh
-    | StartInput of CommandInput
-    | ExecuteCommand
-    | CommandCharTyped of char
+    | StartInput of InputMode
+    | SubmitInput
+    | InputCharTyped of char
     | StartMove
     | StartCopy
     | Put
@@ -229,8 +229,8 @@ type MainEvents =
         | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
         | StartInput (Confirm Delete) -> "Delete Permanently"
         | StartInput (Confirm _) -> ""
-        | CommandCharTyped _ -> ""
-        | ExecuteCommand -> "Execute the Currently Entered Command"
+        | InputCharTyped _ -> ""
+        | SubmitInput -> "Submit Input for the Current Command"
         | StartMove -> "Start Move Item"
         | StartCopy -> "Start Copy Item"
         | Put -> "Put Item to Move/Copy in Current Folder"

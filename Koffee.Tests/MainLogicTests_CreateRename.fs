@@ -19,8 +19,8 @@ let createModel () =
     model.Path <- createPath "path"
     model.Nodes <- oldNodes
     model.Cursor <- 0
-    model.CommandText <- ""
-    model.CommandTextSelection <- (1, 1)
+    model.InputText <- ""
+    model.InputTextSelection <- (1, 1)
     model
 
 let ex = System.UnauthorizedAccessException()
@@ -260,38 +260,38 @@ let renameTextSelection cursorPosition fileName =
     model.Cursor <- model.Nodes.Length - 1
     MainLogic.Action.startInput (Rename cursorPosition) model
 
-    model.CommandInputMode |> shouldEqual (Some (Rename cursorPosition))
-    model.CommandText |> shouldEqual node.Name
-    model.CommandTextSelection
+    model.InputMode |> shouldEqual (Some (Rename cursorPosition))
+    model.InputText |> shouldEqual node.Name
+    model.InputTextSelection
 
 [<Test>]
-let ``StartInput for rename at beginning sets command text and selection``() =
+let ``StartInput for rename at beginning sets InputText and selection``() =
     renameTextSelection Begin "three.txt.old" |> shouldEqual (0, 0)
 
 [<Test>]
-let ``StartInput for rename at end of name sets command text and selection``() =
+let ``StartInput for rename at end of name sets InputText and selection``() =
     renameTextSelection EndName "three.txt.old" |> shouldEqual (9, 0)
 
 [<Test>]
-let ``StartInput for rename at end of full name sets command text and selection``() =
+let ``StartInput for rename at end of full name sets InputText and selection``() =
     renameTextSelection End "three.txt.old" |> shouldEqual (13, 0)
 
 [<Test>]
-let ``StartInput for rename replace name sets command text and selection``() =
+let ``StartInput for rename replace name sets InputText and selection``() =
     renameTextSelection ReplaceName "three.txt.old" |> shouldEqual (0, 9)
 
 [<Test>]
-let ``StartInput for rename replace name with no name sets command text and selection``() =
+let ``StartInput for rename replace name with no name sets InputText and selection``() =
     renameTextSelection ReplaceName ".txt" |> shouldEqual (0, 0)
 
 [<Test>]
-let ``StartInput for rename replace all sets command text and selection``() =
+let ``StartInput for rename replace all sets InputText and selection``() =
     renameTextSelection ReplaceAll "three.txt.old" |> shouldEqual (0, 13)
 
 [<Test>]
-let ``StartInput for rename replace all with no extension sets command text and selection``() =
+let ``StartInput for rename replace all with no extension sets InputText and selection``() =
     renameTextSelection ReplaceAll "three" |> shouldEqual (0, 5)
 
 [<Test>]
-let ``StartInput for rename replace all with just dot sets command text and selection``() =
+let ``StartInput for rename replace all with just dot sets InputText and selection``() =
     renameTextSelection ReplaceAll "three." |> shouldEqual (0, 6)

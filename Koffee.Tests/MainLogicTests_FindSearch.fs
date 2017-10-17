@@ -25,7 +25,7 @@ let createModel cursorStart =
 
 let assertEqualExceptCursor expected actual =
     CompareLogic()
-    |> ignoreMembers ["Cursor"; "Nodes"; "CommandText"]
+    |> ignoreMembers ["Cursor"; "Nodes"; "InputText"]
     |> assertAreEqualWith expected actual
 
 let find char cursorStart =

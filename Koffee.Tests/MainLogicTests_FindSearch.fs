@@ -32,10 +32,10 @@ let find char cursorStart =
     let model = createModel cursorStart
     let expected = createModel cursorStart
 
-    MainLogic.Cursor.find char model
+    MainLogic.Cursor.find true char model
 
-    expected.LastFind <- (Some char)
-    expected.Status <- Some <| MainStatus.find char
+    expected.LastFind <- Some (true, char)
+    expected.Status <- Some <| MainStatus.find true char
     assertEqualExceptCursor expected model
     model.Cursor
 

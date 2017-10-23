@@ -113,13 +113,17 @@ module MainLogic =
             |> Seq.tryHead
             |> Option.iter (fun (i, n) -> model.SetCursor i)
 
-        let find char (model: MainModel) =
-            model.LastFind <- Some char
-            model.Status <- Some <| MainStatus.find char
-            moveCursorToNext (fun n -> n.Name.[0] = char) false model
+        let find caseSensitive char (model: MainModel) =
+            model.LastFind <- Some (caseSensitive, char)
+            model.Status <- Some <| MainStatus.find caseSensitive char
+            let lower = System.Char.ToLower
+            let equals =
+                if caseSensitive then (=)
+                else (fun a b -> lower a = lower b)
+            moveCursorToNext (fun n -> equals n.Name.[0] char) false model
 
         let findNext (model: MainModel) =
-            model.LastFind |> Option.iter (fun c -> find c model)
+            model.LastFind |> Option.iter (fun (cs, c) -> find cs c model)
 
         let search searchStr reverse (model: MainModel) =
             let search = if searchStr <> "" then Some searchStr else None
@@ -436,8 +440,8 @@ type MainController(fileSys: FileSystemService,
         match model.InputMode with
         | Some (Prompt mode) ->
             match mode with
-            | Find ->
-                MainLogic.Cursor.find char model
+            | Find caseSensitive ->
+                MainLogic.Cursor.find caseSensitive char model
                 model.InputMode <- None
             | GoToBookmark ->
                 model.InputMode <- None

@@ -280,6 +280,7 @@ type MainView(window: MainWindow,
             | Delete -> sprintf "Permanently delete %s y/n ?" node.Description
             | OverwriteBookmark (char, existingPath) ->
                 sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
+        | Prompt (Find caseSensitive) -> sprintf "Find%s:" (if caseSensitive then " case-sensitive" else "")
         | Prompt promptType -> promptType |> caseName
         | Input inputType -> inputType |> caseName
 
@@ -311,7 +312,7 @@ type MainView(window: MainWindow,
 
 module MainStatus =
     // navigation
-    let find char = Message <| sprintf "Find %O" char
+    let find caseSensitive char = Message <| sprintf "Find %O%s" char (if caseSensitive then " (case-sensitive)" else "")
     let search matches searchStr = Message <| sprintf "Search \"%s\" found %i matches" searchStr matches
     let isSearchStatus searchStr status =
         match status with

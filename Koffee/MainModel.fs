@@ -62,7 +62,7 @@ type PutAction =
     | Copy
 
 type PromptType =
-    | Find
+    | Find of caseSensitive: bool
     | GoToBookmark
     | SetBookmark
     | DeleteBookmark
@@ -142,7 +142,7 @@ type MainModel() as this =
     abstract InputMode: InputMode option with get, set
     abstract InputText: string with get, set
     abstract InputTextSelection: start:int * len:int with get, set
-    abstract LastFind: char option with get, set
+    abstract LastFind: (bool * char) option with get, set
     abstract LastSearch: string option with get, set
     abstract BackStack: (Path * int) list with get, set
     abstract ForwardStack: (Path * int) list with get, set
@@ -213,7 +213,8 @@ type MainEvents =
         | CursorDownHalfPage -> "Move Cursor Down Half Page"
         | CursorToFirst -> "Move Cursor to First Item"
         | CursorToLast -> "Move Cursor to Last Item"
-        | StartPrompt Find -> "Find Item Beginning With Character"
+        | StartPrompt (Find false) -> "Find Item Beginning With Character (case-insensitive)"
+        | StartPrompt (Find true) -> "Find Item Beginning With Character (case-sensitive)"
         | FindNext -> "Go To Next Find Match"
         | StartInput Search -> "Search For Items"
         | SearchNext -> "Go To Next Search Match"
@@ -260,7 +261,8 @@ type MainEvents =
         CursorDownHalfPage
         CursorToFirst
         CursorToLast
-        StartPrompt Find
+        StartPrompt (Find false)
+        StartPrompt (Find true)
         FindNext
         StartInput Search
         SearchNext

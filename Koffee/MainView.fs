@@ -340,9 +340,9 @@ module MainStatus =
         | DeletedItem (node, false) -> Some <| sprintf "Recycling %s..." node.Description
         | DeletedItem (node, true) -> Some <| sprintf "Deleting %s..." node.Description
         | _ -> None
-    let checkingIsRecyclable = Message <| "Calculating size..."
     let runningAction action pathFormat =
-        runningActionMessage action pathFormat |> Option.map (fun m -> Busy m)
+        runningActionMessage action pathFormat |> Option.map Busy
+    let checkingIsRecyclable = Busy <| "Calculating size..."
     let private actionCompleteMessage action pathFormat =
         match action with
         | CreatedItem node -> sprintf "Created %s" node.Description

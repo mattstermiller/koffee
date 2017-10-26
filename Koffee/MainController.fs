@@ -127,9 +127,12 @@ module MainLogic =
 
         let search searchStr reverse (model: MainModel) =
             let search = if searchStr <> "" then Some searchStr else None
+            let searchStatus () =
+                let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
+                MainStatus.search matches searchStr
 
-            // if search is different or empty (to clear results), update node flags
-            if search.IsNone || not <| MainStatus.isSearchStatus searchStr model.Status then
+            // if search is different, update node flags
+            if model.Status <> Some (searchStatus()) then
                 let cursor = model.Cursor
                 model.Nodes <- model.Nodes |> List.map (fun n ->
                     let isMatch = search |> Option.exists (fun s ->
@@ -138,8 +141,7 @@ module MainLogic =
                     else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
                     else n)
                 model.Cursor <- cursor
-                let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
-                model.Status <- search |> Option.map (MainStatus.search matches)
+                model.Status <- search |> Option.map (fun _ -> searchStatus())
 
             if search.IsSome then
                 model.LastSearch <- search

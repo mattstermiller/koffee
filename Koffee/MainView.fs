@@ -314,10 +314,6 @@ module MainStatus =
     // navigation
     let find caseSensitive char = Message <| sprintf "Find %O%s" char (if caseSensitive then " (case-sensitive)" else "")
     let search matches searchStr = Message <| sprintf "Search \"%s\" found %i matches" searchStr matches
-    let isSearchStatus searchStr status =
-        match status with
-        | Some (Message s) -> s.StartsWith(sprintf "Search \"%s\"" searchStr)
-        | _ -> false
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

@@ -1,6 +1,5 @@
 ﻿namespace Koffee
 
-open System
 open FSharp.Desktop.UI
 
 type KeyBind = {
@@ -21,4 +20,5 @@ type SettingsEvents =
     | PathFormatChanged of PathFormat
     | ShowFullPathInTitleChanged of bool
     | ShowHiddenChanged of bool
+    | SearchCaseSensitiveChanged of bool
     | RefreshWindowOnActivate of bool

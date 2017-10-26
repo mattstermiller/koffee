@@ -29,6 +29,8 @@ type SettingsView(window: SettingsWindow, config: Config) =
             check window.ShowFullPathInTitleBar
         if config.ShowHidden then
             check window.ShowHidden
+        if config.SearchCaseSensitive then
+            check window.SearchCaseSensitive
         if config.Window.RefreshOnActivate then
             check window.RefreshOnActivate
 
@@ -64,5 +66,6 @@ type SettingsView(window: SettingsWindow, config: Config) =
 
           window.ShowFullPathInTitleBar |> checkedChanged ShowFullPathInTitleChanged
           window.ShowHidden |> checkedChanged ShowHiddenChanged
+          window.SearchCaseSensitive |> checkedChanged SearchCaseSensitiveChanged
           window.RefreshOnActivate |> checkedChanged RefreshWindowOnActivate
         ]

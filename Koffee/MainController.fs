@@ -453,7 +453,7 @@ type MainController(fileSys: FileSystemService,
             | Search ->
                 match MainLogic.Cursor.parseSearch model.InputText with
                 | Ok (search, caseSensitive) ->
-                    let caseSensitive = caseSensitive |> Option.defaultValue false
+                    let caseSensitive = caseSensitive |> Option.defaultValue config.SearchCaseSensitive
                     MainLogic.Cursor.search caseSensitive search false model
                 | Error msg -> model.Status <- Some msg
             | CreateFile -> this.Create File model.InputText model

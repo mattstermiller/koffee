@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Label x:Name="labelStartupPath" Content="Startup path:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top"/>
@@ -29,12 +30,13 @@
 
         <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show full path in title bar" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1" Margin="5,0,0,0"/>
         <CheckBox x:Name="ShowHidden" Content="Show hidden files and folders" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="2" Margin="5,0,0,0"/>
-        <CheckBox x:Name="RefreshOnActivate" Content="Refresh window on focus" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="3" Margin="5,0,0,0"/>
+        <CheckBox x:Name="SearchCaseSensitive" Content="Search is case sensitive by default" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="3" Margin="5,0,0,0"/>
+        <CheckBox x:Name="RefreshOnActivate" Content="Refresh window on focus" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="4" Margin="5,5,0,5"/>
 
-        <Label x:Name="labelKeyBindings" Content="Key bindings:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" Grid.Row="4"/>
-        <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0" VerticalAlignment="Top" HorizontalAlignment="Right" Grid.Row="4" Grid.ColumnSpan="2"/>
+        <Label x:Name="labelKeyBindings" Content="Key bindings:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" Grid.Row="5"/>
+        <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0" VerticalAlignment="Top" HorizontalAlignment="Right" Grid.Row="5" Grid.ColumnSpan="2"/>
 
-        <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="5" Grid.ColumnSpan="2">
+        <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="6" Grid.ColumnSpan="2">
             <DataGrid.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>

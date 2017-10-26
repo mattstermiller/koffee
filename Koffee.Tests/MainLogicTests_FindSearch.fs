@@ -66,7 +66,7 @@ with
           Count = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length }
 
 let assertSearchGiven reverse searchStr cursorStart expectedResult =
-    let search = if searchStr <> "" then Some searchStr else None
+    let search = if searchStr <> "" then Some (false, searchStr) else None
     let model = createModel cursorStart
     model.LastSearch <- search
     let expected = createModel cursorStart
@@ -74,9 +74,9 @@ let assertSearchGiven reverse searchStr cursorStart expectedResult =
     MainLogic.Cursor.searchNext reverse model
 
     expected.LastSearch <- search
-    expected.Status <- search |> Option.map (MainStatus.search expectedResult.Count)
-    assertEqualExceptCursor expected model
+    expected.Status <- search |> Option.map (fun (cs, s) -> MainStatus.search expectedResult.Count cs s)
     SearchResult.fromModel model |> shouldEqual expectedResult
+    assertEqualExceptCursor expected model
 
 let assertSearch = assertSearchGiven false
 let assertSearchPrevious = assertSearchGiven true
@@ -117,3 +117,33 @@ let ``Search previous that matches the current and previous node should set the 
 [<Test>]
 let ``Search previous that matches a node wrapping around should set the cursor to the that index``() =
     assertSearchPrevious "rys" 2 { Cursor = 3; Count = 1 }
+
+
+let firstPart (s: string) = s.Split([|'/'|]).[0]
+
+[<TestCase("")>]
+[<TestCase("needle")>]
+[<TestCase("hay stack/")>]
+let ``parseSearch parses string without switch`` input =
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Ok (firstPart input, None))
+
+[<TestCase("/i")>]
+[<TestCase("hay stack/ic")>]
+let ``parseSearch parses string with case-insensitive switch`` input =
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Ok (firstPart input, Some false))
+
+[<TestCase("/c")>]
+[<TestCase("hay stack/ci")>]
+let ``parseSearch parses string with case-sensitive switch`` input =
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Ok (firstPart input, Some true))
+
+[<TestCase("needle/a")>]
+[<TestCase("needle/ia")>]
+let ``parseSearch returns error for invalid switch`` input =
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Result.Error <| MainStatus.invalidSearchSwitch 'a')
+
+[<TestCase("some/thing/")>]
+[<TestCase("some/thing/i")>]
+[<TestCase("some/other/thing/i")>]
+let ``parseSearch returns error for more than one switch delimiter`` input =
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Result.Error MainStatus.invalidSearchSlash)

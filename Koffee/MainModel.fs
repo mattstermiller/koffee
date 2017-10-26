@@ -143,7 +143,7 @@ type MainModel() as this =
     abstract InputText: string with get, set
     abstract InputTextSelection: start:int * len:int with get, set
     abstract LastFind: (bool * char) option with get, set
-    abstract LastSearch: string option with get, set
+    abstract LastSearch: (bool * string) option with get, set
     abstract BackStack: (Path * int) list with get, set
     abstract ForwardStack: (Path * int) list with get, set
     abstract YankRegister: (Node * PutAction) option with get, set

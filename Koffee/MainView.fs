@@ -313,7 +313,11 @@ type MainView(window: MainWindow,
 module MainStatus =
     // navigation
     let find caseSensitive char = Message <| sprintf "Find %O%s" char (if caseSensitive then " (case-sensitive)" else "")
-    let search matches searchStr = Message <| sprintf "Search \"%s\" found %i matches" searchStr matches
+    let search matches caseSensitive searchStr =
+        let cs = if caseSensitive then " (case-sensitive)" else ""
+        Message <| sprintf "Search \"%s\"%s found %i matches" searchStr cs matches
+    let invalidSearchSlash = ErrorMessage <| "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
+    let invalidSearchSwitch = ErrorMessage << sprintf "Invalid search switch \"%c\". Valid switches are: c, i"
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

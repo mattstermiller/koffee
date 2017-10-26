@@ -1,9 +1,7 @@
 ﻿namespace Koffee
 
 open System
-open System.Text.RegularExpressions
 open FSharp.Desktop.UI
-open ModelExtensions
 open Utility
 
 type NodeType =
@@ -11,7 +9,7 @@ type NodeType =
     | Folder
     | Drive
     | Empty
-    | Error
+    | ErrorNode
 
     override this.ToString() = (sprintf "%A" this).ToLower()
 

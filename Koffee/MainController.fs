@@ -63,7 +63,7 @@ module MainLogic =
         let openSelected openPath openFile (model: MainModel) =
             let path = model.SelectedNode.Path
             match model.SelectedNode.Type with
-            | Folder | Drive | Error ->
+            | Folder | Drive | ErrorNode ->
                 openPath path KeepSelect model
             | File ->
                 try
@@ -134,18 +134,18 @@ module MainLogic =
                     |> Seq.map (function
                         | 'c' -> Ok true
                         | 'i' -> Ok false
-                        | c -> Result.Error <| MainStatus.invalidSearchSwitch c)
+                        | c -> Error <| MainStatus.invalidSearchSwitch c)
                     |> Seq.toList
                 let ok = parsed |> Seq.tryPick (function
                                                 | Ok cs -> Some cs
                                                 | _ -> None)
                 let err = parsed |> Seq.tryPick (function
-                                                 | Result.Error e -> Some e
+                                                 | Error e -> Some e
                                                  | _ -> None)
                 match ok, err with
-                | _, Some e -> Result.Error e
+                | _, Some e -> Error e
                 | cs, _ -> Ok (search, cs)
-            | _ -> Result.Error MainStatus.invalidSearchSlash
+            | _ -> Error MainStatus.invalidSearchSlash
 
         let search caseSensitive searchStr reverse (model: MainModel) =
             let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
@@ -455,7 +455,7 @@ type MainController(fileSys: FileSystemService,
                 | Ok (search, caseSensitive) ->
                     let caseSensitive = caseSensitive |> Option.defaultValue false
                     MainLogic.Cursor.search caseSensitive search false model
-                | Result.Error msg -> model.Status <- Some msg
+                | Error msg -> model.Status <- Some msg
             | CreateFile -> this.Create File model.InputText model
             | CreateFolder -> this.Create Folder model.InputText model
             | Rename _ -> this.Rename model.SelectedNode model.InputText model

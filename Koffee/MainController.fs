@@ -63,7 +63,7 @@ module MainLogic =
         let openSelected openPath openFile (model: MainModel) =
             let path = model.SelectedNode.Path
             match model.SelectedNode.Type with
-            | Folder | Drive | Error ->
+            | Folder | Drive | ErrorNode ->
                 openPath path KeepSelect model
             | File ->
                 try
@@ -125,21 +125,46 @@ module MainLogic =
         let findNext (model: MainModel) =
             model.LastFind |> Option.iter (fun (cs, c) -> find cs c model)
 
-        let search searchStr reverse (model: MainModel) =
-            let search = if searchStr <> "" then Some searchStr else None
+        let parseSearch (searchInput: string) =
+            match searchInput.Split('/') with
+            | [| search |] -> Ok (search, None)
+            | [| search; switches |] ->
+                let parsed =
+                    switches
+                    |> Seq.map (function
+                        | 'c' -> Ok true
+                        | 'i' -> Ok false
+                        | c -> Error <| MainStatus.invalidSearchSwitch c)
+                    |> Seq.toList
+                let ok = parsed |> Seq.tryPick (function
+                                                | Ok cs -> Some cs
+                                                | _ -> None)
+                let err = parsed |> Seq.tryPick (function
+                                                 | Error e -> Some e
+                                                 | _ -> None)
+                match ok, err with
+                | _, Some e -> Error e
+                | cs, _ -> Ok (search, cs)
+            | _ -> Error MainStatus.invalidSearchSlash
 
-            // if search is different or empty (to clear results), update node flags
-            if search.IsNone || not <| MainStatus.isSearchStatus searchStr model.Status then
+        let search caseSensitive searchStr reverse (model: MainModel) =
+            let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
+            let options = if caseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
+
+            let searchStatus () =
+                let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
+                MainStatus.search matches caseSensitive searchStr
+
+            // if search is different, update node flags
+            if model.Status <> Some (searchStatus()) then
                 let cursor = model.Cursor
                 model.Nodes <- model.Nodes |> List.map (fun n ->
-                    let isMatch = search |> Option.exists (fun s ->
-                        Regex.IsMatch(n.Name, s, RegexOptions.IgnoreCase))
+                    let isMatch = search |> Option.exists (fun (cs, s) -> Regex.IsMatch(n.Name, s, options))
                     if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
                     else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
                     else n)
                 model.Cursor <- cursor
-                let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
-                model.Status <- search |> Option.map (MainStatus.search matches)
+                model.Status <- search |> Option.map (fun _ -> searchStatus())
 
             if search.IsSome then
                 model.LastSearch <- search
@@ -147,7 +172,7 @@ module MainLogic =
             moveCursorToNext (fun n -> n.IsSearchMatch) reverse model
 
         let searchNext reverse (model: MainModel) =
-            model.LastSearch |> Option.iter (fun s -> search s reverse model)
+            model.LastSearch |> Option.iter (fun (cs, s) -> search cs s reverse model)
 
     module Action =
         let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
@@ -425,7 +450,12 @@ type MainController(fileSys: FileSystemService,
         match mode with
         | Some (Input mode) ->
             match mode with
-            | Search -> MainLogic.Cursor.search model.InputText false model
+            | Search ->
+                match MainLogic.Cursor.parseSearch model.InputText with
+                | Ok (search, caseSensitive) ->
+                    let caseSensitive = caseSensitive |> Option.defaultValue config.SearchCaseSensitive
+                    MainLogic.Cursor.search caseSensitive search false model
+                | Error msg -> model.Status <- Some msg
             | CreateFile -> this.Create File model.InputText model
             | CreateFolder -> this.Create Folder model.InputText model
             | Rename _ -> this.Rename model.SelectedNode model.InputText model

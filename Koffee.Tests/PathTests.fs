@@ -1,14 +1,16 @@
 ﻿module Koffee.PathTests
 
 open NUnit.Framework
-open FsUnit
 open FsUnitTyped
 open System.Reflection
 
-let shouldParseTo expectedStr path =
-    path |> shouldNotEqual None
+let getPathValue (path: Path) =
     typedefof<Path>.GetProperty("Value", BindingFlags.NonPublic ||| BindingFlags.Instance)
-        .GetValue(path.Value) |> should equal expectedStr
+                   .GetValue(path) :?> string
+
+let shouldParseTo expectedStr path =
+    path |> Option.map getPathValue
+         |> shouldEqual (Some expectedStr)
 
 [<TestCase("")>]
 [<TestCase("/")>]

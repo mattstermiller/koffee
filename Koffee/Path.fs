@@ -12,6 +12,10 @@ type PathFormat =
     override this.ToString() = sprintf "%A" this
 
 type Path private (path: string) =
+    static let root = ""
+    static let rootWindows = "Drives"
+    static let rootUnix = "/"
+
     static let firstModify f (s: string) =
         if String.IsNullOrEmpty(s) then ""
         else
@@ -21,37 +25,41 @@ type Path private (path: string) =
     static let firstToUpper = firstModify (fun s -> s.ToUpper())
     static let firstToLower = firstModify (fun s -> s.ToLower())
 
-    static let normalize (pathStr: string) =
-        pathStr
-            .Replace("~", Path.UserDirectory)
-            .Replace("/", @"\").Trim('\\')
-            .Replace(":", "").Insert(1, ":")
-            |> (fun s -> if s.EndsWith(":") then s + @"\" else s)
-            |> firstToUpper
-            |> Path
+    static let invalidChars = (IOPath.GetInvalidPathChars() |> String) + "?*"
 
-    static let (|PathPattern|_|) =
-        let invalidChars = (IOPath.GetInvalidPathChars() |> String) + "?*"
-        let pattern = sprintf @"^([a-z]:|/[a-z]|~)([/\\][^%s]*)?$" invalidChars
-        let regex = Regex(pattern, RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
+    static let matchPathWithPrefix prefixPattern (prefixMapping: string -> string) =
+        let pattern = sprintf @"^(%s)([/\\][^%s]*)?$" prefixPattern invalidChars
+        let re = Regex(pattern, RegexOptions.Compiled ||| RegexOptions.IgnoreCase)
         (fun s ->
-            if regex.IsMatch(s) then
-                Some (normalize s)
+            let m = re.Match(s)
+            if m.Success then
+                let prefix = m.Groups.[1].Value |> prefixMapping
+                let dirs = m.Groups.[2].Value.Replace("/", @"\").Trim('\\')
+                let join =
+                    if not <| prefix.EndsWith(@"\") && dirs <> "" then @"\"
+                    else ""
+                Some (Path (prefix + join + dirs))
             else None)
 
-    static let root = ""
-    static let rootWindows = "Drives"
-    static let rootUnix = "/"
-    static let isRoot p =
-        p = root || p = rootUnix || String.Equals(p, rootWindows, StringComparison.OrdinalIgnoreCase)
+    static let (|RootPath|_|) s =
+        if Seq.exists (Str.equalsIgnoreCase s) [root; rootUnix; rootWindows] then
+            Some (Path root)
+        else None
+
+    static let (|LocalPath|_|) =
+        matchPathWithPrefix "[a-z]:|/[a-z]" (fun drive -> drive.Trim(':', '/', '\\').ToUpper() + @":\")
+
+    static let (|UserPath|_|) =
+        matchPathWithPrefix "~" (fun _ -> Path.UserDirectory)
 
     static member Root = Path root
     static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
     static member Parse (s: string) =
         match s.Trim() with
-        | p when isRoot p -> Some (Path root)
-        | PathPattern path -> Some path
+        | RootPath p
+        | LocalPath p
+        | UserPath p -> Some p
         | _ -> None
 
     static member SplitName (name: string) =
@@ -69,8 +77,7 @@ type Path private (path: string) =
             else path
         | Unix ->
             if path = root then rootUnix
-            else
-                (path |> firstToLower).Replace(":", "").Insert(0, "/").Replace(@"\", "/")
+            else (path |> firstToLower).Replace(":", "").Insert(0, "/").Replace(@"\", "/")
 
     member this.Name =
         path |> IOPath.GetFileName

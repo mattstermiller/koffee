@@ -52,6 +52,13 @@ type Path private (path: string) =
     static let (|UserPath|_|) =
         matchPathWithPrefix "~" (fun _ -> Path.UserDirectory)
 
+    static let (|NetPath|_|) =
+        let hostChars = "a-z0-9-_."
+        let pattern = sprintf @"[/\\]{2}[%s]+|/net/[%s]+" hostChars hostChars
+        matchPathWithPrefix pattern (fun prefix ->
+            let server = prefix.Replace("/net/", "").Trim('/', '\\')
+            sprintf @"\\%s" server)
+
     static member Root = Path root
     static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -59,7 +66,8 @@ type Path private (path: string) =
         match s.Trim() with
         | RootPath p
         | LocalPath p
-        | UserPath p -> Some p
+        | UserPath p
+        | NetPath p -> Some p
         | _ -> None
 
     static member SplitName (name: string) =
@@ -76,8 +84,12 @@ type Path private (path: string) =
             if path = root then rootWindows
             else path
         | Unix ->
-            if path = root then rootUnix
-            else (path |> firstToLower).Replace(":", "").Insert(0, "/").Replace(@"\", "/")
+            if path = root then
+                rootUnix
+            else if this.IsNetPath then
+                path.Insert(1, "net").Replace(@"\", "/")
+            else
+                (path |> firstToLower).Replace(":", "").Insert(0, "/").Replace(@"\", "/")
 
     member this.Name =
         path |> IOPath.GetFileName
@@ -100,6 +112,8 @@ type Path private (path: string) =
 
     member this.Join name =
         IOPath.Combine(path, name) |> Path
+
+    member this.IsNetPath = path.StartsWith(@"\\")
 
     override this.Equals other =
         match other with

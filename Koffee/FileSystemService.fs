@@ -208,14 +208,13 @@ type FileSystemService() =
                 (sprintf " \"%s\"" drive.VolumeLabel)
             else
                 ""
-        {
-            Path = toPath drive.Name
-            Name = sprintf "%s  %s Drive%s" name driveType label
-            Type = Drive
-            Modified = None
-            Size = if drive.IsReady then Some drive.TotalSize else None
-            IsHidden = false
-            IsSearchMatch = false
+        { Path = toPath drive.Name
+          Name = sprintf "%s  %s Drive%s" name driveType label
+          Type = Drive
+          Modified = None
+          Size = if drive.IsReady then Some drive.TotalSize else None
+          IsHidden = false
+          IsSearchMatch = false
         }
 
     member private this.NetHostNode path = {
@@ -240,14 +239,13 @@ type FileSystemService() =
 
     member private this.ErrorNode ex path =
         let error = ex.Message.Split('\r', '\n').[0]
-        {
-            Path = path
-            Name = sprintf "<%s>" error
-            Type = ErrorNode
-            Modified = None
-            Size = None
-            IsHidden = false
-            IsSearchMatch = false
+        { Path = path
+          Name = sprintf "<%s>" error
+          Type = ErrorNode
+          Modified = None
+          Size = None
+          IsHidden = false
+          IsSearchMatch = false
         }
 
     member private this.CannotActOnNodeType action nodeType =

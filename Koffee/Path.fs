@@ -16,15 +16,6 @@ type Path private (path: string) =
     static let rootWindows = "Drives"
     static let rootUnix = "/"
 
-    static let firstModify f (s: string) =
-        if String.IsNullOrEmpty(s) then ""
-        else
-            let first = string s.[0] |> f
-            if s.Length > 1 then first + s.Substring(1)
-            else first
-    static let firstToUpper = firstModify (fun s -> s.ToUpper())
-    static let firstToLower = firstModify (fun s -> s.ToLower())
-
     static let invalidChars = (IOPath.GetInvalidPathChars() |> String) + "?*"
 
     static let matchPathWithPrefix prefixPattern (prefixMapping: string -> string) =
@@ -89,7 +80,9 @@ type Path private (path: string) =
             else if this.IsNetPath then
                 path.Insert(1, "net").Replace(@"\", "/")
             else
-                (path |> firstToLower).Replace(":", "").Insert(0, "/").Replace(@"\", "/")
+                let drive = (string path.[0]).ToLower()
+                let dirs = path.Substring(2).Replace(@"\", "/")
+                sprintf "/%s%s" drive dirs
 
     member this.Name =
         path |> IOPath.GetFileName

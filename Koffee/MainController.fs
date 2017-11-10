@@ -63,7 +63,7 @@ module MainLogic =
         let openSelected openPath openFile (model: MainModel) =
             let path = model.SelectedNode.Path
             match model.SelectedNode.Type with
-            | Folder | Drive | ErrorNode ->
+            | Folder | Drive | NetHost | NetShare | ErrorNode ->
                 openPath path KeepSelect model
             | File ->
                 try

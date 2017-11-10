@@ -8,11 +8,15 @@ type NodeType =
     | File
     | Folder
     | Drive
+    | NetHost
+    | NetShare
     | Empty
     | ErrorNode
 
     override this.ToString() =
         match this with
+        | NetHost -> "Network Host"
+        | NetShare -> "Network Share"
         | ErrorNode -> "Error"
         | _ -> sprintf "%A" this
 

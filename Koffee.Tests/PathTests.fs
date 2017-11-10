@@ -86,6 +86,21 @@ let ``Parse returns None for invalid paths`` input =
     input |> Path.Parse |> shouldEqual None
 
 
+let parseForTest pathStr =
+    match Path.Parse pathStr with
+    | Some p -> p
+    | None -> failwithf "Test path string '%s' does not parse" pathStr
+
+[<TestCase("", "")>]
+[<TestCase(@"C:\", "")>]
+[<TestCase(@"C:\test", @"C:\")>]
+[<TestCase(@"C:\test\a folder", @"C:\test")>]
+[<TestCase(@"\\server", "")>]
+[<TestCase(@"\\server\share", @"\\server")>]
+[<TestCase(@"\\server\share\a folder", @"\\server\share")>]
+let ``Parent returns expected value`` pathStr expected =
+    (parseForTest pathStr).Parent |> getPathValue |> shouldEqual expected
+
 [<TestCase(@"", "/")>]
 [<TestCase(@"C:\", "/c/")>]
 [<TestCase(@"C:\test", "/c/test")>]
@@ -93,6 +108,4 @@ let ``Parse returns None for invalid paths`` input =
 [<TestCase(@"\\server", "/net/server")>]
 [<TestCase(@"\\server\share", "/net/server/share")>]
 let ``Format drive in Unix`` pathStr expected =
-    match Path.Parse pathStr with
-    | Some p -> p.Format Unix |> shouldEqual expected
-    | None -> failwithf "Test path string '%s' does not parse" pathStr
+    (parseForTest pathStr).Format Unix |> shouldEqual expected

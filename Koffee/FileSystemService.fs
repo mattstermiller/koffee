@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Text.RegularExpressions
 open System.Diagnostics
+open System.Management
 open Microsoft.VisualBasic.FileIO
 open Koffee
 open Utility
@@ -14,10 +15,12 @@ type FileSystemService() =
 
     member this.GetNode path =
         let wp = wpath path
-        let dir = DirectoryInfo(wp)
+        let dir = lazy DirectoryInfo(wp)
         let file = lazy FileInfo(wp)
-        if dir.Exists then
-            dir |> this.FolderNode |> Some
+        if path.IsNetHost then
+            path |> this.NetHostNode |> Some
+        else if dir.Value.Exists then
+            dir.Value |> this.FolderNode |> Some
         else if file.Value.Exists then
             file.Value |> this.FileNode |> Some
         else
@@ -25,25 +28,32 @@ type FileSystemService() =
 
     member this.GetNodes showHidden path =
         let error msg path =
-            this.ErrorNode (Exception(msg)) path |> List.singleton
-        if path = Path.Root then
-            DriveInfo.GetDrives() |> Seq.map this.DriveNode |> Seq.toList
-        else
-            let wp = wpath path
-            if Directory.Exists wp then
-                let dir = DirectoryInfo(wp)
-                let folders = dir.GetDirectories() |> Seq.map this.FolderNode
-                let files = dir.GetFiles() |> Seq.map this.FileNode
-                let nodes =
+            this.ErrorNode (Exception(msg)) path |> Seq.singleton
+        let getNetShares server =
+            use shares = new ManagementClass(sprintf @"\\%s\root\cimv2" server, "Win32_Share", new ObjectGetOptions())
+            shares.GetInstances() |> Seq.cast<ManagementObject> |> Seq.map (fun s -> s.["Name"] :?> string)
+        let allNodes =
+            if path = Path.Root then
+                DriveInfo.GetDrives() |> Seq.map this.DriveNode
+            else if path.IsNetHost then
+                getNetShares path.Name |> Seq.map (this.NetShareNode path)
+            else
+                let wp = wpath path
+                if Directory.Exists wp then
+                    let dir = DirectoryInfo(wp)
+                    let folders = dir.GetDirectories() |> Seq.map this.FolderNode
+                    let files = dir.GetFiles() |> Seq.map this.FileNode
                     Seq.append folders files
-                    |> Seq.filter (fun n -> not n.IsHidden || showHidden)
-                    |> Seq.toList
-                if nodes.IsEmpty then
-                    { Path = path; Name = "<Empty Folder>"; Type = Empty
-                      Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-                    |> List.singleton
-                else nodes
-            else error "Path does not exist" Path.Root
+                else error "Path does not exist" Path.Root
+        let nodes =
+            allNodes
+            |> Seq.filter (fun n -> not n.IsHidden || showHidden)
+            |> Seq.toList
+        if nodes.IsEmpty then
+            { Path = path; Name = "<Empty Folder>"; Type = Empty
+              Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+            |> List.singleton
+        else nodes
 
     member this.IsEmpty path =
         let wp = wpath path
@@ -207,6 +217,26 @@ type FileSystemService() =
             IsHidden = false
             IsSearchMatch = false
         }
+
+    member private this.NetHostNode path = {
+        Path = path
+        Name = path.Name
+        Type = Folder
+        Modified = None
+        Size = None
+        IsHidden = false
+        IsSearchMatch = false
+    }
+
+    member private this.NetShareNode serverPath name = {
+        Path = serverPath.Join name
+        Name = name
+        Type = Folder
+        Modified = None
+        Size = None
+        IsHidden = name.EndsWith("$")
+        IsSearchMatch = false
+    }
 
     member private this.ErrorNode ex path =
         let error = ex.Message.Split('\r', '\n').[0]

@@ -102,8 +102,10 @@ type Path private (path: string) =
         | _ -> None
 
     member this.Parent =
-        if path = root then
+        if path = root || this.IsNetHost then
             Path.Root
+        else if this.IsNetPath then
+            path.Substring(0, path.LastIndexOf('\\')) |> Path
         else
             IOPath.GetDirectoryName path
             |> Option.ofObj
@@ -114,6 +116,9 @@ type Path private (path: string) =
         IOPath.Combine(path, name) |> Path
 
     member this.IsNetPath = path.StartsWith(@"\\")
+
+    member this.IsNetHost =
+        this.IsNetPath && path.Length > 2 && not (path.Substring(2).Contains(@"\"))
 
     override this.Equals other =
         match other with

@@ -11,7 +11,10 @@ type NodeType =
     | Empty
     | ErrorNode
 
-    override this.ToString() = (sprintf "%A" this).ToLower()
+    override this.ToString() =
+        match this with
+        | ErrorNode -> "Error"
+        | _ -> sprintf "%A" this
 
 type Node = {
     Path: Path
@@ -26,7 +29,7 @@ with
     override this.ToString() = this.Path.Format Windows
 
     member this.Description =
-        sprintf "%O \"%s\"" this.Type this.Name
+        sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |> Option.defaultValue ""
 

@@ -54,13 +54,17 @@ type FileSystemService() =
             else if path.IsNetHost then
                 getNetShares path
             else
-                let wp = wpath path
-                if Directory.Exists wp then
-                    let dir = DirectoryInfo(wp)
+                let dir = DirectoryInfo(wpath path)
+                if dir.Exists then
                     let folders = dir.GetDirectories() |> Seq.map this.FolderNode
                     let files = dir.GetFiles() |> Seq.map this.FileNode
                     Seq.append folders files
-                else error "Path does not exist" Path.Root
+                else
+                    let driveIsReady = path.Drive |> Option.map (fun d -> DriveInfo(wpath d).IsReady)
+                    if driveIsReady = Some false then
+                        error "Drive is not ready" Path.Root
+                    else
+                        error "Path does not exist" Path.Root
         let nodes =
             allNodes
             |> Seq.filter (fun n -> not n.IsHidden || showHidden)

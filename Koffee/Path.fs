@@ -91,7 +91,7 @@ type Path private (path: string) =
 
     member this.Drive =
         match path with
-        | p when p.Length > 0 && Char.IsLetter p.[0] -> Some (string p.[0])
+        | LocalPath _ -> IOPath.GetPathRoot(path) |> Path |> Some
         | _ -> None
 
     member this.Parent =

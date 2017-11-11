@@ -61,17 +61,17 @@ module MainLogic =
             | None -> model.Status <- Some <| MainStatus.invalidPath pathStr
 
         let openSelected openPath openFile (model: MainModel) =
-            let path = model.SelectedNode.Path
-            match model.SelectedNode.Type with
-            | Folder | Drive | NetHost | NetShare | ErrorNode ->
-                openPath path KeepSelect model
+            let node = model.SelectedNode
+            match node.Type with
+            | Folder | Drive | NetHost | NetShare ->
+                openPath node.Path KeepSelect model
             | File ->
                 try
-                    openFile path
-                    model.Status <- Some <| MainStatus.openFile model.SelectedNode.Name
+                    openFile node.Path
+                    model.Status <- Some <| MainStatus.openFile node.Name
                 with ex ->
-                    model.Status <- Some <| MainStatus.couldNotOpenFile path.Name ex.Message
-            | Empty -> ()
+                    model.Status <- Some <| MainStatus.couldNotOpenFile node.Name ex.Message
+            | _ -> ()
 
         let back openPath (model: MainModel) =
             match model.BackStack with

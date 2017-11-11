@@ -15,10 +15,15 @@ type FileSystemService() =
 
     member this.GetNode path =
         let wp = wpath path
+        let drive = lazy DriveInfo(wp)
         let dir = lazy DirectoryInfo(wp)
         let file = lazy FileInfo(wp)
         if path.IsNetHost then
             path |> this.NetHostNode |> Some
+        else if path.Parent.IsNetHost && dir.Value.Exists then
+            path |> this.NetShareNode |> Some
+        else if drive.Value.IsReady then
+            drive.Value |> this.DriveNode |> Some
         else if dir.Value.Exists then
             dir.Value |> this.FolderNode |> Some
         else if file.Value.Exists then
@@ -29,14 +34,18 @@ type FileSystemService() =
     member this.GetNodes showHidden path =
         let error msg path =
             this.ErrorNode (Exception(msg)) path |> Seq.singleton
-        let getNetShares server =
+        let getNetShares (serverPath: Path) =
+            let server = serverPath.Name
             use shares = new ManagementClass(sprintf @"\\%s\root\cimv2" server, "Win32_Share", new ObjectGetOptions())
-            shares.GetInstances() |> Seq.cast<ManagementObject> |> Seq.map (fun s -> s.["Name"] :?> string)
+            shares.GetInstances()
+            |> Seq.cast<ManagementObject>
+            |> Seq.map (fun s -> s.["Name"] :?> string)
+            |> Seq.map (fun n -> serverPath.Join n |> this.NetShareNode)
         let allNodes =
             if path = Path.Root then
                 DriveInfo.GetDrives() |> Seq.map this.DriveNode
             else if path.IsNetHost then
-                getNetShares path.Name |> Seq.map (this.NetShareNode path)
+                getNetShares path
             else
                 let wp = wpath path
                 if Directory.Exists wp then
@@ -227,13 +236,13 @@ type FileSystemService() =
         IsSearchMatch = false
     }
 
-    member private this.NetShareNode serverPath name = {
-        Path = serverPath.Join name
-        Name = name
+    member private this.NetShareNode path = {
+        Path = path
+        Name = path.Name
         Type = NetShare
         Modified = None
         Size = None
-        IsHidden = name.EndsWith("$")
+        IsHidden = path.Name.EndsWith("$")
         IsSearchMatch = false
     }
 

@@ -13,6 +13,16 @@ type NodeType =
     | Empty
     | ErrorNode
 
+    member this.CanModify =
+        match this with
+        | File | Folder -> true
+        | _ -> false
+
+    member this.CanCreateIn =
+        match this with
+        | Drive | Folder | NetShare -> true
+        | _ -> false
+
     override this.ToString() =
         match this with
         | NetHost -> "Network Host"
@@ -87,13 +97,6 @@ type InputMode =
     | Prompt of PromptType
     | Confirm of ConfirmType
     | Input of InputType
-    member this.AllowedOnNodeType nodeType =
-        match this with
-        | Input (Rename _) ->
-            match nodeType with
-            | File | Folder -> true
-            | _ -> false
-        | _ -> true
 
 type ItemAction =
     | CreatedItem of Node

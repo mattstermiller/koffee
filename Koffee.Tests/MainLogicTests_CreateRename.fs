@@ -259,7 +259,8 @@ let renameTextSelection cursorPosition fileName =
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
     let inputMode = Input (Rename cursorPosition)
-    MainLogic.Action.startInput inputMode model
+    let getNode _ = None
+    MainLogic.Action.startInput getNode inputMode model
 
     model.InputMode |> shouldEqual (Some inputMode)
     model.InputText |> shouldEqual node.Name

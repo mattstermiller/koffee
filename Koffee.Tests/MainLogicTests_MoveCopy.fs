@@ -21,12 +21,20 @@ let newNodes = [
 let nodeCopy num =
     createNode ("/c/path/" + (MainLogic.Action.getCopyName "file 2" num))
 
+let modelPathNode = createNode "/c/path"
+
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- createPath "/c/path"
+    model.Path <- modelPathNode.Path
     model.Nodes <- oldNodes
     model.Cursor <- 0
     model
+
+let mockGetNodeFunc nodeFunc path =
+    if path = modelPathNode.Path then Some modelPathNode
+    else nodeFunc path
+
+let mockGetNode nodeToReturn = mockGetNodeFunc (fun _ -> nodeToReturn)
 
 let ex = UnauthorizedAccessException()
 
@@ -38,7 +46,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
     let src = nodeDiffFolder
     let dest = { nodeSameFolder with IsHidden = existingHidden }
     let config = Config()
-    let getNode _ = Some dest
+    let getNode = mockGetNode (Some dest)
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
     let mutable openedHidden = None
@@ -69,7 +77,7 @@ let ``Put item to move or copy handles error by setting error status`` doCopy =
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let config = Config()
-    let getNode _ = None
+    let getNode = mockGetNode None
     let move _ _ = if not doCopy then raise ex else failwith "move should not be called"
     let copy _ _ = if doCopy then raise ex else failwith "copy should not be called"
     let openPath _ p _ (model: MainModel) =
@@ -94,7 +102,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let config = Config()
-    let getNode _ = if overwrite then Some dest else None
+    let getNode = mockGetNode (if overwrite then Some dest else None)
     let mutable moved = None
     let move s d = moved <- Some (s, d)
     let copy _ _ = failwith "copy should not be called"
@@ -118,7 +126,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
 let ``Put item to move in same folder gives same-folder message``() =
     let src = nodeSameFolder
     let config = Config()
-    let getNode _ = None
+    let getNode = mockGetNode None
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
     let openPath _ p _ (model: MainModel) =
@@ -203,7 +211,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let config = Config()
-    let getNode _ = if overwrite then Some dest else None
+    let getNode = mockGetNode (if overwrite then Some dest else None)
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d = copied <- Some (s, d)
@@ -230,7 +238,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let src = nodeSameFolder
     let config = Config()
     let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
-    let getNode p = if existingPaths |> List.contains p then Some src else None
+    let getNode = mockGetNodeFunc (fun p -> if existingPaths |> List.contains p then Some src else None)
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d = copied <- Some (s, d)

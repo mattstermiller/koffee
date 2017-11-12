@@ -363,6 +363,7 @@ module MainStatus =
     let cannotRecycle (node: Node) =
         ErrorMessage <| sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
     let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"
+    let cannotPutHere = ErrorMessage <| "Cannot put items here"
     let cancelled = Message <| "Cancelled"
 
     let setActionExceptionStatus action ex (model: MainModel) =

@@ -193,8 +193,21 @@ module MainLogic =
                 | ReplaceName -> (0, name.Length)
                 | ReplaceAll -> (0, fullName.Length)
 
-        let startInput (inputMode: InputMode) (model: MainModel) =
-            if inputMode.AllowedOnNodeType model.SelectedNode.Type then
+        let startInput getNode (inputMode: InputMode) (model: MainModel) =
+            let allowed, errorStatus =
+                match inputMode with
+                | Input CreateFile
+                | Input CreateFolder ->
+                    let allowed =
+                        getNode model.Path
+                        |> Option.map (fun n -> n.Type.CanCreateIn)
+                        |> Option.defaultValue false
+                    (allowed, Some MainStatus.cannotPutHere)
+                | Input (Rename _)
+                | Confirm Delete ->
+                    (model.SelectedNode.Type.CanModify, None)
+                | _ -> (true, None)
+            if allowed then
                 let text, pos =
                     match inputMode with
                     | Input (Rename pos) -> model.SelectedNode.Name, (Some pos)
@@ -202,6 +215,8 @@ module MainLogic =
                 model.InputMode <- Some inputMode
                 model.InputText <- text
                 pos |> Option.iter (setInputSelection model)
+            else
+                errorStatus |> Option.iter (fun s -> model.Status <- Some s)
 
         let create getNode fsCreate openPath nodeType name (model: MainModel) =
             try
@@ -234,19 +249,20 @@ module MainLogic =
         }
 
         let rename getNode move openPath node newName (model: MainModel) =
-            let action = RenamedItem (node, newName)
-            try
-                let newPath = node.Path.Parent.Join newName
-                let existing = if Str.equalsIgnoreCase node.Name newName then None
-                               else getNode newPath
-                match existing with
-                | Some existingNode ->
-                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists node.Type newName existingNode.IsHidden
-                | None ->
-                    move node.Path newPath
-                    openPath model.Path (SelectName newName) model
-                    model |> performedAction action
-            with ex -> model |> MainStatus.setActionExceptionStatus action ex
+            if node.Type.CanModify then
+                let action = RenamedItem (node, newName)
+                try
+                    let newPath = node.Path.Parent.Join newName
+                    let existing = if Str.equalsIgnoreCase node.Name newName then None
+                                   else getNode newPath
+                    match existing with
+                    | Some existingNode ->
+                        model.Status <- Some <| MainStatus.cannotRenameAlreadyExists node.Type newName existingNode.IsHidden
+                    | None ->
+                        move node.Path newPath
+                        openPath model.Path (SelectName newName) model
+                        model |> performedAction action
+                with ex -> model |> MainStatus.setActionExceptionStatus action ex
 
         let undoRename getNode move openPath oldNode currentName (model: MainModel) =
             let parentPath = oldNode.Path.Parent
@@ -266,11 +282,9 @@ module MainLogic =
                 model |> MainStatus.setActionExceptionStatus action ex
 
         let registerItem (config: Config) action (model: MainModel) =
-            match model.SelectedNode.Type with
-            | File | Folder ->
+            if model.SelectedNode.Type.CanModify then
                 model.YankRegister <- Some (model.SelectedNode, action)
                 model.Status <- None
-            | _ -> ()
 
         let getCopyName name i =
             let (nameNoExt, ext) = Path.SplitName name
@@ -278,34 +292,37 @@ module MainLogic =
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
         let putItem (config: Config) getNode move copy openPath overwrite node putAction (model: MainModel) = async {
-            let sameFolder = node.Path.Parent = model.Path
-            if putAction = Move && sameFolder then
-                model.Status <- Some MainStatus.cannotMoveToSameFolder
-            else
-                let newName =
-                    if putAction = Copy && sameFolder then
-                        let exists name = Option.isSome (getNode (model.Path.Join name))
-                        Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
-                    else
-                        node.Name
-                let newPath = model.Path.Join newName
-                match getNode newPath with
-                | Some existing when not overwrite ->
-                    // refresh node list to make sure we can see the existing file
-                    let showHidden = config.ShowHidden || existing.IsHidden
-                    openPath showHidden model.Path (SelectName existing.Name) model
-                    model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
-                | _ ->
-                    let fileSysAction, action =
-                        match putAction with
-                        | Move -> (move, MovedItem (node, newPath))
-                        | Copy -> (copy, CopiedItem (node, newPath))
-                    try
-                        model.Status <- MainStatus.runningAction action model.PathFormat
-                        do! runAsync (fun () -> fileSysAction node.Path newPath)
-                        openPath config.ShowHidden model.Path (SelectName newName) model
-                        model |> performedAction action
-                    with ex -> model |> MainStatus.setActionExceptionStatus action ex
+            match getNode model.Path with
+            | Some container when container.Type.CanCreateIn ->
+                let sameFolder = node.Path.Parent = model.Path
+                if putAction = Move && sameFolder then
+                    model.Status <- Some MainStatus.cannotMoveToSameFolder
+                else
+                    let newName =
+                        if putAction = Copy && sameFolder then
+                            let exists name = Option.isSome (getNode (model.Path.Join name))
+                            Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
+                        else
+                            node.Name
+                    let newPath = model.Path.Join newName
+                    match getNode newPath with
+                    | Some existing when not overwrite ->
+                        // refresh node list to make sure we can see the existing file
+                        let showHidden = config.ShowHidden || existing.IsHidden
+                        openPath showHidden model.Path (SelectName existing.Name) model
+                        model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
+                    | _ ->
+                        let fileSysAction, action =
+                            match putAction with
+                            | Move -> (move, MovedItem (node, newPath))
+                            | Copy -> (copy, CopiedItem (node, newPath))
+                        try
+                            model.Status <- MainStatus.runningAction action model.PathFormat
+                            do! runAsync (fun () -> fileSysAction node.Path newPath)
+                            openPath config.ShowHidden model.Path (SelectName newName) model
+                            model |> performedAction action
+                        with ex -> model |> MainStatus.setActionExceptionStatus action ex
+            | _ -> model.Status <- Some MainStatus.cannotPutHere
         }
 
         let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
@@ -353,25 +370,27 @@ module MainLogic =
 
         let recycle isRecyclable delete (model: MainModel) = async {
             let node = model.SelectedNode
-            model.Status <- Some <| MainStatus.checkingIsRecyclable
-            try
-                let! canRecycle = runAsync (fun () -> isRecyclable node.Path)
-                if canRecycle then
-                    do! delete node false model
-                else
-                    model.Status <- Some <| MainStatus.cannotRecycle node
-            with e -> model |> MainStatus.setActionExceptionStatus (DeletedItem (node, false)) e
+            if node.Type.CanModify then
+                model.Status <- Some <| MainStatus.checkingIsRecyclable
+                try
+                    let! canRecycle = runAsync (fun () -> isRecyclable node.Path)
+                    if canRecycle then
+                        do! delete node false model
+                    else
+                        model.Status <- Some <| MainStatus.cannotRecycle node
+                with e -> model |> MainStatus.setActionExceptionStatus (DeletedItem (node, false)) e
         }
 
         let delete fsDelete fsRecycle refresh node permanent (model: MainModel) = async {
-            let action = DeletedItem (node, permanent)
-            try
-                let fileSysFunc = if permanent then fsDelete else fsRecycle
-                model.Status <- MainStatus.runningAction action model.PathFormat
-                do! runAsync (fun () -> fileSysFunc node.Path)
-                refresh model
-                model |> performedAction action
-            with e -> model |> MainStatus.setActionExceptionStatus action e
+            if node.Type.CanModify then
+                let action = DeletedItem (node, permanent)
+                try
+                    let fileSysFunc = if permanent then fsDelete else fsRecycle
+                    model.Status <- MainStatus.runningAction action model.PathFormat
+                    do! runAsync (fun () -> fileSysFunc node.Path)
+                    refresh model
+                    model |> performedAction action
+                with e -> model |> MainStatus.setActionExceptionStatus action e
         }
 
 
@@ -413,9 +432,9 @@ type MainController(fileSys: FileSystemService,
         | Refresh -> Sync this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
-        | StartPrompt promptType -> Sync (MainLogic.Action.startInput (Prompt promptType))
-        | StartConfirm confirmType -> Sync (MainLogic.Action.startInput (Confirm confirmType))
-        | StartInput inputType -> Sync (MainLogic.Action.startInput (Input inputType))
+        | StartPrompt promptType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
+        | StartConfirm confirmType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
+        | StartInput inputType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
         | SubmitInput -> Sync this.SubmitInput
         | InputCharTyped c -> Async (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext

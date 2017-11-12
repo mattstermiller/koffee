@@ -13,9 +13,9 @@ type TestResult = {
 
 let history handler backStack forwardStack =
     let model = createBaseTestModel()
-    model.BackStack <- backStack |> List.map (fun (p, c) -> (createPath p, c))
-    model.ForwardStack <- forwardStack |> List.map (fun (p, c) -> (createPath p, c))
-    model.Path <- createPath "path"
+    model.BackStack <- backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
+    model.ForwardStack <- forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
+    model.Path <- createPath "/c/path"
     model.Cursor <- 1
 
     let openPath path select (model: MainModel) =

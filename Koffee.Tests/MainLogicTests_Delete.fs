@@ -5,13 +5,13 @@ open FsUnitTyped
 open Testing
 
 let oldNodes = [
-    createNode "path" "one"
-    createNode "path" "two"
+    createNode "/c/path/one"
+    createNode "/c/path/two"
 ]
 
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- createPath "path"
+    model.Path <- createPath "/c/path"
     model.Nodes <- oldNodes
     model.Cursor <- 1
     model

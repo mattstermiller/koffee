@@ -5,25 +5,25 @@ open NUnit.Framework
 open FsUnitTyped
 open Testing
 
-let nodeSameFolder = createNode "path" "file 2"
-let nodeDiffFolder = createNode "other" "file 2"
+let nodeSameFolder = createNode "/c/path/file 2"
+let nodeDiffFolder = createNode "/c/other/file 2"
 
 let oldNodes = [
-    createNode "path" "file 1"
-    createNode "path" "file 3"
+    createNode "/c/path/file 1"
+    createNode "/c/path/file 3"
 ]
 
 let newNodes = [
-    createNode "path" "file 1"
+    createNode "/c/path/file 1"
     nodeSameFolder
 ]
 
 let nodeCopy num =
-    createNode "path" (MainLogic.Action.getCopyName "file 2" num)
+    createNode ("/c/path/" + (MainLogic.Action.getCopyName "file 2" num))
 
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- createPath "path"
+    model.Path <- createPath "/c/path"
     model.Nodes <- oldNodes
     model.Cursor <- 0
     model
@@ -152,7 +152,7 @@ let ``Undo move item moves it back`` curPathDifferent =
         selected <- Some s
     let model = createModel()
     if curPathDifferent then
-        model.Path <- createPath "other"
+        model.Path <- createPath "/c/other"
     MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
 
     moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
@@ -170,11 +170,11 @@ let ``Undo move item when previous path is occupied sets error status``() =
     let move _ _ = failwith "move should not be called"
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
-    model.Path <- createPath "other"
+    model.Path <- createPath "/c/other"
     MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
 
     let expected = createModel()
-    expected.Path <- createPath "other"
+    expected.Path <- createPath "/c/other"
     expected.Status <- Some <| MainStatus.cannotUndoMoveToExisting prevNode
     assertAreEqual expected model
 
@@ -186,12 +186,12 @@ let ``Undo move item handles error by setting error status``() =
     let move _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
-    model.Path <- createPath "other"
+    model.Path <- createPath "/c/other"
     MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
 
     let expectedAction = MovedItem (curNode, prevNode.Path)
     let expected = createModel()
-    expected.Path <- createPath "other"
+    expected.Path <- createPath "/c/other"
     expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
 
@@ -269,13 +269,13 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let recycle _ = failwith "recycle should not be called"
     let refresh (model: MainModel) = model.Nodes <- newNodes
     if curPathDifferent then
-        model.Path <- createPath "other"
+        model.Path <- createPath "/c/other"
     MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
 
     deleted |> shouldEqual (Some copied.Path)
     let expected = createModel()
     if curPathDifferent then
-        expected.Path <- createPath "other"
+        expected.Path <- createPath "/c/other"
     else
         expected.Nodes <- newNodes
     assertAreEqual expected model

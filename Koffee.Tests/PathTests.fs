@@ -39,6 +39,13 @@ let ``Parse returns drive for valid drives`` input =
 let ``Parse returns path for valid local paths`` input =
     input |> Path.Parse |> shouldParseTo @"C:\test"
 
+[<TestCase(@"network")>]
+[<TestCase(@"NETwork")>]
+[<TestCase("/net")>]
+[<TestCase("/NET/")>]
+let ``Parse returns Network for all valid values`` input =
+    input |> Path.Parse |> shouldParseTo "Network"
+
 [<TestCase(@"\\server", @"\\server")>]
 [<TestCase(@"\\server\", @"\\server")>]
 [<TestCase(@"/net/server", @"\\server")>]
@@ -95,7 +102,8 @@ let parseForTest pathStr =
 [<TestCase(@"C:\", "")>]
 [<TestCase(@"C:\test", @"C:\")>]
 [<TestCase(@"C:\test\a folder", @"C:\test")>]
-[<TestCase(@"\\server", "")>]
+[<TestCase("Network", "")>]
+[<TestCase(@"\\server", "Network")>]
 [<TestCase(@"\\server\share", @"\\server")>]
 [<TestCase(@"\\server\share\a folder", @"\\server\share")>]
 let ``Parent returns expected value`` pathStr expected =
@@ -105,6 +113,7 @@ let ``Parent returns expected value`` pathStr expected =
 [<TestCase(@"C:\", "/c/")>]
 [<TestCase(@"C:\test", "/c/test")>]
 [<TestCase(@"C:\test\a folder", "/c/test/a folder")>]
+[<TestCase(@"Network", "/net/")>]
 [<TestCase(@"\\server", "/net/server")>]
 [<TestCase(@"\\server\share", "/net/server/share")>]
 let ``Format drive in Unix`` pathStr expected =

@@ -15,6 +15,8 @@ type Path private (path: string) =
     static let root = ""
     static let rootWindows = "Drives"
     static let rootUnix = "/"
+    static let net = "Network"
+    static let netUnix = "/net/"
 
     static let invalidChars = (IOPath.GetInvalidPathChars() |> String) + "?*"
 
@@ -43,6 +45,11 @@ type Path private (path: string) =
     static let (|UserPath|_|) =
         matchPathWithPrefix "~" (fun _ -> Path.UserDirectory)
 
+    static let (|NetRootPath|_|) s =
+        if Seq.exists (Str.equalsIgnoreCase s) [net; netUnix; netUnix.TrimEnd('/')] then
+            Some (Path net)
+        else None
+
     static let (|NetPath|_|) =
         let hostChars = "a-z0-9-_."
         let pattern = sprintf @"[/\\]{2}[%s]+|/net/[%s]+" hostChars hostChars
@@ -51,6 +58,7 @@ type Path private (path: string) =
             sprintf @"\\%s" server)
 
     static member Root = Path root
+    static member Network = Path net
     static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
     static member Parse (s: string) =
@@ -58,6 +66,7 @@ type Path private (path: string) =
         | RootPath p
         | LocalPath p
         | UserPath p
+        | NetRootPath p
         | NetPath p -> Some p
         | _ -> None
 
@@ -77,6 +86,8 @@ type Path private (path: string) =
         | Unix ->
             if path = root then
                 rootUnix
+            else if path = net then
+                netUnix
             else if this.IsNetPath then
                 path.Insert(1, "net").Replace(@"\", "/")
             else
@@ -99,8 +110,10 @@ type Path private (path: string) =
         else None
 
     member this.Parent =
-        if path = root || this.IsNetHost then
+        if path = root || path = net then
             Path.Root
+        else if this.IsNetHost then
+            Path.Network
         else if this.IsNetPath then
             path.Substring(0, path.LastIndexOf('\\')) |> Path
         else

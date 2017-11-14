@@ -51,7 +51,13 @@ type FileSystemService(config: Config) =
             |> Seq.map (fun n -> serverPath.Join n |> this.NetShareNode)
         let allNodes =
             if path = Path.Root then
-                DriveInfo.GetDrives() |> Seq.map this.DriveNode
+                let net = this.BasicNode Path.Network "Network" Drive
+                DriveInfo.GetDrives() |> Seq.map this.DriveNode |> flip Seq.append [net]
+            else if path = Path.Network then
+                config.NetHosts
+                |> Seq.map (sprintf @"\\%s")
+                |> Seq.choose Path.Parse
+                |> Seq.map this.NetHostNode
             else if path.IsNetHost then
                 getNetShares path
             else
@@ -74,7 +80,8 @@ type FileSystemService(config: Config) =
             config.AddNetHost n
             config.Save())
         if nodes.IsEmpty then
-            { Path = path; Name = "<Empty Folder>"; Type = Empty
+            let text = if path = Path.Network then "Remote hosts that you visit will appear here" else "Empty folder"
+            { Path = path; Name = sprintf "<%s>" text; Type = Empty
               Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
             |> List.singleton
         else nodes
@@ -241,31 +248,20 @@ type FileSystemService(config: Config) =
           IsSearchMatch = false
         }
 
-    member private this.NetHostNode path = {
-        Path = path
-        Name = path.Name
-        Type = NetHost
-        Modified = None
-        Size = None
-        IsHidden = false
-        IsSearchMatch = false
-    }
+    member private this.NetHostNode path =
+        this.BasicNode path path.Name NetHost
 
-    member private this.NetShareNode path = {
-        Path = path
-        Name = path.Name
-        Type = NetShare
-        Modified = None
-        Size = None
-        IsHidden = path.Name.EndsWith("$")
-        IsSearchMatch = false
-    }
+    member private this.NetShareNode path =
+        { this.BasicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
 
     member private this.ErrorNode ex path =
         let error = ex.Message.Split('\r', '\n').[0]
+        this.BasicNode path (sprintf "<%s>" error) ErrorNode
+
+    member private this.BasicNode path name nodeType =
         { Path = path
-          Name = sprintf "<%s>" error
-          Type = ErrorNode
+          Name = name
+          Type = nodeType
           Modified = None
           Size = None
           IsHidden = false

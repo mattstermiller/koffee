@@ -94,6 +94,10 @@ type Path private (path: string) =
         | LocalPath _ -> IOPath.GetPathRoot(path) |> Path |> Some
         | _ -> None
 
+    member this.NetHost =
+        if this.IsNetPath then Some <| path.Substring(2).Split('\\').[0]
+        else None
+
     member this.Parent =
         if path = root || this.IsNetHost then
             Path.Root

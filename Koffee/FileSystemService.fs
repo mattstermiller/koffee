@@ -8,8 +8,9 @@ open System.Management
 open Microsoft.VisualBasic.FileIO
 open Koffee
 open Utility
+open ConfigExt
 
-type FileSystemService() =
+type FileSystemService(config: Config) =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
 
@@ -69,6 +70,9 @@ type FileSystemService() =
             allNodes
             |> Seq.filter (fun n -> not n.IsHidden || showHidden)
             |> Seq.toList
+        path.NetHost |> Option.iter (fun n ->
+            config.AddNetHost n
+            config.Save())
         if nodes.IsEmpty then
             { Path = path; Name = "<Empty Folder>"; Type = Empty
               Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }

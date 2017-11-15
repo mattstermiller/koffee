@@ -30,8 +30,14 @@ _Capitalized letters indicate that the key is combined with Shift._
 - **Scroll quickly**
     - `Ctrl + j` and `Ctrl + k` move the cursor by half-pages at a time.
     - `gg` (press `g` twice) jumps to the first item, and `G` jumps to the last item.
-- **Jump to item**: Press `f` then any character to jump to the next item beginning with that character. _(Note that this is case sensitive, so `a` is not the same as `A`.)_ For example, pressing `fa` will jump to the first file or folder starting with "a". Then press `;` to continue jumping to more items starting with that same character.
-- **Search**: Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `Enter` to jump to the next item containing the search term in its name. Then press `n` to go to the next match, or `N` to go to the previous match. The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
+- **Find / Jump to item**:
+    - Press `f` then any character to jump to the next item beginning with that character (not case-sensitive). For example, pressing `fa` will jump to the first file or folder starting with "a" or "A". Then press `;` to continue jumping to more items starting with that same character.
+    - Press `F` then any character to jump to the next item beginning with that character, case-sensitive.
+- **Search**:
+    - Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `Enter` to jump to the next item containing the search term in its name.
+    - After doing a search, press `n` to go to the next match, or `N` to go to the previous match.
+    - Searches' case-sensitivity is an option in Settings, or you can override the setting by suffixing a search with `/c` for case-sensitive or `/i` for case-insensitive searching.
+    - The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
 - **Bookmarks**
     - Set a bookmark by pressing `m`. The list of bookmarks already set are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
     - Go to a bookmark by pressing `'`. The list of bookmarks are shown. Enter one of the bookmark characters to go to that bookmark.
@@ -61,8 +67,9 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
 
 #### Other
+- Open a second window for easier file comparison or moves with `Ctrl + n`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
-- Open Commandline at your current location with `Ctrl + Shift + c`
+- Open the commandline tool (configured in the Settings window) at your current location with `Ctrl + Shift + c`
 - Open the currently selected file with your text editor (configured in the Settings window) with `Ctrl + Shift + t`
 - Show/hide hidden files and folders with `F9`
 

@@ -539,8 +539,17 @@ type MainController(fileSys: FileSystemService,
     member this.Rename = MainLogic.Action.rename fileSys.GetNode fileSys.Move this.OpenPath
     member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
     member this.PutItem = MainLogic.Action.putItem config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
-    member this.Recycle = MainLogic.Action.recycle fileSys.IsRecyclable this.Delete
+    member this.Recycle = this.RemoveIfNetHost (MainLogic.Action.recycle fileSys.IsRecyclable this.Delete)
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
+
+    member private this.RemoveIfNetHost otherHandler model = async {
+        if model.SelectedNode.Type = NetHost then
+            config.RemoveNetHost model.SelectedNode.Name
+            config.Save()
+            return this.Refresh model
+        else
+            return! otherHandler model
+    }
 
     member this.Undo model = async {
         match model.UndoStack with

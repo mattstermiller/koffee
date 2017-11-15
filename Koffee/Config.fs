@@ -86,3 +86,7 @@ module ConfigExt =
             if not (this.NetHosts |> Seq.exists (Str.equalsIgnoreCase host)) then
                 this.NetHosts.Add host
                 this.NetHosts <- this.NetHosts |> Seq.sortBy (fun n -> n.ToLower()) |> ResizeArray
+
+        member this.RemoveNetHost host =
+            this.NetHosts |> Seq.tryFindIndex (Str.equalsIgnoreCase host)
+                          |> Option.iter this.NetHosts.RemoveAt

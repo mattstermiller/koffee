@@ -17,27 +17,27 @@ type TestCase = {
 }
 
 let oldNodes = [
-    createNode "old" "old 1"
-    createNode "old" "old 2"
-    createNode "old" "old 3"
+    createNode "/c/old/old 1"
+    createNode "/c/old/old 2"
+    createNode "/c/old/old 3"
 ]
 
 let newNodes = [
-    createNode "path" "new 1"
-    createNode "path" "new 2"
+    createNode "/c/path/new 1"
+    createNode "/c/path/new 2"
 ]
 
 let createModel () =
     let model = createBaseTestModel()
     model.Nodes <- oldNodes
-    model.Path <- createPath "old"
+    model.Path <- createPath "/c/old"
     model.Cursor <- 2
     model
 
 let ex = System.UnauthorizedAccessException()
 
 let test case =
-    let path = createPath "path"
+    let path = createPath "/c/path"
     let getNodes _ =
         match case.GetPath with
         | Same -> (fun _ -> oldNodes)

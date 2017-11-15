@@ -19,3 +19,5 @@ Window:
 Bookmarks:
     - Key: _w
       Path: C:\Windows
+NetHosts:
+    - localhost

@@ -15,7 +15,7 @@ let makeMainMvc config options =
     let model = MainModel.Create()
     let window = MainWindow()
     let view = MainView(window, KeyBinding.Defaults, config, options)
-    let fileSys = FileSystemService()
+    let fileSys = FileSystemService(config)
     let settingsFactory () = makeSettingsMvc config
     let controller = MainController(fileSys, settingsFactory, window.GetScreenWorkingArea, config, options)
     (Mvc(model, view, controller), window)

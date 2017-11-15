@@ -5,18 +5,18 @@ open FsUnitTyped
 open Testing
 
 let oldNodes = [
-    createNode "path" "one"
-    createNode "path" "two"
+    createNode "/c/path/one"
+    createNode "/c/path/two"
 ]
 
 let newNodes = [
-    createNode "path" "new one"
-    createNode "path" "new two"
+    createNode "/c/path/new one"
+    createNode "/c/path/new two"
 ]
 
 let createModel () =
     let model = createBaseTestModel()
-    model.Path <- createPath "path"
+    model.Path <- createPath "/c/path"
     model.Nodes <- oldNodes
     model.Cursor <- 0
     model.InputText <- ""
@@ -100,13 +100,13 @@ let ``Undo create empty node calls delete`` curPathDifferent =
         model.Nodes <- newNodes
     let createdNode = oldNodes.[1]
     if curPathDifferent then
-        model.Path <- createPath "other"
+        model.Path <- createPath "/c/other"
     MainLogic.Action.undoCreate isEmpty delete refresh createdNode model |> Async.RunSynchronously
 
     deleted |> shouldEqual (Some createdNode.Path)
     let expected = createModel()
     if curPathDifferent then
-        expected.Path <- createPath "other"
+        expected.Path <- createPath "/c/other"
     else
         expected.Nodes <- newNodes
     assertAreEqual expected model
@@ -212,7 +212,7 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
         selected <- Some select
     let model = createModel()
     if curPathDifferent then
-        model.Path <- createPath "other"
+        model.Path <- createPath "/c/other"
     MainLogic.Action.undoRename getNode move openPath prevNode curNode.Name model
 
     moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
@@ -254,12 +254,13 @@ let ``Undo rename item handles error by setting error status``() =
 // start rename selection tests
 
 let renameTextSelection cursorPosition fileName =
-    let node = createNode "path" fileName
+    let node = createNode ("/c/path/" + fileName)
     let model = createModel()
     model.Nodes <- List.append oldNodes [node]
     model.Cursor <- model.Nodes.Length - 1
     let inputMode = Input (Rename cursorPosition)
-    MainLogic.Action.startInput inputMode model
+    let getNode _ = None
+    MainLogic.Action.startInput getNode inputMode model
 
     model.InputMode |> shouldEqual (Some inputMode)
     model.InputText |> shouldEqual node.Name

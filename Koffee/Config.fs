@@ -27,6 +27,7 @@ module ConfigExt =
                 if not <| Directory.Exists dir then
                     Directory.CreateDirectory dir |> ignore
                 this.Bookmarks.Clear()
+                this.NetHosts.Clear()
                 File.WriteAllText(filePath, this.ToString())
             this.LoadAndWatch filePath |> ignore
 
@@ -67,9 +68,7 @@ module ConfigExt =
                 // sort an upper case letter immediately after its lower case
                 if Char.IsUpper char then Char.ToLower char |> sprintf "%c2"
                 else string char
-            let sorted = this.Bookmarks |> Seq.sortBy sortKey |> Seq.toList
-            this.Bookmarks.Clear()
-            sorted |> Seq.iter this.Bookmarks.Add
+            this.Bookmarks <- this.Bookmarks |> Seq.sortBy sortKey |> ResizeArray
 
         member this.RemoveBookmark char =
             let key = bookmarkKey char
@@ -82,3 +81,12 @@ module ConfigExt =
 
         member this.GetBookmarks () =
             this.Bookmarks |> Seq.map (fun b -> b.Key.[1], b.Path) |> dict
+
+        member this.AddNetHost host =
+            if not (this.NetHosts |> Seq.exists (Str.equalsIgnoreCase host)) then
+                this.NetHosts.Add host
+                this.NetHosts <- this.NetHosts |> Seq.sortBy (fun n -> n.ToLower()) |> ResizeArray
+
+        member this.RemoveNetHost host =
+            this.NetHosts |> Seq.tryFindIndex (Str.equalsIgnoreCase host)
+                          |> Option.iter this.NetHosts.RemoveAt

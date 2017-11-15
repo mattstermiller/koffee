@@ -34,7 +34,7 @@ type MainView(window: MainWindow,
     override this.SetBindings (model: MainModel) =
         // setup grid
         window.NodeGrid.AddColumn("Name", widthWeight = 3.0)
-        window.NodeGrid.AddColumn("Type", converter = ValueConverters.UnionText())
+        window.NodeGrid.AddColumn("Type")
         window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
         window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
@@ -363,6 +363,7 @@ module MainStatus =
     let cannotRecycle (node: Node) =
         ErrorMessage <| sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
     let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"
+    let cannotPutHere = ErrorMessage <| "Cannot put items here"
     let cancelled = Message <| "Cancelled"
 
     let setActionExceptionStatus action ex (model: MainModel) =

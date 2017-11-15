@@ -8,10 +8,27 @@ type NodeType =
     | File
     | Folder
     | Drive
+    | NetHost
+    | NetShare
     | Empty
     | ErrorNode
 
-    override this.ToString() = (sprintf "%A" this).ToLower()
+    member this.CanModify =
+        match this with
+        | File | Folder -> true
+        | _ -> false
+
+    member this.CanCreateIn =
+        match this with
+        | Drive | Folder | NetShare -> true
+        | _ -> false
+
+    override this.ToString() =
+        match this with
+        | NetHost -> "Network Host"
+        | NetShare -> "Network Share"
+        | ErrorNode -> "Error"
+        | _ -> sprintf "%A" this
 
 type Node = {
     Path: Path
@@ -26,7 +43,7 @@ with
     override this.ToString() = this.Path.Format Windows
 
     member this.Description =
-        sprintf "%O \"%s\"" this.Type this.Name
+        sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |> Option.defaultValue ""
 
@@ -80,13 +97,6 @@ type InputMode =
     | Prompt of PromptType
     | Confirm of ConfirmType
     | Input of InputType
-    member this.AllowedOnNodeType nodeType =
-        match this with
-        | Input (Rename _) ->
-            match nodeType with
-            | File | Folder -> true
-            | _ -> false
-        | _ -> true
 
 type ItemAction =
     | CreatedItem of Node

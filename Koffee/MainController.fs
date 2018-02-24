@@ -311,6 +311,7 @@ module MainLogic =
                         let showHidden = config.ShowHidden || existing.IsHidden
                         openPath showHidden model.Path (SelectName existing.Name) model
                         model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
+                        model.InputText <- ""
                     | _ ->
                         let fileSysAction, action =
                             match putAction with
@@ -501,6 +502,7 @@ type MainController(fileSys: FileSystemService,
                 match config.GetBookmark char |> Option.bind Path.Parse with
                 | Some existingPath ->
                     model.InputMode <- Some (Confirm (OverwriteBookmark (char, existingPath)))
+                    model.InputText <- ""
                 | None -> 
                     model.InputMode <- None
                     setBookmark char model.Path

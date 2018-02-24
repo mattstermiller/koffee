@@ -63,10 +63,12 @@ type MainView(window: MainWindow,
         bindPropertyToFunc <@ model.YankRegister @> (fun register ->
             config.YankRegister <- register |> Option.map (fun (node, action) -> node.Path, action)
             config.Save()
-            let text = MainView.RegisterStatus register
+            let text =
+                register |> Option.map (fun (node, action) ->
+                    sprintf "%A %A: %s" action node.Type node.Name)
             window.Dispatcher.Invoke (fun () ->
-                window.RegisterLabel.Content <- text
-                window.RegisterLabel.Visible <- text <> ""))
+                window.RegisterText.Text <- text |> Option.defaultValue ""
+                window.RegisterPanel.Visible <- text.IsSome))
 
         // update input text selection
         bindPropertyToFunc <@ model.InputTextSelection @> (fun (start, len) ->
@@ -218,11 +220,11 @@ type MainView(window: MainWindow,
                 None
 
     member this.UpdateStatus status =
-        window.StatusLabel.Content <- 
+        window.StatusText.Text <- 
             match status with
             | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
             | None -> ""
-        window.StatusLabel.Foreground <-
+        window.StatusText.Foreground <-
             match status with
             | Some (ErrorMessage _) -> Brushes.Red
             | _ -> SystemColors.WindowTextBrush
@@ -285,7 +287,7 @@ type MainView(window: MainWindow,
         | Input inputType -> inputType |> caseName
 
     member private this.ShowInputBar label =
-        window.InputLabel.Content <- label
+        window.InputText.Text <- label
         window.InputPanel.Visible <- true
         window.InputBox.Focus() |> ignore
 
@@ -305,10 +307,6 @@ type MainView(window: MainWindow,
             row |> Option.map (fun row -> window.NodeGrid.ActualHeight / row.ActualHeight |> int)
         else
             None
-
-    static member RegisterStatus = function
-        | Some (node, action) -> sprintf "%A %A: %s" action node.Type node.Name
-        | None -> ""
 
 module MainStatus =
     // navigation

@@ -35,23 +35,25 @@
             </DataGrid.RowStyle>
         </DataGrid>
         <StackPanel x:Name="BookmarkPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,38" Background="{DynamicResource HintBrush}" Visibility="Hidden">
-            <Label Content="Bookmarks" Foreground="White" FontWeight="Bold" Margin="5,0,5,0"/>
+            <TextBlock Text="Bookmarks" Foreground="White" FontWeight="Bold" Margin="8,4,8,8"/>
             <ItemsControl x:Name="Bookmarks">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Margin="5,0,5,0">
-                            <Label Content="{Binding Key}" Foreground="White" FontWeight="Bold" Width="20"/>
-                            <Label Content="{Binding Value}" Foreground="White"/>
+                        <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+                            <TextBlock Text="{Binding Key}" Foreground="White" FontWeight="Bold" Width="20"/>
+                            <TextBlock Text="{Binding Value}" Foreground="White"/>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </StackPanel>
-        <Label x:Name="StatusLabel" Content="status" HorizontalAlignment="Left" Height="30" Margin="4,0,0,4" VerticalAlignment="Bottom"/>
-        <Label x:Name="RegisterLabel" Content="register" HorizontalAlignment="Right" Height="30" Margin="0,0,4,4" VerticalAlignment="Bottom" Background="White" BorderThickness="2" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden"/>
+        <TextBlock x:Name="StatusText" Text="status" HorizontalAlignment="Left" Height="16" Margin="6,0,0,12" VerticalAlignment="Bottom"/>
+        <Border x:Name="RegisterPanel" HorizontalAlignment="Right" VerticalAlignment="Bottom" Height="24" Margin="0,0,6,7" Background="White" BorderThickness="2" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden">
+            <TextBlock x:Name="RegisterText" Text="register" Margin="6,0,6,0" VerticalAlignment="Center"/>
+        </Border>
         <DockPanel x:Name="InputPanel" Background="{DynamicResource FocusBrush}" LastChildFill="True" Height="38" VerticalAlignment="Bottom" Visibility="Hidden">
-            <Label x:Name="InputLabel" Content="Input:" Foreground="White" HorizontalAlignment="Left" Height="26" VerticalAlignment="Center" DockPanel.Dock="Left"/>
-            <TextBox x:Name="InputBox" TextWrapping="NoWrap" Width="Auto" Height="23" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,5,0"/>
+            <TextBlock x:Name="InputText" Text="Input:" Foreground="White" HorizontalAlignment="Left" Height="16" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="6,0,6,0"/>
+            <TextBox x:Name="InputBox" TextWrapping="NoWrap" Width="Auto" Height="23" VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,6,0"/>
         </DockPanel>
     </Grid>
 </Window>

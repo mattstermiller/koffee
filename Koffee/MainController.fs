@@ -548,6 +548,7 @@ type MainController(fileSys: FileSystemService,
             config.RemoveNetHost host
             config.Save()
             this.Refresh model
+            model.Status <- Some <| MainStatus.removedNetworkHost host
         else
             do! MainLogic.Action.recycle fileSys.IsRecyclable this.Delete model
     }

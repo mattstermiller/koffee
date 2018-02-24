@@ -332,6 +332,7 @@ module MainStatus =
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
     let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name
     let couldNotOpenTextEditor error = ErrorMessage <| sprintf "Could not open text editor: %s" error
+    let removedNetworkHost host = Message <| sprintf "Removed network host: %s" host
 
     let private runningActionMessage action pathFormat =
         match action with

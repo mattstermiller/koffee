@@ -199,6 +199,9 @@ type MainView(window: MainWindow,
             evt.Handled <- true
             currBindings <- keyBindings
             None
+        else if chord = (ModifierKeys.Control, Key.C) then
+            evt.Handled <- true // prevent crash due to bug in WPF datagrid
+            None
         else
             match KeyBinding.GetMatch currBindings chord with
             // completed key combo

@@ -7,7 +7,7 @@ open Koffee.ConfigExt
 open Utility
 
 module MainLogic =
-    let initModel (config: Config) getNode openUserPath startupOptions (model: MainModel) =
+    let initModel (config: Config) getNode openUserPath startupOptions isFirstInstance (model: MainModel) =
         config.Changed.Add (fun _ ->
             model.YankRegister <- config.YankRegister
                                   |> Option.bind (fun (path, action) ->
@@ -23,7 +23,11 @@ module MainLogic =
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
         model.Path <- defaultPath
-        model.WindowLocation <- startupOptions.Location |> Option.defaultValue (config.Window.Left, config.Window.Top)
+        model.WindowLocation <-
+            startupOptions.Location
+            |> Option.defaultWith (fun () ->
+                if isFirstInstance then (config.Window.Left, config.Window.Top)
+                else (config.Window.Left + 30, config.Window.Top + 30))
         model.WindowSize <- startupOptions.Size |> Option.defaultValue (config.Window.Width, config.Window.Height)
         openUserPath startupPath model
 
@@ -404,7 +408,13 @@ type MainController(fileSys: FileSystemService,
     let mutable taskRunning = false
 
     interface IController<MainEvents, MainModel> with
-        member this.InitModel model = MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions model
+        member this.InitModel model =
+            let isFirst =
+                System.Diagnostics.Process.GetProcesses()
+                |> Seq.where (fun p -> Str.equalsIgnoreCase p.ProcessName "koffee")
+                |> Seq.length
+                |> (=) 1
+            MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions isFirst model
         member this.Dispatcher = this.LockingDispatcher
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =

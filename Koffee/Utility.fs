@@ -5,14 +5,6 @@ open System.Linq
 
 let flip f a b = f b a
 
-type Option<'a> with
-    static member pair a b =
-        match a, b with
-        | Some av, Some bv -> Some (av, bv)
-        | _ -> None
-
-    static member mapPair f = Option.map (fun (a, b) -> f a, f b)
-
 module Str =
     let ifEmpty fallback str =
         if System.String.IsNullOrEmpty str then fallback

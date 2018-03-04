@@ -12,8 +12,6 @@ module Str =
 
     let equalsIgnoreCase a b = System.String.Equals(a, b, System.StringComparison.CurrentCultureIgnoreCase)
 
-    let join sep (strs: string seq) = System.String.Join(sep, strs)
-
     let readableIdentifier str =
         Regex.Replace(str, @"(?<=[a-z])(?=[A-Z\d])", " ")
 

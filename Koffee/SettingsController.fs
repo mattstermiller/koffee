@@ -1,7 +1,6 @@
 ﻿namespace Koffee
 
 open FSharp.Desktop.UI
-open Utility
 open ConfigExt
 
 type SettingsController(config: Config) =
@@ -15,7 +14,7 @@ type SettingsController(config: Config) =
                         KeyBinding.DefaultsAsString
                         |> List.filter (snd >> ((=) evt))
                         |> List.map fst
-                        |> Str.join " OR "
+                        |> String.concat " OR "
                     })
 
         member x.Dispatcher = function

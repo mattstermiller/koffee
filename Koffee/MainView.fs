@@ -61,8 +61,10 @@ type MainView(window: MainWindow,
 
         // register display and save
         bindPropertyToFunc <@ model.YankRegister @> (fun register ->
-            config.YankRegister <- register |> Option.map (fun (node, action) -> node.Path, action)
-            config.Save()
+            let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
+            if configRegister <> config.YankRegister then
+                config.YankRegister <- configRegister
+                config.Save()
             let text =
                 register |> Option.map (fun (node, action) ->
                     sprintf "%A %A: %s" action node.Type node.Name)

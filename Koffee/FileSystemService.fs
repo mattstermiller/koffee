@@ -77,8 +77,8 @@ type FileSystemService(config: Config) =
             |> Seq.filter (fun n -> not n.IsHidden || showHidden)
             |> Seq.toList
         path.NetHost |> Option.iter (fun n ->
-            config.AddNetHost n
-            config.Save())
+            if config.AddNetHost n then
+                config.Save())
         if nodes.IsEmpty then
             let text = if path = Path.Network then "Remote hosts that you visit will appear here" else "Empty folder"
             { Path = path; Name = sprintf "<%s>" text; Type = Empty

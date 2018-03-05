@@ -83,9 +83,12 @@ module ConfigExt =
             this.Bookmarks |> Seq.map (fun b -> b.Key.[1], b.Path) |> dict
 
         member this.AddNetHost host =
-            if not (this.NetHosts |> Seq.exists (Str.equalsIgnoreCase host)) then
+            if this.NetHosts |> Seq.exists (Str.equalsIgnoreCase host) then
+                false
+            else
                 this.NetHosts.Add host
                 this.NetHosts <- this.NetHosts |> Seq.sortBy (fun n -> n.ToLower()) |> ResizeArray
+                true
 
         member this.RemoveNetHost host =
             this.NetHosts |> Seq.tryFindIndex (Str.equalsIgnoreCase host)

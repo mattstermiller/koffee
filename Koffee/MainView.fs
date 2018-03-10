@@ -59,7 +59,7 @@ type MainView(window: MainWindow,
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
         model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath
 
-        // register display and save
+        // display and save register
         bindPropertyToFunc <@ model.YankRegister @> (fun register ->
             let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
             if configRegister <> config.YankRegister then
@@ -168,10 +168,10 @@ type MainView(window: MainWindow,
     override this.EventStreams = [
         window.Activated |> Observable.choose this.Activated
         window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)
-        window.PathBox.PreviewKeyDown |> Observable.choose (fun keyEvt ->
-            match this.TriggerKeyBindings keyEvt with
+        window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
+            match this.TriggerKeyBindings evt with
             | Some Exit -> Some Exit
-            | _ -> keyEvt.Handled <- false; None)
+            | _ -> evt.Handled <- false; None)
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
         window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)

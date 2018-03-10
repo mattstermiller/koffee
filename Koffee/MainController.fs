@@ -11,7 +11,7 @@ module MainLogic =
         config.Changed.Add (fun _ ->
             model.YankRegister <- config.YankRegister
                                   |> Option.bind (fun (path, action) ->
-                                      (getNode path, Some action) ||> Option.map2 (fun p a -> p, a))
+                                      getNode path |> Option.map (fun n -> n, action))
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
@@ -42,15 +42,15 @@ module MainLogic =
                     model.ForwardStack <- []
                     model.Path <- path
                     model.Cursor <- 0
-                let keepCursor = model.Cursor
+                let cursor = model.Cursor
                 model.Nodes <- nodes
                 model.SetCursor (
                     match select with
                     | SelectIndex index -> index
                     | SelectName name ->
                         List.tryFindIndex (fun n -> n.Name = name) nodes
-                        |> Option.defaultValue keepCursor
-                    | KeepSelect -> keepCursor)
+                        |> Option.defaultValue cursor
+                    | SelectNone -> cursor)
                 model.Status <- None
             with ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
 
@@ -61,14 +61,14 @@ module MainLogic =
                 | Some node when node.Type = File ->
                     openPath path.Parent (SelectName node.Name) model
                 | _ ->
-                    openPath path KeepSelect model
+                    openPath path SelectNone model
             | None -> model.Status <- Some <| MainStatus.invalidPath pathStr
 
         let openSelected openPath openFile (model: MainModel) =
             let node = model.SelectedNode
             match node.Type with
             | Folder | Drive | NetHost | NetShare ->
-                openPath node.Path KeepSelect model
+                openPath node.Path SelectNone model
             | File ->
                 try
                     openFile node.Path
@@ -115,7 +115,7 @@ module MainLogic =
             items
             |> Seq.filter (snd >> predicate)
             |> Seq.tryHead
-            |> Option.iter (fun (i, n) -> model.SetCursor i)
+            |> Option.iter (fst >> model.SetCursor)
 
         let find caseSensitive char (model: MainModel) =
             model.LastFind <- Some (caseSensitive, char)
@@ -466,7 +466,7 @@ type MainController(fileSys: FileSystemService,
 
     member this.OpenPath = MainLogic.Navigation.openPath fileSys.GetNodes config.ShowHidden
     member this.OpenUserPath = MainLogic.Navigation.openUserPath fileSys.GetNode this.OpenPath
-    member this.Refresh model = this.OpenPath model.Path KeepSelect model
+    member this.Refresh model = this.OpenPath model.Path SelectNone model
 
     member this.ToggleHidden model =
         config.ShowHidden <- not config.ShowHidden
@@ -593,7 +593,7 @@ type MainController(fileSys: FileSystemService,
             let goToPath (nodePath: Path) =
                 let path = nodePath.Parent
                 if path <> model.Path then
-                    this.OpenPath path KeepSelect model
+                    this.OpenPath path SelectNone model
             match action with
             | CreatedItem node ->
                 goToPath node.Path

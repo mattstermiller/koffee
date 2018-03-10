@@ -106,7 +106,7 @@ type ItemAction =
     | DeletedItem of Node * permanent: bool
 
 type SelectType =
-    | KeepSelect
+    | SelectNone
     | SelectIndex of int
     | SelectName of string
 

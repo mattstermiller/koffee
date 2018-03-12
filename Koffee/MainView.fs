@@ -107,6 +107,14 @@ type MainView(window: MainWindow,
             window.NodeGrid.Focus() |> ignore)
         window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
 
+        // on path enter, update to formatted path and focus grid
+        window.Loaded.Add (fun _ ->
+            window.PathBox.PreviewKeyDown.Add (fun evt ->
+                if evt.Key = Key.Enter && not model.HasErrorStatus then
+                    evt.Handled <- true
+                    window.PathBox.Text <- model.PathFormatted
+                    window.NodeGrid.Focus() |> ignore))
+
         // suppress text input for character prompts
         window.Loaded.Add (fun _ ->
             window.InputBox.PreviewTextInput.Add (fun evt ->
@@ -167,7 +175,9 @@ type MainView(window: MainWindow,
 
     override this.EventStreams = [
         window.Activated |> Observable.choose this.Activated
-        window.PathBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> OpenPath window.PathBox.Text)
+        window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
+            if evt.Key = Key.Enter then Some <| OpenPath window.PathBox.Text
+            else None)
         window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
             match this.TriggerKeyBindings evt with
             | Some Exit -> Some Exit

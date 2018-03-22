@@ -133,22 +133,12 @@ module MainLogic =
             match searchInput.Split('/') with
             | [| search |] -> Ok (search, None)
             | [| search; switches |] ->
-                let parsed =
-                    switches
-                    |> Seq.map (function
-                        | 'c' -> Ok true
-                        | 'i' -> Ok false
-                        | c -> Error <| MainStatus.invalidSearchSwitch c)
-                    |> Seq.toList
-                let ok = parsed |> Seq.tryPick (function
-                                                | Ok cs -> Some cs
-                                                | _ -> None)
-                let err = parsed |> Seq.tryPick (function
-                                                 | Error e -> Some e
-                                                 | _ -> None)
-                match ok, err with
-                | _, Some e -> Error e
-                | cs, _ -> Ok (search, cs)
+                (Ok (search, None), switches) ||> Seq.fold (fun res c ->
+                    match res, c with
+                    | Ok _, c when not <| Seq.contains c "ci" -> Error <| MainStatus.invalidSearchSwitch c
+                    | Ok (s, None), 'c' -> Ok (s, Some true)
+                    | Ok (s, None), 'i' -> Ok (s, Some false)
+                    | _ -> res)
             | _ -> Error MainStatus.invalidSearchSlash
 
         let search caseSensitive searchStr reverse (model: MainModel) =

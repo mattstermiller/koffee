@@ -140,10 +140,10 @@ let ``parseSearch parses string with case-sensitive switch`` input =
 [<TestCase("needle/a")>]
 [<TestCase("needle/ia")>]
 let ``parseSearch returns error for invalid switch`` input =
-    MainLogic.Cursor.parseSearch input |> shouldEqual (Result.Error <| MainStatus.invalidSearchSwitch 'a')
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Error <| MainStatus.invalidSearchSwitch 'a')
 
 [<TestCase("some/thing/")>]
 [<TestCase("some/thing/i")>]
 [<TestCase("some/other/thing/i")>]
 let ``parseSearch returns error for more than one switch delimiter`` input =
-    MainLogic.Cursor.parseSearch input |> shouldEqual (Result.Error MainStatus.invalidSearchSlash)
+    MainLogic.Cursor.parseSearch input |> shouldEqual (Error MainStatus.invalidSearchSlash)

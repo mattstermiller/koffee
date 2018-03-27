@@ -14,11 +14,90 @@ type FileSystemService(config: Config) =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
 
+    let basicNode path name nodeType =
+        { Path = path
+          Name = name
+          Type = nodeType
+          Modified = None
+          Size = None
+          IsHidden = false
+          IsSearchMatch = false
+        }
+
+    let fileNode (file: FileInfo) =
+        { Path = toPath file.FullName
+          Name = file.Name
+          Type = File
+          Modified = Some file.LastWriteTime
+          Size = Some file.Length
+          IsHidden = file.Attributes.HasFlag FileAttributes.Hidden
+          IsSearchMatch = false
+        }
+
+    let folderNode (dirInfo: DirectoryInfo) =
+        { Path = toPath dirInfo.FullName
+          Name = dirInfo.Name
+          Type = Folder
+          Modified = None
+          Size = None
+          IsHidden = dirInfo.Attributes.HasFlag FileAttributes.Hidden
+          IsSearchMatch = false
+        }
+
+    let driveNode (drive: DriveInfo) =
+        let name = drive.Name.TrimEnd('\\')
+        let driveType =
+            match drive.DriveType with
+            | DriveType.Fixed -> "Hard"
+            | dt -> dt.ToString()
+        let label =
+            if drive.IsReady && drive.VolumeLabel <> "" then
+                (sprintf " \"%s\"" drive.VolumeLabel)
+            else
+                ""
+        { Path = toPath drive.Name
+          Name = sprintf "%s  %s Drive%s" name driveType label
+          Type = Drive
+          Modified = None
+          Size = if drive.IsReady then Some drive.TotalSize else None
+          IsHidden = false
+          IsSearchMatch = false
+        }
+
+    let netHostNode path =
+        basicNode path path.Name NetHost
+
+    let netShareNode path =
+        { basicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
+
+    let errorNode (e: exn) path =
+        let error = e.Message.Split('\r', '\n').[0]
+        basicNode path (sprintf "<%s>" error) ErrorNode
+
+    let getNetShares (serverPath: Path) =
+        let server = serverPath.Name
+        use shares = new ManagementClass(sprintf @"\\%s\root\cimv2" server, "Win32_Share", new ObjectGetOptions())
+        shares.GetInstances()
+        |> Seq.cast<ManagementObject>
+        |> Seq.map (fun s -> s.["Name"] :?> string)
+        |> Seq.map (fun n -> serverPath.Join n |> netShareNode)
+
+    let prepForOverwrite (file: FileInfo) =
+        if file.Exists then
+            if file.Attributes.HasFlag FileAttributes.System then
+                raise <| UnauthorizedAccessException(sprintf "%s is a System file." file.Name)
+            let flagsToClear = FileAttributes.ReadOnly ||| FileAttributes.Hidden
+            if unbox<int> (file.Attributes &&& flagsToClear) <> 0 then
+                file.Attributes <- file.Attributes &&& (~~~flagsToClear)
+
+    let cannotActOnNodeType action nodeType =
+        sprintf "Cannot %s node type %O" action nodeType
+
     member private this.FileOrFolderAction actionName action path =
         match this.GetNode path with
         | Some node when node.Type = File
                       || node.Type = Folder -> action node.Type
-        | Some node -> failwith (this.CannotActOnNodeType actionName node.Type)
+        | Some node -> failwith (cannotActOnNodeType actionName node.Type)
         | None -> failwith "Path does not exist"
 
     member this.GetNode path =
@@ -27,44 +106,37 @@ type FileSystemService(config: Config) =
         let dir = lazy DirectoryInfo(wp)
         let file = lazy FileInfo(wp)
         if path.IsNetHost then
-            path |> this.NetHostNode |> Some
+            path |> netHostNode |> Some
         else if path.Parent.IsNetHost && dir.Value.Exists then
-            path |> this.NetShareNode |> Some
+            path |> netShareNode |> Some
         else if path.Drive = Some path then
-            drive.Value |> this.DriveNode |> Some
+            drive.Value |> driveNode |> Some
         else if dir.Value.Exists then
-            dir.Value |> this.FolderNode |> Some
+            dir.Value |> folderNode |> Some
         else if file.Value.Exists then
-            file.Value |> this.FileNode |> Some
+            file.Value |> fileNode |> Some
         else
             None
 
     member this.GetNodes showHidden path =
         let error msg path =
-            this.ErrorNode (Exception(msg)) path |> Seq.singleton
-        let getNetShares (serverPath: Path) =
-            let server = serverPath.Name
-            use shares = new ManagementClass(sprintf @"\\%s\root\cimv2" server, "Win32_Share", new ObjectGetOptions())
-            shares.GetInstances()
-            |> Seq.cast<ManagementObject>
-            |> Seq.map (fun s -> s.["Name"] :?> string)
-            |> Seq.map (fun n -> serverPath.Join n |> this.NetShareNode)
+            errorNode (Exception(msg)) path |> Seq.singleton
         let allNodes =
             if path = Path.Root then
-                let net = this.BasicNode Path.Network "Network" Drive
-                DriveInfo.GetDrives() |> Seq.map this.DriveNode |> flip Seq.append [net]
+                let net = basicNode Path.Network "Network" Drive
+                DriveInfo.GetDrives() |> Seq.map driveNode |> flip Seq.append [net]
             else if path = Path.Network then
                 config.NetHosts
                 |> Seq.map (sprintf @"\\%s")
                 |> Seq.choose Path.Parse
-                |> Seq.map this.NetHostNode
+                |> Seq.map netHostNode
             else if path.IsNetHost then
                 getNetShares path
             else
                 let dir = DirectoryInfo(wpath path)
                 if dir.Exists then
-                    let folders = dir.GetDirectories() |> Seq.map this.FolderNode
-                    let files = dir.GetFiles() |> Seq.map this.FileNode
+                    let folders = dir.GetDirectories() |> Seq.map folderNode
+                    let files = dir.GetFiles() |> Seq.map fileNode
                     Seq.append folders files
                 else
                     let driveIsReady = path.Drive |> Option.map (fun d -> DriveInfo(wpath d).IsReady)
@@ -114,12 +186,12 @@ type FileSystemService(config: Config) =
         match nodeType with
         | File -> File.Create(wp).Dispose()
         | Folder -> Directory.CreateDirectory(wp) |> ignore
-        | _ -> failwith (this.CannotActOnNodeType "create" nodeType)
+        | _ -> failwith (cannotActOnNodeType "create" nodeType)
 
     member this.Move currentPath newPath =
         currentPath |> this.FileOrFolderAction "move" (fun nodeType ->
             let moveFile source dest =
-                this.PrepForOverwrite <| FileInfo dest
+                prepForOverwrite <| FileInfo dest
                 FileSystem.MoveFile(source, dest, true)
             let rec moveDir source dest =
                 if Directory.Exists dest then
@@ -149,7 +221,7 @@ type FileSystemService(config: Config) =
             let source = wpath currentPath
             let dest = wpath newPath
             let copyFile source dest =
-                this.PrepForOverwrite <| FileInfo dest
+                prepForOverwrite <| FileInfo dest
                 File.Copy(source, dest, true)
             if nodeType = Folder then
                 let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
@@ -176,10 +248,10 @@ type FileSystemService(config: Config) =
             let wp = wpath path
             if nodeType = Folder then
                 DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
-                    |> Seq.iter this.PrepForOverwrite
+                    |> Seq.iter prepForOverwrite
                 Directory.Delete(wp, true)
             else
-                this.PrepForOverwrite <| FileInfo wp
+                prepForOverwrite <| FileInfo wp
                 File.Delete wp)
 
     member this.OpenFile path =
@@ -198,75 +270,3 @@ type FileSystemService(config: Config) =
     member this.LaunchApp exePath workingPath args =
         ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
         |> Process.Start |> ignore
-
-
-    member private this.PrepForOverwrite file =
-        if file.Exists then
-            if file.Attributes.HasFlag FileAttributes.System then
-                raise <| UnauthorizedAccessException(sprintf "%s is a System file." file.Name)
-            let flagsToClear = FileAttributes.ReadOnly ||| FileAttributes.Hidden
-            if unbox<int> (file.Attributes &&& flagsToClear) <> 0 then
-                file.Attributes <- file.Attributes &&& (~~~flagsToClear)
-
-    member private this.FileNode file = {
-        Path = toPath file.FullName
-        Name = file.Name
-        Type = File
-        Modified = Some file.LastWriteTime
-        Size = Some file.Length
-        IsHidden = file.Attributes.HasFlag FileAttributes.Hidden
-        IsSearchMatch = false
-    }
-
-    member private this.FolderNode dirInfo = {
-        Path = toPath dirInfo.FullName
-        Name = dirInfo.Name
-        Type = Folder
-        Modified = None
-        Size = None
-        IsHidden = dirInfo.Attributes.HasFlag FileAttributes.Hidden
-        IsSearchMatch = false
-    }
-
-    member private this.DriveNode drive =
-        let name = drive.Name.TrimEnd('\\')
-        let driveType =
-            match drive.DriveType with
-            | DriveType.Fixed -> "Hard"
-            | dt -> dt.ToString()
-        let label =
-            if drive.IsReady && drive.VolumeLabel <> "" then
-                (sprintf " \"%s\"" drive.VolumeLabel)
-            else
-                ""
-        { Path = toPath drive.Name
-          Name = sprintf "%s  %s Drive%s" name driveType label
-          Type = Drive
-          Modified = None
-          Size = if drive.IsReady then Some drive.TotalSize else None
-          IsHidden = false
-          IsSearchMatch = false
-        }
-
-    member private this.NetHostNode path =
-        this.BasicNode path path.Name NetHost
-
-    member private this.NetShareNode path =
-        { this.BasicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
-
-    member private this.ErrorNode ex path =
-        let error = ex.Message.Split('\r', '\n').[0]
-        this.BasicNode path (sprintf "<%s>" error) ErrorNode
-
-    member private this.BasicNode path name nodeType =
-        { Path = path
-          Name = name
-          Type = nodeType
-          Modified = None
-          Size = None
-          IsHidden = false
-          IsSearchMatch = false
-        }
-
-    member private this.CannotActOnNodeType action nodeType =
-        sprintf "Cannot %s node type %O" action nodeType

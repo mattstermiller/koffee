@@ -37,7 +37,7 @@ module Format =
         if size > scaleCutoff 3 then scaledStr size 3
         else if size > scaleCutoff 2 then scaledStr size 2
         else if size > scaleCutoff 1 then scaledStr size 1
-        else format size
+        else format size + " B"
 
 module Order =
     let by f s = Enumerable.OrderBy(s, (fun x -> f x))

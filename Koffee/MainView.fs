@@ -329,18 +329,14 @@ module MainStatus =
     let search matches caseSensitive searchStr =
         let cs = if caseSensitive then " (case-sensitive)" else ""
         Message <| sprintf "Search \"%s\"%s found %i matches" searchStr cs matches
-    let invalidSearchSlash = ErrorMessage <| "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
-    let invalidSearchSwitch = ErrorMessage << sprintf "Invalid search switch \"%c\". Valid switches are: c, i"
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path
 
     // actions
-    let invalidPath path = ErrorMessage <| sprintf "Path format is invalid: %s" path
     let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
     let toggleHidden showing = Message <| sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
     let openFile name = Message <| sprintf "Opened File: %s" name
-    let couldNotOpenFile name error = ErrorMessage <| sprintf "Could not open %s: %s" name error
     let openExplorer = Message "Opened Windows Explorer"
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
     let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name
@@ -368,12 +364,6 @@ module MainStatus =
     let actionComplete action pathFormat =
         actionCompleteMessage action pathFormat |> Message
 
-    let private cannotUseNameAlreadyExists actionName (nodeType: NodeType) name hidden =
-        let append = if hidden then " (hidden)" else ""
-        ErrorMessage <| sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
-                            actionName nodeType name append
-    let cannotCreateAlreadyExists = cannotUseNameAlreadyExists "create"
-    let cannotRenameAlreadyExists = cannotUseNameAlreadyExists "rename"
     let cannotRecycle (node: Node) =
         ErrorMessage <| sprintf "Cannot move %s to the recycle bin because it is too large" node.Description
     let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"
@@ -418,3 +408,37 @@ module MainStatus =
                 sprintf "Cannot undo deletion of %s" node.Description
             else
                 sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description
+
+type MainError =
+    | ActionError of actionName: string * exn
+    | ItemActionError of ItemAction * PathFormat * exn
+    | InvalidPath of string
+    | InvalidSearchSlash
+    | InvalidSearchSwitch of char
+    | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
+
+    member this.Message =
+        match this with
+        | ActionError (action, e) ->
+            let msg =
+                match e with
+                | :? System.AggregateException as agg -> agg.InnerExceptions.[0].Message
+                | e -> e.Message
+            sprintf "Could not %s: %s" action msg
+        | ItemActionError (action, pathFormat, e) ->
+            let actionName =
+                match action with
+                | CreatedItem node -> sprintf "create %s" node.Description
+                | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
+                | MovedItem (node, newPath) -> sprintf "move %s to \"%s\"" node.Description (newPath.Format pathFormat)
+                | CopiedItem (node, newPath) -> sprintf "copy %s to \"%s\"" node.Description (newPath.Format pathFormat)
+                | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
+                | DeletedItem (node, true) -> sprintf "delete %s" node.Description
+            (ActionError (actionName, e)).Message
+        | InvalidPath path -> sprintf "Path format is invalid: %s" path
+        | InvalidSearchSlash -> "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
+        | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
+        | CannotUseNameAlreadyExists (actionName, nodeType, name, hidden) ->
+            let append = if hidden then " (hidden)" else ""
+            sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
+                    actionName nodeType name append

@@ -5,6 +5,10 @@ open System.Linq
 
 let flip f a b = f b a
 
+let tryResult f =
+    try Ok <| f ()
+    with e -> Error e
+
 module Str =
     let ifEmpty fallback str =
         if System.String.IsNullOrEmpty str then fallback
@@ -38,6 +42,20 @@ module Format =
         else if size > scaleCutoff 2 then scaledStr size 2
         else if size > scaleCutoff 1 then scaledStr size 1
         else format size
+
+type ResultBuilder() =
+    member this.Bind (x, f) = Result.bind f x
+    member this.Return x = Ok x
+    member this.ReturnFrom x = x
+    member this.Zero () = Ok ()
+    member this.Delay f = f
+    member this.Run f = f ()
+    member this.Combine (x, f) =
+        match x with
+        | Ok () -> f ()
+        | Error e -> Error e
+
+let result = ResultBuilder()
 
 module Order =
     let by f s = Enumerable.OrderBy(s, (fun x -> f x))

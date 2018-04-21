@@ -70,17 +70,18 @@ type FileSystemService(config: Config) =
     let netShareNode path =
         { basicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
 
-    let errorNode (e: exn) path =
+    let errorNode (e: exn) =
         let error = e.Message.Split('\r', '\n').[0]
-        basicNode path (sprintf "<%s>" error) ErrorNode
+        basicNode Path.Root (sprintf "<%s>" error) ErrorNode
 
     let getNetShares (serverPath: Path) =
         let server = serverPath.Name
-        use shares = new ManagementClass(sprintf @"\\%s\root\cimv2" server, "Win32_Share", new ObjectGetOptions())
-        shares.GetInstances()
-        |> Seq.cast<ManagementObject>
-        |> Seq.map (fun s -> s.["Name"] :?> string)
-        |> Seq.map (fun n -> serverPath.Join n |> netShareNode)
+        tryResult <| fun () ->
+            use shares = new ManagementClass(sprintf @"\\%s\root\cimv2" server, "Win32_Share", new ObjectGetOptions())
+            shares.GetInstances()
+            |> Seq.cast<ManagementObject>
+            |> Seq.map (fun s -> s.["Name"] :?> string)
+            |> Seq.map (fun n -> serverPath.Join n |> netShareNode)
 
     let prepForOverwrite (file: FileInfo) =
         if file.Exists then
@@ -119,44 +120,50 @@ type FileSystemService(config: Config) =
             None
 
     member this.GetNodes showHidden path =
-        let error msg path =
-            errorNode (Exception(msg)) path |> Seq.singleton
         let allNodes =
             if path = Path.Root then
-                let net = basicNode Path.Network "Network" Drive
-                DriveInfo.GetDrives() |> Seq.map driveNode |> flip Seq.append [net]
+                DriveInfo.GetDrives()
+                |> Seq.map driveNode
+                |> flip Seq.append [basicNode Path.Network "Network" Drive]
+                |> Ok
             else if path = Path.Network then
                 config.NetHosts
                 |> Seq.map (sprintf @"\\%s")
                 |> Seq.choose Path.Parse
                 |> Seq.map netHostNode
+                |> Ok
             else if path.IsNetHost then
                 getNetShares path
             else
                 let dir = DirectoryInfo(wpath path)
                 if dir.Exists then
-                    let folders = dir.GetDirectories() |> Seq.map folderNode
-                    let files = dir.GetFiles() |> Seq.map fileNode
-                    Seq.append folders files
+                    try
+                        let folders = dir.GetDirectories() |> Seq.map folderNode
+                        let files = dir.GetFiles() |> Seq.map fileNode
+                        Ok <| Seq.append folders files
+                    with e -> Error e
                 else
-                    let driveIsReady = path.Drive |> Option.map (fun d -> DriveInfo(wpath d).IsReady)
-                    if driveIsReady = Some false then
-                        error "Drive is not ready" Path.Root
+                    if path.Drive |> Option.exists (fun d -> not <| DriveInfo(wpath d).IsReady) then
+                        Error <| Exception "Drive is not ready"
                     else
-                        error "Path does not exist" Path.Root
-        let nodes =
-            allNodes
-            |> Seq.filter (fun n -> not n.IsHidden || showHidden)
-            |> Seq.toList
-        path.NetHost |> Option.iter (fun n ->
-            if config.AddNetHost n then
-                config.Save())
-        if nodes.IsEmpty then
-            let text = if path = Path.Network then "Remote hosts that you visit will appear here" else "Empty folder"
-            { Path = path; Name = sprintf "<%s>" text; Type = Empty
-              Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-            |> List.singleton
-        else nodes
+                        Error <| Exception "Path does not exist"
+        allNodes |> Result.map (fun allNodes ->
+            let nodes =
+                allNodes
+                |> Seq.filter (fun n -> not n.IsHidden || showHidden)
+                |> Seq.toList
+            path.NetHost |> Option.iter (fun n ->
+                if config.AddNetHost n then
+                    config.Save())
+            if nodes.IsEmpty then
+                let text =
+                    if path = Path.Network then "Remote hosts that you visit will appear here"
+                    else "Empty folder"
+                { Path = path; Name = sprintf "<%s>" text; Type = Empty
+                  Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+                |> List.singleton
+            else nodes
+        )
 
     member this.IsEmpty path =
         let wp = wpath path

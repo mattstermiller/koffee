@@ -31,28 +31,30 @@ module MainLogic =
         model.WindowSize <- startupOptions.Size |> Option.defaultValue (config.Window.Width, config.Window.Height)
         openUserPath startupPath model
 
+    let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
+    let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
+
     module Navigation =
-        let openPath getNodes (showHidden: bool) path select (model: MainModel) =
-            try
-                let sortField, sortDesc = model.Sort
-                let sorter = SortField.SortByTypeThen sortField sortDesc
-                let nodes = getNodes showHidden path |> sorter
-                if path <> model.Path then
-                    model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-                    model.ForwardStack <- []
-                    model.Path <- path
-                    model.Cursor <- 0
-                let cursor = model.Cursor
-                model.Nodes <- nodes
-                model.SetCursor (
-                    match select with
-                    | SelectIndex index -> index
-                    | SelectName name ->
-                        List.tryFindIndex (fun n -> n.Name = name) nodes
-                        |> Option.defaultValue cursor
-                    | SelectNone -> cursor)
-                model.Status <- None
-            with ex -> model.Status <- Some <| StatusType.fromExn "open path" ex
+        let openPath getNodes (showHidden: bool) path select (model: MainModel) = result {
+            let! nodes = getNodes showHidden path |> actionError "open path"
+            let sortField, sortDesc = model.Sort
+            let nodes = nodes |> SortField.SortByTypeThen sortField sortDesc
+            if path <> model.Path then
+                model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
+                model.ForwardStack <- []
+                model.Path <- path
+                model.Cursor <- 0
+            let cursor = model.Cursor
+            model.Nodes <- nodes
+            model.SetCursor (
+                match select with
+                | SelectIndex index -> index
+                | SelectName name ->
+                    List.tryFindIndex (fun n -> n.Name = name) nodes
+                    |> Option.defaultValue cursor
+                | SelectNone -> cursor)
+            model.Status <- None
+        }
 
         let openUserPath getNode openPath pathStr (model: MainModel) =
             match Path.Parse pathStr with
@@ -62,7 +64,7 @@ module MainLogic =
                     openPath path.Parent (SelectName node.Name) model
                 | _ ->
                     openPath path SelectNone model
-            | None -> model.Status <- Some <| MainStatus.invalidPath pathStr
+            | None -> Error <| InvalidPath pathStr
 
         let openSelected openPath openFile (model: MainModel) =
             let node = model.SelectedNode
@@ -70,37 +72,39 @@ module MainLogic =
             | Folder | Drive | NetHost | NetShare ->
                 openPath node.Path SelectNone model
             | File ->
-                try
+                tryResult (fun () ->
                     openFile node.Path
                     model.Status <- Some <| MainStatus.openFile node.Name
-                with ex ->
-                    model.Status <- Some <| MainStatus.couldNotOpenFile node.Name ex.Message
-            | _ -> ()
+                ) |> actionError (sprintf "open '%s'" node.Name)
+            | _ -> Ok ()
 
-        let back openPath (model: MainModel) =
+        let back openPath (model: MainModel) = result {
             match model.BackStack with
             | (path, cursor) :: backTail ->
                 let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
-                openPath path (SelectIndex cursor) model
+                do! openPath path (SelectIndex cursor) model
                 model.BackStack <- backTail
                 model.ForwardStack <- newForwardStack
             | [] -> ()
+        }
 
-        let forward openPath (model: MainModel) =
+        let forward openPath (model: MainModel) = result {
             match model.ForwardStack with
             | (path, cursor) :: forwardTail ->
-                openPath path (SelectIndex cursor) model
+                do! openPath path (SelectIndex cursor) model
                 model.ForwardStack <- forwardTail
             | [] -> ()
+        }
 
-        let sortList refresh field (model: MainModel) =
+        let sortList refresh field (model: MainModel) = result {
             let desc =
                 match model.Sort with
                 | f, desc when f = field -> not desc
                 | _ -> field = Modified
             model.Sort <- field, desc
-            refresh model
+            do! refresh model
             model.Status <- Some <| MainStatus.sort field desc
+        }
 
     module Cursor =
         let private moveCursorToNext predicate reverse (model: MainModel) =
@@ -135,11 +139,11 @@ module MainLogic =
             | [| search; switches |] ->
                 (Ok (search, None), switches) ||> Seq.fold (fun res c ->
                     match res, c with
-                    | Ok _, c when not <| Seq.contains c "ci" -> Error <| MainStatus.invalidSearchSwitch c
+                    | Ok _, c when not <| Seq.contains c "ci" -> Error <| InvalidSearchSwitch c
                     | Ok (s, None), 'c' -> Ok (s, Some true)
                     | Ok (s, None), 'i' -> Ok (s, Some false)
                     | _ -> res)
-            | _ -> Error MainStatus.invalidSearchSlash
+            | _ -> Error InvalidSearchSlash
 
         let search caseSensitive searchStr reverse (model: MainModel) =
             let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
@@ -212,21 +216,20 @@ module MainLogic =
             else
                 errorStatus |> Option.iter (fun s -> model.Status <- Some s)
 
-        let create getNode fsCreate openPath nodeType name (model: MainModel) =
-            try
-                let createPath = model.Path.Join name
-                match getNode createPath with
-                | None ->
-                    fsCreate nodeType createPath
-                    openPath model.Path (SelectName name) model
-                    model |> performedAction (CreatedItem model.SelectedNode)
-                | Some existing ->
-                    openPath model.Path (SelectName existing.Name) model
-                    model.Status <- Some <| MainStatus.cannotCreateAlreadyExists nodeType name existing.IsHidden
-            with ex ->
-                let action = CreatedItem { Path = model.Path; Name = name; Type = nodeType;
-                                           Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-                model |> MainStatus.setActionExceptionStatus action ex
+        let create getNode fsCreate openPath nodeType name (model: MainModel) = result {
+            let createPath = model.Path.Join name
+            let action = CreatedItem { Path = createPath; Name = name; Type = nodeType;
+                                       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+            let! existing = tryResult (fun () -> getNode createPath) |> itemActionError action model.PathFormat
+            match existing with
+            | None ->
+                do! tryResult (fun () -> fsCreate nodeType createPath) |> itemActionError action model.PathFormat
+                do! openPath model.Path (SelectName name) model
+                model |> performedAction (CreatedItem model.SelectedNode)
+            | Some existing ->
+                do! openPath model.Path (SelectName existing.Name) model
+                return! Error <| CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
+        }
 
         let undoCreate isEmpty delete refresh node (model: MainModel) = async {
             try
@@ -234,7 +237,7 @@ module MainLogic =
                     model.Status <- Some <| MainStatus.undoingCreate node
                     do! runAsync (fun () -> delete node.Path)
                     if model.Path = node.Path.Parent then
-                        refresh model
+                        refresh model |> ignore
                 else
                     model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
             with ex ->
@@ -242,21 +245,20 @@ module MainLogic =
                 model |> MainStatus.setActionExceptionStatus action ex
         }
 
-        let rename getNode move openPath node newName (model: MainModel) =
+        let rename getNode move openPath node newName (model: MainModel) = result {
             if node.Type.CanModify then
                 let action = RenamedItem (node, newName)
-                try
-                    let newPath = node.Path.Parent.Join newName
-                    let existing = if Str.equalsIgnoreCase node.Name newName then None
-                                   else getNode newPath
-                    match existing with
-                    | Some existingNode ->
-                        model.Status <- Some <| MainStatus.cannotRenameAlreadyExists node.Type newName existingNode.IsHidden
-                    | None ->
-                        move node.Path newPath
-                        openPath model.Path (SelectName newName) model
-                        model |> performedAction action
-                with ex -> model |> MainStatus.setActionExceptionStatus action ex
+                let newPath = node.Path.Parent.Join newName
+                let existing = if Str.equalsIgnoreCase node.Name newName then None
+                               else getNode newPath
+                match existing with
+                | Some existingNode ->
+                    return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
+                | None ->
+                    do! tryResult (fun () -> move node.Path newPath) |> itemActionError action model.PathFormat
+                    do! openPath model.Path (SelectName newName) model
+                    model |> performedAction action
+            }
 
         let undoRename getNode move openPath oldNode currentName (model: MainModel) =
             let parentPath = oldNode.Path.Parent
@@ -266,10 +268,11 @@ module MainLogic =
                                else getNode oldNode.Path
                 match existing with
                 | Some existingNode ->
-                    model.Status <- Some <| MainStatus.cannotRenameAlreadyExists oldNode.Type oldNode.Name existingNode.IsHidden
+                    let e = CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
+                    model.Status <- Some <| ErrorMessage e.Message
                 | None ->
                     move currentPath oldNode.Path
-                    openPath parentPath (SelectName oldNode.Name) model
+                    openPath parentPath (SelectName oldNode.Name) model |> ignore
             with ex ->
                 let node = { oldNode with Name = currentName; Path = currentPath }
                 let action = RenamedItem (node, oldNode.Name)
@@ -299,22 +302,24 @@ module MainLogic =
                         else
                             node.Name
                     let newPath = model.Path.Join newName
+                    let fileSysAction, action =
+                        match putAction with
+                        | Move -> (move, MovedItem (node, newPath))
+                        | Copy -> (copy, CopiedItem (node, newPath))
                     match getNode newPath with
                     | Some existing when not overwrite ->
                         // refresh node list to make sure we can see the existing file
                         let showHidden = config.ShowHidden || existing.IsHidden
-                        openPath showHidden model.Path (SelectName existing.Name) model
-                        model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
-                        model.InputText <- ""
+                        match openPath showHidden model.Path (SelectName existing.Name) model with
+                        | Ok () ->
+                            model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
+                            model.InputText <- ""
+                        | Error (e: MainError) -> model.Status <- Some <| ErrorMessage e.Message
                     | _ ->
-                        let fileSysAction, action =
-                            match putAction with
-                            | Move -> (move, MovedItem (node, newPath))
-                            | Copy -> (copy, CopiedItem (node, newPath))
                         try
                             model.Status <- MainStatus.runningAction action model.PathFormat
                             do! runAsync (fun () -> fileSysAction node.Path newPath)
-                            openPath config.ShowHidden model.Path (SelectName newName) model
+                            openPath config.ShowHidden model.Path (SelectName newName) model |> ignore
                             model |> performedAction action
                         with ex -> model |> MainStatus.setActionExceptionStatus action ex
             | _ -> model.Status <- Some MainStatus.cannotPutHere
@@ -338,7 +343,7 @@ module MainLogic =
                 try
                     model.Status <- Some <| MainStatus.undoingMove node
                     do! runAsync (fun () -> move currentPath node.Path)
-                    openPath node.Path.Parent (SelectName node.Name) model
+                    openPath node.Path.Parent (SelectName node.Name) model |> ignore
                 with ex ->
                     let from = { node with Path = currentPath; Name = currentPath.Name }
                     let action = MovedItem (from, node.Path)
@@ -357,7 +362,7 @@ module MainLogic =
                 model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
                 do! runAsync (fun () -> fileSysFunc currentPath)
                 if model.Path = currentPath.Parent then
-                    refresh model
+                    refresh model |> ignore
             with e ->
                 let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
                 model |> MainStatus.setActionExceptionStatus action e
@@ -383,7 +388,7 @@ module MainLogic =
                     let fileSysFunc = if permanent then fsDelete else fsRecycle
                     model.Status <- MainStatus.runningAction action model.PathFormat
                     do! runAsync (fun () -> fileSysFunc node.Path)
-                    refresh model
+                    refresh model |> ignore
                     model |> performedAction action
                 with e -> model |> MainStatus.setActionExceptionStatus action e
         }
@@ -397,6 +402,11 @@ type MainController(fileSys: FileSystemService,
     // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
 
+    let resultHandler handler (model: MainModel) =
+        match handler model with
+        | Ok () -> ()
+        | Error (e: MainError) -> model.Status <- Some <| ErrorMessage e.Message
+
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
             let isFirst =
@@ -404,7 +414,7 @@ type MainController(fileSys: FileSystemService,
                 |> Seq.where (fun p -> Str.equalsIgnoreCase p.ProcessName "koffee")
                 |> Seq.length
                 |> (=) 1
-            MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions isFirst model
+            model |> resultHandler (MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions isFirst)
         member this.Dispatcher = this.LockingDispatcher
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =
@@ -425,18 +435,18 @@ type MainController(fileSys: FileSystemService,
         | CursorDownHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor + m.HalfPageScroll))
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
-        | OpenPath p -> Sync (this.OpenUserPath p)
-        | OpenSelected -> Sync (MainLogic.Navigation.openSelected this.OpenPath fileSys.OpenFile)
-        | OpenParent -> Sync (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
-        | Back -> Sync (MainLogic.Navigation.back this.OpenPath)
-        | Forward -> Sync (MainLogic.Navigation.forward this.OpenPath)
-        | Refresh -> Sync this.Refresh
+        | OpenPath p -> Sync <| resultHandler (this.OpenUserPath p)
+        | OpenSelected -> Sync <| resultHandler (MainLogic.Navigation.openSelected this.OpenPath fileSys.OpenFile)
+        | OpenParent -> Sync <| resultHandler (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
+        | Back -> Sync <| resultHandler (MainLogic.Navigation.back this.OpenPath)
+        | Forward -> Sync <| resultHandler (MainLogic.Navigation.forward this.OpenPath)
+        | Refresh -> Sync <| resultHandler this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
         | StartPrompt promptType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
         | StartConfirm confirmType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
         | StartInput inputType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
-        | SubmitInput -> Sync this.SubmitInput
+        | SubmitInput -> Sync <| resultHandler this.SubmitInput
         | InputCharTyped c -> Async (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
@@ -445,10 +455,10 @@ type MainController(fileSys: FileSystemService,
         | StartCopy -> Sync (MainLogic.Action.registerItem config Copy)
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
-        | SortList field -> Sync (MainLogic.Navigation.sortList this.Refresh field)
-        | ToggleHidden -> Sync this.ToggleHidden
+        | SortList field -> Sync <| resultHandler (MainLogic.Navigation.sortList this.Refresh field)
+        | ToggleHidden -> Sync <| resultHandler this.ToggleHidden
         | OpenSplitScreenWindow -> Sync this.OpenSplitScreenWindow
-        | OpenSettings -> Sync this.OpenSettings
+        | OpenSettings -> Sync <| resultHandler this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> Sync this.OpenCommandLine
         | OpenWithTextEditor -> Sync this.OpenWithTextEditor
@@ -458,11 +468,12 @@ type MainController(fileSys: FileSystemService,
     member this.OpenUserPath = MainLogic.Navigation.openUserPath fileSys.GetNode this.OpenPath
     member this.Refresh model = this.OpenPath model.Path SelectNone model
 
-    member this.ToggleHidden model =
+    member this.ToggleHidden model = result {
         config.ShowHidden <- not config.ShowHidden
         config.Save()
-        this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
+        do! this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
         model.Status <- Some <| MainStatus.toggleHidden config.ShowHidden
+    }
 
     member this.SubmitInput model =
         let mode = model.InputMode
@@ -471,15 +482,14 @@ type MainController(fileSys: FileSystemService,
         | Some (Input mode) ->
             match mode with
             | Search ->
-                match MainLogic.Cursor.parseSearch model.InputText with
-                | Ok (search, caseSensitive) ->
+                MainLogic.Cursor.parseSearch model.InputText
+                |> Result.map (fun (search, caseSensitive) ->
                     let caseSensitive = caseSensitive |> Option.defaultValue config.SearchCaseSensitive
-                    MainLogic.Cursor.search caseSensitive search false model
-                | Error msg -> model.Status <- Some msg
+                    MainLogic.Cursor.search caseSensitive search false model)
             | CreateFile -> this.Create File model.InputText model
             | CreateFolder -> this.Create Folder model.InputText model
             | Rename _ -> this.Rename model.SelectedNode model.InputText model
-        | _ -> ()
+        | _ -> Ok ()
 
     member this.InputCharTyped char model = async {
         let setBookmark char (path: Path) =
@@ -496,7 +506,7 @@ type MainController(fileSys: FileSystemService,
             | GoToBookmark ->
                 model.InputMode <- None
                 match config.GetBookmark char with
-                | Some path -> this.OpenUserPath path model
+                | Some path -> model |> resultHandler (this.OpenUserPath path)
                 | None -> model.Status <- Some <| MainStatus.noBookmark char
             | SetBookmark ->
                 match config.GetBookmark char |> Option.bind Path.Parse with
@@ -527,12 +537,12 @@ type MainController(fileSys: FileSystemService,
                 | OverwriteBookmark (char, _) -> setBookmark char model.Path
             | 'n' ->
                 model.InputMode <- None
+                model.Status <- Some <| MainStatus.cancelled
                 match confirmType with
                 | Overwrite _ when not config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
                     // if we were temporarily showing hidden files, refresh
-                    this.Refresh model
+                    model |> resultHandler this.Refresh
                 | _ -> ()
-                model.Status <- Some <| MainStatus.cancelled
             | _ -> ()
         | _ -> ()
     }
@@ -547,8 +557,9 @@ type MainController(fileSys: FileSystemService,
             let host = model.SelectedNode.Name
             config.RemoveNetHost host
             config.Save()
-            this.Refresh model
-            model.Status <- Some <| MainStatus.removedNetworkHost host
+            match this.Refresh model with
+            | Ok () -> model.Status <- Some <| MainStatus.removedNetworkHost host
+            | Error e -> model.Status <- Some <| ErrorMessage e.Message
         else
             do! MainLogic.Action.recycle fileSys.IsRecyclable this.Delete model
     }
@@ -584,29 +595,42 @@ type MainController(fileSys: FileSystemService,
                 let path = nodePath.Parent
                 if path <> model.Path then
                     this.OpenPath path SelectNone model
-            match action with
-            | CreatedItem node ->
-                goToPath node.Path
-                this.Create node.Type node.Name model
-            | RenamedItem (node, newName) ->
-                goToPath node.Path
-                this.Rename node newName model
-            | MovedItem (node, newPath)
-            | CopiedItem (node, newPath) ->
-                let moveOrCopy =
-                    match action with
-                    | MovedItem _ -> Move
-                    | _ -> Copy
-                goToPath newPath
-                model.Status <- MainStatus.redoingAction action model.PathFormat
-                do! this.PutItem false node moveOrCopy model
-            | DeletedItem (node, permanent) ->
-                goToPath node.Path
-                model.Status <- MainStatus.redoingAction action model.PathFormat
-                do! this.Delete node permanent model
+                else Ok ()
+            let mapAsync = Result.map (fun () -> async { () })
+            let res =
+                match action with
+                | CreatedItem node ->
+                    goToPath node.Path
+                    |> Result.bind (fun () -> this.Create node.Type node.Name model)
+                    |> mapAsync
+                | RenamedItem (node, newName) ->
+                    goToPath node.Path
+                    |> Result.bind (fun () -> this.Rename node newName model)
+                    |> mapAsync
+                | MovedItem (node, newPath)
+                | CopiedItem (node, newPath) ->
+                    let moveOrCopy =
+                        match action with
+                        | MovedItem _ -> Move
+                        | _ -> Copy
+                    goToPath newPath
+                    |> Result.map (fun () -> async {
+                        model.Status <- MainStatus.redoingAction action model.PathFormat
+                        do! this.PutItem false node moveOrCopy model
+                    })
+                | DeletedItem (node, permanent) ->
+                    goToPath node.Path
+                    |> Result.map (fun () -> async {
+                        model.Status <- MainStatus.redoingAction action model.PathFormat
+                        do! this.Delete node permanent model
+                    })
 
-            model.RedoStack <- rest
-            model.Status <- Some <| MainStatus.redoAction action model.PathFormat
+            match res with
+            | Ok asyncAction ->
+                do! asyncAction
+                model.RedoStack <- rest
+                model.Status <- Some <| MainStatus.redoAction action model.PathFormat
+            | Error e -> model.Status <- Some <| ErrorMessage e.Message
         | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
 
@@ -650,10 +674,11 @@ type MainController(fileSys: FileSystemService,
                 model.Status <- Some <| MainStatus.couldNotOpenTextEditor ex.Message
         | _ -> ()
 
-    member this.OpenSettings model =
+    member this.OpenSettings model = result {
         let settings = settingsFactory()
         settings.StartDialog() |> ignore
 
         model.PathFormat <- config.PathFormat
         model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
-        this.Refresh model
+        do! this.Refresh model
+    }

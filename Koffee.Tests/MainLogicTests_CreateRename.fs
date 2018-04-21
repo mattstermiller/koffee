@@ -38,9 +38,12 @@ let ``Create folder calls file sys create, openPath and sets status``() =
         model.Nodes <- newNodes
         model.Cursor <- 1
         selected <- Some s
+        Ok ()
     let createNode = newNodes.[1]
     let model = createModel()
+
     MainLogic.Action.create getNode create openPath Folder createNode.Name model
+    |> shouldEqual (Ok ())
 
     created |> shouldEqual (Some (createNode.Type, createNode.Path))
     let expectedAction = CreatedItem createNode
@@ -55,7 +58,7 @@ let ``Create folder calls file sys create, openPath and sets status``() =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Create folder sets error status when item already exists at path`` existingHidden =
+let ``Create folder returns error when item already exists at path`` existingHidden =
     let existing = { oldNodes.[1] with IsHidden = existingHidden }
     let getNode _ = Some existing
     let create _ _ = failwith "create should not be called"
@@ -63,26 +66,29 @@ let ``Create folder sets error status when item already exists at path`` existin
     let openPath p s (model: MainModel) =
         model.Path <- p
         selected <- Some s
+        Ok ()
     let createNode = newNodes.[1]
     let model = createModel()
-    MainLogic.Action.create getNode create openPath Folder createNode.Name model
 
+    let res = MainLogic.Action.create getNode create openPath Folder createNode.Name model
+
+    res |> shouldEqual (Error (CannotUseNameAlreadyExists ("create", Folder, createNode.Name, existingHidden)))
     let expected = createModel()
-    expected.Status <- Some <| MainStatus.cannotCreateAlreadyExists Folder createNode.Name existingHidden
     assertAreEqual expected model
     selected |> shouldEqual (Some (SelectName existing.Name))
 
 [<Test>]
-let ``Create folder handles error by setting error status``() =
+let ``Create folder handles error by returning error``() =
     let getNode _ = None
     let create _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let createNode = newNodes.[1]
     let model = createModel()
-    MainLogic.Action.create getNode create openPath Folder createNode.Name model
 
+    let res = MainLogic.Action.create getNode create openPath Folder createNode.Name model
+
+    res |> shouldEqual (Error (ItemActionError ((CreatedItem createNode), model.PathFormat, ex)))
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus (CreatedItem createNode) ex
     assertAreEqual expected model
 
 // undo create tests
@@ -151,8 +157,11 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
+        Ok ()
     let model = createModel()
+
     MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
+    |> shouldEqual (Ok ())
 
     renamed |> shouldEqual (Some (currentNode.Path, renamedNode.Path))
     let expectedAction = RenamedItem (currentNode, renamedNode.Name)
@@ -165,32 +174,34 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Rename to path with existing item sets error status`` existingHidden =
+let ``Rename to path with existing item returns error`` existingHidden =
     let currentNode = oldNodes.[1]
     let renamedNode = { newNodes.[1] with IsHidden = existingHidden }
     let getNode p = if p = renamedNode.Path then Some renamedNode else None
     let move _ _ = failwith "move should not be called"
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
-    MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
 
+    let res = MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
+
+    res |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, renamedNode.Name, existingHidden)))
     let expected = createModel()
-    expected.Status <- Some <| MainStatus.cannotRenameAlreadyExists Folder renamedNode.Name existingHidden
     assertAreEqual expected model
 
 [<Test>]
-let ``Rename handles error by setting error status``() =
+let ``Rename handles error by returning error``() =
     let currentNode = oldNodes.[1]
     let renamedNode = newNodes.[1]
     let getNode _ = None
     let move _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
-    MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
+
+    let res = MainLogic.Action.rename getNode move openPath currentNode renamedNode.Name model
 
     let expectedAction = RenamedItem (currentNode, renamedNode.Name)
+    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus expectedAction ex
     assertAreEqual expected model
 
 // undo rename tests
@@ -233,7 +244,8 @@ let ``Undo rename to path with existing item sets error status`` existingHidden 
     MainLogic.Action.undoRename getNode move openPath prevNode curNode.Name model
 
     let expected = createModel()
-    expected.Status <- Some <| MainStatus.cannotRenameAlreadyExists Folder prevNode.Name existingHidden
+    let e = CannotUseNameAlreadyExists ("rename", Folder, prevNode.Name, existingHidden)
+    expected.Status <- Some <| ErrorMessage e.Message
     assertAreEqual expected model
 
 [<Test>]

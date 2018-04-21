@@ -56,6 +56,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
         if s = SelectName (dest.Name) then
             model.Cursor <- 2
         openedHidden <- Some sh
+        Ok ()
     let action = if doCopy then Copy else Move
     let item = Some (src, action)
     let model = createModel()
@@ -83,6 +84,7 @@ let ``Put item to move or copy handles error by setting error status`` doCopy =
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
+        Ok ()
     let item = Some (src, if doCopy then Copy else Move)
     let model = createModel()
     model.YankRegister <- item
@@ -109,6 +111,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
+        Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Move)
     MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
@@ -132,6 +135,7 @@ let ``Put item to move in same folder gives same-folder message``() =
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
+        Ok ()
     let item = Some (src, Move)
     let model = createModel()
     model.YankRegister <- item
@@ -158,6 +162,7 @@ let ``Undo move item moves it back`` curPathDifferent =
         model.Path <- p
         model.Status <- None
         selected <- Some s
+        Ok ()
     let model = createModel()
     if curPathDifferent then
         model.Path <- createPath "/c/other"
@@ -218,6 +223,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
+        Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Copy)
     MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
@@ -245,6 +251,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let openPath _ p _ (m: MainModel) =
         m.Path <- p
         m.Nodes <- newNodes
+        Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Copy)
     MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously

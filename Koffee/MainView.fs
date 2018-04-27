@@ -184,6 +184,7 @@ type MainView(window: MainWindow,
             | _ -> evt.Handled <- false; None)
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
         window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
+        window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewTextInput |> Observable.choose this.InputKey
     ]

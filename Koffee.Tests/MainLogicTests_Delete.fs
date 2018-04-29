@@ -58,5 +58,5 @@ let ``Delete handles error by setting error status``() =
 
     refreshed |> shouldEqual false
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus (DeletedItem (oldNodes.[0], true)) ex
+    expected.SetItemError (DeletedItem (oldNodes.[0], true)) ex
     assertAreEqual expected model

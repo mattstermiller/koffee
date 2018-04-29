@@ -240,8 +240,7 @@ module MainLogic =
                     if model.Path = node.Path.Parent then
                         refresh model |> ignore
                 | Error e ->
-                    let action = DeletedItem (node, true)
-                    model |> MainStatus.setActionExceptionStatus action e
+                    model.SetItemError (DeletedItem (node, true)) e
             else
                 model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
         }
@@ -269,15 +268,13 @@ module MainLogic =
                                else getNode oldNode.Path
                 match existing with
                 | Some existingNode ->
-                    let e = CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
-                    model.Status <- Some <| ErrorMessage e.Message
+                    model.SetError <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
                 | None ->
                     move currentPath oldNode.Path
                     openPath parentPath (SelectName oldNode.Name) model |> ignore
-            with ex ->
+            with e ->
                 let node = { oldNode with Name = currentName; Path = currentPath }
-                let action = RenamedItem (node, oldNode.Name)
-                model |> MainStatus.setActionExceptionStatus action ex
+                model.SetItemError (RenamedItem (node, oldNode.Name)) e
 
         let registerItem (config: Config) action (model: MainModel) =
             if model.SelectedNode.Type.CanModify then
@@ -315,14 +312,14 @@ module MainLogic =
                         | Ok () ->
                             model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
                             model.InputText <- ""
-                        | Error (e: MainError) -> model.Status <- Some <| ErrorMessage e.Message
+                        | Error e -> model.SetError e
                     | _ ->
                         try
                             model.Status <- MainStatus.runningAction action model.PathFormat
                             do! runAsync (fun () -> fileSysAction node.Path newPath)
                             openPath config.ShowHidden model.Path (SelectName newName) model |> ignore
                             model |> performedAction action
-                        with ex -> model |> MainStatus.setActionExceptionStatus action ex
+                        with e -> model.SetItemError action e
             | _ -> model.Status <- Some MainStatus.cannotPutHere
         }
 
@@ -345,10 +342,9 @@ module MainLogic =
                     model.Status <- Some <| MainStatus.undoingMove node
                     do! runAsync (fun () -> move currentPath node.Path)
                     openPath node.Path.Parent (SelectName node.Name) model |> ignore
-                with ex ->
+                with e ->
                     let from = { node with Path = currentPath; Name = currentPath.Name }
-                    let action = MovedItem (from, node.Path)
-                    model |> MainStatus.setActionExceptionStatus action ex
+                    model.SetItemError (MovedItem (from, node.Path)) e
         }
 
         let undoCopy getNode fsDelete fsRecycle refresh node (currentPath: Path) (model: MainModel) = async {
@@ -368,7 +364,7 @@ module MainLogic =
                     refresh model |> ignore
             | Error e ->
                 let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
-                model |> MainStatus.setActionExceptionStatus action e
+                model.SetItemError action e
         }
 
         let delete fsDelete fsRecycle refresh node permanent (model: MainModel) = async {
@@ -382,7 +378,7 @@ module MainLogic =
                     refresh model |> ignore
                     model |> performedAction action
                 | Error e ->
-                    model |> MainStatus.setActionExceptionStatus action e
+                    model.SetItemError action e
         }
 
 
@@ -397,7 +393,7 @@ type MainController(fileSys: FileSystemService,
     let resultHandler handler (model: MainModel) =
         match handler model with
         | Ok () -> ()
-        | Error (e: MainError) -> model.Status <- Some <| ErrorMessage e.Message
+        | Error (e: MainError) -> model.SetError e
 
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
@@ -551,7 +547,7 @@ type MainController(fileSys: FileSystemService,
             config.Save()
             match this.Refresh model with
             | Ok () -> model.Status <- Some <| MainStatus.removedNetworkHost host
-            | Error e -> model.Status <- Some <| ErrorMessage e.Message
+            | Error e -> model.SetError e
         else
             do! this.Delete model.SelectedNode false model
     }
@@ -622,7 +618,7 @@ type MainController(fileSys: FileSystemService,
                 do! asyncAction
                 model.RedoStack <- rest
                 model.Status <- Some <| MainStatus.redoAction action model.PathFormat
-            | Error e -> model.Status <- Some <| ErrorMessage e.Message
+            | Error e -> model.SetError e
         | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
 

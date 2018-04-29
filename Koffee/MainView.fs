@@ -367,17 +367,6 @@ module MainStatus =
     let cannotPutHere = ErrorMessage <| "Cannot put items here"
     let cancelled = Message <| "Cancelled"
 
-    let setActionExceptionStatus action ex (model: MainModel) =
-        let actionName =
-            match action with
-            | CreatedItem node -> sprintf "create %s" node.Description
-            | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
-            | MovedItem (node, newPath) -> sprintf "move %s to \"%s\"" node.Description (newPath.Format model.PathFormat)
-            | CopiedItem (node, newPath) -> sprintf "copy %s to \"%s\"" node.Description (newPath.Format model.PathFormat)
-            | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
-            | DeletedItem (node, true) -> sprintf "delete %s" node.Description
-        model.Status <- Some <| StatusType.fromExn actionName ex
-
     // undo/redo
     let undoingCreate (node: Node) = Busy <| sprintf "Undoing creation of %s - Deleting..." node.Description
     let undoingMove (node: Node) = Busy <| sprintf "Undoing move of %s..." node.Description
@@ -443,3 +432,12 @@ type MainError =
                     actionName nodeType name append
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
+
+[<AutoOpen>]
+module MainModelExt =
+    type MainModel with
+        member this.SetError (e: MainError) =
+            this.Status <- Some (ErrorMessage e.Message)
+
+        member this.SetItemError action e =
+            this.SetError <| ItemActionError (action, this.PathFormat, e)

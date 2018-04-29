@@ -93,7 +93,7 @@ let ``Put item to move or copy handles error by setting error status`` doCopy =
     let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
     let expected = createModel()
     expected.YankRegister <- item
-    expected |> MainStatus.setActionExceptionStatus expectedAction ex
+    expected.SetItemError expectedAction ex
     assertAreEqual expected model
 
 // move tests
@@ -205,7 +205,7 @@ let ``Undo move item handles error by setting error status``() =
     let expectedAction = MovedItem (curNode, prevNode.Path)
     let expected = createModel()
     expected.Path <- createPath "/c/other"
-    expected |> MainStatus.setActionExceptionStatus expectedAction ex
+    expected.SetItemError expectedAction ex
     assertAreEqual expected model
 
 // copy tests
@@ -330,5 +330,5 @@ let ``Undo copy item handles error by setting error status and consumes action``
     MainLogic.Action.undoCopy getNode fsFunc fsFunc refresh original copied.Path model |> Async.RunSynchronously
 
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus (DeletedItem (copied, false)) ex
+    expected.SetItemError (DeletedItem (copied, false)) ex
     assertAreEqual expected model

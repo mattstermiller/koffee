@@ -141,7 +141,7 @@ let ``Undo create handles error by setting error status`` () =
     MainLogic.Action.undoCreate isEmpty delete refresh createdNode model |> Async.RunSynchronously
 
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus (DeletedItem (createdNode, true)) ex
+    expected.SetItemError (DeletedItem (createdNode, true)) ex
     assertAreEqual expected model
 
 // rename tests
@@ -244,8 +244,7 @@ let ``Undo rename to path with existing item sets error status`` existingHidden 
     MainLogic.Action.undoRename getNode move openPath prevNode curNode.Name model
 
     let expected = createModel()
-    let e = CannotUseNameAlreadyExists ("rename", Folder, prevNode.Name, existingHidden)
-    expected.Status <- Some <| ErrorMessage e.Message
+    expected.SetError <| CannotUseNameAlreadyExists ("rename", Folder, prevNode.Name, existingHidden)
     assertAreEqual expected model
 
 [<Test>]
@@ -260,7 +259,7 @@ let ``Undo rename item handles error by setting error status``() =
 
     let expectedAction = RenamedItem (curNode, prevNode.Name)
     let expected = createModel()
-    expected |> MainStatus.setActionExceptionStatus expectedAction ex
+    expected.SetItemError expectedAction ex
     assertAreEqual expected model
 
 // start rename selection tests

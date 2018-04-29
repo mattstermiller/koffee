@@ -232,17 +232,18 @@ module MainLogic =
         }
 
         let undoCreate isEmpty delete refresh node (model: MainModel) = async {
-            try
-                if isEmpty node.Path then
-                    model.Status <- Some <| MainStatus.undoingCreate node
-                    do! runAsync (fun () -> delete node.Path)
+            if isEmpty node.Path then
+                model.Status <- Some <| MainStatus.undoingCreate node
+                let! res = runAsync (fun () -> delete node.Path)
+                match res with
+                | Ok () ->
                     if model.Path = node.Path.Parent then
                         refresh model |> ignore
-                else
-                    model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
-            with ex ->
-                let action = DeletedItem (node, true)
-                model |> MainStatus.setActionExceptionStatus action ex
+                | Error e ->
+                    let action = DeletedItem (node, true)
+                    model |> MainStatus.setActionExceptionStatus action e
+            else
+                model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
         }
 
         let rename getNode move openPath node newName (model: MainModel) = result {
@@ -351,46 +352,37 @@ module MainLogic =
         }
 
         let undoCopy getNode fsDelete fsRecycle refresh node (currentPath: Path) (model: MainModel) = async {
-            let mutable isDeletionPermanent = false
-            try
-                let copyModified = getNode currentPath |> Option.bind (fun n -> n.Modified)
-                isDeletionPermanent <-
-                    match node.Modified, copyModified with
-                    | Some orig, Some copy when orig = copy -> true
-                    | _ -> false
-                let fileSysFunc = if isDeletionPermanent then fsDelete else fsRecycle
-                model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
-                do! runAsync (fun () -> fileSysFunc currentPath)
+            let copyModified =
+                try getNode currentPath |> Option.bind (fun n -> n.Modified)
+                with _ -> None
+            let isDeletionPermanent =
+                match node.Modified, copyModified with
+                | Some orig, Some copy when orig = copy -> true
+                | _ -> false
+            let fileSysFunc = if isDeletionPermanent then fsDelete else fsRecycle
+            model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
+            let! res = runAsync (fun () -> fileSysFunc currentPath)
+            match res with
+            | Ok () ->
                 if model.Path = currentPath.Parent then
                     refresh model |> ignore
-            with e ->
+            | Error e ->
                 let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
                 model |> MainStatus.setActionExceptionStatus action e
-        }
-
-        let recycle isRecyclable delete (model: MainModel) = async {
-            let node = model.SelectedNode
-            if node.Type.CanModify then
-                model.Status <- Some <| MainStatus.checkingIsRecyclable
-                try
-                    let! canRecycle = runAsync (fun () -> isRecyclable node.Path)
-                    if canRecycle then
-                        do! delete node false model
-                    else
-                        model.Status <- Some <| MainStatus.cannotRecycle node
-                with e -> model |> MainStatus.setActionExceptionStatus (DeletedItem (node, false)) e
         }
 
         let delete fsDelete fsRecycle refresh node permanent (model: MainModel) = async {
             if node.Type.CanModify then
                 let action = DeletedItem (node, permanent)
-                try
-                    let fileSysFunc = if permanent then fsDelete else fsRecycle
-                    model.Status <- MainStatus.runningAction action model.PathFormat
-                    do! runAsync (fun () -> fileSysFunc node.Path)
+                let fileSysFunc = if permanent then fsDelete else fsRecycle
+                model.Status <- MainStatus.runningAction action model.PathFormat
+                let! res = runAsync (fun () -> fileSysFunc node.Path)
+                match res with
+                | Ok () ->
                     refresh model |> ignore
                     model |> performedAction action
-                with e -> model |> MainStatus.setActionExceptionStatus action e
+                | Error e ->
+                    model |> MainStatus.setActionExceptionStatus action e
         }
 
 
@@ -561,7 +553,7 @@ type MainController(fileSys: FileSystemService,
             | Ok () -> model.Status <- Some <| MainStatus.removedNetworkHost host
             | Error e -> model.Status <- Some <| ErrorMessage e.Message
         else
-            do! MainLogic.Action.recycle fileSys.IsRecyclable this.Delete model
+            do! this.Delete model.SelectedNode false model
     }
 
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh

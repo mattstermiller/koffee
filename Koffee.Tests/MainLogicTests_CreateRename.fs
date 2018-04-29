@@ -102,6 +102,7 @@ let ``Undo create empty node calls delete`` curPathDifferent =
     let delete p =
         deleted <- Some p
         model.Status <- None
+        Ok ()
     let refresh (model: MainModel) =
         model.Nodes <- newNodes
     let createdNode = oldNodes.[1]
@@ -130,11 +131,10 @@ let ``Undo create non-empty node sets status only``() =
     expected.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated createdNode
     assertAreEqual expected model
 
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Undo create handles error by setting error status`` isEmptyThrows =
-    let isEmpty _ = if isEmptyThrows then raise ex else true
-    let delete _ = if not isEmptyThrows then raise ex else failwith "delete should not be called"
+[<Test>]
+let ``Undo create handles error by setting error status`` () =
+    let isEmpty _ = true
+    let delete _ = Error ex
     let refresh _ = failwith "refresh should not be called"
     let createdNode = oldNodes.[1]
     let model = createModel()

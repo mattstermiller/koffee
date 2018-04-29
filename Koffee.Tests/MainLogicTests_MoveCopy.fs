@@ -281,6 +281,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let delete p =
         deleted <- Some p
         model.Status <- None
+        Ok ()
     let recycle _ = failwith "recycle should not be called"
     let refresh (model: MainModel) = model.Nodes <- newNodes
     if curPathDifferent then
@@ -308,6 +309,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     let recycle p =
         recycled <- Some p
         model.Status <- None
+        Ok ()
     let refresh (model: MainModel) = model.Nodes <- newNodes
     MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
 
@@ -322,7 +324,7 @@ let ``Undo copy item handles error by setting error status and consumes action``
     let original = nodeDiffFolder
     let copied = nodeSameFolder
     let getNode _ = if throwOnGetNode then raise ex else None
-    let fsFunc _ = if throwOnGetNode then () else raise ex
+    let fsFunc _ = Error ex
     let refresh _ = failwith "refresh should not be called"
     let model = createModel()
     MainLogic.Action.undoCopy getNode fsFunc fsFunc refresh original copied.Path model |> Async.RunSynchronously

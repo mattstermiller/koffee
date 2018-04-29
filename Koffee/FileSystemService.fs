@@ -173,22 +173,6 @@ type FileSystemService(config: Config) =
                 FileInfo(wp).Length = 0L
         with _ -> false
 
-    member this.IsRecyclable path =
-        let size =
-            match this.GetNode path with
-            | Some f when f.Type = File ->
-                f.Size
-            | Some f when f.Type = Folder ->
-                Some (DirectoryInfo(wpath path).EnumerateFiles("*", SearchOption.AllDirectories)
-                      |> Seq.sumBy (fun fi -> fi.Length))
-            | _ -> None
-        let driveSize = path.Drive |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
-        match size, driveSize with
-        | Some s, Some ds when ds > 0L ->
-            let ratio = (double s) / (double ds)
-            ratio < 0.03
-        | _ -> false
-
     member this.Create nodeType path =
         let wp = wpath path
         match nodeType with
@@ -244,23 +228,45 @@ type FileSystemService(config: Config) =
                 copyFile source dest)
 
     member this.Recycle path =
-        path |> this.FileOrFolderAction "recycle" (fun nodeType ->
+        path |> this.FileOrFolderAction "recycle" (fun nodeType -> result {
             let wp = wpath path
-            if nodeType = Folder then
-                FileSystem.DeleteDirectory(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+            let! driveSize =
+                path.Drive
+                |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
+                |> Option.filter (flip (>) 0L)
+                |> Result.ofOption (Exception "This drive does not have a recycle bin.")
+            let! size =
+                match this.GetNode path with
+                | Some f when f.Type = File ->
+                    Ok f.Size.Value
+                | Some f when f.Type = Folder ->
+                    tryResult <| fun () ->
+                        DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
+                        |> Seq.sumBy (fun fi -> fi.Length)
+                | _ -> Error <| Exception "Cannot recycle this item."
+            let ratio = (double size) / (double driveSize)
+            if ratio > 0.03 then
+                return! Error <| Exception "Item cannot fit in the recycle bin."
             else
-                FileSystem.DeleteFile(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin))
+                return! tryResult <| fun () ->
+                    if nodeType = Folder then
+                        FileSystem.DeleteDirectory(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+                    else
+                        FileSystem.DeleteFile(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+        })
 
     member this.Delete path =
         path |> this.FileOrFolderAction "delete" (fun nodeType ->
             let wp = wpath path
-            if nodeType = Folder then
-                DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
+            tryResult <| fun () ->
+                if nodeType = Folder then
+                    DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
                     |> Seq.iter prepForOverwrite
-                Directory.Delete(wp, true)
-            else
-                prepForOverwrite <| FileInfo wp
-                File.Delete wp)
+                    Directory.Delete(wp, true)
+                else
+                    prepForOverwrite <| FileInfo wp
+                    File.Delete wp
+        )
 
     member this.OpenFile path =
         ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)

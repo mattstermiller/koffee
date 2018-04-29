@@ -166,10 +166,12 @@ type FileSystemService(config: Config) =
 
     member this.IsEmpty path =
         let wp = wpath path
-        if Directory.Exists(wp) then
-            Directory.EnumerateFiles(wp, "*", SearchOption.AllDirectories) |> Seq.isEmpty
-        else
-            FileInfo(wp).Length = 0L
+        try
+            if Directory.Exists(wp) then
+                Directory.EnumerateFiles(wp, "*", SearchOption.AllDirectories) |> Seq.isEmpty
+            else
+                FileInfo(wp).Length = 0L
+        with _ -> false
 
     member this.IsRecyclable path =
         let size =

@@ -276,7 +276,7 @@ module MainLogic =
                 let node = { oldNode with Name = currentName; Path = currentPath }
                 model.SetItemError (RenamedItem (node, oldNode.Name)) e
 
-        let registerItem (config: Config) action (model: MainModel) =
+        let registerItem action (model: MainModel) =
             if model.SelectedNode.Type.CanModify then
                 model.YankRegister <- Some (model.SelectedNode, action)
                 model.Status <- None
@@ -439,8 +439,8 @@ type MainController(fileSys: FileSystemService,
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
         | SearchPrevious -> Sync (MainLogic.Cursor.searchNext true)
-        | StartMove -> Sync (MainLogic.Action.registerItem config Move)
-        | StartCopy -> Sync (MainLogic.Action.registerItem config Copy)
+        | StartMove -> Sync (MainLogic.Action.registerItem Move)
+        | StartCopy -> Sync (MainLogic.Action.registerItem Copy)
         | Put -> Async (this.Put false)
         | Recycle -> Async this.Recycle
         | SortList field -> Sync <| resultHandler (MainLogic.Navigation.sortList this.Refresh field)

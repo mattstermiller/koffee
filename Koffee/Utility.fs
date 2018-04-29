@@ -43,6 +43,12 @@ module Format =
         else if size > scaleCutoff 1 then scaledStr size 1
         else format size
 
+module Result =
+    let ofOption ifNone o =
+        match o with
+        | Some x -> Ok x
+        | None -> Error ifNone
+
 type ResultBuilder() =
     member this.Bind (x, f) = Result.bind f x
     member this.Return x = Ok x

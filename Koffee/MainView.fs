@@ -340,7 +340,6 @@ module MainStatus =
     let openExplorer = Message "Opened Windows Explorer"
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
     let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name
-    let couldNotOpenTextEditor error = ErrorMessage <| sprintf "Could not open text editor: %s" error
     let removedNetworkHost host = Message <| sprintf "Removed network host: %s" host
 
     let private runningActionMessage action pathFormat =
@@ -416,6 +415,8 @@ type MainError =
     | InvalidSearchSlash
     | InvalidSearchSwitch of char
     | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
+    | CouldNotOpenApp of app: string * exn
+    | CouldNotFindKoffeeExe
 
     member this.Message =
         match this with
@@ -442,3 +443,5 @@ type MainError =
             let append = if hidden then " (hidden)" else ""
             sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
                     actionName nodeType name append
+        | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
+        | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"

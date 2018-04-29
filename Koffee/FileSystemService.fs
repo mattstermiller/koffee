@@ -137,11 +137,10 @@ type FileSystemService(config: Config) =
             else
                 let dir = DirectoryInfo(wpath path)
                 if dir.Exists then
-                    try
+                    tryResult <| fun () ->
                         let folders = dir.GetDirectories() |> Seq.map folderNode
                         let files = dir.GetFiles() |> Seq.map fileNode
-                        Ok <| Seq.append folders files
-                    with e -> Error e
+                        Seq.append folders files
                 else
                     if path.Drive |> Option.exists (fun d -> not <| DriveInfo(wpath d).IsReady) then
                         Error <| Exception "Drive is not ready"
@@ -275,5 +274,6 @@ type FileSystemService(config: Config) =
             Process.Start("explorer.exe") |> ignore
 
     member this.LaunchApp exePath workingPath args =
-        ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
-        |> Process.Start |> ignore
+        tryResult <| fun () ->
+            ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
+            |> Process.Start |> ignore

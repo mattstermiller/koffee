@@ -457,11 +457,11 @@ type MainController(fileSys: FileSystemService,
         | Recycle -> Async this.Recycle
         | SortList field -> Sync <| resultHandler (MainLogic.Navigation.sortList this.Refresh field)
         | ToggleHidden -> Sync <| resultHandler this.ToggleHidden
-        | OpenSplitScreenWindow -> Sync this.OpenSplitScreenWindow
+        | OpenSplitScreenWindow -> Sync <| resultHandler this.OpenSplitScreenWindow
         | OpenSettings -> Sync <| resultHandler this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
-        | OpenCommandLine -> Sync this.OpenCommandLine
-        | OpenWithTextEditor -> Sync this.OpenWithTextEditor
+        | OpenCommandLine -> Sync <| resultHandler this.OpenCommandLine
+        | OpenWithTextEditor -> Sync <| resultHandler this.OpenWithTextEditor
         | Exit -> Sync ignore // handled by view
 
     member this.OpenPath = MainLogic.Navigation.openPath fileSys.GetNodes config.ShowHidden
@@ -634,45 +634,46 @@ type MainController(fileSys: FileSystemService,
         | [] -> model.Status <- Some <| MainStatus.noRedoActions
     }
 
-    member this.OpenSplitScreenWindow model =
-        match Path.Parse System.AppDomain.CurrentDomain.BaseDirectory with
-        | None -> model.Status <- Some <| ErrorMessage "Could not determine Koffee.exe path"
-        | Some folder ->
-            let mapFst f t = (fst t |> f, snd t)
-            let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
-                          |> Rect.fit (getScreenBounds())
-            model.WindowLocation <- fitRect.Location
-            model.WindowSize <- fitRect.Size |> mapFst (flip (/) 2)
+    member this.OpenSplitScreenWindow model = result {
+        let mapFst f t = (fst t |> f, snd t)
+        let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
+                      |> Rect.fit (getScreenBounds())
+        model.WindowLocation <- fitRect.Location
+        model.WindowSize <- fitRect.Size |> mapFst (flip (/) 2)
 
-            let left, top = model.WindowLocation
-            let width, height = model.WindowSize
-            let path = (folder.Join "Koffee.exe").Format Windows
-            let args = sprintf "\"%s\" --location=%i,%i --size=%i,%i"
-                               (model.Path.Format Windows) (left + width) top width height
-            fileSys.LaunchApp path folder args
+        let left, top = model.WindowLocation
+        let width, height = model.WindowSize
+        let left = left + width
+        let args = sprintf "\"%s\" --location=%i,%i --size=%i,%i"
+                           (model.Path.Format Windows) left top width height
+
+        let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
+                          |> Result.ofOption CouldNotFindKoffeeExe
+        let folder = koffeePath.Parent
+        return! fileSys.LaunchApp (koffeePath.Format Windows) folder args
+                |> Result.mapError (fun e -> CouldNotOpenApp ("Koffee", e))
+    }
 
     member this.OpenExplorer model =
         fileSys.OpenExplorer model.SelectedNode
         model.Status <- Some <| MainStatus.openExplorer
 
-    member this.OpenCommandLine model =
+    member this.OpenCommandLine model = result {
         if model.Path <> Path.Root then
-            try
-                fileSys.LaunchApp config.CommandlinePath model.Path ""
-                model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
-            with ex ->
-                model.Status <- Some <| ErrorMessage ex.Message // TODO
+            do! fileSys.LaunchApp config.CommandlinePath model.Path ""
+                |> Result.mapError (fun e -> CouldNotOpenApp ("Commandline tool", e))
+            model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
+    }
 
-    member this.OpenWithTextEditor model =
+    member this.OpenWithTextEditor model = result {
         match model.SelectedNode.Type with
         | File ->
-            try
-                let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
-                fileSys.LaunchApp config.TextEditor model.Path args
-                model.Status <- Some <| MainStatus.openTextEditor model.SelectedNode.Name
-            with ex ->
-                model.Status <- Some <| MainStatus.couldNotOpenTextEditor ex.Message
+            let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
+            do! fileSys.LaunchApp config.TextEditor model.Path args
+                |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
+            model.Status <- Some <| MainStatus.openTextEditor model.SelectedNode.Name
         | _ -> ()
+    }
 
     member this.OpenSettings model = result {
         let settings = settingsFactory()

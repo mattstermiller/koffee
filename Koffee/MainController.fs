@@ -191,30 +191,26 @@ module MainLogic =
                 | ReplaceName -> (0, name.Length)
                 | ReplaceAll -> (0, fullName.Length)
 
-        let startInput getNode (inputMode: InputMode) (model: MainModel) =
-            let allowed, errorStatus =
+        let startInput getNode (inputMode: InputMode) (model: MainModel) = result {
+            let! allowed =
                 match inputMode with
                 | Input CreateFile
                 | Input CreateFolder ->
-                    let allowed =
-                        getNode model.Path
-                        |> Option.map (fun n -> n.Type.CanCreateIn)
-                        |> Option.defaultValue false
-                    (allowed, Some MainStatus.cannotPutHere)
+                    match getNode model.Path with
+                    | Some node when node.Type.CanCreateIn -> Ok true
+                    | _ -> Error <| CannotPutHere
                 | Input (Rename _)
-                | Confirm Delete ->
-                    (model.SelectedNode.Type.CanModify, None)
-                | _ -> (true, None)
+                | Confirm Delete -> Ok model.SelectedNode.Type.CanModify 
+                | _ -> Ok true
             if allowed then
-                let text, pos =
-                    match inputMode with
-                    | Input (Rename pos) -> model.SelectedNode.Name, (Some pos)
-                    | _ -> "", None
                 model.InputMode <- Some inputMode
-                model.InputText <- text
-                pos |> Option.iter (setInputSelection model)
-            else
-                errorStatus |> Option.iter (fun s -> model.Status <- Some s)
+                match inputMode with
+                | Input (Rename pos) ->
+                    model.InputText <- model.SelectedNode.Name
+                    setInputSelection model pos
+                | _ ->
+                    model.InputText <- ""
+        }
 
         let create getNode fsCreate openPath nodeType name (model: MainModel) = result {
             let createPath = model.Path.Join name
@@ -320,7 +316,7 @@ module MainLogic =
                             openPath config.ShowHidden model.Path (SelectName newName) model |> ignore
                             model |> performedAction action
                         with e -> model.SetItemError action e
-            | _ -> model.Status <- Some MainStatus.cannotPutHere
+            | _ -> model.SetError CannotPutHere
         }
 
         let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
@@ -431,9 +427,9 @@ type MainController(fileSys: FileSystemService,
         | Refresh -> Sync <| resultHandler this.Refresh
         | Undo -> Async this.Undo
         | Redo -> Async this.Redo
-        | StartPrompt promptType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
-        | StartConfirm confirmType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
-        | StartInput inputType -> Sync (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
+        | StartPrompt promptType -> Sync <| resultHandler (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
+        | StartConfirm confirmType -> Sync <| resultHandler (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
+        | StartInput inputType -> Sync <| resultHandler (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
         | SubmitInput -> Sync <| resultHandler this.SubmitInput
         | InputCharTyped c -> Async (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext

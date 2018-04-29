@@ -364,7 +364,6 @@ module MainStatus =
         actionCompleteMessage action pathFormat |> Message
 
     let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"
-    let cannotPutHere = ErrorMessage <| "Cannot put items here"
     let cancelled = Message <| "Cancelled"
 
     // undo/redo
@@ -401,6 +400,7 @@ type MainError =
     | InvalidPath of string
     | InvalidSearchSlash
     | InvalidSearchSwitch of char
+    | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
     | CouldNotOpenApp of app: string * exn
     | CouldNotFindKoffeeExe
@@ -426,6 +426,7 @@ type MainError =
         | InvalidPath path -> sprintf "Path format is invalid: %s" path
         | InvalidSearchSlash -> "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
         | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
+        | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, nodeType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""
             sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"

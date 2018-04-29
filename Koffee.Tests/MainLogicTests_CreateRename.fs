@@ -272,6 +272,7 @@ let renameTextSelection cursorPosition fileName =
     let inputMode = Input (Rename cursorPosition)
     let getNode _ = None
     MainLogic.Action.startInput getNode inputMode model
+    |> shouldEqual (Ok ())
 
     model.InputMode |> shouldEqual (Some inputMode)
     model.InputText |> shouldEqual node.Name

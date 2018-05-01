@@ -363,7 +363,6 @@ module MainStatus =
     let actionComplete action pathFormat =
         actionCompleteMessage action pathFormat |> Message
 
-    let cannotMoveToSameFolder = ErrorMessage <| "Cannot move item to same folder it is already in"
     let cancelled = Message <| "Cancelled"
 
     // undo/redo
@@ -402,6 +401,7 @@ type MainError =
     | InvalidSearchSwitch of char
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
+    | CannotMoveToSameFolder
     | CouldNotOpenApp of app: string * exn
     | CouldNotFindKoffeeExe
 
@@ -431,6 +431,7 @@ type MainError =
             let append = if hidden then " (hidden)" else ""
             sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
                     actionName nodeType name append
+        | CannotMoveToSameFolder -> "Cannot move item to same folder it is already in"
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
 

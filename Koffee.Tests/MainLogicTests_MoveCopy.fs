@@ -143,7 +143,7 @@ let ``Put item to move in same folder gives same-folder message``() =
 
     let expected = createModel()
     expected.YankRegister <- item
-    expected.Status <- Some <| MainStatus.cannotMoveToSameFolder
+    expected.SetError CannotMoveToSameFolder
     assertAreEqual expected model
 
 // undo move tests

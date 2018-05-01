@@ -3,6 +3,7 @@
 open NUnit.Framework
 open FsUnitTyped
 open Testing
+open KellermanSoftware.CompareNetObjects
 
 let oldNodes = [
     createNode "/c/path/one"
@@ -30,8 +31,9 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     let refresh _ = refreshed <- true
     let model = createModel()
     let node = oldNodes.[0]
-    MainLogic.Action.delete fsDelete fsRecycle refresh node permanent model |> Async.RunSynchronously
+    let res = MainLogic.Action.delete fsDelete fsRecycle refresh node permanent model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     if permanent then
         deleted |> shouldEqual (Some node.Path)
         recycled |> shouldEqual None
@@ -47,16 +49,17 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     assertAreEqual expected model
 
 [<Test>]
-let ``Delete handles error by setting error status``() =
+let ``Delete handles error by returning error``() =
     let fsDelete _ = Error ex
     let fsRecycle _ = failwith "recycle should not be called"
     let mutable refreshed = false
     let refresh _ = refreshed <- true
     let model = createModel()
     let node = oldNodes.[0]
-    MainLogic.Action.delete fsDelete fsRecycle refresh node true model |> Async.RunSynchronously
+    let res = MainLogic.Action.delete fsDelete fsRecycle refresh node true model |> Async.RunSynchronously
 
+    let expectedAction = (DeletedItem (oldNodes.[0], true))
+    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
     refreshed |> shouldEqual false
     let expected = createModel()
-    expected.SetItemError (DeletedItem (oldNodes.[0], true)) ex
-    assertAreEqual expected model
+    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model

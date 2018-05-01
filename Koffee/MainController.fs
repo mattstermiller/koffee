@@ -287,7 +287,7 @@ module MainLogic =
             | Some container when container.Type.CanCreateIn ->
                 let sameFolder = node.Path.Parent = model.Path
                 if putAction = Move && sameFolder then
-                    model.Status <- Some MainStatus.cannotMoveToSameFolder
+                    return Error CannotMoveToSameFolder
                 else
                     let newName =
                         if putAction = Copy && sameFolder then
@@ -308,24 +308,30 @@ module MainLogic =
                         | Ok () ->
                             model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
                             model.InputText <- ""
-                        | Error e -> model.SetError e
+                            return Ok ()
+                        | Error e -> return Error e
                     | _ ->
-                        try
-                            model.Status <- MainStatus.runningAction action model.PathFormat
-                            do! runAsync (fun () -> fileSysAction node.Path newPath)
+                        model.Status <- MainStatus.runningAction action model.PathFormat
+                        let! res = runAsync (fun () -> tryResult (fun () -> fileSysAction node.Path newPath))
+                        match res with
+                        | Ok () ->
                             openPath config.ShowHidden model.Path (SelectName newName) model |> ignore
                             model |> performedAction action
-                        with e -> model.SetItemError action e
-            | _ -> model.SetError CannotPutHere
+                            return Ok ()
+                        | Error e -> return Error <| ItemActionError (action, model.PathFormat, e)
+            | _ -> return Error CannotPutHere
         }
 
         let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = async {
             match model.YankRegister with
             | None -> ()
             | Some (node, putAction) ->
-                do! putItem config getNode move copy openPath overwrite node putAction model
-                if not model.HasErrorStatus && model.InputMode.IsNone then
-                    model.YankRegister <- None
+                let! res = putItem config getNode move copy openPath overwrite node putAction model
+                match res with
+                | Ok () ->
+                    if not model.HasErrorStatus && model.InputMode.IsNone then
+                        model.YankRegister <- None
+                | Error e -> model.SetError e
         }
 
         let undoMove getNode move openPath node currentPath (model: MainModel) = async {
@@ -373,8 +379,10 @@ module MainLogic =
                 | Ok () ->
                     refresh model |> ignore
                     model |> performedAction action
+                    return Ok ()
                 | Error e ->
-                    model.SetItemError action e
+                    return Error <| ItemActionError (action, model.PathFormat, e)
+            else return Ok ()
         }
 
 
@@ -514,10 +522,17 @@ type MainController(fileSys: FileSystemService,
                 model.InputMode <- None
                 match confirmType with
                 | Overwrite (action, src, _) ->
-                    do! this.PutItem true src action model
-                    if not model.HasErrorStatus then
-                        model.YankRegister <- None
-                | Delete -> do! this.Delete model.SelectedNode true model
+                    let! res = this.PutItem true src action model
+                    match res with
+                    | Ok () ->
+                        if not model.HasErrorStatus then
+                            model.YankRegister <- None
+                    | Error e -> model.SetError e
+                | Delete ->
+                    let! res = this.Delete model.SelectedNode true model
+                    match res with
+                    | Ok () -> ()
+                    | Error e -> model.SetError e
                 | OverwriteBookmark (char, _) -> setBookmark char model.Path
             | 'n' ->
                 model.InputMode <- None
@@ -545,7 +560,10 @@ type MainController(fileSys: FileSystemService,
             | Ok () -> model.Status <- Some <| MainStatus.removedNetworkHost host
             | Error e -> model.SetError e
         else
-            do! this.Delete model.SelectedNode false model
+            let! res = this.Delete model.SelectedNode false model
+            match res with
+            | Ok () -> ()
+            | Error e -> model.SetError e
     }
 
     member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
@@ -580,38 +598,34 @@ type MainController(fileSys: FileSystemService,
                 if path <> model.Path then
                     this.OpenPath path SelectNone model
                 else Ok ()
-            let mapAsync = Result.map (fun () -> async { () })
-            let res =
+            let! res = async {
                 match action with
                 | CreatedItem node ->
-                    goToPath node.Path
-                    |> Result.bind (fun () -> this.Create node.Type node.Name model)
-                    |> mapAsync
+                    return goToPath node.Path
+                           |> Result.bind (fun () -> this.Create node.Type node.Name model)
                 | RenamedItem (node, newName) ->
-                    goToPath node.Path
-                    |> Result.bind (fun () -> this.Rename node newName model)
-                    |> mapAsync
+                    return goToPath node.Path
+                           |> Result.bind (fun () -> this.Rename node newName model)
                 | MovedItem (node, newPath)
                 | CopiedItem (node, newPath) ->
-                    let moveOrCopy =
-                        match action with
-                        | MovedItem _ -> Move
-                        | _ -> Copy
-                    goToPath newPath
-                    |> Result.map (fun () -> async {
+                    match goToPath newPath with
+                    | Ok () ->
+                        let moveOrCopy =
+                            match action with
+                            | MovedItem _ -> Move
+                            | _ -> Copy
                         model.Status <- MainStatus.redoingAction action model.PathFormat
-                        do! this.PutItem false node moveOrCopy model
-                    })
+                        return! this.PutItem false node moveOrCopy model
+                    | Error e -> return Error e
                 | DeletedItem (node, permanent) ->
-                    goToPath node.Path
-                    |> Result.map (fun () -> async {
+                    match goToPath node.Path with
+                    | Ok () ->
                         model.Status <- MainStatus.redoingAction action model.PathFormat
-                        do! this.Delete node permanent model
-                    })
-
+                        return! this.Delete node permanent model
+                    | Error e -> return Error e
+            }
             match res with
-            | Ok asyncAction ->
-                do! asyncAction
+            | Ok () ->
                 model.RedoStack <- rest
                 model.Status <- Some <| MainStatus.redoAction action model.PathFormat
             | Error e -> model.SetError e

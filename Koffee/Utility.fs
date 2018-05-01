@@ -52,7 +52,7 @@ module Result =
 type ResultBuilder() =
     member this.Bind (x, f) = Result.bind f x
     member this.Return x = Ok x
-    member this.ReturnFrom x = x
+    member this.ReturnFrom (x: Result<_,_>) = x
     member this.Zero () = Ok ()
     member this.Delay f = f
     member this.Run f = f ()
@@ -62,6 +62,28 @@ type ResultBuilder() =
         | Error e -> Error e
 
 let result = ResultBuilder()
+
+type AsyncResultBuilder() =
+    member this.Bind (a, f) = async.Bind(a, f)
+    member this.Bind (r, f) = async {
+        match r with
+        | Ok x -> return! f x
+        | Error e -> return Error e
+    }
+    member this.Return x = result.Return x |> async.Return
+    member this.ReturnFrom x = result.ReturnFrom x |> async.Return
+    member this.ReturnFrom (x: Async<Result<_,_>>) = async.ReturnFrom x
+    member this.Zero () = result.Zero () |> async.Return
+    member this.Delay f = async.Delay f
+    member this.Combine (x, y) = async {
+        let! res = x
+        match res with
+        | Ok () -> return! y
+        | Error e -> return Error e
+    }
+    member this.Using (x, f) = async.Using (x, f)
+
+let asyncResult = AsyncResultBuilder()
 
 module Order =
     let by f s = Enumerable.OrderBy(s, (fun x -> f x))

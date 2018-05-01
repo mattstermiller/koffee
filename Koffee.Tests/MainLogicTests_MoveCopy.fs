@@ -4,6 +4,7 @@ open System
 open NUnit.Framework
 open FsUnitTyped
 open Testing
+open KellermanSoftware.CompareNetObjects
 
 let nodeSameFolder = createNode "/c/path/file 2"
 let nodeDiffFolder = createNode "/c/other/file 2"
@@ -61,8 +62,9 @@ let ``Put item to move or copy in different folder with item of same name prompt
     let item = Some (src, action)
     let model = createModel()
     model.YankRegister <- item
-    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     let expected = createModel()
     expected.YankRegister <- item
     expected.Nodes <- newNodes
@@ -74,7 +76,7 @@ let ``Put item to move or copy in different folder with item of same name prompt
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Put item to move or copy handles error by setting error status`` doCopy =
+let ``Put item to move or copy returns error`` doCopy =
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let config = Config()
@@ -88,13 +90,13 @@ let ``Put item to move or copy handles error by setting error status`` doCopy =
     let item = Some (src, if doCopy then Copy else Move)
     let model = createModel()
     model.YankRegister <- item
-    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
     let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
+    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
     let expected = createModel()
     expected.YankRegister <- item
-    expected.SetItemError expectedAction ex
-    assertAreEqual expected model
+    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
 
 // move tests
 
@@ -114,8 +116,9 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
         Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Move)
-    MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
+    let res = MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     moved |> shouldEqual (Some (src.Path, dest.Path))
     let expectedAction = MovedItem (src, dest.Path)
     let expected = createModel()
@@ -126,7 +129,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     assertAreEqual expected model
 
 [<Test>]
-let ``Put item to move in same folder gives same-folder message``() =
+let ``Put item to move in same folder returns error``() =
     let src = nodeSameFolder
     let config = Config()
     let getNode = mockGetNode None
@@ -139,11 +142,11 @@ let ``Put item to move in same folder gives same-folder message``() =
     let item = Some (src, Move)
     let model = createModel()
     model.YankRegister <- item
-    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
+    res |> shouldEqual (Error CannotMoveToSameFolder)
     let expected = createModel()
     expected.YankRegister <- item
-    expected.SetError CannotMoveToSameFolder
     assertAreEqual expected model
 
 // undo move tests
@@ -226,8 +229,9 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
         Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Copy)
-    MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
+    let res = MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     copied |> shouldEqual (Some (src.Path, dest.Path))
     let expectedAction = CopiedItem (src, dest.Path)
     let expected = createModel()
@@ -254,8 +258,9 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
         Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Copy)
-    MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     let destName = MainLogic.Action.getCopyName src.Name existingCopies
     let destPath = model.Path.Join destName
     copied |> shouldEqual (Some (src.Path, destPath))

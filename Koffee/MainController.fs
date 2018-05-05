@@ -385,13 +385,14 @@ type MainController(fileSys: FileSystemService,
         | Ok () -> ()
         | Error e -> model.SetError e
 
-    let resultHandler handler (model: MainModel) =
-        handler model |> applyResult model
+    let resultHandler handler =
+        Sync (fun model -> handler model |> applyResult model)
 
-    let asyncResultHandler handler (model: MainModel) = async {
-        let! res = handler model
-        res |> applyResult model
-    }
+    let asyncResultHandler handler =
+        Async (fun model -> async {
+            let! res = handler model
+            res |> applyResult model
+        })
 
     interface IController<MainEvents, MainModel> with
         member this.InitModel model =
@@ -422,33 +423,33 @@ type MainController(fileSys: FileSystemService,
         | CursorDownHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor + m.HalfPageScroll))
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
-        | OpenPath p -> Sync <| resultHandler (this.OpenUserPath p)
-        | OpenSelected -> Sync <| resultHandler (MainLogic.Navigation.openSelected this.OpenPath fileSys.OpenFile)
-        | OpenParent -> Sync <| resultHandler (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
-        | Back -> Sync <| resultHandler (MainLogic.Navigation.back this.OpenPath)
-        | Forward -> Sync <| resultHandler (MainLogic.Navigation.forward this.OpenPath)
-        | Refresh -> Sync <| resultHandler this.Refresh
+        | OpenPath p -> resultHandler (this.OpenUserPath p)
+        | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected this.OpenPath fileSys.OpenFile)
+        | OpenParent -> resultHandler (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
+        | Back -> resultHandler (MainLogic.Navigation.back this.OpenPath)
+        | Forward -> resultHandler (MainLogic.Navigation.forward this.OpenPath)
+        | Refresh -> resultHandler this.Refresh
         | Undo -> Async this.Undo
-        | Redo -> Async <| asyncResultHandler this.Redo
-        | StartPrompt promptType -> Sync <| resultHandler (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
-        | StartConfirm confirmType -> Sync <| resultHandler (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
-        | StartInput inputType -> Sync <| resultHandler (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
-        | SubmitInput -> Sync <| resultHandler this.SubmitInput
-        | InputCharTyped c -> Async <| asyncResultHandler (this.InputCharTyped c)
+        | Redo -> asyncResultHandler this.Redo
+        | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
+        | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
+        | StartInput inputType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
+        | SubmitInput -> resultHandler this.SubmitInput
+        | InputCharTyped c -> asyncResultHandler (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
         | SearchPrevious -> Sync (MainLogic.Cursor.searchNext true)
         | StartMove -> Sync (MainLogic.Action.registerItem Move)
         | StartCopy -> Sync (MainLogic.Action.registerItem Copy)
-        | Put -> Async <| asyncResultHandler (this.Put false)
-        | Recycle -> Async <| asyncResultHandler this.Recycle
-        | SortList field -> Sync <| resultHandler (MainLogic.Navigation.sortList this.Refresh field)
-        | ToggleHidden -> Sync <| resultHandler this.ToggleHidden
-        | OpenSplitScreenWindow -> Sync <| resultHandler this.OpenSplitScreenWindow
-        | OpenSettings -> Sync <| resultHandler this.OpenSettings
+        | Put -> asyncResultHandler (this.Put false)
+        | Recycle -> asyncResultHandler this.Recycle
+        | SortList field -> resultHandler (MainLogic.Navigation.sortList this.Refresh field)
+        | ToggleHidden -> resultHandler this.ToggleHidden
+        | OpenSplitScreenWindow -> resultHandler this.OpenSplitScreenWindow
+        | OpenSettings -> resultHandler this.OpenSettings
         | OpenExplorer -> Sync this.OpenExplorer
-        | OpenCommandLine -> Sync <| resultHandler this.OpenCommandLine
-        | OpenWithTextEditor -> Sync <| resultHandler this.OpenWithTextEditor
+        | OpenCommandLine -> resultHandler this.OpenCommandLine
+        | OpenWithTextEditor -> resultHandler this.OpenWithTextEditor
         | Exit -> Sync ignore // handled by view
 
     member this.OpenPath = MainLogic.Navigation.openPath fileSys.GetNodes config.ShowHidden

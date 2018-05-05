@@ -42,6 +42,11 @@ type Node = {
 with
     override this.ToString() = this.Path.Format Windows
 
+    member this.DisplayName =
+        match this.Type with
+        | Folder | NetShare -> this.Name + @"\"
+        | _ -> this.Name
+
     member this.Description =
         sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
 

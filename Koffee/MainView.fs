@@ -33,7 +33,7 @@ type MainView(window: MainWindow,
 
     override this.SetBindings (model: MainModel) =
         // setup grid
-        window.NodeGrid.AddColumn("Name", widthWeight = 3.0)
+        window.NodeGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
         window.NodeGrid.AddColumn("Type")
         window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)

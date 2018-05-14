@@ -11,7 +11,9 @@ module MainLogic =
         config.Changed.Add (fun _ ->
             model.YankRegister <- config.YankRegister
                                   |> Option.bind (fun (path, action) ->
-                                      getNode path |> Option.map (fun n -> n, action))
+                                      match getNode path with
+                                      | Ok (Some node) -> Some (node, action)
+                                      | _ -> None)
             model.PathFormat <- config.PathFormat
             model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
         config.Load()
@@ -60,10 +62,11 @@ module MainLogic =
             match Path.Parse pathStr with
             | Some path ->
                 match getNode path with
-                | Some node when node.Type = File ->
+                | Ok (Some node) when node.Type = File ->
                     openPath path.Parent (SelectName node.Name) model
-                | _ ->
+                | Ok _ ->
                     openPath path SelectNone model
+                | Error e -> Error <| ActionError ("open path", e)
             | None -> Error <| InvalidPath pathStr
 
         let openSelected openPath openFile (model: MainModel) =
@@ -197,8 +200,9 @@ module MainLogic =
                 | Input CreateFile
                 | Input CreateFolder ->
                     match getNode model.Path with
-                    | Some node when node.Type.CanCreateIn -> Ok true
-                    | _ -> Error <| CannotPutHere
+                    | Ok (Some node) when node.Type.CanCreateIn -> Ok true
+                    | Ok _ -> Error <| CannotPutHere
+                    | Error e -> Error <| ActionError ("create item", e)
                 | Input (Rename _)
                 | Confirm Delete -> Ok model.SelectedNode.Type.CanModify 
                 | _ -> Ok true
@@ -216,7 +220,7 @@ module MainLogic =
             let createPath = model.Path.Join name
             let action = CreatedItem { Path = createPath; Name = name; Type = nodeType;
                                        Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-            let! existing = tryResult (fun () -> getNode createPath) |> itemActionError action model.PathFormat
+            let! existing = getNode createPath |> itemActionError action model.PathFormat
             match existing with
             | None ->
                 do! tryResult (fun () -> fsCreate nodeType createPath) |> itemActionError action model.PathFormat
@@ -227,50 +231,48 @@ module MainLogic =
                 return! Error <| CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
         }
 
-        let undoCreate isEmpty delete refresh node (model: MainModel) = async {
+        let undoCreate isEmpty delete refresh node (model: MainModel) = asyncResult {
             if isEmpty node.Path then
                 model.Status <- Some <| MainStatus.undoingCreate node
                 let! res = runAsync (fun () -> delete node.Path)
-                match res with
-                | Ok () ->
-                    if model.Path = node.Path.Parent then
-                        refresh model |> ignore
-                | Error e ->
-                    model.SetItemError (DeletedItem (node, true)) e
+                do! res |> itemActionError (DeletedItem (node, true)) model.PathFormat
+                if model.Path = node.Path.Parent then
+                    refresh model |> ignore
             else
-                model.Status <- Some <| MainStatus.cannotUndoNonEmptyCreated node
+                return! Error <| CannotUndoNonEmptyCreated node
         }
 
         let rename getNode move openPath node newName (model: MainModel) = result {
             if node.Type.CanModify then
                 let action = RenamedItem (node, newName)
                 let newPath = node.Path.Parent.Join newName
-                let existing = if Str.equalsIgnoreCase node.Name newName then None
-                               else getNode newPath
+                let! existing =
+                    if Str.equalsIgnoreCase node.Name newName then Ok None
+                    else getNode newPath |> itemActionError action model.PathFormat
                 match existing with
-                | Some existingNode ->
-                    return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
                 | None ->
                     do! tryResult (fun () -> move node.Path newPath) |> itemActionError action model.PathFormat
                     do! openPath model.Path (SelectName newName) model
                     model |> performedAction action
+                | Some existingNode ->
+                    return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
             }
 
-        let undoRename getNode move openPath oldNode currentName (model: MainModel) =
+        let undoRename getNode move openPath oldNode currentName (model: MainModel) = result {
             let parentPath = oldNode.Path.Parent
             let currentPath = parentPath.Join currentName
-            try
-                let existing = if Str.equalsIgnoreCase oldNode.Name currentName then None
-                               else getNode oldNode.Path
-                match existing with
-                | Some existingNode ->
-                    model.SetError <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
-                | None ->
-                    move currentPath oldNode.Path
-                    openPath parentPath (SelectName oldNode.Name) model |> ignore
-            with e ->
-                let node = { oldNode with Name = currentName; Path = currentPath }
-                model.SetItemError (RenamedItem (node, oldNode.Name)) e
+            let node = { oldNode with Name = currentName; Path = currentPath }
+            let action = RenamedItem (node, oldNode.Name)
+            let! existing =
+                if Str.equalsIgnoreCase oldNode.Name currentName then Ok None
+                else getNode oldNode.Path |> itemActionError action model.PathFormat
+            match existing with
+            | None ->
+                do! tryResult <| (fun () -> move currentPath oldNode.Path) |> itemActionError action model.PathFormat
+                do! openPath parentPath (SelectName oldNode.Name) model
+            | Some existingNode ->
+                return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
+        }
 
         let registerItem action (model: MainModel) =
             if model.SelectedNode.Type.CanModify then
@@ -284,23 +286,30 @@ module MainLogic =
 
         let putItem (config: Config) getNode move copy openPath overwrite node putAction (model: MainModel) = asyncResult {
             let sameFolder = node.Path.Parent = model.Path
-            match getNode model.Path with
+            let! container = getNode model.Path |> actionError "put item"
+            match container with
             | Some container when container.Type.CanCreateIn ->
                 if putAction = Move && sameFolder then
                     return! Error CannotMoveToSameFolder
             | _ -> return! Error CannotPutHere
-            let newName =
+            let! newName =
                 if putAction = Copy && sameFolder then
-                    let exists name = Option.isSome (getNode (model.Path.Join name))
-                    Seq.init 99 (getCopyName node.Name) |> Seq.find (not << exists)
+                    let unused name =
+                        match getNode (model.Path.Join name) with
+                        | Ok None -> true
+                        | _ -> false
+                    Seq.init 99 (getCopyName node.Name)
+                    |> Seq.tryFind (unused)
+                    |> Result.ofOption (TooManyCopies node.Name)
                 else
-                    node.Name
+                    Ok node.Name
             let newPath = model.Path.Join newName
             let fileSysAction, action =
                 match putAction with
                 | Move -> (move, MovedItem (node, newPath))
                 | Copy -> (copy, CopiedItem (node, newPath))
-            match getNode newPath with
+            let! existing = getNode newPath |> itemActionError action model.PathFormat
+            match existing with
             | Some existing when not overwrite ->
                 // refresh node list to make sure we can see the existing file
                 let showHidden = config.ShowHidden || existing.IsHidden
@@ -326,39 +335,37 @@ module MainLogic =
                     model.YankRegister <- None
         }
 
-        let undoMove getNode move openPath node currentPath (model: MainModel) = async {
-            match getNode node.Path with
+        let undoMove getNode move openPath node currentPath (model: MainModel) = asyncResult {
+            let from = { node with Path = currentPath; Name = currentPath.Name }
+            let action = MovedItem (from, node.Path)
+            let! existing = getNode node.Path |> itemActionError action model.PathFormat
+            match existing with
             | Some _ ->
                 // TODO: prompt for overwrite here?
-                model.Status <- Some <| MainStatus.cannotUndoMoveToExisting node
+                return! Error <| CannotUndoMoveToExisting node
             | None ->
-                try
-                    model.Status <- Some <| MainStatus.undoingMove node
-                    do! runAsync (fun () -> move currentPath node.Path)
-                    openPath node.Path.Parent (SelectName node.Name) model |> ignore
-                with e ->
-                    let from = { node with Path = currentPath; Name = currentPath.Name }
-                    model.SetItemError (MovedItem (from, node.Path)) e
+                model.Status <- Some <| MainStatus.undoingMove node
+                let! res = runAsync (fun () -> tryResult (fun () -> move currentPath node.Path))
+                do! res |> itemActionError action model.PathFormat
+                openPath node.Path.Parent (SelectName node.Name) model |> ignore
         }
 
-        let undoCopy getNode fsDelete fsRecycle refresh node (currentPath: Path) (model: MainModel) = async {
+        let undoCopy getNode fsDelete fsRecycle refresh node (currentPath: Path) (model: MainModel) = asyncResult {
             let copyModified =
-                try getNode currentPath |> Option.bind (fun n -> n.Modified)
-                with _ -> None
+                match getNode currentPath with
+                | Ok (Some copy) -> copy.Modified
+                | _ -> None
             let isDeletionPermanent =
                 match node.Modified, copyModified with
                 | Some orig, Some copy when orig = copy -> true
                 | _ -> false
+            let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
             let fileSysFunc = if isDeletionPermanent then fsDelete else fsRecycle
             model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
             let! res = runAsync (fun () -> fileSysFunc currentPath)
-            match res with
-            | Ok () ->
-                if model.Path = currentPath.Parent then
-                    refresh model |> ignore
-            | Error e ->
-                let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
-                model.SetItemError action e
+            do! res |> itemActionError action model.PathFormat
+            if model.Path = currentPath.Parent then
+                refresh model |> ignore
         }
 
         let delete fsDelete fsRecycle refresh node permanent (model: MainModel) = asyncResult {
@@ -429,7 +436,7 @@ type MainController(fileSys: FileSystemService,
         | Back -> resultHandler (MainLogic.Navigation.back this.OpenPath)
         | Forward -> resultHandler (MainLogic.Navigation.forward this.OpenPath)
         | Refresh -> resultHandler this.Refresh
-        | Undo -> Async this.Undo
+        | Undo -> asyncResultHandler this.Undo
         | Redo -> asyncResultHandler this.Redo
         | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
         | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
@@ -555,31 +562,33 @@ type MainController(fileSys: FileSystemService,
             do! res
     }
 
-    member this.Undo model = async {
+    member this.Undo model = asyncResult {
         match model.UndoStack with
         | action :: rest ->
+            model.UndoStack <- rest
             match action with
             | CreatedItem node ->
-                do! MainLogic.Action.undoCreate fileSys.IsEmpty fileSys.Delete this.Refresh node model
+                let! res = MainLogic.Action.undoCreate fileSys.IsEmpty fileSys.Delete this.Refresh node model
+                do! res
             | RenamedItem (oldNode, curName) ->
-                MainLogic.Action.undoRename fileSys.GetNode fileSys.Move this.OpenPath oldNode curName model
+                do! MainLogic.Action.undoRename fileSys.GetNode fileSys.Move this.OpenPath oldNode curName model
             | MovedItem (node, newPath) ->
-                do! MainLogic.Action.undoMove fileSys.GetNode fileSys.Move this.OpenPath node newPath model
+                let! res = MainLogic.Action.undoMove fileSys.GetNode fileSys.Move this.OpenPath node newPath model
+                do! res
             | CopiedItem (node, newPath) ->
-                do! MainLogic.Action.undoCopy fileSys.GetNode fileSys.Delete fileSys.Recycle this.Refresh node newPath model
+                let! res = MainLogic.Action.undoCopy fileSys.GetNode fileSys.Delete fileSys.Recycle this.Refresh node newPath model
+                do! res
             | DeletedItem (node, permanent) ->
-                model.Status <- Some <| MainStatus.cannotUndoDelete permanent node
-
-            model.UndoStack <- rest
-            if not model.HasErrorStatus then
-                model.RedoStack <- action :: model.RedoStack
-                model.Status <- Some <| MainStatus.undoAction action model.PathFormat
-        | [] -> model.Status <- Some <| MainStatus.noUndoActions
+                return! Error <| CannotUndoDelete (permanent, node)
+            model.RedoStack <- action :: model.RedoStack
+            model.Status <- Some <| MainStatus.undoAction action model.PathFormat
+        | [] -> return! Error NoUndoActions
     }
 
     member this.Redo model = asyncResult {
         match model.RedoStack with
         | action :: rest ->
+            model.RedoStack <- rest
             let goToPath (nodePath: Path) =
                 let path = nodePath.Parent
                 if path <> model.Path then
@@ -609,7 +618,7 @@ type MainController(fileSys: FileSystemService,
                 do! res
             model.RedoStack <- rest
             model.Status <- Some <| MainStatus.redoAction action model.PathFormat
-        | [] -> model.Status <- Some <| MainStatus.noRedoActions
+        | [] -> return! Error NoRedoActions
     }
 
     member this.OpenSplitScreenWindow model = result {

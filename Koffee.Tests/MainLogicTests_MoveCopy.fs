@@ -32,8 +32,8 @@ let createModel () =
     model
 
 let mockGetNodeFunc nodeFunc path =
-    if path = modelPathNode.Path then Some modelPathNode
-    else nodeFunc path
+    if path = modelPathNode.Path then Ok (Some modelPathNode)
+    else Ok (nodeFunc path)
 
 let mockGetNode nodeToReturn = mockGetNodeFunc (fun _ -> nodeToReturn)
 
@@ -156,7 +156,7 @@ let ``Put item to move in same folder returns error``() =
 let ``Undo move item moves it back`` curPathDifferent =
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
-    let getNode _ = None
+    let getNode _ = Ok None
     let mutable moved = None
     let move s d = moved <- Some (s, d)
     let mutable selected = None
@@ -169,8 +169,9 @@ let ``Undo move item moves it back`` curPathDifferent =
     let model = createModel()
     if curPathDifferent then
         model.Path <- createPath "/c/other"
-    MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
+    let res = MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
     selected |> shouldEqual (Some (SelectName prevNode.Name))
     let expectedAction = MovedItem (prevNode, curNode.Path)
@@ -179,37 +180,37 @@ let ``Undo move item moves it back`` curPathDifferent =
     assertAreEqual expected model
 
 [<Test>]
-let ``Undo move item when previous path is occupied sets error status``() =
+let ``Undo move item when previous path is occupied returns error``() =
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
-    let getNode p = if p = prevNode.Path then Some prevNode else None
+    let getNode p = if p = prevNode.Path then Ok (Some prevNode) else Ok None
     let move _ _ = failwith "move should not be called"
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
     model.Path <- createPath "/c/other"
-    MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
+    let res = MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
 
+    res |> shouldEqual (Error (CannotUndoMoveToExisting prevNode))
     let expected = createModel()
     expected.Path <- createPath "/c/other"
-    expected.Status <- Some <| MainStatus.cannotUndoMoveToExisting prevNode
     assertAreEqual expected model
 
 [<Test>]
-let ``Undo move item handles error by setting error status``() =
+let ``Undo move item handles move error by returning error``() =
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
-    let getNode _ = None
+    let getNode _ = Ok None
     let move _ _ = raise ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
     model.Path <- createPath "/c/other"
-    MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
+    let res = MainLogic.Action.undoMove getNode move openPath prevNode curNode.Path model |> Async.RunSynchronously
 
     let expectedAction = MovedItem (curNode, prevNode.Path)
+    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
     let expected = createModel()
     expected.Path <- createPath "/c/other"
-    expected.SetItemError expectedAction ex
-    assertAreEqual expected model
+    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
 
 // copy tests
 
@@ -280,7 +281,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let modified = Some (DateTime(2000, 1, 1))
     let original = { nodeDiffFolder with Modified = modified }
     let copied = { nodeSameFolder with Modified = modified }
-    let getNode p = if p = copied.Path then Some copied else None
+    let getNode p = if p = copied.Path then Ok (Some copied) else Ok None
     let model = createModel()
     let mutable deleted = None
     let delete p =
@@ -291,8 +292,9 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let refresh (model: MainModel) = model.Nodes <- newNodes
     if curPathDifferent then
         model.Path <- createPath "/c/other"
-    MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
+    let res = MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     deleted |> shouldEqual (Some copied.Path)
     let expected = createModel()
     if curPathDifferent then
@@ -307,7 +309,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     let time = if hasTimestamp then Some (DateTime(2000, 1, 1)) else None
     let original = { nodeDiffFolder with Modified = time }
     let copied = { nodeSameFolder with Modified = time |> Option.map (fun t -> t.AddDays(1.0)) }
-    let getNode p = if p = copied.Path then Some copied else None
+    let getNode p = if p = copied.Path then Ok (Some copied) else Ok None
     let delete _ = failwith "delete should not be called"
     let model = createModel()
     let mutable recycled = None
@@ -316,8 +318,9 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
         model.Status <- None
         Ok ()
     let refresh (model: MainModel) = model.Nodes <- newNodes
-    MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
+    let res = MainLogic.Action.undoCopy getNode delete recycle refresh original copied.Path model |> Async.RunSynchronously
 
+    res |> shouldEqual (Ok ())
     recycled |> shouldEqual (Some copied.Path)
     let expected = createModel()
     expected.Nodes <- newNodes
@@ -325,15 +328,17 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo copy item handles error by setting error status and consumes action`` throwOnGetNode =
+let ``Undo copy item handles errors by returning error and consuming action`` throwOnGetNode =
     let original = nodeDiffFolder
     let copied = nodeSameFolder
-    let getNode _ = if throwOnGetNode then raise ex else None
+    let action = DeletedItem (copied, false)
+    let model = createModel()
+    let error = ItemActionError (action, model.PathFormat, ex)
+    let getNode _ = if throwOnGetNode then Error error else Ok None
     let fsFunc _ = Error ex
     let refresh _ = failwith "refresh should not be called"
-    let model = createModel()
-    MainLogic.Action.undoCopy getNode fsFunc fsFunc refresh original copied.Path model |> Async.RunSynchronously
+    let res = MainLogic.Action.undoCopy getNode fsFunc fsFunc refresh original copied.Path model |> Async.RunSynchronously
 
+    res |> shouldEqual (Error error)
     let expected = createModel()
-    expected.SetItemError (DeletedItem (copied, false)) ex
-    assertAreEqual expected model
+    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model

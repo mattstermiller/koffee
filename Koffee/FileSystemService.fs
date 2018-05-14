@@ -96,28 +96,29 @@ type FileSystemService(config: Config) =
 
     member private this.FileOrFolderAction actionName action path =
         match this.GetNode path with
-        | Some node when node.Type = File
-                      || node.Type = Folder -> action node.Type
-        | Some node -> failwith (cannotActOnNodeType actionName node.Type)
-        | None -> failwith "Path does not exist"
+        | Ok (Some node) when node.Type = File || node.Type = Folder -> action node.Type
+        | Ok (Some node) -> failwith (cannotActOnNodeType actionName node.Type)
+        | Ok None -> failwith "Path does not exist"
+        | Error (e: exn) -> raise e
 
     member this.GetNode path =
-        let wp = wpath path
-        let drive = lazy DriveInfo(wp)
-        let dir = lazy DirectoryInfo(wp)
-        let file = lazy FileInfo(wp)
-        if path.IsNetHost then
-            path |> netHostNode |> Some
-        else if path.Parent.IsNetHost && dir.Value.Exists then
-            path |> netShareNode |> Some
-        else if path.Drive = Some path then
-            drive.Value |> driveNode |> Some
-        else if dir.Value.Exists then
-            dir.Value |> folderNode |> Some
-        else if file.Value.Exists then
-            file.Value |> fileNode |> Some
-        else
-            None
+        tryResult <| fun () ->
+            let wp = wpath path
+            let drive = lazy DriveInfo(wp)
+            let dir = lazy DirectoryInfo(wp)
+            let file = lazy FileInfo(wp)
+            if path.IsNetHost then
+                Some (path |> netHostNode)
+            else if path.Parent.IsNetHost && dir.Value.Exists then
+                Some (path |> netShareNode)
+            else if path.Drive = Some path then
+                Some (drive.Value |> driveNode)
+            else if dir.Value.Exists then
+                Some (dir.Value |> folderNode)
+            else if file.Value.Exists then
+                Some (file.Value |> fileNode)
+            else
+                None
 
     member this.GetNodes showHidden path =
         let allNodes =
@@ -235,8 +236,9 @@ type FileSystemService(config: Config) =
                 |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
                 |> Option.filter (flip (>) 0L)
                 |> Result.ofOption (Exception "This drive does not have a recycle bin.")
+            let! node = this.GetNode path
             let! size =
-                match this.GetNode path with
+                match node with
                 | Some f when f.Type = File ->
                     Ok f.Size.Value
                 | Some f when f.Type = Folder ->

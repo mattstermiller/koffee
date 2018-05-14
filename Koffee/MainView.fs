@@ -380,18 +380,6 @@ module MainStatus =
     let redoAction action pathFormat =
         Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
 
-    let noUndoActions = ErrorMessage "No more actions to undo"
-    let noRedoActions = ErrorMessage "No more actions to redo"
-    let cannotUndoNonEmptyCreated (node: Node) =
-        ErrorMessage <| sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
-    let cannotUndoMoveToExisting node =
-        ErrorMessage <| sprintf "Cannot undo move of %s because an item exists in its previous location" node.Name
-    let cannotUndoDelete permanent (node: Node) =
-        ErrorMessage <| 
-            if permanent then
-                sprintf "Cannot undo deletion of %s" node.Description
-            else
-                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description
 
 type MainError =
     | ActionError of actionName: string * exn
@@ -402,6 +390,12 @@ type MainError =
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
     | CannotMoveToSameFolder
+    | TooManyCopies of fileName: string
+    | CannotUndoNonEmptyCreated of Node
+    | CannotUndoMoveToExisting of moded: Node
+    | CannotUndoDelete of permanent: bool * node: Node
+    | NoUndoActions
+    | NoRedoActions
     | CouldNotOpenApp of app: string * exn
     | CouldNotFindKoffeeExe
 
@@ -432,6 +426,17 @@ type MainError =
             sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
                     actionName nodeType name append
         | CannotMoveToSameFolder -> "Cannot move item to same folder it is already in"
+        | TooManyCopies fileName -> sprintf "There are already too many copies of \"%s\"" fileName
+        | CannotUndoNonEmptyCreated node ->
+            sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
+        | CannotUndoMoveToExisting moved -> sprintf "Cannot undo move of %s because an item exists in its previous location" moved.Name
+        | CannotUndoDelete (permanent, node) ->
+            if permanent then
+                sprintf "Cannot undo deletion of %s" node.Description
+            else
+                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description
+        | NoUndoActions -> "No more actions to undo"
+        | NoRedoActions -> "No more actions to redo"
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
 

@@ -26,8 +26,9 @@ let history handler backStack forwardStack =
             match select with
             | SelectIndex c -> c
             | _ -> failwith "unexpected select type"
+        Ok ()
 
-    handler openPath model
+    handler openPath model |> ignore
 
     let pathStr (path: Path, c) = (path.Name, c)
     { Path = model.Path.Name

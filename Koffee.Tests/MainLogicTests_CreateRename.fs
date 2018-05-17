@@ -32,7 +32,9 @@ let ex = System.UnauthorizedAccessException()
 let ``Create folder calls file sys create, openPath and sets status``() =
     let getNode _ = Ok None
     let mutable created = None
-    let create nodeType path = created <- Some (nodeType, path)
+    let create nodeType path =
+        created <- Some (nodeType, path)
+        Ok ()
     let mutable selected = None
     let openPath p s (model: MainModel) =
         model.Path <- p
@@ -81,7 +83,7 @@ let ``Create folder returns error when item already exists at path`` existingHid
 [<Test>]
 let ``Create folder handles error by returning error``() =
     let getNode _ = Ok None
-    let create _ _ = raise ex
+    let create _ _ = Error ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let createNode = newNodes.[1]
     let model = createModel()
@@ -155,7 +157,9 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let renamedNode = if diffCaseOnly then currentNode else newNodes.[1]
     let getNode _ = if diffCaseOnly then Ok (Some currentNode) else Ok None
     let mutable renamed = None
-    let move s d = renamed <- Some (s, d)
+    let move s d =
+        renamed <- Some (s, d)
+        Ok ()
     let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
@@ -195,7 +199,7 @@ let ``Rename handles error by returning error``() =
     let currentNode = oldNodes.[1]
     let renamedNode = newNodes.[1]
     let getNode _ = Ok None
-    let move _ _ = raise ex
+    let move _ _ = Error ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
 
@@ -217,7 +221,9 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
     let curNode = if diffCaseOnly then prevNode else oldNodes.[1]
     let getNode _ = if diffCaseOnly then Ok (Some curNode) else Ok None
     let mutable moved = None
-    let move s d = moved <- Some (s, d)
+    let move s d =
+        moved <- Some (s, d)
+        Ok ()
     let mutable selected = None
     let openPath p select (model: MainModel) =
         model.Path <- p
@@ -254,7 +260,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
 [<Test>]
 let ``Undo rename item handles move error by returning error``() =
     let getNode _ = Ok None
-    let move _ _ = raise ex
+    let move _ _ = Error ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]

@@ -92,14 +92,14 @@ type FileSystemService(config: Config) =
                 file.Attributes <- file.Attributes &&& (~~~flagsToClear)
 
     let cannotActOnNodeType action nodeType =
-        sprintf "Cannot %s node type %O" action nodeType
+        exn <| sprintf "Cannot %s node type %O" action nodeType
 
-    member private this.FileOrFolderAction actionName action path =
+    member private this.FileOrFolderAction path actionName action =
         match this.GetNode path with
         | Ok (Some node) when node.Type = File || node.Type = Folder -> action node.Type
-        | Ok (Some node) -> failwith (cannotActOnNodeType actionName node.Type)
-        | Ok None -> failwith "Path does not exist"
-        | Error (e: exn) -> raise e
+        | Ok (Some node) -> Error <| cannotActOnNodeType actionName node.Type
+        | Ok None -> Error <| exn "Path does not exist"
+        | Error e -> Error e
 
     member this.GetNode path =
         tryResult <| fun () ->
@@ -177,12 +177,12 @@ type FileSystemService(config: Config) =
     member this.Create nodeType path =
         let wp = wpath path
         match nodeType with
-        | File -> File.Create(wp).Dispose()
-        | Folder -> Directory.CreateDirectory(wp) |> ignore
-        | _ -> failwith (cannotActOnNodeType "create" nodeType)
+        | File -> tryResult (fun () -> File.Create(wp).Dispose())
+        | Folder -> tryResult (fun () -> Directory.CreateDirectory(wp) |> ignore)
+        | _ -> Error <| cannotActOnNodeType "create" nodeType
 
     member this.Move currentPath newPath =
-        currentPath |> this.FileOrFolderAction "move" (fun nodeType ->
+        this.FileOrFolderAction currentPath "move" <| fun nodeType -> result {
             let moveFile source dest =
                 prepForOverwrite <| FileInfo dest
                 FileSystem.MoveFile(source, dest, true)
@@ -201,35 +201,38 @@ type FileSystemService(config: Config) =
             let dest = wpath newPath
             if Str.equalsIgnoreCase source dest then
                 let temp = sprintf "_rename_%s" currentPath.Name |> currentPath.Parent.Join
-                this.Move currentPath temp
-                this.Move temp newPath
+                do! this.Move currentPath temp
+                do! this.Move temp newPath
             else
-                if nodeType = Folder then
-                    moveDir source dest
-                else
-                    moveFile source dest)
+                return! tryResult <| fun () ->
+                    if nodeType = Folder then
+                        moveDir source dest
+                    else
+                        moveFile source dest
+        }
 
     member this.Copy currentPath newPath =
-        currentPath |> this.FileOrFolderAction "copy" (fun nodeType ->
+        this.FileOrFolderAction currentPath "copy" <| fun nodeType ->
             let source = wpath currentPath
             let dest = wpath newPath
             let copyFile source dest =
                 prepForOverwrite <| FileInfo dest
                 File.Copy(source, dest, true)
-            if nodeType = Folder then
-                let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
-                // copy folder structure
-                Directory.CreateDirectory dest |> ignore
-                Directory.GetDirectories(source, "*", SearchOption.AllDirectories)
-                    |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
-                // copy files
-                Directory.GetFiles(source, "*", SearchOption.AllDirectories)
-                    |> Seq.iter (fun file -> copyFile file (getDest file))
-            else
-                copyFile source dest)
+            tryResult <| fun () ->
+                if nodeType = Folder then
+                    let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
+                    // copy folder structure
+                    Directory.CreateDirectory dest |> ignore
+                    Directory.GetDirectories(source, "*", SearchOption.AllDirectories)
+                        |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
+                    // copy files
+                    Directory.GetFiles(source, "*", SearchOption.AllDirectories)
+                        |> Seq.iter (fun file -> copyFile file (getDest file))
+                else
+                    copyFile source dest
 
     member this.Recycle path =
-        path |> this.FileOrFolderAction "recycle" (fun nodeType -> result {
+        this.FileOrFolderAction path "recycle" <| fun nodeType -> result {
             let wp = wpath path
             let! driveSize =
                 path.Drive
@@ -255,10 +258,10 @@ type FileSystemService(config: Config) =
                         FileSystem.DeleteDirectory(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
                     else
                         FileSystem.DeleteFile(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-        })
+        }
 
     member this.Delete path =
-        path |> this.FileOrFolderAction "delete" (fun nodeType ->
+        this.FileOrFolderAction path "delete" <| fun nodeType ->
             let wp = wpath path
             tryResult <| fun () ->
                 if nodeType = Folder then
@@ -268,11 +271,11 @@ type FileSystemService(config: Config) =
                 else
                     prepForOverwrite <| FileInfo wp
                     File.Delete wp
-        )
 
     member this.OpenFile path =
-        ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
-        |> Process.Start |> ignore
+        tryResult <| fun () ->
+            ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
+            |> Process.Start |> ignore
 
     member this.OpenExplorer node =
         match node.Type with

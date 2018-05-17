@@ -81,8 +81,8 @@ let ``Put item to move or copy returns error`` doCopy =
     let dest = nodeSameFolder
     let config = Config()
     let getNode = mockGetNode None
-    let move _ _ = if not doCopy then raise ex else failwith "move should not be called"
-    let copy _ _ = if doCopy then raise ex else failwith "copy should not be called"
+    let move _ _ = if not doCopy then Error ex else failwith "move should not be called"
+    let copy _ _ = if doCopy then Error ex else failwith "copy should not be called"
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
@@ -108,7 +108,9 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let config = Config()
     let getNode = mockGetNode (if overwrite then Some dest else None)
     let mutable moved = None
-    let move s d = moved <- Some (s, d)
+    let move s d =
+        moved <- Some (s, d)
+        Ok ()
     let copy _ _ = failwith "copy should not be called"
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
@@ -158,7 +160,9 @@ let ``Undo move item moves it back`` curPathDifferent =
     let curNode = oldNodes.[1]
     let getNode _ = Ok None
     let mutable moved = None
-    let move s d = moved <- Some (s, d)
+    let move s d =
+        moved <- Some (s, d)
+        Ok ()
     let mutable selected = None
     let openPath p s (model: MainModel) =
         model.Nodes <- newNodes
@@ -200,7 +204,7 @@ let ``Undo move item handles move error by returning error``() =
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
     let getNode _ = Ok None
-    let move _ _ = raise ex
+    let move _ _ = Error ex
     let openPath _ _ _ = failwith "openPath should not be called"
     let model = createModel()
     model.Path <- createPath "/c/other"
@@ -223,7 +227,9 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let getNode = mockGetNode (if overwrite then Some dest else None)
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
-    let copy s d = copied <- Some (s, d)
+    let copy s d =
+        copied <- Some (s, d)
+        Ok ()
     let openPath _ p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
@@ -252,7 +258,9 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let getNode = mockGetNodeFunc (fun p -> if existingPaths |> List.contains p then Some src else None)
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
-    let copy s d = copied <- Some (s, d)
+    let copy s d =
+        copied <- Some (s, d)
+        Ok ()
     let openPath _ p _ (m: MainModel) =
         m.Path <- p
         m.Nodes <- newNodes

@@ -75,10 +75,9 @@ module MainLogic =
             | Folder | Drive | NetHost | NetShare ->
                 openPath node.Path SelectNone model
             | File ->
-                tryResult (fun () ->
-                    openFile node.Path
-                    model.Status <- Some <| MainStatus.openFile node.Name
-                ) |> actionError (sprintf "open '%s'" node.Name)
+                openFile node.Path |> actionError (sprintf "open '%s'" node.Name)
+                |> Result.map (fun () ->
+                    model.Status <- Some <| MainStatus.openFile node.Name)
             | _ -> Ok ()
 
         let back openPath (model: MainModel) = result {
@@ -223,7 +222,7 @@ module MainLogic =
             let! existing = getNode createPath |> itemActionError action model.PathFormat
             match existing with
             | None ->
-                do! tryResult (fun () -> fsCreate nodeType createPath) |> itemActionError action model.PathFormat
+                do! fsCreate nodeType createPath |> itemActionError action model.PathFormat
                 do! openPath model.Path (SelectName name) model
                 model |> performedAction (CreatedItem model.SelectedNode)
             | Some existing ->
@@ -251,7 +250,7 @@ module MainLogic =
                     else getNode newPath |> itemActionError action model.PathFormat
                 match existing with
                 | None ->
-                    do! tryResult (fun () -> move node.Path newPath) |> itemActionError action model.PathFormat
+                    do! move node.Path newPath |> itemActionError action model.PathFormat
                     do! openPath model.Path (SelectName newName) model
                     model |> performedAction action
                 | Some existingNode ->
@@ -268,7 +267,7 @@ module MainLogic =
                 else getNode oldNode.Path |> itemActionError action model.PathFormat
             match existing with
             | None ->
-                do! tryResult <| (fun () -> move currentPath oldNode.Path) |> itemActionError action model.PathFormat
+                do! move currentPath oldNode.Path |> itemActionError action model.PathFormat
                 do! openPath parentPath (SelectName oldNode.Name) model
             | Some existingNode ->
                 return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
@@ -319,7 +318,7 @@ module MainLogic =
                 model.InputText <- ""
             | _ ->
                 model.Status <- MainStatus.runningAction action model.PathFormat
-                let! res = runAsync (fun () -> tryResult (fun () -> fileSysAction node.Path newPath))
+                let! res = runAsync (fun () -> fileSysAction node.Path newPath)
                 do! res |> itemActionError action model.PathFormat
                 openPath config.ShowHidden model.Path (SelectName newName) model |> ignore
                 model |> performedAction action
@@ -345,7 +344,7 @@ module MainLogic =
                 return! Error <| CannotUndoMoveToExisting node
             | None ->
                 model.Status <- Some <| MainStatus.undoingMove node
-                let! res = runAsync (fun () -> tryResult (fun () -> move currentPath node.Path))
+                let! res = runAsync (fun () -> move currentPath node.Path)
                 do! res |> itemActionError action model.PathFormat
                 openPath node.Path.Parent (SelectName node.Name) model |> ignore
         }

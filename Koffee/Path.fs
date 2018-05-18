@@ -59,7 +59,8 @@ type Path private (path: string) =
 
     static member Root = Path root
     static member Network = Path net
-    static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+    static member KoffeeData = Path(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)).Join "Koffee"
 
     static member Parse (s: string) =
         match s.Trim() with

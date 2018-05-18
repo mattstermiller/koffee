@@ -14,9 +14,7 @@ type StartupPath =
     | DefaultPath
 
 module ConfigExt =
-    let private filePath =
-        let appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
-        Path.Combine(appData, "Koffee", "config.yaml")
+    let private filePath = Path.KoffeeData.Join("config.yaml").Format Windows
 
     let private bookmarkKey char = sprintf "_%c" char
 

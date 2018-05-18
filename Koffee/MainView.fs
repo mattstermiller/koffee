@@ -82,7 +82,9 @@ type MainView(window: MainWindow,
             if mode.IsNone then model.InputTextSelection <- (999, 0))
 
         // update UI for status
-        bindPropertyToFunc <@ model.Status @> this.UpdateStatus
+        let updateStatus _ = this.UpdateStatus model.Status model.Nodes
+        bindPropertyToFunc <@ model.Status @> updateStatus
+        bindPropertyToFunc <@ model.Nodes @> updateStatus
 
         // bind Tab key to switch focus
         window.PathBox.PreviewKeyDown.Add <| onKey Key.Tab window.NodeGrid.Focus
@@ -235,11 +237,17 @@ type MainView(window: MainWindow,
                 currBindings <- matchedBindings
                 None
 
-    member this.UpdateStatus status =
+    member this.UpdateStatus status nodes =
         window.StatusText.Text <- 
             match status with
             | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-            | None -> ""
+            | None ->
+                let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                let fileStr =
+                    match fileSizes with
+                    | [] -> ""
+                    | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
+                sprintf "%i items%s" nodes.Length fileStr
         window.StatusText.Foreground <-
             match status with
             | Some (ErrorMessage _) -> Brushes.Red

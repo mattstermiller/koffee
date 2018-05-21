@@ -1,13 +1,11 @@
 ﻿module Koffee.KeyBinding
 
-open System.Windows.Input
-
 let private parseKey keyStr = 
     match KeyComboParser.Parse keyStr with
     | Some keys -> keys
     | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
 
-let DefaultsAsString = [
+let defaultsAsString = [
     ("k", CursorUp)
     ("j", CursorDown)
     ("<c-k>", CursorUpHalfPage)
@@ -60,24 +58,30 @@ let DefaultsAsString = [
     ("<c-w>", Exit)
 ]
 
-let Defaults =
-    DefaultsAsString
+let defaults =
+    defaultsAsString
     |> List.map (fun (keyStr, evt) -> (parseKey keyStr, evt))
 
-let GetMatch (currBindings: (KeyCombo * 'a) list) (chord: ModifierKeys * Key) =
+type KeyBindMatch<'a> =
+    | Match of 'a
+    | PartialMatch
+    | NoMatch
+
+let getMatch (keyBindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
     // choose bindings where the next key/chord matches, selecting the remaining chords
-    let matchBindings =
-        currBindings
-        |> List.choose
-            (fun (keyCombo, item) ->
-                match keyCombo with
-                | kc :: rest when kc = chord-> Some (rest, item)
-                | _ -> None)
-    // find bindings that had all chords matched
-    let triggered =
-        matchBindings
-        |> List.filter (fun (keyCombo, item) -> keyCombo = [])
-    // if any were triggered, return only the last one; else return all matched bindings
-    match triggered with
-    | [] -> matchBindings
-    | trig -> [List.last trig]
+    let rec startsWith l sw =
+        match l, sw with
+        | x :: l, y :: sw when x = y -> startsWith l sw
+        | l, [] -> Some l
+        | _ -> None
+    let matches =
+        keyBindings |> List.choose (fun (kc, item) ->
+            startsWith kc keyCombo |> Option.map (fun rem -> (rem, item)))
+    match matches with
+    | [] -> NoMatch
+    | _ ->
+        // find last binding that had all chords matched
+        let triggered = matches |> List.tryFindBack (fun (keyCombo, _) -> keyCombo = [])
+        match triggered with
+        | Some (_, item) -> Match item
+        | None -> PartialMatch

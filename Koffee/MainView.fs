@@ -21,7 +21,7 @@ type MainView(window: MainWindow,
               startupOptions: StartupOptions) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
-    let mutable currBindings = keyBindings
+    let mutable currentKeyCombo = []
 
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Observable.choose (fun evt ->
@@ -212,29 +212,27 @@ type MainView(window: MainWindow,
             None
         else if chord = (ModifierKeys.None, Key.Escape) then
             evt.Handled <- true
-            currBindings <- keyBindings
+            currentKeyCombo <- []
             None
         else if chord = (ModifierKeys.Control, Key.C) then
             evt.Handled <- true // prevent crash due to bug in WPF datagrid
             None
         else
-            match KeyBinding.GetMatch currBindings chord with
-            // completed key combo
-            | [ ([], Exit) ] ->
+            let keyCombo = List.append currentKeyCombo [chord]
+            match KeyBinding.getMatch keyBindings keyCombo with
+            | KeyBinding.Match Exit ->
                 window.Close()
                 None
-            | [ ([], newEvent) ] ->
+            | KeyBinding.Match newEvent ->
                 evt.Handled <- true
-                currBindings <- keyBindings
+                currentKeyCombo <- []
                 Some newEvent
-            // no match
-            | [] ->
-                currBindings <- keyBindings
-                None
-            // partial match to one or more key combos
-            | matchedBindings ->
+            | KeyBinding.PartialMatch ->
                 evt.Handled <- true
-                currBindings <- matchedBindings
+                currentKeyCombo <- keyCombo
+                None
+            | KeyBinding.NoMatch ->
+                currentKeyCombo <- []
                 None
 
     member this.UpdateStatus status nodes =

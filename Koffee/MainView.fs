@@ -94,6 +94,7 @@ type MainView(window: MainWindow,
 
         // bind Tab key to switch focus
         window.PathBox.PreviewKeyDown.Add <| onKey Key.Tab window.NodeGrid.Focus
+        window.PathBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.NodeGrid.PreviewKeyDown.Add <| onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus())
@@ -109,10 +110,7 @@ type MainView(window: MainWindow,
             this.ItemsPerPage |> Option.iter (fun i -> model.PageSize <- i))
 
         // escape and lost focus resets the input mode
-        window.PreviewKeyDown.Add <| onKey Key.Escape (fun () ->
-            model.Status <- None
-            model.InputMode <- None
-            window.NodeGrid.Focus() |> ignore)
+        window.InputBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
 
         // on path enter, update to formatted path and focus grid

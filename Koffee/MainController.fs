@@ -468,7 +468,12 @@ type MainController(fileSys: FileSystemService,
         let event =
             if chord = (ModifierKeys.None, Key.Escape) then
                 handleKey ()
-                model.KeyCombo <- []
+                if model.InputMode.IsSome then
+                    model.InputMode <- None
+                else if not model.KeyCombo.IsEmpty then
+                    model.KeyCombo <- []
+                else
+                    model.Status <- None
                 None
             else if chord = (ModifierKeys.Control, Key.C) then
                 handleKey () // prevent crash due to bug in WPF datagrid

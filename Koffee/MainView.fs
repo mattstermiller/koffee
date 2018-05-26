@@ -88,8 +88,9 @@ type MainView(window: MainWindow,
             if mode.IsNone then model.InputTextSelection <- (999, 0))
 
         // update UI for status
-        let updateStatus _ = this.UpdateStatus model.Status model.Nodes
+        let updateStatus _ = this.UpdateStatus model.Status model.KeyCombo model.Nodes
         bindPropertyToFunc <@ model.Status @> updateStatus
+        bindPropertyToFunc <@ model.KeyCombo @> updateStatus
         bindPropertyToFunc <@ model.Nodes @> updateStatus
 
         // bind Tab key to switch focus
@@ -211,20 +212,26 @@ type MainView(window: MainWindow,
         | [| c |] -> Some (InputCharTyped c)
         | _ -> None
 
-    member this.UpdateStatus status nodes =
+    member this.UpdateStatus status keyCombo nodes =
         window.StatusText.Text <- 
-            match status with
-            | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-            | None ->
-                let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                let fileStr =
-                    match fileSizes with
-                    | [] -> ""
-                    | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                sprintf "%i items%s" nodes.Length fileStr
+            if not keyCombo.IsEmpty then
+                keyCombo
+                |> Seq.map KeyBinding.keyDescription
+                |> String.concat ""
+                |> sprintf "Pressed %s, waiting for another key..."
+            else
+                match status with
+                | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+                | None ->
+                    let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                    let fileStr =
+                        match fileSizes with
+                        | [] -> ""
+                        | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
+                    sprintf "%i items%s" nodes.Length fileStr
         window.StatusText.Foreground <-
-            match status with
-            | Some (ErrorMessage _) -> Brushes.Red
+            match keyCombo, status with
+            | [], Some (ErrorMessage _) -> Brushes.Red
             | _ -> SystemColors.WindowTextBrush
 
         let isBusy =

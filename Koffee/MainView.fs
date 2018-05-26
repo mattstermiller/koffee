@@ -16,7 +16,6 @@ open ConfigExt
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
 type MainView(window: MainWindow,
-              keyBindings: (KeyCombo * MainEvents) list,
               config: Config,
               startupOptions: StartupOptions) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
@@ -30,6 +29,13 @@ type MainView(window: MainWindow,
                 Some <| resultFunc()
             else
                 None)
+
+    let isNotModifier (keyEvt: KeyEventArgs) =
+        let modifierKeys = [
+            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
+            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
+        ]
+        not <| List.contains keyEvt.Key modifierKeys
 
     override this.SetBindings (model: MainModel) =
         // setup grid
@@ -180,12 +186,18 @@ type MainView(window: MainWindow,
         window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
             if evt.Key = Key.Enter then Some <| OpenPath window.PathBox.Text
             else None)
-        window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
-            match this.TriggerKeyBindings evt with
-            | Some Exit -> Some Exit
-            | _ -> evt.Handled <- false; None)
+        window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
+            let keyPress = KeyPress (evt.Chord, evt.Handler)
+            let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
+            let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
+            match evt.Chord with
+            | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
+            | (modifier, _) when ignoreMods |> (not << List.contains modifier) -> Some keyPress
+            | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
+            | _ -> None)
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
-        window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
+        window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
+                                       |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewTextInput |> Observable.choose this.InputKey
@@ -200,40 +212,6 @@ type MainView(window: MainWindow,
         match keyEvt.Text.ToCharArray() with
         | [| c |] -> Some (InputCharTyped c)
         | _ -> None
-
-    member this.TriggerKeyBindings evt =
-        let modifierKeys = [
-            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
-            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
-        ]
-        let chord = (Keyboard.Modifiers, evt.Key)
-
-        if Seq.contains evt.Key modifierKeys then
-            None
-        else if chord = (ModifierKeys.None, Key.Escape) then
-            evt.Handled <- true
-            currentKeyCombo <- []
-            None
-        else if chord = (ModifierKeys.Control, Key.C) then
-            evt.Handled <- true // prevent crash due to bug in WPF datagrid
-            None
-        else
-            let keyCombo = List.append currentKeyCombo [chord]
-            match KeyBinding.getMatch keyBindings keyCombo with
-            | KeyBinding.Match Exit ->
-                window.Close()
-                None
-            | KeyBinding.Match newEvent ->
-                evt.Handled <- true
-                currentKeyCombo <- []
-                Some newEvent
-            | KeyBinding.PartialMatch ->
-                evt.Handled <- true
-                currentKeyCombo <- keyCombo
-                None
-            | KeyBinding.NoMatch ->
-                currentKeyCombo <- []
-                None
 
     member this.UpdateStatus status nodes =
         window.StatusText.Text <- 

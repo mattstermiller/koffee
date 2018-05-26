@@ -6,6 +6,9 @@ open System.Threading.Tasks
 open Koffee.ConfigExt
 open Utility
 
+type ModifierKeys = System.Windows.Input.ModifierKeys
+type Key = System.Windows.Input.Key
+
 module MainLogic =
     let initModel (config: Config) getNode openUserPath startupOptions isFirstInstance (model: MainModel) =
         config.Changed.Add (fun _ ->
@@ -382,7 +385,9 @@ module MainLogic =
 type MainController(fileSys: FileSystemService,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     getScreenBounds: unit -> Rectangle,
+                    closeWindow: unit -> unit,
                     config: Config,
+                    keyBindings: (KeyCombo * MainEvents) list,
                     startupOptions) =
     // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
@@ -423,6 +428,7 @@ type MainController(fileSys: FileSystemService,
             })
 
     member this.Dispatcher = function
+        | KeyPress (chord, handler) -> Async <| this.KeyPress chord handler.Handle
         | CursorUp -> Sync (fun m -> m.SetCursor (m.Cursor - 1))
         | CursorUpHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor - m.HalfPageScroll))
         | CursorDown -> Sync (fun m -> m.SetCursor (m.Cursor + 1))
@@ -456,7 +462,38 @@ type MainController(fileSys: FileSystemService,
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> resultHandler this.OpenCommandLine
         | OpenWithTextEditor -> resultHandler this.OpenWithTextEditor
-        | Exit -> Sync ignore // handled by view
+        | Exit -> Sync (ignore >> closeWindow)
+
+    member this.KeyPress chord handleKey model = async {
+        let event =
+            if chord = (ModifierKeys.None, Key.Escape) then
+                handleKey ()
+                model.KeyCombo <- []
+                None
+            else if chord = (ModifierKeys.Control, Key.C) then
+                handleKey () // prevent crash due to bug in WPF datagrid
+                None
+            else
+                let keyCombo = List.append model.KeyCombo [chord]
+                match KeyBinding.getMatch keyBindings keyCombo with
+                | KeyBinding.Match newEvent ->
+                    handleKey ()
+                    model.KeyCombo <- []
+                    Some newEvent
+                | KeyBinding.PartialMatch ->
+                    handleKey ()
+                    model.KeyCombo <- keyCombo
+                    None
+                | KeyBinding.NoMatch ->
+                    model.KeyCombo <- []
+                    None
+        match event with
+        | Some e ->
+            match this.Dispatcher e with
+            | Sync handler -> handler model
+            | Async handler -> do! handler model
+        | None -> ()
+    }
 
     member this.OpenPath = MainLogic.Navigation.openPath fileSys.GetNodes config.ShowHidden
     member this.OpenUserPath = MainLogic.Navigation.openUserPath fileSys.GetNode this.OpenPath

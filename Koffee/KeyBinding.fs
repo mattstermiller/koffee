@@ -7,7 +7,7 @@ let private parseKey keyStr =
     | Some keys -> keys
     | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
 
-let DefaultsAsString = [
+let defaultsAsString = [
     ("k", CursorUp)
     ("j", CursorDown)
     ("<c-k>", CursorUpHalfPage)
@@ -60,24 +60,89 @@ let DefaultsAsString = [
     ("<c-w>", Exit)
 ]
 
-let Defaults =
-    DefaultsAsString
+let defaults =
+    defaultsAsString
     |> List.map (fun (keyStr, evt) -> (parseKey keyStr, evt))
 
-let GetMatch (currBindings: (KeyCombo * 'a) list) (chord: ModifierKeys * Key) =
+type KeyBindMatch<'a> =
+    | Match of 'a
+    | PartialMatch
+    | NoMatch
+
+let getMatch (keyBindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
     // choose bindings where the next key/chord matches, selecting the remaining chords
-    let matchBindings =
-        currBindings
-        |> List.choose
-            (fun (keyCombo, item) ->
-                match keyCombo with
-                | kc :: rest when kc = chord-> Some (rest, item)
-                | _ -> None)
-    // find bindings that had all chords matched
-    let triggered =
-        matchBindings
-        |> List.filter (fun (keyCombo, item) -> keyCombo = [])
-    // if any were triggered, return only the last one; else return all matched bindings
-    match triggered with
-    | [] -> matchBindings
-    | trig -> [List.last trig]
+    let rec startsWith l sw =
+        match l, sw with
+        | x :: l, y :: sw when x = y -> startsWith l sw
+        | l, [] -> Some l
+        | _ -> None
+    let matches =
+        keyBindings |> List.choose (fun (kc, item) ->
+            startsWith kc keyCombo |> Option.map (fun rem -> (rem, item)))
+    match matches with
+    | [] -> NoMatch
+    | _ ->
+        // find last binding that had all chords matched
+        let triggered = matches |> List.tryFindBack (fun (keyCombo, _) -> keyCombo = [])
+        match triggered with
+        | Some (_, item) -> Match item
+        | None -> PartialMatch
+
+let keyDescription (modifiers: ModifierKeys, key: Key) =
+    let isLetter = key >= Key.A && key <= Key.Z
+    let mutable showShift = false
+    let keyStr =
+        match key, modifiers.HasFlag ModifierKeys.Shift with
+        | key, false when isLetter -> (string key).ToLower()
+        | key, true when isLetter -> string key
+        | key, false when key >= Key.D0 && key <= Key.D9 -> (string key).Substring(1)
+        | Key.D1, true -> "!"
+        | Key.D2, true -> "@"
+        | Key.D3, true -> "#"
+        | Key.D4, true -> "$"
+        | Key.D5, true -> "%"
+        | Key.D6, true -> "^"
+        | Key.D7, true -> "&"
+        | Key.D8, true -> "*"
+        | Key.D9, true -> "("
+        | Key.D0, true -> ")"
+        | Key.Oem3, false -> "`"
+        | Key.Oem3, true -> "~"
+        | Key.OemMinus, false -> "-"
+        | Key.OemMinus, true -> "_"
+        | Key.OemPlus, false -> "="
+        | Key.OemPlus, true -> "+"
+        | Key.OemOpenBrackets, false -> "["
+        | Key.OemOpenBrackets, true -> "{"
+        | Key.Oem6, false -> "]"
+        | Key.Oem6, true -> "}"
+        | Key.Oem5, false -> "\\"
+        | Key.Oem5, true -> "|"
+        | Key.OemSemicolon, false -> ";"
+        | Key.OemSemicolon, true -> ":"
+        | Key.OemQuotes, false -> "'"
+        | Key.OemQuotes, true -> "\""
+        | Key.OemComma, false -> ","
+        | Key.OemComma, true -> "<"
+        | Key.OemPeriod, false -> "."
+        | Key.OemPeriod, true -> ">"
+        | Key.OemQuestion, false -> "/"
+        | Key.OemQuestion, true -> "?"
+        | Key.Return, shift ->
+            showShift <- shift
+            "Enter"
+        | _, shift ->
+            showShift <- shift
+            string key
+    let mods =
+        [ ModifierKeys.Control, "c"
+          ModifierKeys.Shift, "s"
+          ModifierKeys.Alt, "a"
+          ModifierKeys.Windows, "m"
+        ]
+        |> List.filter (fun (m, _) -> m <> ModifierKeys.Shift || showShift)
+        |> List.choose (fun (m, s) -> if modifiers.HasFlag m then Some s else None)
+    if mods.IsEmpty then
+        keyStr
+    else
+        sprintf "<%s-%s>" (mods |> String.concat "") keyStr

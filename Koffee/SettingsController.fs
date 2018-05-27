@@ -11,9 +11,9 @@ type SettingsController(config: Config) =
                 |> List.map (fun evt ->
                     { EventName = evt.FriendlyName
                       BoundKeys =
-                        KeyBinding.DefaultsAsString
+                        KeyBinding.defaults
                         |> List.filter (snd >> ((=) evt))
-                        |> List.map fst
+                        |> List.map (fst >> Seq.map KeyBinding.keyDescription >> String.concat "")
                         |> String.concat " OR "
                     })
 

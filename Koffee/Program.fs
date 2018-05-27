@@ -11,14 +11,14 @@ let makeSettingsMvc config =
     let controller = SettingsController(config)
     Mvc(model, view, controller)
 
-let makeMainMvc config options =
+let makeMainMvc config options window =
     let model = MainModel.Create()
-    let window = MainWindow()
-    let view = MainView(window, KeyBinding.Defaults, config, options)
+    let view = MainView(window, config, options)
     let fileSys = FileSystemService(config)
     let settingsFactory () = makeSettingsMvc config
-    let controller = MainController(fileSys, settingsFactory, window.GetScreenWorkingArea, config, options)
-    (Mvc(model, view, controller), window)
+    let controller = MainController(fileSys, settingsFactory, window.GetScreenWorkingArea, window.Close,
+                                    config, KeyBinding.defaults, options)
+    Mvc(model, view, controller)
 
 let logCrash (e: exn) =
     let timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
@@ -38,7 +38,8 @@ let main args =
     let options = parseArgs (Array.toList args)
 
     let config = Config()
-    let (mvc, window) = makeMainMvc config options
+    let window = MainWindow()
+    let mvc = makeMainMvc config options window
 
     use eventLoop = mvc.Start()
 

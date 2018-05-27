@@ -122,7 +122,7 @@ let ``Given 3 chords, returns a sequence of those chords.``() =
 
 [<Test>]
 let ``Default key bindings, which uses parsing, does not throw an error.``() =
-    KeyBinding.Defaults |> ignore
+    KeyBinding.defaults |> ignore
 
 [<TestCase("<>")>]
 [<TestCase("<s->")>]

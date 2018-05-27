@@ -16,12 +16,11 @@ open ConfigExt
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
 type MainView(window: MainWindow,
-              keyBindings: (KeyCombo * MainEvents) list,
               config: Config,
               startupOptions: StartupOptions) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
-    let mutable currBindings = keyBindings
+    let mutable currentKeyCombo = []
 
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Observable.choose (fun evt ->
@@ -30,6 +29,13 @@ type MainView(window: MainWindow,
                 Some <| resultFunc()
             else
                 None)
+
+    let isNotModifier (keyEvt: KeyEventArgs) =
+        let modifierKeys = [
+            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
+            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
+        ]
+        not <| List.contains keyEvt.Key modifierKeys
 
     override this.SetBindings (model: MainModel) =
         // setup grid
@@ -82,12 +88,14 @@ type MainView(window: MainWindow,
             if mode.IsNone then model.InputTextSelection <- (999, 0))
 
         // update UI for status
-        let updateStatus _ = this.UpdateStatus model.Status model.Nodes
+        let updateStatus _ = this.UpdateStatus model.Status model.KeyCombo model.Nodes
         bindPropertyToFunc <@ model.Status @> updateStatus
+        bindPropertyToFunc <@ model.KeyCombo @> updateStatus
         bindPropertyToFunc <@ model.Nodes @> updateStatus
 
         // bind Tab key to switch focus
         window.PathBox.PreviewKeyDown.Add <| onKey Key.Tab window.NodeGrid.Focus
+        window.PathBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.NodeGrid.PreviewKeyDown.Add <| onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus())
@@ -103,10 +111,7 @@ type MainView(window: MainWindow,
             this.ItemsPerPage |> Option.iter (fun i -> model.PageSize <- i))
 
         // escape and lost focus resets the input mode
-        window.PreviewKeyDown.Add <| onKey Key.Escape (fun () ->
-            model.Status <- None
-            model.InputMode <- None
-            window.NodeGrid.Focus() |> ignore)
+        window.InputBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
 
         // on path enter, update to formatted path and focus grid
@@ -180,12 +185,18 @@ type MainView(window: MainWindow,
         window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
             if evt.Key = Key.Enter then Some <| OpenPath window.PathBox.Text
             else None)
-        window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
-            match this.TriggerKeyBindings evt with
-            | Some Exit -> Some Exit
-            | _ -> evt.Handled <- false; None)
+        window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
+            let keyPress = KeyPress (evt.Chord, evt.Handler)
+            let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
+            let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
+            match evt.Chord with
+            | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
+            | (modifier, _) when ignoreMods |> (not << List.contains modifier) -> Some keyPress
+            | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
+            | _ -> None)
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
-        window.NodeGrid.PreviewKeyDown |> Observable.choose this.TriggerKeyBindings
+        window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
+                                       |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewTextInput |> Observable.choose this.InputKey
@@ -201,56 +212,26 @@ type MainView(window: MainWindow,
         | [| c |] -> Some (InputCharTyped c)
         | _ -> None
 
-    member this.TriggerKeyBindings evt =
-        let modifierKeys = [
-            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
-            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
-        ]
-        let chord = (Keyboard.Modifiers, evt.Key)
-
-        if Seq.contains evt.Key modifierKeys then
-            None
-        else if chord = (ModifierKeys.None, Key.Escape) then
-            evt.Handled <- true
-            currBindings <- keyBindings
-            None
-        else if chord = (ModifierKeys.Control, Key.C) then
-            evt.Handled <- true // prevent crash due to bug in WPF datagrid
-            None
-        else
-            match KeyBinding.GetMatch currBindings chord with
-            // completed key combo
-            | [ ([], Exit) ] ->
-                window.Close()
-                None
-            | [ ([], newEvent) ] ->
-                evt.Handled <- true
-                currBindings <- keyBindings
-                Some newEvent
-            // no match
-            | [] ->
-                currBindings <- keyBindings
-                None
-            // partial match to one or more key combos
-            | matchedBindings ->
-                evt.Handled <- true
-                currBindings <- matchedBindings
-                None
-
-    member this.UpdateStatus status nodes =
+    member this.UpdateStatus status keyCombo nodes =
         window.StatusText.Text <- 
-            match status with
-            | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-            | None ->
-                let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                let fileStr =
-                    match fileSizes with
-                    | [] -> ""
-                    | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                sprintf "%i items%s" nodes.Length fileStr
+            if not keyCombo.IsEmpty then
+                keyCombo
+                |> Seq.map KeyBinding.keyDescription
+                |> String.concat ""
+                |> sprintf "Pressed %s, waiting for another key..."
+            else
+                match status with
+                | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+                | None ->
+                    let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                    let fileStr =
+                        match fileSizes with
+                        | [] -> ""
+                        | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
+                    sprintf "%i items%s" nodes.Length fileStr
         window.StatusText.Foreground <-
-            match status with
-            | Some (ErrorMessage _) -> Brushes.Red
+            match keyCombo, status with
+            | [], Some (ErrorMessage _) -> Brushes.Red
             | _ -> SystemColors.WindowTextBrush
 
         let isBusy =

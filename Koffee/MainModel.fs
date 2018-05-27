@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System
+open System.Windows.Input
 open FSharp.Desktop.UI
 open Utility
 
@@ -136,6 +137,7 @@ type MainModel() as this =
         this.PathFormat <- Windows
         this.Nodes <- []
         this.Sort <- Name, false
+        this.KeyCombo <- []
         this.BackStack <- []
         this.ForwardStack <- []
         this.UndoStack <- []
@@ -152,6 +154,7 @@ type MainModel() as this =
     abstract Sort: SortField * desc: bool with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
+    abstract KeyCombo: KeyCombo with get, set
     abstract InputMode: InputMode option with get, set
     abstract InputText: string with get, set
     abstract InputTextSelection: start:int * len:int with get, set
@@ -183,6 +186,7 @@ type MainModel() as this =
         this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
 
 type MainEvents =
+    | KeyPress of (ModifierKeys * Key) * UIHelpers.KeyHandler
     | CursorUp
     | CursorDown
     | CursorUpHalfPage
@@ -220,6 +224,7 @@ type MainEvents =
 
     member this.FriendlyName =
         match this with
+        | KeyPress _ -> ""
         | CursorUp -> "Move Cursor Up"
         | CursorDown -> "Move Cursor Down"
         | CursorUpHalfPage -> "Move Cursor Up Half Page"

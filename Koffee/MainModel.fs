@@ -12,7 +12,6 @@ type NodeType =
     | NetHost
     | NetShare
     | Empty
-    | ErrorNode
 
     member this.CanModify =
         match this with
@@ -28,7 +27,6 @@ type NodeType =
         match this with
         | NetHost -> "Network Host"
         | NetShare -> "Network Share"
-        | ErrorNode -> "Error"
         | _ -> sprintf "%A" this
 
 type Node = {

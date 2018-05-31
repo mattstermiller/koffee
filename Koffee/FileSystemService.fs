@@ -69,10 +69,6 @@ type FileSystemService(config: Config) =
     let netShareNode path =
         { basicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
 
-    let errorNode (e: exn) =
-        let error = e.Message.Split('\r', '\n').[0]
-        basicNode Path.Root (sprintf "<%s>" error) ErrorNode
-
     let getNetShares (serverPath: Path) =
         let server = serverPath.Name
         tryResult <| fun () ->

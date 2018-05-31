@@ -3,7 +3,6 @@
 open System
 open System.IO
 open System.Text.RegularExpressions
-open System.Diagnostics
 open System.Management
 open Microsoft.VisualBasic.FileIO
 open Koffee
@@ -271,22 +270,3 @@ type FileSystemService(config: Config) =
                 else
                     prepForOverwrite <| FileInfo wp
                     File.Delete wp
-
-    member this.OpenFile path =
-        tryResult <| fun () ->
-            ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
-            |> Process.Start |> ignore
-
-    member this.OpenExplorer node =
-        match node.Type with
-        | File | Folder when node.Path <> Path.Root ->
-            Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath node.Path)) |> ignore
-        | Drive | Empty ->
-            Process.Start("explorer.exe", sprintf "\"%s\"" (wpath node.Path)) |> ignore
-        | _ ->
-            Process.Start("explorer.exe") |> ignore
-
-    member this.LaunchApp exePath workingPath args =
-        tryResult <| fun () ->
-            ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
-            |> Process.Start |> ignore

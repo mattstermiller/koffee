@@ -72,13 +72,13 @@ module MainLogic =
                 | Error e -> Error <| ActionError ("open path", e)
             | None -> Error <| InvalidPath pathStr
 
-        let openSelected openPath openFile (model: MainModel) =
+        let openSelected openPath (os: IOperatingSystem) (model: MainModel) =
             let node = model.SelectedNode
             match node.Type with
             | Folder | Drive | NetHost | NetShare ->
                 openPath node.Path SelectNone model
             | File ->
-                openFile node.Path |> actionError (sprintf "open '%s'" node.Name)
+                os.OpenFile node.Path |> actionError (sprintf "open '%s'" node.Name)
                 |> Result.map (fun () ->
                     model.Status <- Some <| MainStatus.openFile node.Name)
             | _ -> Ok ()
@@ -383,6 +383,7 @@ module MainLogic =
 
 
 type MainController(fileSys: FileSystemService,
+                    operatingSystem: IOperatingSystem,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     getScreenBounds: unit -> Rectangle,
                     closeWindow: unit -> unit,
@@ -436,7 +437,7 @@ type MainController(fileSys: FileSystemService,
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
         | OpenPath p -> resultHandler (this.OpenUserPath p)
-        | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected this.OpenPath fileSys.OpenFile)
+        | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected this.OpenPath operatingSystem)
         | OpenParent -> resultHandler (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
         | Back -> resultHandler (MainLogic.Navigation.back this.OpenPath)
         | Forward -> resultHandler (MainLogic.Navigation.forward this.OpenPath)
@@ -678,17 +679,17 @@ type MainController(fileSys: FileSystemService,
         let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
                           |> Result.ofOption CouldNotFindKoffeeExe
         let folder = koffeePath.Parent
-        return! fileSys.LaunchApp (koffeePath.Format Windows) folder args
-                |> Result.mapError (fun e -> CouldNotOpenApp ("Koffee", e))
+        do! operatingSystem.LaunchApp (koffeePath.Format Windows) folder args
+            |> Result.mapError (fun e -> CouldNotOpenApp ("Koffee", e))
     }
 
     member this.OpenExplorer model =
-        fileSys.OpenExplorer model.SelectedNode
+        operatingSystem.OpenExplorer model.SelectedNode
         model.Status <- Some <| MainStatus.openExplorer
 
     member this.OpenCommandLine model = result {
         if model.Path <> Path.Root then
-            do! fileSys.LaunchApp config.CommandlinePath model.Path ""
+            do! operatingSystem.LaunchApp config.CommandlinePath model.Path ""
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Commandline tool", e))
             model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
     }
@@ -697,7 +698,7 @@ type MainController(fileSys: FileSystemService,
         match model.SelectedNode.Type with
         | File ->
             let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
-            do! fileSys.LaunchApp config.TextEditor model.Path args
+            do! operatingSystem.LaunchApp config.TextEditor model.Path args
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
             model.Status <- Some <| MainStatus.openTextEditor model.SelectedNode.Name
         | _ -> ()

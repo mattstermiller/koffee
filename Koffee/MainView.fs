@@ -5,8 +5,9 @@ open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Controls
 open System.Windows.Media
-open FSharp.Desktop.UI
+open System.ComponentModel
 open System.Reactive.Linq
+open FSharp.Desktop.UI
 open ModelExtensions
 open UIHelpers
 open Utility
@@ -48,10 +49,24 @@ type MainView(window: MainWindow,
         // simple bindings
         Binding.OfExpression
             <@
-                window.NodeGrid.ItemsSource <- model.Nodes
                 window.NodeGrid.SelectedIndex <- model.Cursor
                 window.InputBox.Text <- model.InputText |> BindingOptions.UpdateSourceOnChange
             @>
+
+        // node list and sort indication
+        bindPropertyToFunc <@ model.Nodes @> <| fun nodes ->
+            window.NodeGrid.ItemsSource <- nodes
+            let sortField, sortDesc = model.Sort
+            let sortDir =
+                if sortDesc then ListSortDirection.Descending
+                else ListSortDirection.Ascending
+            let sortColumnIndex =
+                match sortField with
+                | Name -> 0
+                | Type -> 1
+                | Modified -> 2
+                | Size -> 3
+            window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- System.Nullable sortDir
 
         // display path
         let displayPath _ = window.Dispatcher.Invoke(fun () ->

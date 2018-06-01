@@ -382,7 +382,8 @@ module MainLogic =
         }
 
 
-type MainController(fileSys: FileSystemService,
+type MainController(fsReader: IFileSystemReader,
+                    fsWriter: IFileSystemWriter,
                     operatingSystem: IOperatingSystem,
                     settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
                     getScreenBounds: unit -> Rectangle,
@@ -413,7 +414,7 @@ type MainController(fileSys: FileSystemService,
                 |> Seq.where (fun p -> Str.equalsIgnoreCase p.ProcessName "koffee")
                 |> Seq.length
                 |> (=) 1
-            MainLogic.initModel config fileSys.GetNode this.OpenUserPath startupOptions isFirst model
+            MainLogic.initModel config fsReader.GetNode this.OpenUserPath startupOptions isFirst model
             |> applyResult model
         member this.Dispatcher = this.LockingDispatcher
 
@@ -444,9 +445,9 @@ type MainController(fileSys: FileSystemService,
         | Refresh -> resultHandler this.Refresh
         | Undo -> asyncResultHandler this.Undo
         | Redo -> asyncResultHandler this.Redo
-        | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Prompt promptType))
-        | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Confirm confirmType))
-        | StartInput inputType -> resultHandler (MainLogic.Action.startInput fileSys.GetNode (Input inputType))
+        | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fsReader.GetNode (Prompt promptType))
+        | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fsReader.GetNode (Confirm confirmType))
+        | StartInput inputType -> resultHandler (MainLogic.Action.startInput fsReader.GetNode (Input inputType))
         | SubmitInput -> resultHandler this.SubmitInput
         | InputCharTyped c -> asyncResultHandler (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
@@ -501,15 +502,15 @@ type MainController(fileSys: FileSystemService,
         | None -> ()
     }
 
-    member this.OpenPath = MainLogic.Navigation.openPath fileSys.GetNodes config.ShowHidden
-    member this.OpenUserPath = MainLogic.Navigation.openUserPath fileSys.GetNode this.OpenPath
+    member this.OpenPath = MainLogic.Navigation.openPath fsReader.GetNodes config.ShowHidden
+    member this.OpenUserPath = MainLogic.Navigation.openUserPath fsReader.GetNode this.OpenPath
     member this.Refresh model = this.OpenPath model.Path SelectNone model
 
-    member this.Create = MainLogic.Action.create fileSys.GetNode fileSys.Create this.OpenPath
-    member this.Rename = MainLogic.Action.rename fileSys.GetNode fileSys.Move this.OpenPath
-    member this.Put = MainLogic.Action.put config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
-    member this.PutItem = MainLogic.Action.putItem config fileSys.GetNode fileSys.Move fileSys.Copy (MainLogic.Navigation.openPath fileSys.GetNodes)
-    member this.Delete = MainLogic.Action.delete fileSys.Delete fileSys.Recycle this.Refresh
+    member this.Create = MainLogic.Action.create fsReader.GetNode fsWriter.Create this.OpenPath
+    member this.Rename = MainLogic.Action.rename fsReader.GetNode fsWriter.Move this.OpenPath
+    member this.Put = MainLogic.Action.put config fsReader.GetNode fsWriter.Move fsWriter.Copy (MainLogic.Navigation.openPath fsReader.GetNodes)
+    member this.PutItem = MainLogic.Action.putItem config fsReader.GetNode fsWriter.Move fsWriter.Copy (MainLogic.Navigation.openPath fsReader.GetNodes)
+    member this.Delete = MainLogic.Action.delete fsWriter.Delete fsWriter.Recycle this.Refresh
 
     member this.ToggleHidden model = result {
         config.ShowHidden <- not config.ShowHidden
@@ -610,15 +611,15 @@ type MainController(fileSys: FileSystemService,
             model.UndoStack <- rest
             match action with
             | CreatedItem node ->
-                let! res = MainLogic.Action.undoCreate fileSys.IsEmpty fileSys.Delete this.Refresh node model
+                let! res = MainLogic.Action.undoCreate fsReader.IsEmpty fsWriter.Delete this.Refresh node model
                 do! res
             | RenamedItem (oldNode, curName) ->
-                do! MainLogic.Action.undoRename fileSys.GetNode fileSys.Move this.OpenPath oldNode curName model
+                do! MainLogic.Action.undoRename fsReader.GetNode fsWriter.Move this.OpenPath oldNode curName model
             | MovedItem (node, newPath) ->
-                let! res = MainLogic.Action.undoMove fileSys.GetNode fileSys.Move this.OpenPath node newPath model
+                let! res = MainLogic.Action.undoMove fsReader.GetNode fsWriter.Move this.OpenPath node newPath model
                 do! res
             | CopiedItem (node, newPath) ->
-                let! res = MainLogic.Action.undoCopy fileSys.GetNode fileSys.Delete fileSys.Recycle this.Refresh node newPath model
+                let! res = MainLogic.Action.undoCopy fsReader.GetNode fsWriter.Delete fsWriter.Recycle this.Refresh node newPath model
                 do! res
             | DeletedItem (node, permanent) ->
                 return! Error <| CannotUndoDelete (permanent, node)

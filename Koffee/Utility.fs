@@ -21,7 +21,7 @@ module Str =
 
 module FormatString =
     let date = "yyyy-MM-dd"
-    let time = "HH:mm"
+    let time = "HH:mm:ss"
     let dateTime = sprintf "%s  %s" date time
 
 module Format =

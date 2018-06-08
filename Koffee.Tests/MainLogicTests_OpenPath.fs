@@ -49,7 +49,7 @@ let test case =
         | Same -> model.Path <- path
         | _ -> ()
 
-    let res = MainLogic.Navigation.openPath getNodes false path case.Select model
+    let res = MainLogic.Navigation.openPath getNodes path case.Select model
 
     let expected = createModel()
     let expectedRes =

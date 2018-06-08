@@ -46,23 +46,22 @@ let ex = UnauthorizedAccessException()
 let ``Put item to move or copy in different folder with item of same name prompts for overwrite`` doCopy existingHidden =
     let src = nodeDiffFolder
     let dest = { nodeSameFolder with IsHidden = existingHidden }
-    let config = Config()
     let getNode = mockGetNode (Some dest)
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
     let mutable openedHidden = None
-    let openPath sh p s (model: MainModel) =
+    let openPath p s (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         if s = SelectName (dest.Name) then
             model.Cursor <- 2
-        openedHidden <- Some sh
+        openedHidden <- Some model.ShowHidden
         Ok ()
     let action = if doCopy then Copy else Move
     let item = Some (src, action)
     let model = createModel()
     model.YankRegister <- item
-    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put getNode move copy openPath false model |> Async.RunSynchronously
 
     res |> shouldEqual (Ok ())
     let expected = createModel()
@@ -72,25 +71,23 @@ let ``Put item to move or copy in different folder with item of same name prompt
     expected.InputMode <- Some (Confirm (Overwrite (action, src, dest)))
     assertAreEqual expected model
     openedHidden |> shouldEqual (Some existingHidden)
-    config.ShowHidden |> shouldEqual false
 
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to move or copy returns error`` doCopy =
     let src = nodeDiffFolder
     let dest = nodeSameFolder
-    let config = Config()
     let getNode = mockGetNode None
     let move _ _ = if not doCopy then Error ex else failwith "move should not be called"
     let copy _ _ = if doCopy then Error ex else failwith "copy should not be called"
-    let openPath _ p _ (model: MainModel) =
+    let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         Ok ()
     let item = Some (src, if doCopy then Copy else Move)
     let model = createModel()
     model.YankRegister <- item
-    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put getNode move copy openPath false model |> Async.RunSynchronously
 
     let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
     res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
@@ -105,20 +102,19 @@ let ``Put item to move or copy returns error`` doCopy =
 let ``Put item to move in different folder calls file sys move`` (overwrite: bool) =
     let src = nodeDiffFolder
     let dest = nodeSameFolder
-    let config = Config()
     let getNode = mockGetNode (if overwrite then Some dest else None)
     let mutable moved = None
     let move s d =
         moved <- Some (s, d)
         Ok ()
     let copy _ _ = failwith "copy should not be called"
-    let openPath _ p _ (model: MainModel) =
+    let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Move)
-    let res = MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
+    let res = MainLogic.Action.put getNode move copy openPath overwrite model |> Async.RunSynchronously
 
     res |> shouldEqual (Ok ())
     moved |> shouldEqual (Some (src.Path, dest.Path))
@@ -133,18 +129,17 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
 [<Test>]
 let ``Put item to move in same folder returns error``() =
     let src = nodeSameFolder
-    let config = Config()
     let getNode = mockGetNode None
     let move _ _ = failwith "move should not be called"
     let copy _ _ = failwith "copy should not be called"
-    let openPath _ p _ (model: MainModel) =
+    let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         Ok ()
     let item = Some (src, Move)
     let model = createModel()
     model.YankRegister <- item
-    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put getNode move copy openPath false model |> Async.RunSynchronously
 
     res |> shouldEqual (Error CannotMoveToSameFolder)
     let expected = createModel()
@@ -223,20 +218,19 @@ let ``Undo move item handles move error by returning error``() =
 let ``Put item to copy in different folder calls file sys copy`` (overwrite: bool) =
     let src = nodeDiffFolder
     let dest = nodeSameFolder
-    let config = Config()
     let getNode = mockGetNode (if overwrite then Some dest else None)
     let move _ _ = failwith "move should not be called"
     let mutable copied = None
     let copy s d =
         copied <- Some (s, d)
         Ok ()
-    let openPath _ p _ (model: MainModel) =
+    let openPath p _ (model: MainModel) =
         model.Path <- p
         model.Nodes <- newNodes
         Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Copy)
-    let res = MainLogic.Action.put config getNode move copy openPath overwrite model |> Async.RunSynchronously
+    let res = MainLogic.Action.put getNode move copy openPath overwrite model |> Async.RunSynchronously
 
     res |> shouldEqual (Ok ())
     copied |> shouldEqual (Some (src.Path, dest.Path))
@@ -253,7 +247,6 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
 [<TestCase(2)>]
 let ``Put item to copy in same folder calls file sys copy with new name`` existingCopies =
     let src = nodeSameFolder
-    let config = Config()
     let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
     let getNode = mockGetNodeFunc (fun p -> if existingPaths |> List.contains p then Some src else None)
     let move _ _ = failwith "move should not be called"
@@ -261,13 +254,13 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let copy s d =
         copied <- Some (s, d)
         Ok ()
-    let openPath _ p _ (m: MainModel) =
+    let openPath p _ (m: MainModel) =
         m.Path <- p
         m.Nodes <- newNodes
         Ok ()
     let model = createModel()
     model.YankRegister <- Some (src, Copy)
-    let res = MainLogic.Action.put config getNode move copy openPath false model |> Async.RunSynchronously
+    let res = MainLogic.Action.put getNode move copy openPath false model |> Async.RunSynchronously
 
     res |> shouldEqual (Ok ())
     let destName = MainLogic.Action.getCopyName src.Name existingCopies

@@ -152,6 +152,7 @@ type MainModel() as this =
     abstract Sort: SortField * desc: bool with get, set
     abstract Cursor: int with get, set
     abstract PageSize: int with get, set
+    abstract ShowHidden: bool with get, set
     abstract KeyCombo: KeyCombo with get, set
     abstract InputMode: InputMode option with get, set
     abstract InputText: string with get, set

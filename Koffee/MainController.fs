@@ -10,6 +10,11 @@ type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
 module MainLogic =
+    let syncConfig (config: Config) (model: MainModel) =
+        model.PathFormat <- config.PathFormat
+        model.ShowHidden <- config.ShowHidden
+        model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
+
     let initModel (config: Config) getNode openUserPath startupOptions isFirstInstance (model: MainModel) =
         config.Changed.Add (fun _ ->
             model.YankRegister <- config.YankRegister
@@ -17,8 +22,8 @@ module MainLogic =
                                       match getNode path with
                                       | Ok (Some node) -> Some (node, action)
                                       | _ -> None)
-            model.PathFormat <- config.PathFormat
-            model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle)
+            syncConfig config model
+        )
         config.Load()
 
         let defaultPath = config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
@@ -40,8 +45,8 @@ module MainLogic =
     let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
 
     module Navigation =
-        let openPath getNodes (showHidden: bool) path select (model: MainModel) = result {
-            let! nodes = getNodes showHidden path |> actionError "open path"
+        let openPath getNodes path select (model: MainModel) = result {
+            let! nodes = getNodes model.ShowHidden path |> actionError "open path"
             let sortField, sortDesc = model.Sort
             let nodes = nodes |> SortField.SortByTypeThen sortField sortDesc
             if path <> model.Path then
@@ -286,7 +291,7 @@ module MainLogic =
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
-        let putItem (config: Config) getNode move copy openPath overwrite node putAction (model: MainModel) = asyncResult {
+        let putItem getNode move copy openPath overwrite node putAction (model: MainModel) = asyncResult {
             let sameFolder = node.Path.Parent = model.Path
             let! container = getNode model.Path |> actionError "put item"
             match container with
@@ -314,8 +319,12 @@ module MainLogic =
             match existing with
             | Some existing when not overwrite ->
                 // refresh node list to make sure we can see the existing file
-                let showHidden = config.ShowHidden || existing.IsHidden
-                let res: Result<_,_> = openPath showHidden model.Path (SelectName existing.Name) model
+                let tempShowHidden = not model.ShowHidden && existing.IsHidden
+                if tempShowHidden then
+                    model.ShowHidden <- true
+                let res: Result<_,_> = openPath model.Path (SelectName existing.Name) model
+                if tempShowHidden then
+                    model.ShowHidden <- false
                 do! res
                 model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
                 model.InputText <- ""
@@ -323,15 +332,15 @@ module MainLogic =
                 model.Status <- MainStatus.runningAction action model.PathFormat
                 let! res = runAsync (fun () -> fileSysAction node.Path newPath)
                 do! res |> itemActionError action model.PathFormat
-                openPath config.ShowHidden model.Path (SelectName newName) model |> ignore
+                openPath model.Path (SelectName newName) model |> ignore
                 model |> performedAction action
         }
 
-        let put (config: Config) getNode move copy openPath overwrite (model: MainModel) = asyncResult {
+        let put getNode move copy openPath overwrite (model: MainModel) = asyncResult {
             match model.YankRegister with
             | None -> ()
             | Some (node, putAction) ->
-                let! res = putItem config getNode move copy openPath overwrite node putAction model
+                let! res = putItem getNode move copy openPath overwrite node putAction model
                 do! res
                 if not model.HasErrorStatus && model.InputMode.IsNone then
                     model.YankRegister <- None
@@ -502,21 +511,20 @@ type MainController(fsReader: IFileSystemReader,
         | None -> ()
     }
 
-    member this.OpenPath = MainLogic.Navigation.openPath fsReader.GetNodes config.ShowHidden
+    member this.OpenPath = MainLogic.Navigation.openPath fsReader.GetNodes
     member this.OpenUserPath = MainLogic.Navigation.openUserPath fsReader.GetNode this.OpenPath
     member this.Refresh model = this.OpenPath model.Path SelectNone model
 
     member this.Create = MainLogic.Action.create fsReader.GetNode fsWriter.Create this.OpenPath
     member this.Rename = MainLogic.Action.rename fsReader.GetNode fsWriter.Move this.OpenPath
-    member this.Put = MainLogic.Action.put config fsReader.GetNode fsWriter.Move fsWriter.Copy (MainLogic.Navigation.openPath fsReader.GetNodes)
-    member this.PutItem = MainLogic.Action.putItem config fsReader.GetNode fsWriter.Move fsWriter.Copy (MainLogic.Navigation.openPath fsReader.GetNodes)
+    member this.Put = MainLogic.Action.put fsReader.GetNode fsWriter.Move fsWriter.Copy (MainLogic.Navigation.openPath fsReader.GetNodes)
+    member this.PutItem = MainLogic.Action.putItem fsReader.GetNode fsWriter.Move fsWriter.Copy (MainLogic.Navigation.openPath fsReader.GetNodes)
     member this.Delete = MainLogic.Action.delete fsWriter.Delete fsWriter.Recycle this.Refresh
 
     member this.ToggleHidden model = result {
-        config.ShowHidden <- not config.ShowHidden
-        config.Save()
+        model.ShowHidden <- not model.ShowHidden
         do! this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
-        model.Status <- Some <| MainStatus.toggleHidden config.ShowHidden
+        model.Status <- Some <| MainStatus.toggleHidden model.ShowHidden
     }
 
     member this.SubmitInput model =
@@ -585,7 +593,7 @@ type MainController(fsReader: IFileSystemReader,
                 model.InputMode <- None
                 model.Status <- Some <| MainStatus.cancelled
                 match confirmType with
-                | Overwrite _ when not config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
+                | Overwrite _ when not model.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
                     // if we were temporarily showing hidden files, refresh
                     return! this.Refresh model
                 | _ -> ()
@@ -706,10 +714,8 @@ type MainController(fsReader: IFileSystemReader,
     }
 
     member this.OpenSettings model = result {
-        let settings = settingsFactory()
-        settings.StartDialog() |> ignore
+        settingsFactory().StartDialog() |> ignore
 
-        model.PathFormat <- config.PathFormat
-        model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
+        MainLogic.syncConfig config model
         do! this.Refresh model
     }

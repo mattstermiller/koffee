@@ -475,9 +475,6 @@ type MainController(fileSys: FileSystemService,
                 else
                     model.Status <- None
                 None
-            else if chord = (ModifierKeys.Control, Key.C) then
-                handleKey () // prevent crash due to bug in WPF datagrid
-                None
             else
                 let keyCombo = List.append model.KeyCombo [chord]
                 match KeyBinding.getMatch keyBindings keyCombo with

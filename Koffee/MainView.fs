@@ -212,6 +212,10 @@ type MainView(window: MainWindow,
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
         window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
                                        |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
+        window.NodeGrid.PreviewKeyDown |> Observable.choose (fun evt ->
+            if evt.Chord = (ModifierKeys.Control, Key.C) then
+                evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
+            None)
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewTextInput |> Observable.choose this.InputKey

@@ -64,6 +64,7 @@
     <Compile Include="KeyComboParserTests.fs" />
     <Compile Include="PathTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />
+    <Compile Include="FakeFileSystem.fs" />
     <Compile Include="MainLogicTests_OpenPath.fs" />
     <Compile Include="MainLogicTests_BackForward.fs" />
     <Compile Include="MainLogicTests_FindSearch.fs" />

@@ -23,7 +23,7 @@ let createModel () =
     model.Cursor <- 1
     model
 
-let ex = System.UnauthorizedAccessException()
+let ex = System.UnauthorizedAccessException() :> exn
 
 
 [<TestCase(true)>]
@@ -31,13 +31,14 @@ let ex = System.UnauthorizedAccessException()
 let ``Delete calls correct file sys func and sets message`` permanent =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
-    let fsDelete p = deleted <- Some p; Ok ()
+    fsWriter.Delete <- fun p -> deleted <- Some p; Ok ()
     let mutable recycled = None
-    let fsRecycle p = recycled <- Some p; Ok ()
+    fsWriter.Recycle <- fun p -> recycled <- Some p; Ok ()
     let model = createModel()
     let node = oldNodes.[1]
-    let res = MainLogic.Action.delete fsReader fsDelete fsRecycle node permanent model |> Async.RunSynchronously
+    let res = MainLogic.Action.delete fsReader fsWriter node permanent model |> Async.RunSynchronously
 
     res |> shouldEqual (Ok ())
     if permanent then
@@ -59,11 +60,11 @@ let ``Delete calls correct file sys func and sets message`` permanent =
 let ``Delete handles error by returning error``() =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
-    let fsDelete _ = Error ex
-    let fsRecycle _ = failwith "recycle should not be called"
+    let fsWriter = FakeFileSystemWriter()
+    fsWriter.Delete <- fun _ -> Error ex
     let model = createModel()
     let node = oldNodes.[1]
-    let res = MainLogic.Action.delete fsReader fsDelete fsRecycle node true model |> Async.RunSynchronously
+    let res = MainLogic.Action.delete fsReader fsWriter node true model |> Async.RunSynchronously
 
     let expectedAction = (DeletedItem (oldNodes.[1], true))
     res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))

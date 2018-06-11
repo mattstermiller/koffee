@@ -226,14 +226,14 @@ module MainLogic =
                     model.InputText <- ""
         }
 
-        let create (fsReader: IFileSystemReader) fsCreate nodeType name (model: MainModel) = result {
+        let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) nodeType name (model: MainModel) = result {
             let createPath = model.Path.Join name
             let action = CreatedItem { Path = createPath; Name = name; Type = nodeType;
                                        Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
             let! existing = fsReader.GetNode createPath |> itemActionError action model.PathFormat
             match existing with
             | None ->
-                do! fsCreate nodeType createPath |> itemActionError action model.PathFormat
+                do! fsWriter.Create nodeType createPath |> itemActionError action model.PathFormat
                 do! Navigation.openPath fsReader model.Path (SelectName name) model
                 model |> performedAction (CreatedItem model.SelectedNode)
             | Some existing ->
@@ -241,10 +241,10 @@ module MainLogic =
                 return! Error <| CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
         }
 
-        let undoCreate (fsReader: IFileSystemReader) delete node (model: MainModel) = asyncResult {
+        let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (model: MainModel) = asyncResult {
             if fsReader.IsEmpty node.Path then
                 model.Status <- Some <| MainStatus.undoingCreate node
-                let! res = runAsync (fun () -> delete node.Path)
+                let! res = runAsync (fun () -> fsWriter.Delete node.Path)
                 do! res |> itemActionError (DeletedItem (node, true)) model.PathFormat
                 if model.Path = node.Path.Parent then
                     Navigation.refresh fsReader model |> ignore
@@ -252,7 +252,7 @@ module MainLogic =
                 return! Error <| CannotUndoNonEmptyCreated node
         }
 
-        let rename (fsReader: IFileSystemReader) move node newName (model: MainModel) = result {
+        let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName (model: MainModel) = result {
             if node.Type.CanModify then
                 let action = RenamedItem (node, newName)
                 let newPath = node.Path.Parent.Join newName
@@ -261,14 +261,14 @@ module MainLogic =
                     else fsReader.GetNode newPath |> itemActionError action model.PathFormat
                 match existing with
                 | None ->
-                    do! move node.Path newPath |> itemActionError action model.PathFormat
+                    do! fsWriter.Move node.Path newPath |> itemActionError action model.PathFormat
                     do! Navigation.openPath fsReader model.Path (SelectName newName) model
                     model |> performedAction action
                 | Some existingNode ->
                     return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
             }
 
-        let undoRename (fsReader: IFileSystemReader) move oldNode currentName (model: MainModel) = result {
+        let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName (model: MainModel) = result {
             let parentPath = oldNode.Path.Parent
             let currentPath = parentPath.Join currentName
             let node = { oldNode with Name = currentName; Path = currentPath }
@@ -278,7 +278,7 @@ module MainLogic =
                 else fsReader.GetNode oldNode.Path |> itemActionError action model.PathFormat
             match existing with
             | None ->
-                do! move currentPath oldNode.Path |> itemActionError action model.PathFormat
+                do! fsWriter.Move currentPath oldNode.Path |> itemActionError action model.PathFormat
                 do! Navigation.openPath fsReader parentPath (SelectName oldNode.Name) model
             | Some existingNode ->
                 return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
@@ -294,7 +294,7 @@ module MainLogic =
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
-        let putItem (fsReader: IFileSystemReader) move copy overwrite node putAction (model: MainModel) = asyncResult {
+        let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction (model: MainModel) = asyncResult {
             let sameFolder = node.Path.Parent = model.Path
             let! container = fsReader.GetNode model.Path |> actionError "put item"
             match container with
@@ -316,8 +316,8 @@ module MainLogic =
             let newPath = model.Path.Join newName
             let fileSysAction, action =
                 match putAction with
-                | Move -> (move, MovedItem (node, newPath))
-                | Copy -> (copy, CopiedItem (node, newPath))
+                | Move -> (fsWriter.Move, MovedItem (node, newPath))
+                | Copy -> (fsWriter.Copy, CopiedItem (node, newPath))
             let! existing = fsReader.GetNode newPath |> itemActionError action model.PathFormat
             match existing with
             | Some existing when not overwrite ->
@@ -339,17 +339,17 @@ module MainLogic =
                 model |> performedAction action
         }
 
-        let put fsReader move copy overwrite (model: MainModel) = asyncResult {
+        let put fsReader fsWriter overwrite (model: MainModel) = asyncResult {
             match model.YankRegister with
             | None -> ()
             | Some (node, putAction) ->
-                let! res = putItem fsReader move copy overwrite node putAction model
+                let! res = putItem fsReader fsWriter overwrite node putAction model
                 do! res
                 if not model.HasErrorStatus && model.InputMode.IsNone then
                     model.YankRegister <- None
         }
 
-        let undoMove (fsReader: IFileSystemReader) move node currentPath (model: MainModel) = asyncResult {
+        let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncResult {
             let from = { node with Path = currentPath; Name = currentPath.Name }
             let action = MovedItem (from, node.Path)
             let! existing = fsReader.GetNode node.Path |> itemActionError action model.PathFormat
@@ -359,12 +359,12 @@ module MainLogic =
                 return! Error <| CannotUndoMoveToExisting node
             | None ->
                 model.Status <- Some <| MainStatus.undoingMove node
-                let! res = runAsync (fun () -> move currentPath node.Path)
+                let! res = runAsync (fun () -> fsWriter.Move currentPath node.Path)
                 do! res |> itemActionError action model.PathFormat
                 Navigation.openPath fsReader node.Path.Parent (SelectName node.Name) model |> ignore
         }
 
-        let undoCopy (fsReader: IFileSystemReader) fsDelete fsRecycle node (currentPath: Path) (model: MainModel) = asyncResult {
+        let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainModel) = asyncResult {
             let copyModified =
                 match fsReader.GetNode currentPath with
                 | Ok (Some copy) -> copy.Modified
@@ -374,7 +374,7 @@ module MainLogic =
                 | Some orig, Some copy when orig = copy -> true
                 | _ -> false
             let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
-            let fileSysFunc = if isDeletionPermanent then fsDelete else fsRecycle
+            let fileSysFunc = if isDeletionPermanent then fsWriter.Delete else fsWriter.Recycle
             model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
             let! res = runAsync (fun () -> fileSysFunc currentPath)
             do! res |> itemActionError action model.PathFormat
@@ -382,10 +382,10 @@ module MainLogic =
                 Navigation.refresh fsReader model |> ignore
         }
 
-        let delete fsReader fsDelete fsRecycle node permanent (model: MainModel) = asyncResult {
+        let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncResult {
             if node.Type.CanModify then
                 let action = DeletedItem (node, permanent)
-                let fileSysFunc = if permanent then fsDelete else fsRecycle
+                let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
                 model.Status <- MainStatus.runningAction action model.PathFormat
                 let! res = runAsync (fun () -> fileSysFunc node.Path)
                 do! res |> itemActionError action model.PathFormat
@@ -519,11 +519,11 @@ type MainController(fsReader: IFileSystemReader,
     member this.OpenUserPath = MainLogic.Navigation.openUserPath fsReader
     member this.Refresh = MainLogic.Navigation.refresh fsReader
 
-    member this.Create = MainLogic.Action.create fsReader fsWriter.Create
-    member this.Rename = MainLogic.Action.rename fsReader fsWriter.Move
-    member this.Put = MainLogic.Action.put fsReader fsWriter.Move fsWriter.Copy
-    member this.PutItem = MainLogic.Action.putItem fsReader fsWriter.Move fsWriter.Copy
-    member this.Delete = MainLogic.Action.delete fsReader fsWriter.Delete fsWriter.Recycle
+    member this.Create = MainLogic.Action.create fsReader fsWriter
+    member this.Rename = MainLogic.Action.rename fsReader fsWriter
+    member this.Put = MainLogic.Action.put fsReader fsWriter
+    member this.PutItem = MainLogic.Action.putItem fsReader fsWriter
+    member this.Delete = MainLogic.Action.delete fsReader fsWriter
 
     member this.ToggleHidden model = result {
         model.ShowHidden <- not model.ShowHidden
@@ -623,15 +623,15 @@ type MainController(fsReader: IFileSystemReader,
             model.UndoStack <- rest
             match action with
             | CreatedItem node ->
-                let! res = MainLogic.Action.undoCreate fsReader fsWriter.Delete node model
+                let! res = MainLogic.Action.undoCreate fsReader fsWriter node model
                 do! res
             | RenamedItem (oldNode, curName) ->
-                do! MainLogic.Action.undoRename fsReader fsWriter.Move oldNode curName model
+                do! MainLogic.Action.undoRename fsReader fsWriter oldNode curName model
             | MovedItem (node, newPath) ->
-                let! res = MainLogic.Action.undoMove fsReader fsWriter.Move node newPath model
+                let! res = MainLogic.Action.undoMove fsReader fsWriter node newPath model
                 do! res
             | CopiedItem (node, newPath) ->
-                let! res = MainLogic.Action.undoCopy fsReader fsWriter.Delete fsWriter.Recycle node newPath model
+                let! res = MainLogic.Action.undoCopy fsReader fsWriter node newPath model
                 do! res
             | DeletedItem (node, permanent) ->
                 return! Error <| CannotUndoDelete (permanent, node)

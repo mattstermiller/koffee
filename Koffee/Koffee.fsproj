@@ -82,7 +82,8 @@
     <Resource Include="SettingsWindow.xaml" />
     <Compile Include="SettingsView.fs" />
     <Compile Include="SettingsController.fs" />
-    <Compile Include="FileSystemService.fs" />
+    <Compile Include="FileSystem.fs" />
+    <Compile Include="OperatingSystem.fs" />
     <Resource Include="MainWindow.xaml" />
     <Compile Include="ProgramOptions.fs" />
     <Compile Include="MainView.fs" />

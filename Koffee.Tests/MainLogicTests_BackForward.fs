@@ -18,17 +18,10 @@ let history handler backStack forwardStack =
     model.Path <- createPath "/c/path"
     model.Cursor <- 1
 
-    let openPath path select (model: MainModel) =
-        model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-        model.ForwardStack <- []
-        model.Path <- path
-        model.Cursor <-
-            match select with
-            | SelectIndex c -> c
-            | _ -> failwith "unexpected select type"
-        Ok ()
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNodes <- fun _ _ -> Ok <| List.init 9 (fun i -> sprintf "/c/file %i" i |> createNode)
 
-    handler openPath model |> ignore
+    handler fsReader model |> ignore
 
     let pathStr (path: Path, c) = (path.Name, c)
     { Path = model.Path.Name

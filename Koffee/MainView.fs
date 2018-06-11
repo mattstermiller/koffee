@@ -21,8 +21,6 @@ type MainView(window: MainWindow,
               startupOptions: StartupOptions) =
     inherit View<MainEvents, MainModel, MainWindow>(window)
 
-    let mutable currentKeyCombo = []
-
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Observable.choose (fun evt ->
             if evt.Key = key then
@@ -190,6 +188,11 @@ type MainView(window: MainWindow,
                     config.Window.Width <- int window.Width
                     config.Window.Height <- int window.Height
                     config.Save()))
+
+        bindPropertyToFunc <@ model.ShowHidden @> <| fun sh ->
+            if config.ShowHidden <> sh then
+                config.ShowHidden <- sh
+                config.Save()
 
         window.Closed.Add (fun _ ->
             config.PreviousPath <- model.Path.Format Windows

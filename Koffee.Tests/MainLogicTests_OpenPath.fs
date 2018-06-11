@@ -3,7 +3,6 @@
 open NUnit.Framework
 open FsUnitTyped
 open Testing
-open Utility
 
 type PathCase =
     | Same
@@ -34,22 +33,23 @@ let createModel () =
     model.Cursor <- 2
     model
 
-let ex = System.UnauthorizedAccessException()
+let ex = System.UnauthorizedAccessException() :> exn
 
 let test case =
-    let path = createPath "/c/path"
-    let getNodes _ =
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNodes <- fun _ _ ->
         match case.GetPath with
-        | Same -> (fun _ -> Ok oldNodes)
-        | Different -> (fun _ -> Ok newNodes)
-        | Inaccessible -> (fun _ -> Error ex)
+        | Same -> Ok oldNodes
+        | Different -> Ok newNodes
+        | Inaccessible -> Error ex
 
+    let path = createPath "/c/path"
     let model = createModel()
     match case.GetPath with
         | Same -> model.Path <- path
         | _ -> ()
 
-    let res = MainLogic.Navigation.openPath getNodes false path case.Select model
+    let res = MainLogic.Navigation.openPath fsReader path case.Select model
 
     let expected = createModel()
     let expectedRes =

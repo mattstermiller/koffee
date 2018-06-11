@@ -3,14 +3,25 @@
 open System
 open System.IO
 open System.Text.RegularExpressions
-open System.Diagnostics
 open System.Management
 open Microsoft.VisualBasic.FileIO
 open Koffee
 open Utility
 open ConfigExt
 
-type FileSystemService(config: Config) =
+type IFileSystemReader =
+    abstract member GetNode: Path -> Result<Node option, exn>
+    abstract member GetNodes: showHidden: bool -> Path -> Result<Node list, exn>
+    abstract member IsEmpty: Path -> bool
+
+type IFileSystemWriter =
+    abstract member Create: NodeType -> Path -> Result<unit, exn>
+    abstract member Move: fromPath: Path -> toPath: Path -> Result<unit, exn>
+    abstract member Copy: fromPath: Path -> toPath: Path -> Result<unit, exn>
+    abstract member Recycle: Path -> Result<unit, exn>
+    abstract member Delete: Path -> Result<unit, exn>
+
+type FileSystem(config: Config) =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
 
@@ -70,10 +81,6 @@ type FileSystemService(config: Config) =
     let netShareNode path =
         { basicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
 
-    let errorNode (e: exn) =
-        let error = e.Message.Split('\r', '\n').[0]
-        basicNode Path.Root (sprintf "<%s>" error) ErrorNode
-
     let getNetShares (serverPath: Path) =
         let server = serverPath.Name
         tryResult <| fun () ->
@@ -100,6 +107,11 @@ type FileSystemService(config: Config) =
         | Ok (Some node) -> Error <| cannotActOnNodeType actionName node.Type
         | Ok None -> Error <| exn "Path does not exist"
         | Error e -> Error e
+
+    interface IFileSystemReader with
+        member this.GetNode path = this.GetNode path
+        member this.GetNodes showHidden path = this.GetNodes showHidden path
+        member this.IsEmpty path = this.IsEmpty path
 
     member this.GetNode path =
         tryResult <| fun () ->
@@ -174,6 +186,13 @@ type FileSystemService(config: Config) =
                 FileInfo(wp).Length = 0L
         with _ -> false
 
+    interface IFileSystemWriter with
+        member this.Create nodeType path = this.Create nodeType path
+        member this.Move fromPath toPath = this.Move fromPath toPath
+        member this.Copy fromPath toPath = this.Copy fromPath toPath
+        member this.Recycle path = this.Recycle path
+        member this.Delete path = this.Delete path
+
     member this.Create nodeType path =
         let wp = wpath path
         match nodeType with
@@ -181,8 +200,8 @@ type FileSystemService(config: Config) =
         | Folder -> tryResult (fun () -> Directory.CreateDirectory(wp) |> ignore)
         | _ -> Error <| cannotActOnNodeType "create" nodeType
 
-    member this.Move currentPath newPath =
-        this.FileOrFolderAction currentPath "move" <| fun nodeType -> result {
+    member this.Move fromPath toPath =
+        this.FileOrFolderAction fromPath "move" <| fun nodeType -> result {
             let moveFile source dest =
                 prepForOverwrite <| FileInfo dest
                 FileSystem.MoveFile(source, dest, true)
@@ -197,12 +216,12 @@ type FileSystemService(config: Config) =
                     Directory.Delete(source)
                 else
                     Directory.Move(source, dest)
-            let source = wpath currentPath
-            let dest = wpath newPath
+            let source = wpath fromPath
+            let dest = wpath toPath
             if Str.equalsIgnoreCase source dest then
-                let temp = sprintf "_rename_%s" currentPath.Name |> currentPath.Parent.Join
-                do! this.Move currentPath temp
-                do! this.Move temp newPath
+                let temp = sprintf "_rename_%s" fromPath.Name |> fromPath.Parent.Join
+                do! this.Move fromPath temp
+                do! this.Move temp toPath
             else
                 return! tryResult <| fun () ->
                     if nodeType = Folder then
@@ -211,10 +230,10 @@ type FileSystemService(config: Config) =
                         moveFile source dest
         }
 
-    member this.Copy currentPath newPath =
-        this.FileOrFolderAction currentPath "copy" <| fun nodeType ->
-            let source = wpath currentPath
-            let dest = wpath newPath
+    member this.Copy fromPath toPath =
+        this.FileOrFolderAction fromPath "copy" <| fun nodeType ->
+            let source = wpath fromPath
+            let dest = wpath toPath
             let copyFile source dest =
                 prepForOverwrite <| FileInfo dest
                 File.Copy(source, dest, true)
@@ -271,22 +290,3 @@ type FileSystemService(config: Config) =
                 else
                     prepForOverwrite <| FileInfo wp
                     File.Delete wp
-
-    member this.OpenFile path =
-        tryResult <| fun () ->
-            ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
-            |> Process.Start |> ignore
-
-    member this.OpenExplorer node =
-        match node.Type with
-        | File | Folder when node.Path <> Path.Root ->
-            Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath node.Path)) |> ignore
-        | Drive | Empty ->
-            Process.Start("explorer.exe", sprintf "\"%s\"" (wpath node.Path)) |> ignore
-        | _ ->
-            Process.Start("explorer.exe") |> ignore
-
-    member this.LaunchApp exePath workingPath args =
-        tryResult <| fun () ->
-            ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
-            |> Process.Start |> ignore

@@ -1,5 +1,26 @@
 # Release Notes
 
+### 0.4.1  Fixes and Refinements
+- Adds item count and total size of files in status bar
+- Adds status message when removing remembered network hosts
+- Adds trailing slash on folders
+- Adds Modified times to folders (Thanks Alex)
+- Changes Modified times to show seconds
+- Adds "B" to sizes to denote bytes (Thanks Alex)
+- Adds sort indicator to column headers
+- Adds pending key status message
+- Adds crash logging and friendly error message
+- Adds version number to title bar
+- Cascades window position when opening multiple instances
+- Double-clicking an item now opens it (Thanks Alex)
+- Major refactors to improve error handling
+- Fixes Ctrl + C crash
+- Fixes wrong error message when attempting to recycle an item on a drive with no Recycle Bin
+- Fixes extra config saves that could revert the yank register when switching between multiple windows
+- Fixes display of underscores in status messages
+- Fixes overwrite prompt not clearing previous input text
+- Fixes path entry when entered path is same as current
+
 ### 0.4.0  Network and Multi-Window
 - Adds support for network share and path navigation
 - Adds New Window command

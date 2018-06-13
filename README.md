@@ -60,7 +60,7 @@ _Capitalized letters indicate that the key is combined with Shift._
     1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed in the lower-right corner of the window.
     2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
 - **Delete**
-    - Press `Delete` to send the currently selected item to the Recycle Bin. If the item is too large to fit in the Recycle Bin, an error message will be shown instead.
+    - Press `Delete` to send the currently selected item to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.
     - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
@@ -75,12 +75,12 @@ _Capitalized letters indicate that the key is combined with Shift._
 
 There are more commands at your disposal. Open the Settings window with `?` for the full list of commands and their key bindings!
 
-## Planned Features
+## Future Planned Features
 - Search sub-folders
+- Text content search
 - Select multiple items
 - Configurable hotkeys
-- Batch renames with regular expressions
-- Split view
+- Batch renames
 - Themes
-- And more...
+- And more... check out the [issues list](https://github.com/mattstermiller/koffee/issues) and please add your own ideas and contributions!
 

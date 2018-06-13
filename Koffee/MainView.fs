@@ -69,11 +69,12 @@ type MainView(window: MainWindow,
         // display path
         let displayPath _ = window.Dispatcher.Invoke(fun () ->
             window.PathBox.Text <- model.PathFormatted
-            let displayPath = if model.ShowFullPathInTitle then model.PathFormatted else model.Path.Name
-            window.Title <-
-                displayPath
-                |> Str.ifEmpty model.PathFormatted
-                |> sprintf "%s  |  Koffee")
+            let displayPath =
+                if model.ShowFullPathInTitle then model.PathFormatted
+                else model.Path.Name |> Str.ifEmpty model.PathFormatted
+            let version = typeof<MainModel>.Assembly.GetName().Version
+            let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Revision
+            window.Title <- sprintf "%s  |  Koffee v%s" displayPath versionStr )
         bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
         model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath

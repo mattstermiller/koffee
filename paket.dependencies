@@ -4,15 +4,14 @@ redirects: on
 
 nuget Castle.Core
 nuget CompareNETObjects content:none
-nuget Foq content:none
 nuget FSharp.Desktop.UI
 nuget FSharp.Quotations.Evaluator
 nuget FSharp.Configuration
-nuget FsUnit
+nuget FsUnit ~> 2.3.2
 nuget FsXaml.Wpf
 nuget NUnit
 nuget Rx-Core
 nuget Rx-Interfaces
 nuget Rx-Linq
 nuget Rx-Main
-nuget Rx-PlatformServices
+nuget Rx-PlatformServices ~> 2.2.5

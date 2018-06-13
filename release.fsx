@@ -74,7 +74,7 @@ try
     let buildDir = getPath @"Koffee\bin\Release"
     if Directory.Exists buildDir then
         Directory.Delete(buildDir, true)
-    runProcess @"C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin\msbuild.exe"
+    runProcess @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\msbuild.exe"
         ((getPath @"Koffee\Koffee.fsproj") + " /p:Configuration=Release /verbosity:normal")
 
     // setup binaries directory

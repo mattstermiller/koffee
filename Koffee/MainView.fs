@@ -73,7 +73,7 @@ type MainView(window: MainWindow,
                 if model.ShowFullPathInTitle then model.PathFormatted
                 else model.Path.Name |> Str.ifEmpty model.PathFormatted
             let version = typeof<MainModel>.Assembly.GetName().Version
-            let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Revision
+            let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
             window.Title <- sprintf "%s  |  Koffee v%s" displayPath versionStr )
         bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath

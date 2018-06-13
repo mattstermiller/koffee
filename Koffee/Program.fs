@@ -30,7 +30,8 @@ let logCrash (e: exn) =
         "Sorry! An unexpected error caused Koffee to crash:\n\n" +
         sprintf "%s\n\n" e.Message +
         sprintf "This error has been logged to: \n%s\n\n" logFile +
-        "Please report this as an issue on Koffee's GitHub project."
+        "Please report this as an issue on Koffee's GitHub project.\n\n" +
+        "https://github.com/mattstermiller/koffee/issues"
     MessageBox.Show(msg, "Crash!", MessageBoxButton.OK, MessageBoxImage.Error) |> ignore
 
 [<EntryPoint>]

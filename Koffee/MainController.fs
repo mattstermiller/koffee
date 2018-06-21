@@ -110,7 +110,10 @@ module MainLogic =
                 match config.StartupPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath)
-        model.Path <- defaultPath
+        model.Path <-
+            match config.StartupPath with
+            | RestorePrevious -> defaultPath
+            | DefaultPath -> config.PreviousPath |> Path.Parse |> Option.defaultValue defaultPath
         model.WindowLocation <-
             startupOptions.Location
             |> Option.defaultWith (fun () ->

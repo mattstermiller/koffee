@@ -8,6 +8,8 @@ NUGET
     CompareNETObjects (4.57) - content: none
     FSharp.Configuration (1.5)
       FSharp.Core (>= 4.0.0.1)
+    FSharp.Control.AsyncSeq (2.0.21)
+      FSharp.Core (>= 3.1.2)
     FSharp.Core (4.5.4)
     FSharp.Desktop.UI (0.7.1)
       Castle.Core (>= 3.3.3)

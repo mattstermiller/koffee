@@ -3,6 +3,7 @@ module Utility
 
 open System.Text.RegularExpressions
 open System.Linq
+open FSharp.Control
 open Acadian.FSharp
 
 module String =
@@ -54,6 +55,25 @@ type AsyncResultBuilder() =
     member this.Using (x, f) = async.Using (x, f)
 
 let asyncResult = AsyncResultBuilder()
+
+type AsyncSeqResultBuilder() =
+    member this.Bind (a, f) = asyncSeq.Bind(a, f)
+    member this.Bind (r, f) = asyncSeq {
+        match r with
+        | Ok x -> yield! f x
+        | Error e -> yield Error e
+    }
+    member this.Yield x = result.Return x |> asyncSeq.Yield
+    member this.YieldFrom x = result.ReturnFrom x |> asyncSeq.Yield
+    member this.YieldFrom (x: AsyncSeq<Result<_,_>>) = asyncSeq.YieldFrom x
+    member this.Zero () = result.Zero () |> asyncSeq.Return
+    member this.Delay f = asyncSeq.Delay f
+    member this.Combine (x: AsyncSeq<_>, y) =
+        AsyncSeq.append x y
+        |> AsyncSeq.takeWhileInclusive (function | Ok _ -> true | Error _ -> false)
+    member this.Using (x, f) = asyncSeq.Using (x, f)
+
+let asyncSeqResult = AsyncSeqResultBuilder()
 
 module Order =
     let by f s = Enumerable.OrderBy(s, (fun x -> f x))

@@ -1,4 +1,5 @@
 FSharp.Core
+FSharp.Control.AsyncSeq
 Castle.Core
 FSharp.Desktop.UI
 FSharp.Quotations.Evaluator

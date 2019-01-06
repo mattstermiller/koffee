@@ -3,6 +3,7 @@ framework = net451
 redirects: on
 
 nuget FSharp.Core ~> 4.5
+nuget FSharp.Control.AsyncSeq ~> 2.0.20
 nuget Castle.Core
 nuget CompareNETObjects content:none
 nuget FSharp.Desktop.UI

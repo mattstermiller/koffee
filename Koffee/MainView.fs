@@ -19,7 +19,7 @@ type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 type MainView(window: MainWindow,
               config: Config,
               startupOptions: StartupOptions) =
-    inherit View<MainEvents, MainModel, MainWindow>(window)
+    inherit View<MainEvents, MainBindModel, MainWindow>(window)
 
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Observable.choose (fun evt ->
@@ -36,7 +36,7 @@ type MainView(window: MainWindow,
         ]
         not <| List.contains keyEvt.Key modifierKeys
 
-    override this.SetBindings (model: MainModel) =
+    override this.SetBindings (model: MainBindModel) =
         // setup grid
         window.NodeGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
         window.NodeGrid.AddColumn("Type")
@@ -458,7 +458,7 @@ type MainError =
 
 [<AutoOpen>]
 module MainModelExt =
-    type MainModel with
+    type MainBindModel with
         member this.SetError (e: MainError) =
             this.Status <- Some (ErrorMessage e.Message)
 

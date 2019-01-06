@@ -12,7 +12,7 @@ let makeSettingsMvc config =
     Mvc(model, view, controller)
 
 let makeMainMvc config options window =
-    let model = MainModel.Create()
+    let model = MainBindModel.Create()
     let view = MainView(window, config, options)
     let fileSys = FileSystem(config)
     let os = OperatingSystem()

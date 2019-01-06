@@ -10,7 +10,7 @@ type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
 module MainLogic =
-    let loadConfig (fsReader: IFileSystemReader) (config: Config) (model: MainModel) =
+    let loadConfig (fsReader: IFileSystemReader) (config: Config) (model: MainBindModel) =
         model.YankRegister <-
             config.YankRegister |> Option.bind (fun (path, action) ->
                 match fsReader.GetNode path with
@@ -24,8 +24,13 @@ module MainLogic =
     let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
     let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
 
+    let toMutation handler (bindModel: MainBindModel) =
+        bindModel.ToModel() |> handler |> bindModel.UpdateFromModel
+    let toMutationResult handler (bindModel: MainBindModel) =
+        bindModel.ToModel() |> handler |> Result.map bindModel.UpdateFromModel
+
     module Navigation =
-        let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
+        let openPath (fsReader: IFileSystemReader) path select (model: MainBindModel) = result {
             let! nodes = fsReader.GetNodes model.ShowHidden path |> actionError "open path"
             let sortField, sortDesc = model.Sort
             let nodes = nodes |> SortField.SortByTypeThen sortField sortDesc
@@ -44,7 +49,7 @@ module MainLogic =
             model.Status <- None
         }
 
-        let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
+        let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainBindModel) =
             match Path.Parse pathStr with
             | Some path ->
                 match fsReader.GetNode path with
@@ -55,7 +60,7 @@ module MainLogic =
                 | Error e -> Error <| ActionError ("open path", e)
             | None -> Error <| InvalidPath pathStr
 
-        let openSelected fsReader (os: IOperatingSystem) (model: MainModel) =
+        let openSelected fsReader (os: IOperatingSystem) (model: MainBindModel) =
             let node = model.SelectedNode
             match node.Type with
             | Folder | Drive | NetHost | NetShare ->
@@ -66,10 +71,10 @@ module MainLogic =
                     model.Status <- Some <| MainStatus.openFile node.Name)
             | _ -> Ok ()
 
-        let refresh fsReader (model: MainModel) =
+        let refresh fsReader (model: MainBindModel) =
             openPath fsReader model.Path SelectNone model
 
-        let back fsReader (model: MainModel) = result {
+        let back fsReader (model: MainBindModel) = result {
             match model.BackStack with
             | (path, cursor) :: backTail ->
                 let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
@@ -79,7 +84,7 @@ module MainLogic =
             | [] -> ()
         }
 
-        let forward fsReader (model: MainModel) = result {
+        let forward fsReader (model: MainBindModel) = result {
             match model.ForwardStack with
             | (path, cursor) :: forwardTail ->
                 do! openPath fsReader path (SelectIndex cursor) model
@@ -87,7 +92,7 @@ module MainLogic =
             | [] -> ()
         }
 
-        let sortList fsReader field (model: MainModel) = result {
+        let sortList fsReader field (model: MainBindModel) = result {
             let desc =
                 match model.Sort with
                 | f, desc when f = field -> not desc
@@ -97,7 +102,7 @@ module MainLogic =
             model.Status <- Some <| MainStatus.sort field desc
         }
 
-    let initModel (config: Config) (fsReader: IFileSystemReader) startupOptions isFirstInstance (model: MainModel) =
+    let initModel (config: Config) (fsReader: IFileSystemReader) startupOptions isFirstInstance (model: MainBindModel) =
         loadConfig fsReader config model
 
         model.WindowLocation <-
@@ -119,7 +124,7 @@ module MainLogic =
         Navigation.openUserPath fsReader startupPath model
 
     module Cursor =
-        let private moveCursorToNext predicate reverse (model: MainModel) =
+        let private moveCursorToNext predicate reverse (model: MainBindModel) =
             let indexed = model.Nodes |> List.indexed
             let c = model.Cursor
             let items =
@@ -132,7 +137,7 @@ module MainLogic =
             |> Seq.tryHead
             |> Option.iter (fst >> model.SetCursor)
 
-        let find caseSensitive char (model: MainModel) =
+        let find caseSensitive char (model: MainBindModel) =
             model.LastFind <- Some (caseSensitive, char)
             model.Status <- Some <| MainStatus.find caseSensitive char
             let lower = System.Char.ToLower
@@ -141,7 +146,7 @@ module MainLogic =
                 else (fun a b -> lower a = lower b)
             moveCursorToNext (fun n -> equals n.Name.[0] char) false model
 
-        let findNext (model: MainModel) =
+        let findNext (model: MainBindModel) =
             model.LastFind |> Option.iter (fun (cs, c) -> find cs c model)
 
         let parseSearch (searchInput: string) =
@@ -156,7 +161,7 @@ module MainLogic =
                     | _ -> res)
             | _ -> Error InvalidSearchSlash
 
-        let search caseSensitive searchStr reverse (model: MainModel) =
+        let search caseSensitive searchStr reverse (model: MainBindModel) =
             let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
             let options = if caseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
 
@@ -180,18 +185,18 @@ module MainLogic =
 
             moveCursorToNext (fun n -> n.IsSearchMatch) reverse model
 
-        let searchNext reverse (model: MainModel) =
+        let searchNext reverse (model: MainBindModel) =
             model.LastSearch |> Option.iter (fun (cs, s) -> search cs s reverse model)
 
     module Action =
         let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
 
-        let private performedAction action (model: MainModel) =
+        let private performedAction action (model: MainBindModel) =
             model.UndoStack <- action :: model.UndoStack
             model.RedoStack <- []
             model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
 
-        let private setInputSelection (model: MainModel) cursorPos =
+        let private setInputSelection (model: MainBindModel) cursorPos =
             let fullLen = model.InputText.Length
             let nameLen = Path.SplitName model.InputText |> fst |> String.length
             model.InputTextSelection <-
@@ -202,7 +207,7 @@ module MainLogic =
                 | ReplaceName -> (0, nameLen)
                 | ReplaceAll -> (0, fullLen)
 
-        let startInput (fsReader: IFileSystemReader) (inputMode: InputMode) (model: MainModel) = result {
+        let startInput (fsReader: IFileSystemReader) (inputMode: InputMode) (model: MainBindModel) = result {
             let! allowed =
                 match inputMode with
                 | Input CreateFile
@@ -224,7 +229,7 @@ module MainLogic =
                     model.InputText <- ""
         }
 
-        let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) nodeType name (model: MainModel) = result {
+        let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) nodeType name (model: MainBindModel) = result {
             let createPath = model.Path.Join name
             let action = CreatedItem { Path = createPath; Name = name; Type = nodeType;
                                        Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
@@ -239,7 +244,7 @@ module MainLogic =
                 return! Error <| CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
         }
 
-        let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (model: MainModel) = asyncResult {
+        let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (model: MainBindModel) = asyncResult {
             if fsReader.IsEmpty node.Path then
                 model.Status <- Some <| MainStatus.undoingCreate node
                 let! res = runAsync (fun () -> fsWriter.Delete node.Path)
@@ -250,7 +255,7 @@ module MainLogic =
                 return! Error <| CannotUndoNonEmptyCreated node
         }
 
-        let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName (model: MainModel) = result {
+        let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName (model: MainBindModel) = result {
             if node.Type.CanModify then
                 let action = RenamedItem (node, newName)
                 let newPath = node.Path.Parent.Join newName
@@ -266,7 +271,7 @@ module MainLogic =
                     return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
             }
 
-        let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName (model: MainModel) = result {
+        let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName (model: MainBindModel) = result {
             let parentPath = oldNode.Path.Parent
             let currentPath = parentPath.Join currentName
             let node = { oldNode with Name = currentName; Path = currentPath }
@@ -282,7 +287,7 @@ module MainLogic =
                 return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
         }
 
-        let registerItem action (model: MainModel) =
+        let registerItem action (model: MainBindModel) =
             if model.SelectedNode.Type.CanModify then
                 model.YankRegister <- Some (model.SelectedNode, action)
                 model.Status <- None
@@ -292,7 +297,7 @@ module MainLogic =
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
-        let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction (model: MainModel) = asyncResult {
+        let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction (model: MainBindModel) = asyncResult {
             let sameFolder = node.Path.Parent = model.Path
             match! fsReader.GetNode model.Path |> actionError "put item" with
             | Some container when container.Type.CanCreateIn ->
@@ -336,7 +341,7 @@ module MainLogic =
                 model |> performedAction action
         }
 
-        let put fsReader fsWriter overwrite (model: MainModel) = asyncResult {
+        let put fsReader fsWriter overwrite (model: MainBindModel) = asyncResult {
             match model.YankRegister with
             | None -> ()
             | Some (node, putAction) ->
@@ -346,7 +351,7 @@ module MainLogic =
                     model.YankRegister <- None
         }
 
-        let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncResult {
+        let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainBindModel) = asyncResult {
             let from = { node with Path = currentPath; Name = currentPath.Name }
             let action = MovedItem (from, node.Path)
             let! existing = fsReader.GetNode node.Path |> itemActionError action model.PathFormat
@@ -361,7 +366,7 @@ module MainLogic =
                 Navigation.openPath fsReader node.Path.Parent (SelectName node.Name) model |> ignore
         }
 
-        let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainModel) = asyncResult {
+        let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainBindModel) = asyncResult {
             let copyModified =
                 match fsReader.GetNode currentPath with
                 | Ok (Some copy) -> copy.Modified
@@ -379,7 +384,7 @@ module MainLogic =
                 Navigation.refresh fsReader model |> ignore
         }
 
-        let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncResult {
+        let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainBindModel) = asyncResult {
             if node.Type.CanModify then
                 let action = DeletedItem (node, permanent)
                 let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
@@ -403,20 +408,22 @@ type MainController(fsReader: IFileSystemReader,
     // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
 
-    let applyResult (model: MainModel) = function
+    let applyResult (model: MainBindModel) = function
         | Ok () -> ()
         | Error e -> model.SetError e
 
-    let resultHandler handler =
+    let resultHandler_m handler =
         Sync (fun model -> handler model |> applyResult model)
 
-    let asyncResultHandler handler =
+    let asyncResultHandler_m handler =
         Async (fun model -> async {
             let! res = handler model
             res |> applyResult model
         })
 
-    interface IController<MainEvents, MainModel> with
+    let resultHandler = MainLogic.toMutationResult >> resultHandler_m
+
+    interface IController<MainEvents, MainBindModel> with
         member this.InitModel model =
             let isFirst =
                 System.Diagnostics.Process.GetProcesses()
@@ -429,7 +436,7 @@ type MainController(fsReader: IFileSystemReader,
 
         member this.Dispatcher = this.LockingDispatcher
 
-    member this.LockingDispatcher evt : EventHandler<MainModel> =
+    member this.LockingDispatcher evt : EventHandler<MainBindModel> =
         match this.Dispatcher evt with
         | Sync handler -> Sync (fun m -> if not taskRunning || evt = ConfigChanged then handler m)
         | Async handler ->
@@ -448,33 +455,33 @@ type MainController(fsReader: IFileSystemReader,
         | CursorDownHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor + m.HalfPageScroll))
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
-        | OpenPath p -> resultHandler (this.OpenUserPath p)
-        | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected fsReader operatingSystem)
-        | OpenParent -> resultHandler (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
-        | Back -> resultHandler (MainLogic.Navigation.back fsReader)
-        | Forward -> resultHandler (MainLogic.Navigation.forward fsReader)
-        | Refresh -> resultHandler this.Refresh
-        | Undo -> asyncResultHandler this.Undo
-        | Redo -> asyncResultHandler this.Redo
-        | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fsReader (Prompt promptType))
-        | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fsReader (Confirm confirmType))
-        | StartInput inputType -> resultHandler (MainLogic.Action.startInput fsReader (Input inputType))
-        | SubmitInput -> resultHandler this.SubmitInput
-        | InputCharTyped c -> asyncResultHandler (this.InputCharTyped c)
+        | OpenPath p -> resultHandler_m (this.OpenUserPath p)
+        | OpenSelected -> resultHandler_m (MainLogic.Navigation.openSelected fsReader operatingSystem)
+        | OpenParent -> resultHandler_m (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
+        | Back -> resultHandler_m (MainLogic.Navigation.back fsReader)
+        | Forward -> resultHandler_m (MainLogic.Navigation.forward fsReader)
+        | Refresh -> resultHandler_m this.Refresh
+        | Undo -> asyncResultHandler_m this.Undo
+        | Redo -> asyncResultHandler_m this.Redo
+        | StartPrompt promptType -> resultHandler_m (MainLogic.Action.startInput fsReader (Prompt promptType))
+        | StartConfirm confirmType -> resultHandler_m (MainLogic.Action.startInput fsReader (Confirm confirmType))
+        | StartInput inputType -> resultHandler_m (MainLogic.Action.startInput fsReader (Input inputType))
+        | SubmitInput -> resultHandler_m this.SubmitInput
+        | InputCharTyped c -> asyncResultHandler_m (this.InputCharTyped c)
         | FindNext -> Sync MainLogic.Cursor.findNext
         | SearchNext -> Sync (MainLogic.Cursor.searchNext false)
         | SearchPrevious -> Sync (MainLogic.Cursor.searchNext true)
         | StartMove -> Sync (MainLogic.Action.registerItem Move)
         | StartCopy -> Sync (MainLogic.Action.registerItem Copy)
-        | Put -> asyncResultHandler (this.Put false)
-        | Recycle -> asyncResultHandler this.Recycle
-        | SortList field -> resultHandler (MainLogic.Navigation.sortList fsReader field)
-        | ToggleHidden -> resultHandler this.ToggleHidden
-        | OpenSplitScreenWindow -> resultHandler this.OpenSplitScreenWindow
-        | OpenSettings -> resultHandler (this.OpenSettings fsReader)
+        | Put -> asyncResultHandler_m (this.Put false)
+        | Recycle -> asyncResultHandler_m this.Recycle
+        | SortList field -> resultHandler_m (MainLogic.Navigation.sortList fsReader field)
+        | ToggleHidden -> resultHandler_m this.ToggleHidden
+        | OpenSplitScreenWindow -> resultHandler_m this.OpenSplitScreenWindow
+        | OpenSettings -> resultHandler_m (this.OpenSettings fsReader)
         | OpenExplorer -> Sync this.OpenExplorer
-        | OpenCommandLine -> resultHandler this.OpenCommandLine
-        | OpenWithTextEditor -> resultHandler this.OpenWithTextEditor
+        | OpenCommandLine -> resultHandler_m this.OpenCommandLine
+        | OpenWithTextEditor -> resultHandler_m this.OpenWithTextEditor
         | ConfigChanged -> Sync (MainLogic.loadConfig fsReader config)
         | Exit -> Sync (ignore >> closeWindow)
 

@@ -61,7 +61,7 @@ type SearchResult = {
     Count: int
 }
 with
-    static member fromModel (model: MainModel) =
+    static member fromModel (model: MainBindModel) =
         { Cursor = model.Cursor
           Count = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length }
 

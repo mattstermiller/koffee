@@ -126,8 +126,64 @@ type StatusType =
             | _ -> ex.Message
         ErrorMessage (sprintf "Could not %s: %s" actionName exnMessage)
 
+type MainModel = {
+    Location: Path
+    PathFormat: PathFormat
+    Status: StatusType option
+    Nodes: Node list
+    Sort: SortField * bool
+    Cursor: int
+    PageSize: int
+    ShowHidden: bool
+    KeyCombo: KeyCombo
+    InputMode: InputMode option
+    InputText: string
+    InputTextSelection: int * int
+    LastFind: (bool * char) option
+    LastSearch: (bool * string) option
+    BackStack: (Path * int) list
+    ForwardStack: (Path * int) list
+    YankRegister: (Node * PutAction) option
+    UndoStack: ItemAction list
+    RedoStack: ItemAction list
+    ShowFullPathInTitle: bool
+    WindowLocation: int * int
+    WindowSize: int * int
+} with
+    member this.SelectedNode =
+        let index = min this.Cursor (this.Nodes.Length-1)
+        this.Nodes.[index]
+
+    member this.WithCursor index =
+        { this with Cursor = index |> min (this.Nodes.Length - 1) |> max 0 }
+
+    static member Default =
+        { Location = Path.Root
+          PathFormat = Windows
+          Status = None
+          Nodes = []
+          Sort = Name, false
+          Cursor = 0
+          PageSize = 30
+          ShowHidden = false
+          KeyCombo = []
+          InputMode = None
+          InputText = ""
+          InputTextSelection = 0, 0
+          LastFind = None
+          LastSearch = None
+          BackStack = []
+          ForwardStack = []
+          YankRegister = None
+          UndoStack = []
+          RedoStack = []
+          ShowFullPathInTitle = false
+          WindowLocation = 0, 0
+          WindowSize = 800, 800
+        }
+
 [<AbstractClass>]
-type MainModel() as this =
+type MainBindModel() as this =
     inherit Model()
 
     do
@@ -183,6 +239,55 @@ type MainModel() as this =
 
     member this.SetCursor index =
         this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
+
+    member this.ToModel () = {
+        Location = this.Path
+        PathFormat = this.PathFormat
+        Status = this.Status
+        Nodes = this.Nodes
+        Sort = this.Sort
+        Cursor = this.Cursor
+        PageSize = this.PageSize
+        ShowHidden = this.ShowHidden
+        KeyCombo = this.KeyCombo
+        InputMode = this.InputMode
+        InputText = this.InputText
+        InputTextSelection = this.InputTextSelection
+        LastFind = this.LastFind
+        LastSearch = this.LastSearch
+        BackStack = this.BackStack
+        ForwardStack = this.ForwardStack
+        YankRegister = this.YankRegister
+        UndoStack = this.UndoStack
+        RedoStack = this.RedoStack
+        ShowFullPathInTitle = this.ShowFullPathInTitle
+        WindowLocation = this.WindowLocation
+        WindowSize = this.WindowSize
+    }
+
+    member this.UpdateFromModel model =
+        this.Path <- model.Location
+        this.PathFormat <- model.PathFormat
+        this.Status <- model.Status
+        this.Sort <- model.Sort
+        this.Nodes <- model.Nodes
+        this.Cursor <- model.Cursor
+        this.PageSize <- model.PageSize
+        this.ShowHidden <- model.ShowHidden
+        this.KeyCombo <- model.KeyCombo
+        this.InputMode <- model.InputMode
+        this.InputText <- model.InputText
+        this.InputTextSelection <- model.InputTextSelection
+        this.LastFind <- model.LastFind
+        this.LastSearch <- model.LastSearch
+        this.BackStack <- model.BackStack
+        this.ForwardStack <- model.ForwardStack
+        this.YankRegister <- model.YankRegister
+        this.UndoStack <- model.UndoStack
+        this.RedoStack <- model.RedoStack
+        this.ShowFullPathInTitle <- model.ShowFullPathInTitle
+        this.WindowLocation <- model.WindowLocation
+        this.WindowSize <- model.WindowSize
 
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * UIHelpers.KeyHandler

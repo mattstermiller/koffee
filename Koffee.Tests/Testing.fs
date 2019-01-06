@@ -45,7 +45,7 @@ let createNode pathStr =
       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
 
 let createBaseTestModel() =
-    let model = Model.Create<MainModel>()
+    let model = Model.Create<MainBindModel>()
     model.BackStack <- [createPath "/c/back", 8]
     model.ForwardStack <- [createPath "/c/fwd", 9]
     let node = createNode "/c/path/default undo-redo"

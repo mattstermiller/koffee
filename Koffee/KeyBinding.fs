@@ -83,7 +83,7 @@ let getMatch (keyBindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
     | [] -> NoMatch
     | _ ->
         // find last binding that had all chords matched
-        let triggered = matches |> List.tryFindBack (fun (keyCombo, _) -> keyCombo = [])
+        let triggered = matches |> List.tryFindBack (fst >> (=) [])
         match triggered with
         | Some (_, item) -> Match item
         | None -> PartialMatch

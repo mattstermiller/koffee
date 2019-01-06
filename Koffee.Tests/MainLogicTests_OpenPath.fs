@@ -3,6 +3,7 @@
 open NUnit.Framework
 open FsUnitTyped
 open Testing
+open Acadian.FSharp
 
 type PathCase =
     | Same
@@ -63,7 +64,7 @@ let test case =
             let prevCursor = expected.Cursor
             expected.Nodes <- newNodes
             expected.Path <- path
-            expected.Cursor <- case.ExpectedCursor |> Option.defaultValue prevCursor
+            expected.Cursor <- case.ExpectedCursor |? prevCursor
             expected.BackStack <- (prevPath, prevCursor) :: expected.BackStack
             expected.ForwardStack <- []
             Ok ()

@@ -1,7 +1,6 @@
 ﻿namespace Koffee
 
 open System.Diagnostics
-open Utility
 
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>

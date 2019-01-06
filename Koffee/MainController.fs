@@ -4,7 +4,7 @@ open FSharp.Desktop.UI
 open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Koffee.ConfigExt
-open Utility
+open Acadian.FSharp
 
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
@@ -33,9 +33,7 @@ module MainLogic =
             model.SetCursor (
                 match select with
                 | SelectIndex index -> index
-                | SelectName name ->
-                    List.tryFindIndex (fun n -> n.Name = name) nodes
-                    |> Option.defaultValue cursor
+                | SelectName name -> List.tryFindIndex (fun n -> n.Name = name) nodes |? cursor
                 | SelectNone -> cursor)
             model.Status <- None
         }
@@ -96,40 +94,39 @@ module MainLogic =
     let initModel (config: Config) (fsReader: IFileSystemReader) startupOptions isFirstInstance (model: MainModel) =
         config.Changed.Add <| fun _ ->
             model.YankRegister <-
-                config.YankRegister
-                |> Option.bind (fun (path, action) ->
+                config.YankRegister |> Option.bind (fun (path, action) ->
                     match fsReader.GetNode path with
                     | Ok (Some node) -> Some (node, action)
-                    | _ -> None )
+                    | _ -> None
+                )
             syncConfig config model
         config.Load()
 
-        let defaultPath = config.DefaultPath |> Path.Parse |> Option.defaultValue Path.Root
-        let startupPath =
-            startupOptions.StartupPath |> Option.defaultValue (
-                match config.StartupPath with
-                | RestorePrevious -> config.PreviousPath
-                | DefaultPath -> config.DefaultPath)
+        model.WindowLocation <-
+            startupOptions.Location |> Option.defaultWith (fun () ->
+                if isFirstInstance then (config.Window.Left, config.Window.Top)
+                else (config.Window.Left + 30, config.Window.Top + 30))
+        model.WindowSize <- startupOptions.Size |? (config.Window.Width, config.Window.Height)
+        let defaultPath = config.DefaultPath |> Path.Parse |? Path.Root
         model.Path <-
             match config.StartupPath with
             | RestorePrevious -> defaultPath
-            | DefaultPath -> config.PreviousPath |> Path.Parse |> Option.defaultValue defaultPath
-        model.WindowLocation <-
-            startupOptions.Location
-            |> Option.defaultWith (fun () ->
-                if isFirstInstance then (config.Window.Left, config.Window.Top)
-                else (config.Window.Left + 30, config.Window.Top + 30))
-        model.WindowSize <- startupOptions.Size |> Option.defaultValue (config.Window.Width, config.Window.Height)
+            | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
+        let startupPath =
+            startupOptions.StartupPath |? (
+                match config.StartupPath with
+                | RestorePrevious -> config.PreviousPath
+                | DefaultPath -> config.DefaultPath
+            )
         Navigation.openUserPath fsReader startupPath model
 
     module Cursor =
         let private moveCursorToNext predicate reverse (model: MainModel) =
-            let indexed = model.Nodes |> List.mapi (fun i n -> (i, n))
+            let indexed = model.Nodes |> List.indexed
             let c = model.Cursor
             let items =
                 if reverse then
-                    Seq.append indexed.[c..] indexed.[0..(c-1)]
-                    |> Seq.rev
+                    Seq.append indexed.[c..] indexed.[0..(c-1)] |> Seq.rev
                 else
                     Seq.append indexed.[(c+1)..] indexed.[0..c]
             items
@@ -197,15 +194,15 @@ module MainLogic =
             model.Status <- Some <| MainStatus.actionComplete action model.PathFormat
 
         let private setInputSelection (model: MainModel) cursorPos =
-            let fullName = model.InputText
-            let name, ext = Path.SplitName fullName
+            let fullLen = model.InputText.Length
+            let nameLen = Path.SplitName model.InputText |> fst |> String.length
             model.InputTextSelection <-
                 match cursorPos with
                 | Begin -> (0, 0)
-                | EndName -> (name.Length, 0)
-                | End -> (fullName.Length, 0)
-                | ReplaceName -> (0, name.Length)
-                | ReplaceAll -> (0, fullName.Length)
+                | EndName -> (nameLen, 0)
+                | End -> (fullLen, 0)
+                | ReplaceName -> (0, nameLen)
+                | ReplaceAll -> (0, fullLen)
 
         let startInput (fsReader: IFileSystemReader) (inputMode: InputMode) (model: MainModel) = result {
             let! allowed =
@@ -260,7 +257,7 @@ module MainLogic =
                 let action = RenamedItem (node, newName)
                 let newPath = node.Path.Parent.Join newName
                 let! existing =
-                    if Str.equalsIgnoreCase node.Name newName then Ok None
+                    if String.equalsIgnoreCase node.Name newName then Ok None
                     else fsReader.GetNode newPath |> itemActionError action model.PathFormat
                 match existing with
                 | None ->
@@ -277,7 +274,7 @@ module MainLogic =
             let node = { oldNode with Name = currentName; Path = currentPath }
             let action = RenamedItem (node, oldNode.Name)
             let! existing =
-                if Str.equalsIgnoreCase oldNode.Name currentName then Ok None
+                if String.equalsIgnoreCase oldNode.Name currentName then Ok None
                 else fsReader.GetNode oldNode.Path |> itemActionError action model.PathFormat
             match existing with
             | None ->
@@ -299,8 +296,7 @@ module MainLogic =
 
         let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction (model: MainModel) = asyncResult {
             let sameFolder = node.Path.Parent = model.Path
-            let! container = fsReader.GetNode model.Path |> actionError "put item"
-            match container with
+            match! fsReader.GetNode model.Path |> actionError "put item" with
             | Some container when container.Type.CanCreateIn ->
                 if putAction = Move && sameFolder then
                     return! Error CannotMoveToSameFolder
@@ -312,7 +308,7 @@ module MainLogic =
                         | Ok None -> true
                         | _ -> false
                     Seq.init 99 (getCopyName node.Name)
-                    |> Seq.tryFind (unused)
+                    |> Seq.tryFind unused
                     |> Result.ofOption (TooManyCopies node.Name)
                 else
                     Ok node.Name
@@ -328,7 +324,7 @@ module MainLogic =
                 let tempShowHidden = not model.ShowHidden && existing.IsHidden
                 if tempShowHidden then
                     model.ShowHidden <- true
-                let res: Result<_,_> = Navigation.openPath fsReader model.Path (SelectName existing.Name) model
+                let res = Navigation.openPath fsReader model.Path (SelectName existing.Name) model
                 if tempShowHidden then
                     model.ShowHidden <- false
                 do! res
@@ -426,7 +422,7 @@ type MainController(fsReader: IFileSystemReader,
         member this.InitModel model =
             let isFirst =
                 System.Diagnostics.Process.GetProcesses()
-                |> Seq.where (fun p -> Str.equalsIgnoreCase p.ProcessName "koffee")
+                |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
                 |> Seq.length
                 |> (=) 1
             MainLogic.initModel config fsReader startupOptions isFirst model
@@ -540,7 +536,7 @@ type MainController(fsReader: IFileSystemReader,
             | Search ->
                 MainLogic.Cursor.parseSearch model.InputText
                 |> Result.map (fun (search, caseSensitive) ->
-                    let caseSensitive = caseSensitive |> Option.defaultValue config.SearchCaseSensitive
+                    let caseSensitive = caseSensitive |? config.SearchCaseSensitive
                     MainLogic.Cursor.search caseSensitive search false model)
             | CreateFile -> this.Create File model.InputText model
             | CreateFolder -> this.Create Folder model.InputText model

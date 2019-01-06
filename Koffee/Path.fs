@@ -2,7 +2,7 @@
 
 open System
 open System.Text.RegularExpressions
-open Utility
+open Acadian.FSharp
 
 type IOPath = System.IO.Path
 
@@ -35,7 +35,7 @@ type Path private (path: string) =
             else None)
 
     static let (|RootPath|_|) s =
-        if Seq.exists (Str.equalsIgnoreCase s) [root; rootUnix; rootWindows] then
+        if Seq.exists (String.equalsIgnoreCase s) [root; rootUnix; rootWindows] then
             Some (Path root)
         else None
 
@@ -46,7 +46,7 @@ type Path private (path: string) =
         matchPathWithPrefix "~" (fun _ -> Path.UserDirectory)
 
     static let (|NetRootPath|_|) s =
-        if Seq.exists (Str.equalsIgnoreCase s) [net; netUnix; netUnix.TrimEnd('/')] then
+        if Seq.exists (String.equalsIgnoreCase s) [net; netUnix; netUnix.TrimEnd('/')] then
             Some (Path net)
         else None
 
@@ -120,7 +120,7 @@ type Path private (path: string) =
         else
             IOPath.GetDirectoryName path
             |> Option.ofObj
-            |> Option.defaultValue root
+            |? root
             |> Path
 
     member this.Join name =

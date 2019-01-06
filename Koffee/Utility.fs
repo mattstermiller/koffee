@@ -1,9 +1,9 @@
-﻿module Utility
+﻿[<AutoOpen>]
+module Utility
 
 open System.Text.RegularExpressions
 open System.Linq
-
-let flip f a b = f b a
+open Acadian.FSharp
 
 let tryResult f =
     try Ok <| f ()
@@ -13,8 +13,6 @@ module Str =
     let ifEmpty fallback str =
         if System.String.IsNullOrEmpty str then fallback
         else str
-
-    let equalsIgnoreCase a b = System.String.Equals(a, b, System.StringComparison.CurrentCultureIgnoreCase)
 
     let readableIdentifier str =
         Regex.Replace(str, @"(?<=[a-z])(?=[A-Z\d])", " ")
@@ -42,26 +40,6 @@ module Format =
         else if size > scaleCutoff 2 then scaledStr size 2
         else if size > scaleCutoff 1 then scaledStr size 1
         else format size + " B"
-
-module Result =
-    let ofOption ifNone o =
-        match o with
-        | Some x -> Ok x
-        | None -> Error ifNone
-
-type ResultBuilder() =
-    member this.Bind (x, f) = Result.bind f x
-    member this.Return x = Ok x
-    member this.ReturnFrom (x: Result<_,_>) = x
-    member this.Zero () = Ok ()
-    member this.Delay f = f
-    member this.Run f = f ()
-    member this.Combine (x, f) =
-        match x with
-        | Ok () -> f ()
-        | Error e -> Error e
-
-let result = ResultBuilder()
 
 type AsyncResultBuilder() =
     member this.Bind (a, f) = async.Bind(a, f)

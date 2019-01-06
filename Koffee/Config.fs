@@ -7,7 +7,7 @@ type Config = YamlConfig<"Config.yaml">
 open System
 open System.IO
 open Reflection
-open Utility
+open Acadian.FSharp
 
 type StartupPath =
     | RestorePrevious
@@ -32,11 +32,11 @@ module ConfigExt =
         member this.Save () = this.Save filePath
 
         member this.PathFormat
-            with get () = ParseUnionCase<PathFormat> this.PathFormatName |> Option.defaultValue Windows
+            with get () = ParseUnionCase<PathFormat> this.PathFormatName |? Windows
             and set value = this.PathFormatName <- GetUnionCaseName value
 
         member this.StartupPath
-            with get () = ParseUnionCase<StartupPath> this.StartupPathType |> Option.defaultValue RestorePrevious
+            with get () = ParseUnionCase<StartupPath> this.StartupPathType |? RestorePrevious
             and set value = this.StartupPathType <- GetUnionCaseName value
 
         member this.YankRegister
@@ -70,24 +70,30 @@ module ConfigExt =
 
         member this.RemoveBookmark char =
             let key = bookmarkKey char
-            this.Bookmarks |> Seq.tryFindIndex (fun b -> b.Key = key)
-                           |> Option.iter this.Bookmarks.RemoveAt
+            this.Bookmarks
+            |> Seq.tryFindIndex (fun b -> b.Key = key)
+            |> Option.iter this.Bookmarks.RemoveAt
 
         member this.GetBookmark char =
             let key = bookmarkKey char
-            this.Bookmarks |> Seq.tryFind (fun b -> b.Key = key) |> Option.map (fun b -> b.Path)
+            this.Bookmarks
+            |> Seq.tryFind (fun b -> b.Key = key)
+            |> Option.map (fun b -> b.Path)
 
         member this.GetBookmarks () =
-            this.Bookmarks |> Seq.map (fun b -> b.Key.[1], b.Path) |> dict
+            this.Bookmarks
+            |> Seq.map (fun b -> b.Key.[1], b.Path)
+            |> dict
 
         member this.AddNetHost host =
-            if this.NetHosts |> Seq.exists (Str.equalsIgnoreCase host) then
+            if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
                 false
             else
                 this.NetHosts.Add host
-                this.NetHosts <- this.NetHosts |> Seq.sortBy (fun n -> n.ToLower()) |> ResizeArray
+                this.NetHosts <- this.NetHosts |> Seq.sortBy String.toLower |> ResizeArray
                 true
 
         member this.RemoveNetHost host =
-            this.NetHosts |> Seq.tryFindIndex (Str.equalsIgnoreCase host)
-                          |> Option.iter this.NetHosts.RemoveAt
+            this.NetHosts
+            |> Seq.tryFindIndex (String.equalsIgnoreCase host)
+            |> Option.iter this.NetHosts.RemoveAt

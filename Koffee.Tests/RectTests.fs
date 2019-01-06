@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Utility
 
 let container = Rect.ofPairs (2, 1) (20, 10)
 

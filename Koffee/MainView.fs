@@ -10,9 +10,9 @@ open System.Reactive.Linq
 open FSharp.Desktop.UI
 open ModelExtensions
 open UIHelpers
-open Utility
 open Reflection
 open ConfigExt
+open Acadian.FSharp
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
@@ -74,13 +74,14 @@ type MainView(window: MainWindow,
                 else model.Path.Name |> Str.ifEmpty model.PathFormatted
             let version = typeof<MainModel>.Assembly.GetName().Version
             let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
-            window.Title <- sprintf "%s  |  Koffee v%s" displayPath versionStr )
+            window.Title <- sprintf "%s  |  Koffee v%s" displayPath versionStr
+        )
         bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
         model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath
 
         // display and save register
-        bindPropertyToFunc <@ model.YankRegister @> (fun register ->
+        bindPropertyToFunc <@ model.YankRegister @> <| fun register ->
             let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
             if configRegister <> config.YankRegister then
                 config.YankRegister <- configRegister
@@ -89,17 +90,17 @@ type MainView(window: MainWindow,
                 register |> Option.map (fun (node, action) ->
                     sprintf "%A %A: %s" action node.Type node.Name)
             window.Dispatcher.Invoke (fun () ->
-                window.RegisterText.Text <- text |> Option.defaultValue ""
-                window.RegisterPanel.Visible <- text.IsSome))
+                window.RegisterText.Text <- text |? ""
+                window.RegisterPanel.Visible <- text.IsSome)
 
         // update input text selection
-        bindPropertyToFunc <@ model.InputTextSelection @> (fun (start, len) ->
-            window.InputBox.Select(start, len))
+        bindPropertyToFunc <@ model.InputTextSelection @> <| fun (start, len) ->
+            window.InputBox.Select(start, len)
 
         // update UI for the input input mode
-        bindPropertyToFunc <@ model.InputMode @> (fun mode ->
+        bindPropertyToFunc <@ model.InputMode @> <| fun mode ->
             this.InputModeChanged mode model.PathFormat model.SelectedNode
-            if mode.IsNone then model.InputTextSelection <- (999, 0))
+            if mode.IsNone then model.InputTextSelection <- (999, 0)
 
         // update UI for status
         let updateStatus _ = this.UpdateStatus model.Status model.KeyCombo model.Nodes
@@ -112,45 +113,46 @@ type MainView(window: MainWindow,
         window.PathBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.NodeGrid.PreviewKeyDown.Add <| onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
-            window.PathBox.Focus())
+            window.PathBox.Focus()
+        )
 
         // on selection change, keep selected node in view, make sure node list is focused
-        window.NodeGrid.SelectionChanged.Add (fun _ ->
+        window.NodeGrid.SelectionChanged.Add <| fun _ ->
             this.KeepSelectedInView()
-            window.NodeGrid.Focus() |> ignore)
+            window.NodeGrid.Focus() |> ignore
 
         // on resize, keep selected node in view, update the page size
-        window.NodeGrid.SizeChanged.Add (fun _ ->
+        window.NodeGrid.SizeChanged.Add <| fun _ ->
             this.KeepSelectedInView()
-            this.ItemsPerPage |> Option.iter (fun i -> model.PageSize <- i))
+            this.ItemsPerPage |> Option.iter model.set_PageSize
 
         // escape and lost focus resets the input mode
         window.InputBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
 
         // on path enter, update to formatted path and focus grid
-        window.Loaded.Add (fun _ ->
+        window.Loaded.Add <| fun _ ->
             window.PathBox.PreviewKeyDown.Add (fun evt ->
                 if evt.Key = Key.Enter && not model.HasErrorStatus then
                     evt.Handled <- true
                     window.PathBox.Text <- model.PathFormatted
-                    window.NodeGrid.Focus() |> ignore))
+                    window.NodeGrid.Focus() |> ignore)
 
         // suppress text input for character prompts
-        window.Loaded.Add (fun _ ->
+        window.Loaded.Add <| fun _ ->
             window.InputBox.PreviewTextInput.Add (fun evt ->
                 match model.InputMode with
                 | Some (Prompt _) | Some (Confirm _) -> evt.Handled <- true
-                | _ -> ()))
+                | _ -> ())
 
         // pressing delete when viewing bookmarks allows delete
-        window.InputBox.PreviewKeyDown.Add (fun evt ->
+        window.InputBox.PreviewKeyDown.Add <| fun evt ->
             if evt.Key = Key.Delete then
                 match model.InputMode with
                 | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
                     evt.Handled <- true
                     model.InputMode <- Some (Prompt DeleteBookmark)
-                | _ -> ())
+                | _ -> ()
 
         // make sure selected item gets set to the cursor
         let desiredCursor = model.Cursor
@@ -158,52 +160,53 @@ type MainView(window: MainWindow,
         window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
 
         // load window settings
-        bindPropertyToFunc <@ model.WindowLocation @> (fun (left, top) ->
+        bindPropertyToFunc <@ model.WindowLocation @> <| fun (left, top) ->
             if int window.Left <> left then window.Left <- float left
-            if int window.Top <> top then window.Top <- float top)
-        bindPropertyToFunc <@ model.WindowSize @> (fun (width, height) ->
+            if int window.Top <> top then window.Top <- float top
+        bindPropertyToFunc <@ model.WindowSize @> <| fun (width, height) ->
             if int window.Width <> width then window.Width <- float width
-            if int window.Height <> height then window.Height <- float height)
+            if int window.Height <> height then window.Height <- float height
         if config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
         // setup saving window settings
         let saveWindowSettings = startupOptions.Location.IsNone && startupOptions.Size.IsNone
         if saveWindowSettings then
-            window.StateChanged.Add (fun _ -> 
+            window.StateChanged.Add <| fun _ -> 
                 if window.WindowState <> WindowState.Minimized then
                     config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
-                    config.Save())
-        window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ ->
+                    config.Save()
+        window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add <| fun _ ->
             window.Dispatcher.Invoke(fun () ->
                 if window.Left > -window.Width && window.Top > -window.Height then
                     model.WindowLocation <- (int window.Left, int window.Top)
                     if saveWindowSettings then
                         config.Window.Left <- int window.Left
                         config.Window.Top <- int window.Top
-                        config.Save()))
-        window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add (fun _ -> 
+                        config.Save())
+        window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add <| fun _ -> 
             window.Dispatcher.Invoke(fun () ->
                 model.WindowSize <- (int window.Width, int window.Height)
                 if saveWindowSettings then
                     config.Window.Width <- int window.Width
                     config.Window.Height <- int window.Height
-                    config.Save()))
+                    config.Save())
 
         bindPropertyToFunc <@ model.ShowHidden @> <| fun sh ->
             if config.ShowHidden <> sh then
                 config.ShowHidden <- sh
                 config.Save()
 
-        window.Closed.Add (fun _ ->
+        window.Closed.Add <| fun _ ->
             config.PreviousPath <- model.Path.Format Windows
-            config.Save())
+            config.Save()
 
     override this.EventStreams = [
         window.Activated |> Observable.choose this.Activated
         window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
             if evt.Key = Key.Enter then Some <| OpenPath window.PathBox.Text
-            else None)
+            else None
+        )
         window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -212,14 +215,16 @@ type MainView(window: MainWindow,
             | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
             | (modifier, _) when ignoreMods |> (not << List.contains modifier) -> Some keyPress
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
-            | _ -> None)
+            | _ -> None
+        )
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
         window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
                                        |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
         window.NodeGrid.PreviewKeyDown |> Observable.choose (fun evt ->
             if evt.Chord = (ModifierKeys.Control, Key.C) then
                 evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
-            None)
+            None
+        )
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewTextInput |> Observable.choose this.InputKey

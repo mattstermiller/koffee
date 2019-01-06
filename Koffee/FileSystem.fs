@@ -6,8 +6,8 @@ open System.Text.RegularExpressions
 open System.Management
 open Microsoft.VisualBasic.FileIO
 open Koffee
-open Utility
 open ConfigExt
+open Acadian.FSharp
 
 type IFileSystemReader =
     abstract member GetNode: Path -> Result<Node option, exn>
@@ -218,7 +218,7 @@ type FileSystem(config: Config) =
                     Directory.Move(source, dest)
             let source = wpath fromPath
             let dest = wpath toPath
-            if Str.equalsIgnoreCase source dest then
+            if String.equalsIgnoreCase source dest then
                 let temp = sprintf "_rename_%s" fromPath.Name |> fromPath.Parent.Join
                 do! this.Move fromPath temp
                 do! this.Move temp toPath
@@ -243,10 +243,10 @@ type FileSystem(config: Config) =
                     // copy folder structure
                     Directory.CreateDirectory dest |> ignore
                     Directory.GetDirectories(source, "*", SearchOption.AllDirectories)
-                        |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
+                    |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
                     // copy files
                     Directory.GetFiles(source, "*", SearchOption.AllDirectories)
-                        |> Seq.iter (fun file -> copyFile file (getDest file))
+                    |> Seq.iter (fun file -> copyFile file (getDest file))
                 else
                     copyFile source dest
 

@@ -3,7 +3,7 @@
 open System
 open System.Windows.Input
 open FSharp.Desktop.UI
-open Utility
+open Acadian.FSharp
 
 type NodeType =
     | File
@@ -49,7 +49,7 @@ with
     member this.Description =
         sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
 
-    member this.SizeFormatted = this.Size |> Option.map Format.fileSize |> Option.defaultValue ""
+    member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
 type SortField =
     | Name

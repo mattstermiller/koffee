@@ -8,7 +8,6 @@ open FSharp.Desktop.UI
 open FSharp.Quotations
 open ModelExtensions
 open Reflection
-open Utility
 
 let onKey key action (evt: KeyEventArgs) =
     if evt.Key = key then

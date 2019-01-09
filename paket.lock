@@ -1,8 +1,8 @@
 REDIRECTS: ON
-FRAMEWORK: NET451
+RESTRICTION: == net451
 NUGET
-  remote: http://api.nuget.org/v3/index.json
-    Acadian.FSharp (1.0.1)
+  remote: https://api.nuget.org/v3/index.json
+    Acadian.FSharp (1.1)
       FSharp.Core (>= 4.3.4)
     Castle.Core (4.3.1)
     CompareNETObjects (4.57) - content: none

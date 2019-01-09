@@ -71,7 +71,7 @@ type MainView(window: MainWindow,
             window.PathBox.Text <- model.PathFormatted
             let displayPath =
                 if model.ShowFullPathInTitle then model.PathFormatted
-                else model.Path.Name |> Str.ifEmpty model.PathFormatted
+                else model.Path.Name |> String.ifEmpty model.PathFormatted
             let version = typeof<MainModel>.Assembly.GetName().Version
             let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
             window.Title <- sprintf "%s  |  Koffee v%s" displayPath versionStr
@@ -280,10 +280,7 @@ type MainView(window: MainWindow,
             | Prompt GoToBookmark
             | Prompt SetBookmark
             | Prompt DeleteBookmark ->
-                let bookmarks =
-                    match config.GetBookmarks() with
-                    | bm when bm |> Seq.isEmpty -> [(' ', "No bookmarks set")] |> dict
-                    | bm -> bm
+                let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
                 window.Bookmarks.ItemsSource <- bookmarks
                 window.BookmarkPanel.Visible <- true
             | _ ->
@@ -292,7 +289,7 @@ type MainView(window: MainWindow,
         | None -> this.HideInputBar ()
 
     member this.GetPrompt pathFormat (node: Node) =
-        let caseName (case: obj) = case |> GetUnionCaseName |> Str.readableIdentifier |> sprintf "%s:"
+        let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         function
         | Confirm confirmType ->
             match confirmType with

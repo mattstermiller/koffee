@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System.Diagnostics
+open Acadian.FSharp
 
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>

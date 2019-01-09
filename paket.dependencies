@@ -16,4 +16,4 @@ nuget Rx-Interfaces
 nuget Rx-Linq
 nuget Rx-Main
 nuget Rx-PlatformServices ~> 2.2.5
-nuget Acadian.FSharp
+nuget Acadian.FSharp ~> 1.1

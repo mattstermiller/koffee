@@ -5,15 +5,7 @@ open System.Text.RegularExpressions
 open System.Linq
 open Acadian.FSharp
 
-let tryResult f =
-    try Ok <| f ()
-    with e -> Error e
-
-module Str =
-    let ifEmpty fallback str =
-        if System.String.IsNullOrEmpty str then fallback
-        else str
-
+module String =
     let readableIdentifier str =
         Regex.Replace(str, @"(?<=[a-z])(?=[A-Z\d])", " ")
 

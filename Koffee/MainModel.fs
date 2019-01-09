@@ -219,6 +219,7 @@ type MainEvents =
     | OpenCommandLine
     | OpenWithTextEditor
     | OpenSettings
+    | ConfigChanged
     | Exit
 
     member this.FriendlyName =
@@ -269,6 +270,7 @@ type MainEvents =
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenWithTextEditor -> "Open Selected File With Text Editor"
         | OpenSettings -> "Open Help/Settings"
+        | ConfigChanged -> "Configuration File Changed"
         | Exit -> "Exit"
 
     static member Bindable = [

@@ -10,7 +10,13 @@ type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
 module MainLogic =
-    let syncConfig (config: Config) (model: MainModel) =
+    let loadConfig (fsReader: IFileSystemReader) (config: Config) (model: MainModel) =
+        model.YankRegister <-
+            config.YankRegister |> Option.bind (fun (path, action) ->
+                match fsReader.GetNode path with
+                | Ok (Some node) -> Some (node, action)
+                | _ -> None
+            )
         model.PathFormat <- config.PathFormat
         model.ShowHidden <- config.ShowHidden
         model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
@@ -92,15 +98,7 @@ module MainLogic =
         }
 
     let initModel (config: Config) (fsReader: IFileSystemReader) startupOptions isFirstInstance (model: MainModel) =
-        config.Changed.Add <| fun _ ->
-            model.YankRegister <-
-                config.YankRegister |> Option.bind (fun (path, action) ->
-                    match fsReader.GetNode path with
-                    | Ok (Some node) -> Some (node, action)
-                    | _ -> None
-                )
-            syncConfig config model
-        config.Load()
+        loadConfig fsReader config model
 
         model.WindowLocation <-
             startupOptions.Location |> Option.defaultWith (fun () ->
@@ -425,6 +423,7 @@ type MainController(fsReader: IFileSystemReader,
                 |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
                 |> Seq.length
                 |> (=) 1
+            config.Load()
             MainLogic.initModel config fsReader startupOptions isFirst model
             |> applyResult model
 
@@ -432,7 +431,7 @@ type MainController(fsReader: IFileSystemReader,
 
     member this.LockingDispatcher evt : EventHandler<MainModel> =
         match this.Dispatcher evt with
-        | Sync handler -> Sync (fun m -> if not taskRunning then handler m)
+        | Sync handler -> Sync (fun m -> if not taskRunning || evt = ConfigChanged then handler m)
         | Async handler ->
             Async (fun m -> async {
                 if not taskRunning then
@@ -472,10 +471,11 @@ type MainController(fsReader: IFileSystemReader,
         | SortList field -> resultHandler (MainLogic.Navigation.sortList fsReader field)
         | ToggleHidden -> resultHandler this.ToggleHidden
         | OpenSplitScreenWindow -> resultHandler this.OpenSplitScreenWindow
-        | OpenSettings -> resultHandler this.OpenSettings
+        | OpenSettings -> resultHandler (this.OpenSettings fsReader)
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> resultHandler this.OpenCommandLine
         | OpenWithTextEditor -> resultHandler this.OpenWithTextEditor
+        | ConfigChanged -> Sync (MainLogic.loadConfig fsReader config)
         | Exit -> Sync (ignore >> closeWindow)
 
     member this.KeyPress chord handleKey model = async {
@@ -713,9 +713,9 @@ type MainController(fsReader: IFileSystemReader,
         | _ -> ()
     }
 
-    member this.OpenSettings model = result {
+    member this.OpenSettings fsReader model = result {
         settingsFactory().StartDialog() |> ignore
 
-        MainLogic.syncConfig config model
+        MainLogic.loadConfig fsReader config model
         do! this.Refresh model
     }

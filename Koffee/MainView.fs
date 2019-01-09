@@ -228,6 +228,7 @@ type MainView(window: MainWindow,
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewTextInput |> Observable.choose this.InputKey
+        config.Changed |> Observable.mapTo ConfigChanged
     ]
 
     member this.Activated _ =

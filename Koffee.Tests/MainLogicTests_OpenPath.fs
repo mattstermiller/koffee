@@ -50,7 +50,7 @@ let test case =
         | Same -> model.Path <- path
         | _ -> ()
 
-    let res = MainLogic.Navigation.openPath fsReader path case.Select model
+    let res = MainLogic.Navigation.openPath_m fsReader path case.Select model
 
     let expected = createModel()
     let expectedRes =

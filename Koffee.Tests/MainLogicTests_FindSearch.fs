@@ -32,7 +32,7 @@ let find char cursorStart =
     let model = createModel cursorStart
     let expected = createModel cursorStart
 
-    MainLogic.Cursor.find true char model
+    MainLogic.Cursor.find_m true char model
 
     expected.LastFind <- Some (true, char)
     expected.Status <- Some <| MainStatus.find true char
@@ -71,7 +71,7 @@ let assertSearchGiven reverse searchStr cursorStart expectedResult =
     model.LastSearch <- search
     let expected = createModel cursorStart
 
-    MainLogic.Cursor.searchNext reverse model
+    MainLogic.Cursor.searchNext_m reverse model
 
     expected.LastSearch <- search
     expected.Status <- search |> Option.map (fun (cs, s) -> MainStatus.search expectedResult.Count cs s)

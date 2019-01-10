@@ -38,7 +38,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     fsWriter.Recycle <- fun p -> recycled <- Some p; Ok ()
     let model = createModel()
     let node = oldNodes.[1]
-    let res = MainLogic.Action.delete fsReader fsWriter node permanent model |> Async.RunSynchronously
+    let res = MainLogic.Action.delete_m fsReader fsWriter node permanent model |> Async.RunSynchronously
 
     res |> shouldEqual (Ok ())
     if permanent then
@@ -64,7 +64,7 @@ let ``Delete handles error by returning error``() =
     fsWriter.Delete <- fun _ -> Error ex
     let model = createModel()
     let node = oldNodes.[1]
-    let res = MainLogic.Action.delete fsReader fsWriter node true model |> Async.RunSynchronously
+    let res = MainLogic.Action.delete_m fsReader fsWriter node true model |> Async.RunSynchronously
 
     let expectedAction = (DeletedItem (oldNodes.[1], true))
     res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))

@@ -3,7 +3,6 @@
 open System
 open NUnit.Framework
 open FsUnitTyped
-open Testing
 open KellermanSoftware.CompareNetObjects
 
 let nodeSameFolder = createNode "/c/path/file 2"

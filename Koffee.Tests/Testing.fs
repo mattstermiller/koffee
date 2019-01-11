@@ -1,4 +1,5 @@
-﻿module Testing
+﻿[<AutoOpen>]
+module Testing
 
 open System
 open NUnit.Framework
@@ -37,12 +38,27 @@ let assertAreEqualWith expected actual (comparer: CompareLogic) =
 let assertAreEqual expected actual =
     CompareLogic() |> assertAreEqualWith expected actual
 
+let assertOk res =
+    match res with
+    | Ok a -> a
+    | Error e -> failwithf "%A" e
+
 let createPath pathStr = (Path.Parse pathStr).Value
 
 let createNode pathStr =
     let path = createPath pathStr
     { Path = path; Name = path.Name; Type = Folder;
       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+
+let baseModel =
+    let node = createNode "/c/path/default undo-redo"
+    { MainModel.Default with
+        BackStack = [createPath "/c/back", 8]
+        ForwardStack = [createPath "/c/fwd", 9]
+        UndoStack = [CreatedItem node]
+        RedoStack = [RenamedItem (node, "item")]
+        PathFormat = Unix
+    }
 
 let createBaseTestModel() =
     let model = Model.Create<MainBindModel>()

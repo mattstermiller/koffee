@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Testing
 open KellermanSoftware.CompareNetObjects
 
 let nodes names =

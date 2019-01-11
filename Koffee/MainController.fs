@@ -10,16 +10,18 @@ type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
 module MainLogic =
-    let loadConfig (fsReader: IFileSystemReader) (config: Config) (model: MainBindModel) =
-        model.YankRegister <-
-            config.YankRegister |> Option.bind (fun (path, action) ->
-                match fsReader.GetNode path with
-                | Ok (Some node) -> Some (node, action)
-                | _ -> None
-            )
-        model.PathFormat <- config.PathFormat
-        model.ShowHidden <- config.ShowHidden
-        model.ShowFullPathInTitle <- config.Window.ShowFullPathInTitle
+    let loadConfig (fsReader: IFileSystemReader) (config: Config) model =
+        { model with
+            YankRegister =
+                config.YankRegister |> Option.bind (fun (path, action) ->
+                    match fsReader.GetNode path with
+                    | Ok (Some node) -> Some (node, action)
+                    | _ -> None
+                )
+            PathFormat = config.PathFormat
+            ShowHidden = config.ShowHidden
+            ShowFullPathInTitle = config.Window.ShowFullPathInTitle
+        }
 
     let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
     let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
@@ -30,98 +32,118 @@ module MainLogic =
         bindModel.ToModel() |> handler |> Result.map bindModel.UpdateFromModel
 
     module Navigation =
-        let openPath_m (fsReader: IFileSystemReader) path select (model: MainBindModel) = result {
+        let openPath (fsReader: IFileSystemReader) path select model = result {
             let! nodes = fsReader.GetNodes model.ShowHidden path |> actionError "open path"
-            let sortField, sortDesc = model.Sort
-            let nodes = nodes |> SortField.SortByTypeThen sortField sortDesc
-            if path <> model.Path then
-                model.BackStack <- (model.Path, model.Cursor) :: model.BackStack
-                model.ForwardStack <- []
-                model.Path <- path
-                model.Cursor <- 0
-            let cursor = model.Cursor
-            model.Nodes <- nodes
-            model.SetCursor (
+            let nodes = nodes |> SortField.SortByTypeThen model.Sort
+            let model =
+                if path <> model.Location then
+                    { model with
+                        BackStack = (model.Location, model.Cursor) :: model.BackStack
+                        ForwardStack = []
+                        Location = path
+                        Cursor = 0
+                    }
+                else model
+            let cursor =
                 match select with
                 | SelectIndex index -> index
-                | SelectName name -> List.tryFindIndex (fun n -> n.Name = name) nodes |? cursor
-                | SelectNone -> cursor)
-            model.Status <- None
+                | SelectName name -> List.tryFindIndex (fun n -> n.Name = name) nodes |? model.Cursor
+                | SelectNone -> model.Cursor
+            return
+                { model with
+                    Nodes = nodes
+                    Status = None
+                }.WithCursor cursor
         }
 
-        let openUserPath_m (fsReader: IFileSystemReader) pathStr (model: MainBindModel) =
+        let openPath_m fsReader path select =
+            openPath fsReader path select |> toMutationResult
+
+        let openUserPath (fsReader: IFileSystemReader) pathStr model =
             match Path.Parse pathStr with
             | Some path ->
                 match fsReader.GetNode path with
                 | Ok (Some node) when node.Type = File ->
-                    openPath_m fsReader path.Parent (SelectName node.Name) model
+                    openPath fsReader path.Parent (SelectName node.Name) model
                 | Ok _ ->
-                    openPath_m fsReader path SelectNone model
+                    openPath fsReader path SelectNone model
                 | Error e -> Error <| ActionError ("open path", e)
             | None -> Error <| InvalidPath pathStr
 
-        let openSelected_m fsReader (os: IOperatingSystem) (model: MainBindModel) =
+        let openUserPath_m fsReader pathStr =
+            openUserPath fsReader pathStr |> toMutationResult
+
+        let openSelected fsReader (os: IOperatingSystem) (model: MainModel) =
             let node = model.SelectedNode
             match node.Type with
             | Folder | Drive | NetHost | NetShare ->
-                openPath_m fsReader node.Path SelectNone model
+                openPath fsReader node.Path SelectNone model
             | File ->
                 os.OpenFile node.Path |> actionError (sprintf "open '%s'" node.Name)
                 |> Result.map (fun () ->
-                    model.Status <- Some <| MainStatus.openFile node.Name)
-            | _ -> Ok ()
+                    { model with Status = Some <| MainStatus.openFile node.Name })
+            | _ -> Ok model
 
-        let refresh_m fsReader (model: MainBindModel) =
-            openPath_m fsReader model.Path SelectNone model
+        let openParent fsReader model =
+            openPath fsReader model.Location.Parent (SelectName model.Location.Name) model
 
-        let back_m fsReader (model: MainBindModel) = result {
+        let refresh fsReader model =
+            openPath fsReader model.Location SelectNone model
+
+        let refresh_m fsReader =
+            refresh fsReader |> toMutationResult
+
+        let back fsReader model = result {
             match model.BackStack with
             | (path, cursor) :: backTail ->
-                let newForwardStack = (model.Path, model.Cursor) :: model.ForwardStack
-                do! openPath_m fsReader path (SelectIndex cursor) model
-                model.BackStack <- backTail
-                model.ForwardStack <- newForwardStack
-            | [] -> ()
+                let newForwardStack = (model.Location, model.Cursor) :: model.ForwardStack
+                let! model = openPath fsReader path (SelectIndex cursor) model
+                return
+                    { model with
+                        BackStack = backTail
+                        ForwardStack = newForwardStack
+                    }
+            | [] -> return model
         }
 
-        let forward_m fsReader (model: MainBindModel) = result {
+        let forward fsReader model = result {
             match model.ForwardStack with
             | (path, cursor) :: forwardTail ->
-                do! openPath_m fsReader path (SelectIndex cursor) model
-                model.ForwardStack <- forwardTail
-            | [] -> ()
+                let! model = openPath fsReader path (SelectIndex cursor) model
+                return { model with ForwardStack = forwardTail }
+            | [] -> return model
         }
 
-        let sortList_m fsReader field (model: MainBindModel) = result {
+        let sortList fsReader field model = result {
             let desc =
                 match model.Sort with
                 | f, desc when f = field -> not desc
                 | _ -> field = Modified
-            model.Sort <- field, desc
-            do! openPath_m fsReader model.Path (SelectName model.SelectedNode.Name) model
-            model.Status <- Some <| MainStatus.sort field desc
+            let! model =
+                { model with Sort = field, desc }
+                |> openPath fsReader model.Location (SelectName model.SelectedNode.Name)
+            return { model with Status = Some <| MainStatus.sort field desc }
         }
 
-    let initModel_m (config: Config) (fsReader: IFileSystemReader) startOptions isFirstInstance (model: MainBindModel) =
-        loadConfig fsReader config model
-
-        model.WindowLocation <-
-            startOptions.StartLocation |> Option.defaultWith (fun () ->
-                if isFirstInstance then (config.Window.Left, config.Window.Top)
-                else (config.Window.Left + 30, config.Window.Top + 30))
-        model.WindowSize <- startOptions.StartSize |? (config.Window.Width, config.Window.Height)
+    let initModel (config: Config) (fsReader: IFileSystemReader) startOptions isFirstInstance model =
         let defaultPath = config.DefaultPath |> Path.Parse |? Path.Root
-        model.Path <-
-            match config.StartPath with
-            | RestorePrevious -> defaultPath
-            | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
         let startPath =
             startOptions.StartPath |? (
                 match config.StartPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath
             )
-        Navigation.openUserPath_m fsReader startPath model
+        { loadConfig fsReader config model with
+            Location =
+                match config.StartPath with
+                | RestorePrevious -> defaultPath
+                | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
+            WindowLocation =
+                startOptions.StartLocation |> Option.defaultWith (fun () ->
+                    if isFirstInstance then (config.Window.Left, config.Window.Top)
+                    else (config.Window.Left + 30, config.Window.Top + 30))
+            WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
+        } |> Navigation.openUserPath fsReader startPath
 
     module Cursor =
         let private moveCursorToNext_m predicate reverse (model: MainBindModel) =
@@ -431,7 +453,7 @@ type MainController(fsReader: IFileSystemReader,
                 |> Seq.length
                 |> (=) 1
             config.Load()
-            MainLogic.initModel_m config fsReader startOptions isFirst model
+            MainLogic.toMutationResult (MainLogic.initModel config fsReader startOptions isFirst) model
             |> applyResult model
 
         member this.Dispatcher = this.LockingDispatcher
@@ -455,12 +477,12 @@ type MainController(fsReader: IFileSystemReader,
         | CursorDownHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor + m.HalfPageScroll))
         | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
         | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
-        | OpenPath p -> resultHandler_m (this.OpenUserPath p)
-        | OpenSelected -> resultHandler_m (MainLogic.Navigation.openSelected_m fsReader operatingSystem)
-        | OpenParent -> resultHandler_m (fun m -> this.OpenPath m.Path.Parent (SelectName m.Path.Name) m)
-        | Back -> resultHandler_m (MainLogic.Navigation.back_m fsReader)
-        | Forward -> resultHandler_m (MainLogic.Navigation.forward_m fsReader)
-        | Refresh -> resultHandler_m this.Refresh
+        | OpenPath p -> resultHandler (MainLogic.Navigation.openUserPath fsReader p)
+        | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected fsReader operatingSystem)
+        | OpenParent -> resultHandler (MainLogic.Navigation.openParent fsReader)
+        | Back -> resultHandler (MainLogic.Navigation.back fsReader)
+        | Forward -> resultHandler (MainLogic.Navigation.forward fsReader)
+        | Refresh -> resultHandler (MainLogic.Navigation.refresh fsReader)
         | Undo -> asyncResultHandler_m this.Undo
         | Redo -> asyncResultHandler_m this.Redo
         | StartPrompt promptType -> resultHandler_m (MainLogic.Action.startInput_m fsReader (Prompt promptType))
@@ -475,14 +497,14 @@ type MainController(fsReader: IFileSystemReader,
         | StartCopy -> Sync (MainLogic.Action.registerItem_m Copy)
         | Put -> asyncResultHandler_m (this.Put false)
         | Recycle -> asyncResultHandler_m this.Recycle
-        | SortList field -> resultHandler_m (MainLogic.Navigation.sortList_m fsReader field)
+        | SortList field -> resultHandler (MainLogic.Navigation.sortList fsReader field)
         | ToggleHidden -> resultHandler_m this.ToggleHidden
         | OpenSplitScreenWindow -> resultHandler_m this.OpenSplitScreenWindow
-        | OpenSettings -> resultHandler_m (this.OpenSettings fsReader)
+        | OpenSettings -> resultHandler (this.OpenSettings fsReader)
         | OpenExplorer -> Sync this.OpenExplorer
         | OpenCommandLine -> resultHandler_m this.OpenCommandLine
         | OpenWithTextEditor -> resultHandler_m this.OpenWithTextEditor
-        | ConfigChanged -> Sync (MainLogic.loadConfig fsReader config)
+        | ConfigChanged -> Sync (MainLogic.toMutation (MainLogic.loadConfig fsReader config))
         | Exit -> Sync (ignore >> closeWindow)
 
     member this.KeyPress chord handleKey model = async {
@@ -519,7 +541,6 @@ type MainController(fsReader: IFileSystemReader,
     }
 
     member this.OpenPath = MainLogic.Navigation.openPath_m fsReader
-    member this.OpenUserPath = MainLogic.Navigation.openUserPath_m fsReader
     member this.Refresh = MainLogic.Navigation.refresh_m fsReader
 
     member this.Create = MainLogic.Action.create_m fsReader fsWriter
@@ -565,7 +586,7 @@ type MainController(fsReader: IFileSystemReader,
             | GoToBookmark ->
                 model.InputMode <- None
                 match config.GetBookmark char with
-                | Some path -> return! this.OpenUserPath path model
+                | Some path -> return! MainLogic.Navigation.openUserPath_m fsReader path model
                 | None -> model.Status <- Some <| MainStatus.noBookmark char
             | SetBookmark ->
                 match config.GetBookmark char |> Option.bind Path.Parse with
@@ -722,7 +743,7 @@ type MainController(fsReader: IFileSystemReader,
 
     member this.OpenSettings fsReader model = result {
         settingsFactory().StartDialog() |> ignore
-
-        MainLogic.loadConfig fsReader config model
-        do! this.Refresh model
+        return!
+            MainLogic.loadConfig fsReader config model
+            |> MainLogic.Navigation.refresh fsReader
     }

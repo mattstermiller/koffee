@@ -57,7 +57,7 @@ type SortField =
     | Modified
     | Size
 
-    static member SortByTypeThen field desc (list: Node list) =
+    static member SortByTypeThen (field, desc) (list: Node list) =
         let orderBy, thenBy =
             if desc then Order.by, Order.thenByDesc
             else Order.byDesc, Order.thenBy
@@ -130,7 +130,7 @@ type MainModel = {
     Location: Path
     PathFormat: PathFormat
     Status: StatusType option
-    Nodes: Node list
+    Nodes: Node list // TODO: change to array for performance
     Sort: SortField * bool
     Cursor: int
     PageSize: int

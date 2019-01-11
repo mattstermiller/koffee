@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Testing
 open Acadian.FSharp
 
 type PathCase =
@@ -16,23 +15,21 @@ type TestCase = {
     ExpectedCursor: int option
 }
 
-let oldNodes = [
-    createNode "/c/old/old 1"
-    createNode "/c/old/old 2"
-    createNode "/c/old/old 3"
-]
+let model =
+    { baseModel with
+        Nodes = [
+            createNode "/c/old/old 1"
+            createNode "/c/old/old 2"
+            createNode "/c/old/old 3"
+        ]
+        Location = createPath "/c/old"
+        Cursor = 2
+    }
 
 let newNodes = [
     createNode "/c/path/new 1"
     createNode "/c/path/new 2"
 ]
-
-let createModel () =
-    let model = createBaseTestModel()
-    model.Nodes <- oldNodes
-    model.Path <- createPath "/c/old"
-    model.Cursor <- 2
-    model
 
 let ex = System.UnauthorizedAccessException() :> exn
 
@@ -40,39 +37,39 @@ let test case =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNodes <- fun _ _ ->
         match case.GetPath with
-        | Same -> Ok oldNodes
+        | Same -> Ok model.Nodes
         | Different -> Ok newNodes
         | Inaccessible -> Error ex
 
     let path = createPath "/c/path"
-    let model = createModel()
-    match case.GetPath with
-        | Same -> model.Path <- path
-        | _ -> ()
+    let loc =
+        match case.GetPath with
+        | Same -> path
+        | _ -> model.Location
+    let testModel = { model with Location = loc }
 
-    let res = MainLogic.Navigation.openPath_m fsReader path case.Select model
+    let res = MainLogic.Navigation.openPath fsReader path case.Select testModel
 
-    let expected = createModel()
-    let expectedRes =
+
+    let expected =
         match case.GetPath with
         | Same ->
-            expected.Path <- path
-            case.ExpectedCursor |> Option.iter (expected.set_Cursor)
-            Ok ()
+            Ok { model with
+                    Location = path
+                    Cursor = case.ExpectedCursor |? model.Cursor
+               }
         | Different ->
-            let prevPath = expected.Path
-            let prevCursor = expected.Cursor
-            expected.Nodes <- newNodes
-            expected.Path <- path
-            expected.Cursor <- case.ExpectedCursor |? prevCursor
-            expected.BackStack <- (prevPath, prevCursor) :: expected.BackStack
-            expected.ForwardStack <- []
-            Ok ()
+            Ok { model with
+                    Nodes = newNodes
+                    Location = path
+                    Cursor = case.ExpectedCursor |? model.Cursor
+                    BackStack = (model.Location, model.Cursor) :: model.BackStack
+                    ForwardStack = []
+               }
         | Inaccessible ->
             Error (ActionError ("open path", ex))
 
-    res |> shouldEqual expectedRes
-    assertAreEqual expected model
+    res |> shouldEqual expected
 
 [<Test>]
 let ``Opening a valid path updates model correctly``() =

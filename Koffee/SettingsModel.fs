@@ -13,7 +13,7 @@ type SettingsModel() =
     abstract KeyBindings: KeyBind list with get, set
 
 type SettingsEvents =
-    | StartupPathChanged of StartupPath
+    | StartPathChanged of StartPath
     | DefaultPathChanged of string
     | TextEditorChanged of string
     | CommandlinePathChanged of string

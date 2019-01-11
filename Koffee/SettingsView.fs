@@ -18,7 +18,7 @@ type SettingsView(window: SettingsWindow, config: Config) =
         let check (ctl: ToggleButton) =
             ctl.IsChecked <- Nullable true
 
-        check (if config.StartupPath = RestorePrevious then window.StartupPathPrevious else window.StartupPathDefault)
+        check (if config.StartPath = RestorePrevious then window.StartPathPrevious else window.StartPathDefault)
         check (if config.PathFormat = Windows then window.PathFormatWindows else window.PathFormatUnix)
         window.DefaultPath.Text <- config.DefaultPath
 
@@ -54,8 +54,8 @@ type SettingsView(window: SettingsWindow, config: Config) =
              checkBox.Unchecked |> Observable.mapTo (evt false))
             ||> Observable.merge
 
-        [ window.StartupPathPrevious.Checked |> Observable.mapTo (StartupPathChanged RestorePrevious)
-          window.StartupPathDefault.Checked |> Observable.mapTo (StartupPathChanged DefaultPath)
+        [ window.StartPathPrevious.Checked |> Observable.mapTo (StartPathChanged RestorePrevious)
+          window.StartPathDefault.Checked |> Observable.mapTo (StartPathChanged DefaultPath)
           window.DefaultPath |> textBoxChanged DefaultPathChanged
 
           window.TextEditor |> textBoxChanged TextEditorChanged

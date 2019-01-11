@@ -2,10 +2,10 @@
 
 open System.Text.RegularExpressions
 
-type StartupOptions = {
-    StartupPath: string option
-    Location: (int * int) option
-    Size: (int * int) option
+type StartOptions = {
+    StartPath: string option
+    StartLocation: (int * int) option
+    StartSize: (int * int) option
 }
 
 module ProgramOptions =
@@ -20,12 +20,12 @@ module ProgramOptions =
     let parseArgs (args: string list) =
         let rec parse args options =
             match args with
-            | Path path :: rest when options.StartupPath.IsNone ->
-                parse rest { options with StartupPath = Some path }
-            | IntTuple "location" loc :: rest when options.Location.IsNone ->
-                parse rest { options with Location = Some loc }
-            | IntTuple "size" loc :: rest when options.Size.IsNone ->
-                parse rest { options with Size = Some loc }
+            | Path path :: rest when options.StartPath.IsNone ->
+                parse rest { options with StartPath = Some path }
+            | IntTuple "location" loc :: rest when options.StartLocation.IsNone ->
+                parse rest { options with StartLocation = Some loc }
+            | IntTuple "size" loc :: rest when options.StartSize.IsNone ->
+                parse rest { options with StartSize = Some loc }
             | _ :: rest -> parse rest options
             | [] -> options
-        parse args { StartupPath = None; Location = None; Size = None }
+        parse args { StartPath = None; StartLocation = None; StartSize = None }

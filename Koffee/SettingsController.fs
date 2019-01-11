@@ -18,8 +18,8 @@ type SettingsController(config: Config) =
                     })
 
         member x.Dispatcher = function
-            | StartupPathChanged value -> Sync (fun _ ->
-                config.StartupPath <- value; config.Save())
+            | StartPathChanged value -> Sync (fun _ ->
+                config.StartPath <- value; config.Save())
             | DefaultPathChanged value -> Sync (fun _ ->
                 config.DefaultPath <- value; config.Save())
             | TextEditorChanged value -> Sync (fun _ ->

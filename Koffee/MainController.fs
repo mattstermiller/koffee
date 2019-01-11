@@ -102,26 +102,26 @@ module MainLogic =
             model.Status <- Some <| MainStatus.sort field desc
         }
 
-    let initModel (config: Config) (fsReader: IFileSystemReader) startupOptions isFirstInstance (model: MainBindModel) =
+    let initModel (config: Config) (fsReader: IFileSystemReader) startOptions isFirstInstance (model: MainBindModel) =
         loadConfig fsReader config model
 
         model.WindowLocation <-
-            startupOptions.Location |> Option.defaultWith (fun () ->
+            startOptions.StartLocation |> Option.defaultWith (fun () ->
                 if isFirstInstance then (config.Window.Left, config.Window.Top)
                 else (config.Window.Left + 30, config.Window.Top + 30))
-        model.WindowSize <- startupOptions.Size |? (config.Window.Width, config.Window.Height)
+        model.WindowSize <- startOptions.StartSize |? (config.Window.Width, config.Window.Height)
         let defaultPath = config.DefaultPath |> Path.Parse |? Path.Root
         model.Path <-
-            match config.StartupPath with
+            match config.StartPath with
             | RestorePrevious -> defaultPath
             | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
-        let startupPath =
-            startupOptions.StartupPath |? (
-                match config.StartupPath with
+        let startPath =
+            startOptions.StartPath |? (
+                match config.StartPath with
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath
             )
-        Navigation.openUserPath fsReader startupPath model
+        Navigation.openUserPath fsReader startPath model
 
     module Cursor =
         let private moveCursorToNext predicate reverse (model: MainBindModel) =
@@ -404,7 +404,7 @@ type MainController(fsReader: IFileSystemReader,
                     closeWindow: unit -> unit,
                     config: Config,
                     keyBindings: (KeyCombo * MainEvents) list,
-                    startupOptions) =
+                    startOptions) =
     // TODO: use a property on the model for this, perhaps the Status?
     let mutable taskRunning = false
 
@@ -431,7 +431,7 @@ type MainController(fsReader: IFileSystemReader,
                 |> Seq.length
                 |> (=) 1
             config.Load()
-            MainLogic.initModel config fsReader startupOptions isFirst model
+            MainLogic.initModel config fsReader startOptions isFirst model
             |> applyResult model
 
         member this.Dispatcher = this.LockingDispatcher

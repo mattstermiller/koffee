@@ -18,7 +18,7 @@ type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
 type MainView(window: MainWindow,
               config: Config,
-              startupOptions: StartupOptions) =
+              startOptions: StartOptions) =
     inherit View<MainEvents, MainBindModel, MainWindow>(window)
 
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
@@ -170,7 +170,7 @@ type MainView(window: MainWindow,
             window.WindowState <- WindowState.Maximized
 
         // setup saving window settings
-        let saveWindowSettings = startupOptions.Location.IsNone && startupOptions.Size.IsNone
+        let saveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
         if saveWindowSettings then
             window.StateChanged.Add <| fun _ -> 
                 if window.WindowState <> WindowState.Minimized then

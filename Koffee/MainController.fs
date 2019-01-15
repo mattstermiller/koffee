@@ -146,30 +146,40 @@ module MainLogic =
         } |> Navigation.openUserPath fsReader startPath
 
     module Cursor =
-        let private moveCursorToNext_m predicate reverse (model: MainBindModel) =
+        let private moveCursorToNext predicate reverse model =
             let indexed = model.Nodes |> List.indexed
             let c = model.Cursor
             let items =
                 if reverse then
-                    Seq.append indexed.[c..] indexed.[0..(c-1)] |> Seq.rev
+                    List.append indexed.[c..] indexed.[0..(c-1)] |> List.rev
                 else
-                    Seq.append indexed.[(c+1)..] indexed.[0..c]
-            items
-            |> Seq.filter (snd >> predicate)
-            |> Seq.tryHead
-            |> Option.iter (fst >> model.SetCursor)
+                    List.append indexed.[(c+1)..] indexed.[0..c]
+            let cursor =
+                items
+                |> List.filter (snd >> predicate)
+                |> List.tryHead
+                |> Option.map fst
+            match cursor with
+            | Some cursor -> model.WithCursor cursor
+            | None -> model
 
-        let find_m caseSensitive char (model: MainBindModel) =
-            model.LastFind <- Some (caseSensitive, char)
-            model.Status <- Some <| MainStatus.find caseSensitive char
+        let find caseSensitive char model =
             let lower = System.Char.ToLower
             let equals =
                 if caseSensitive then (=)
                 else (fun a b -> lower a = lower b)
-            moveCursorToNext_m (fun n -> equals n.Name.[0] char) false model
+            { model with
+                LastFind = Some (caseSensitive, char)
+                Status = Some <| MainStatus.find caseSensitive char
+            } |> moveCursorToNext (fun n -> equals n.Name.[0] char) false
 
-        let findNext_m (model: MainBindModel) =
-            model.LastFind |> Option.iter (fun (cs, c) -> find_m cs c model)
+        let find_m caseSensitive char =
+            find caseSensitive char |> toMutation
+
+        let findNext model =
+            match model.LastFind with
+            | Some (cs, c) -> find cs c model
+            | None -> model
 
         let parseSearch (searchInput: string) =
             match searchInput.Split('/') with
@@ -183,32 +193,41 @@ module MainLogic =
                     | _ -> res)
             | _ -> Error InvalidSearchSlash
 
-        let search_m caseSensitive searchStr reverse (model: MainBindModel) =
+        let search caseSensitive searchStr reverse model =
             let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
             let options = if caseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
 
-            let searchStatus () =
-                let matches = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
+            let searchStatus nodes =
+                let matches = nodes |> List.filter (fun n -> n.IsSearchMatch) |> List.length
                 MainStatus.search matches caseSensitive searchStr
 
             // if search is different, update node flags
-            if model.Status <> Some (searchStatus()) then
-                let cursor = model.Cursor
-                model.Nodes <- model.Nodes |> List.map (fun n ->
-                    let isMatch = search |> Option.exists (fun (cs, s) -> Regex.IsMatch(n.Name, s, options))
-                    if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
-                    else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
-                    else n)
-                model.Cursor <- cursor
-                model.Status <- search |> Option.map (fun _ -> searchStatus())
+            let model =
+                if model.Status <> Some (searchStatus model.Nodes) then
+                    let nodes = model.Nodes |> List.map (fun n ->
+                        let isMatch = search |> Option.exists (fun (cs, s) -> Regex.IsMatch(n.Name, s, options))
+                        if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
+                        else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
+                        else n
+                    )
+                    { model with
+                        Nodes = nodes
+                        Status = search |> Option.map (fun _ -> searchStatus nodes)
+                    }
+                else
+                    model
 
-            if search.IsSome then
-                model.LastSearch <- search
+            { model with
+                LastSearch = search |> Option.orElse model.LastSearch
+            } |> moveCursorToNext (fun n -> n.IsSearchMatch) reverse
 
-            moveCursorToNext_m (fun n -> n.IsSearchMatch) reverse model
+        let search_m caseSensitive searchStr reverse =
+            search caseSensitive searchStr reverse |> toMutation
 
-        let searchNext_m reverse (model: MainBindModel) =
-            model.LastSearch |> Option.iter (fun (cs, s) -> search_m cs s reverse model)
+        let searchNext reverse model =
+            match model.LastSearch with
+            | Some (cs, s) -> search cs s reverse model
+            | None -> model
 
     module Action =
         let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
@@ -490,9 +509,9 @@ type MainController(fsReader: IFileSystemReader,
         | StartInput inputType -> resultHandler_m (MainLogic.Action.startInput_m fsReader (Input inputType))
         | SubmitInput -> resultHandler_m this.SubmitInput
         | InputCharTyped c -> asyncResultHandler_m (this.InputCharTyped c)
-        | FindNext -> Sync MainLogic.Cursor.findNext_m
-        | SearchNext -> Sync (MainLogic.Cursor.searchNext_m false)
-        | SearchPrevious -> Sync (MainLogic.Cursor.searchNext_m true)
+        | FindNext -> Sync (MainLogic.toMutation MainLogic.Cursor.findNext)
+        | SearchNext -> Sync (MainLogic.toMutation (MainLogic.Cursor.searchNext false))
+        | SearchPrevious -> Sync (MainLogic.toMutation (MainLogic.Cursor.searchNext true))
         | StartMove -> Sync (MainLogic.Action.registerItem_m Move)
         | StartCopy -> Sync (MainLogic.Action.registerItem_m Copy)
         | Put -> asyncResultHandler_m (this.Put false)

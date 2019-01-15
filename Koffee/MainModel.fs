@@ -224,6 +224,8 @@ type MainBindModel() as this =
     abstract WindowLocation: int * int with get, set
     abstract WindowSize: int * int with get, set
 
+    member val Invoke = (fun (f: unit -> unit) -> f ()) with get, set
+
     member this.HasErrorStatus =
         match this.Status with
         | Some (ErrorMessage _) -> true
@@ -266,28 +268,30 @@ type MainBindModel() as this =
     }
 
     member this.UpdateFromModel model =
-        this.Path <- model.Location
-        this.PathFormat <- model.PathFormat
-        this.Status <- model.Status
-        this.Sort <- model.Sort
-        this.Nodes <- model.Nodes
-        this.Cursor <- model.Cursor
-        this.PageSize <- model.PageSize
-        this.ShowHidden <- model.ShowHidden
-        this.KeyCombo <- model.KeyCombo
-        this.InputMode <- model.InputMode
-        this.InputText <- model.InputText
-        this.InputTextSelection <- model.InputTextSelection
-        this.LastFind <- model.LastFind
-        this.LastSearch <- model.LastSearch
-        this.BackStack <- model.BackStack
-        this.ForwardStack <- model.ForwardStack
-        this.YankRegister <- model.YankRegister
-        this.UndoStack <- model.UndoStack
-        this.RedoStack <- model.RedoStack
-        this.ShowFullPathInTitle <- model.ShowFullPathInTitle
-        this.WindowLocation <- model.WindowLocation
-        this.WindowSize <- model.WindowSize
+        this.Invoke (fun () ->
+            this.Path <- model.Location
+            this.PathFormat <- model.PathFormat
+            this.Status <- model.Status
+            this.Sort <- model.Sort
+            this.Nodes <- model.Nodes
+            this.Cursor <- model.Cursor
+            this.PageSize <- model.PageSize
+            this.ShowHidden <- model.ShowHidden
+            this.KeyCombo <- model.KeyCombo
+            this.InputMode <- model.InputMode
+            this.InputText <- model.InputText
+            this.InputTextSelection <- model.InputTextSelection
+            this.LastFind <- model.LastFind
+            this.LastSearch <- model.LastSearch
+            this.BackStack <- model.BackStack
+            this.ForwardStack <- model.ForwardStack
+            this.YankRegister <- model.YankRegister
+            this.UndoStack <- model.UndoStack
+            this.RedoStack <- model.RedoStack
+            this.ShowFullPathInTitle <- model.ShowFullPathInTitle
+            this.WindowLocation <- model.WindowLocation
+            this.WindowSize <- model.WindowSize
+        )
 
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * UIHelpers.KeyHandler

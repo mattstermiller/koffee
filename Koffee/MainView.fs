@@ -37,6 +37,8 @@ type MainView(window: MainWindow,
         not <| List.contains keyEvt.Key modifierKeys
 
     override this.SetBindings (model: MainBindModel) =
+        model.Invoke <- fun f -> window.Dispatcher.Invoke(fun () -> f())
+
         // setup grid
         window.NodeGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
         window.NodeGrid.AddColumn("Type")
@@ -458,6 +460,10 @@ type MainError =
 
 [<AutoOpen>]
 module MainModelExt =
+    type MainModel with
+        member this.WithError (e: MainError) =
+            { this with Status = Some (ErrorMessage e.Message) }
+
     type MainBindModel with
         member this.SetError (e: MainError) =
             this.Status <- Some (ErrorMessage e.Message)

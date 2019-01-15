@@ -2,6 +2,7 @@
 module Testing
 
 open System
+open FSharp.Control
 open NUnit.Framework
 open KellermanSoftware.CompareNetObjects
 open KellermanSoftware.CompareNetObjects.TypeComparers
@@ -42,6 +43,13 @@ let assertOk res =
     match res with
     | Ok a -> a
     | Error e -> failwithf "%A" e
+
+let seqResult handler (model: MainModel) =
+    (model, handler model) ||> AsyncSeq.fold (fun m res ->
+        match res with
+        | Ok m -> m
+        | Error e -> m.WithError e
+    ) |> Async.RunSynchronously
 
 let createPath pathStr = (Path.Parse pathStr).Value
 

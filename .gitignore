@@ -193,5 +193,3 @@ FakesAssemblies/
 # VIM temp files
 *.swp
 
-# Paket
-paket.exe

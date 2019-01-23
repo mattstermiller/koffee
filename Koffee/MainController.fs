@@ -358,27 +358,30 @@ module MainLogic =
         let undoRename_m fsReader fsWriter oldNode currentName =
             undoRename fsReader fsWriter oldNode currentName |> toMutationResult
 
-        let registerItem_m action (model: MainBindModel) =
+        let registerItem action (model: MainModel) =
             if model.SelectedNode.Type.CanModify then
-                model.YankRegister <- Some (model.SelectedNode, action)
-                model.Status <- None
+                { model with
+                    YankRegister = Some (model.SelectedNode, action)
+                    Status = None
+                }
+            else model
 
         let getCopyName name i =
             let (nameNoExt, ext) = Path.SplitName name
             let number = if i = 0 then "" else sprintf " %i" (i+1)
             sprintf "%s (copy%s)%s" nameNoExt number ext
 
-        let putItem_m (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction (model: MainBindModel) = asyncResult {
-            let sameFolder = node.Path.Parent = model.Path
-            match! fsReader.GetNode model.Path |> actionError "put item" with
+        let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction model = asyncSeqResult {
+            let sameFolder = node.Path.Parent = model.Location
+            match! fsReader.GetNode model.Location |> actionError "put item" with
             | Some container when container.Type.CanCreateIn ->
                 if putAction = Move && sameFolder then
-                    return! Error CannotMoveToSameFolder
-            | _ -> return! Error CannotPutHere
+                    return CannotMoveToSameFolder
+            | _ -> return CannotPutHere
             let! newName =
                 if putAction = Copy && sameFolder then
                     let unused name =
-                        match fsReader.GetNode (model.Path.Join name) with
+                        match fsReader.GetNode (model.Location.Join name) with
                         | Ok None -> true
                         | _ -> false
                     Seq.init 99 (getCopyName node.Name)
@@ -386,7 +389,7 @@ module MainLogic =
                     |> Result.ofOption (TooManyCopies node.Name)
                 else
                     Ok node.Name
-            let newPath = model.Path.Join newName
+            let newPath = model.Location.Join newName
             let fileSysAction, action =
                 match putAction with
                 | Move -> (fsWriter.Move, MovedItem (node, newPath))
@@ -396,48 +399,58 @@ module MainLogic =
             | Some existing when not overwrite ->
                 // refresh node list to make sure we can see the existing file
                 let tempShowHidden = not model.ShowHidden && existing.IsHidden
-                if tempShowHidden then
-                    model.ShowHidden <- true
-                let res = Navigation.openPath_m fsReader model.Path (SelectName existing.Name) model
-                if tempShowHidden then
-                    model.ShowHidden <- false
-                do! res
-                model.InputMode <- Some (Confirm (Overwrite (putAction, node, existing)))
-                model.InputText <- ""
+                let refreshModel = { model with ShowHidden = if tempShowHidden then true else model.ShowHidden }
+                let! model = Navigation.openPath fsReader model.Location (SelectName existing.Name) refreshModel
+                yield
+                    { model with
+                        ShowHidden = if tempShowHidden then false else model.ShowHidden
+                        InputMode = Some (Confirm (Overwrite (putAction, node, existing)))
+                        InputText = ""
+                    }
             | _ ->
-                model.Status <- MainStatus.runningAction action model.PathFormat
+                yield { model with Status = MainStatus.runningAction action model.PathFormat }
                 let! res = runAsync (fun () -> fileSysAction node.Path newPath)
                 do! res |> itemActionError action model.PathFormat
-                Navigation.openPath_m fsReader model.Path (SelectName newName) model |> ignore
-                model |> performedAction_m action
+                let! model = Navigation.openPath fsReader model.Location (SelectName newName) model
+                yield model |> performedAction action
         }
 
-        let put_m fsReader fsWriter overwrite (model: MainBindModel) = asyncResult {
+        let putItem_m fsReader fsWriter overwrite node putAction =
+            putItem fsReader fsWriter overwrite node putAction |> toMutationAsyncResult
+
+        let put fsReader fsWriter overwrite model = asyncSeqResult {
             match model.YankRegister with
             | None -> ()
             | Some (node, putAction) ->
-                let! res = putItem_m fsReader fsWriter overwrite node putAction model
-                do! res
-                if not model.HasErrorStatus && model.InputMode.IsNone then
-                    model.YankRegister <- None
+                let! res = putItem fsReader fsWriter overwrite node putAction model
+                match res with
+                | Ok model when model.InputMode.IsNone ->
+                    yield { model with YankRegister = None }
+                | _ -> ()
         }
 
-        let undoMove_m (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainBindModel) = asyncResult {
+        let put_m fsReader fsWriter overwrite =
+            put fsReader fsWriter overwrite |> toMutationAsyncResult
+
+        let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncSeqResult {
             let from = { node with Path = currentPath; Name = currentPath.Name }
             let action = MovedItem (from, node.Path)
             let! existing = fsReader.GetNode node.Path |> itemActionError action model.PathFormat
             match existing with
             | Some _ ->
                 // TODO: prompt for overwrite here?
-                return! Error <| CannotUndoMoveToExisting node
+                return CannotUndoMoveToExisting node
             | None ->
-                model.Status <- Some <| MainStatus.undoingMove node
+                yield { model with Status = Some <| MainStatus.undoingMove node }
                 let! res = runAsync (fun () -> fsWriter.Move currentPath node.Path)
                 do! res |> itemActionError action model.PathFormat
-                Navigation.openPath_m fsReader node.Path.Parent (SelectName node.Name) model |> ignore
+                yield! Navigation.openPath fsReader node.Path.Parent (SelectName node.Name) model
         }
 
-        let undoCopy_m (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainBindModel) = asyncResult {
+        let undoMove_m fsReader fsWriter node currentPath =
+            undoMove fsReader fsWriter node currentPath |> toMutationAsyncResult
+
+        let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainModel) = asyncSeqResult {
             let copyModified =
                 match fsReader.GetNode currentPath with
                 | Ok (Some copy) -> copy.Modified
@@ -448,23 +461,28 @@ module MainLogic =
                 | _ -> false
             let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
             let fileSysFunc = if isDeletionPermanent then fsWriter.Delete else fsWriter.Recycle
-            model.Status <- Some <| MainStatus.undoingCopy node isDeletionPermanent
+            yield { model with Status = Some <| MainStatus.undoingCopy node isDeletionPermanent }
             let! res = runAsync (fun () -> fileSysFunc currentPath)
             do! res |> itemActionError action model.PathFormat
-            if model.Path = currentPath.Parent then
-                Navigation.refresh_m fsReader model |> ignore
+            if model.Location = currentPath.Parent then
+                yield! Navigation.refresh fsReader model
         }
 
-        let delete_m fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainBindModel) = asyncResult {
+        let undoCopy_m fsReader fsWriter node currentPath =
+            undoCopy fsReader fsWriter node currentPath |> toMutationAsyncResult
+
+        let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncSeqResult {
             if node.Type.CanModify then
                 let action = DeletedItem (node, permanent)
                 let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
-                model.Status <- MainStatus.runningAction action model.PathFormat
+                yield { model with Status = MainStatus.runningAction action model.PathFormat }
                 let! res = runAsync (fun () -> fileSysFunc node.Path)
                 do! res |> itemActionError action model.PathFormat
-                Navigation.refresh_m fsReader model |> ignore
-                model |> performedAction_m action
+                yield! Navigation.refresh fsReader model |> Result.map (performedAction action)
         }
+
+        let delete_m fsReader fsWriter node permanent =
+            delete fsReader fsWriter node permanent |> toMutationAsyncResult
 
 
 type MainController(fsReader: IFileSystemReader,
@@ -542,8 +560,8 @@ type MainController(fsReader: IFileSystemReader,
         | FindNext -> Sync (MainLogic.toMutation MainLogic.Cursor.findNext)
         | SearchNext -> Sync (MainLogic.toMutation (MainLogic.Cursor.searchNext false))
         | SearchPrevious -> Sync (MainLogic.toMutation (MainLogic.Cursor.searchNext true))
-        | StartMove -> Sync (MainLogic.Action.registerItem_m Move)
-        | StartCopy -> Sync (MainLogic.Action.registerItem_m Copy)
+        | StartMove -> Sync (MainLogic.toMutation (MainLogic.Action.registerItem Move))
+        | StartCopy -> Sync (MainLogic.toMutation (MainLogic.Action.registerItem Copy))
         | Put -> asyncResultHandler_m (this.Put false)
         | Recycle -> asyncResultHandler_m this.Recycle
         | SortList field -> resultHandler (MainLogic.Navigation.sortList fsReader field)

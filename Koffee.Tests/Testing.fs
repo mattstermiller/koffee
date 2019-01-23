@@ -6,9 +6,7 @@ open FSharp.Control
 open NUnit.Framework
 open KellermanSoftware.CompareNetObjects
 open KellermanSoftware.CompareNetObjects.TypeComparers
-open FSharp.Desktop.UI
 open Koffee
-open ModelExtensions
 
 type StructuralEqualityComparer() =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
@@ -23,7 +21,6 @@ type StructuralEqualityComparer() =
     override this.CompareType parms =
         if parms.Object1 <> parms.Object2 then
             this.AddDifference parms
-
 
 let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
@@ -67,15 +64,3 @@ let baseModel =
         RedoStack = [RenamedItem (node, "item")]
         PathFormat = Unix
     }
-
-let createBaseTestModel() =
-    let model = Model.Create<MainBindModel>()
-    model.BackStack <- [createPath "/c/back", 8]
-    model.ForwardStack <- [createPath "/c/fwd", 9]
-    let node = createNode "/c/path/default undo-redo"
-    model.UndoStack <- [CreatedItem node]
-    model.RedoStack <- [RenamedItem (node, "item")]
-    model.PathFormat <- Unix
-    // simulate grid losing selected item (bound to cursor) when data source changes
-    model.OnPropertyChanged <@ model.Nodes @> (fun _ -> model.Cursor <- -1)
-    model

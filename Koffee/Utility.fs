@@ -57,11 +57,23 @@ type AsyncResultBuilder() =
 let asyncResult = AsyncResultBuilder()
 
 type AsyncSeqResultBuilder() =
+    let takeUntilError resSeq =
+        resSeq |> AsyncSeq.takeWhileInclusive Result.isOk
+
     member this.Bind (a, f) = asyncSeq.Bind(a, f)
     member this.Bind (r, f) = asyncSeq {
         match r with
         | Ok x -> yield! f x
         | Error e -> yield Error e
+    }
+    member this.Bind (resSeq: AsyncSeq<Result<_,_>>, f) = asyncSeq {
+        let mutable last = None
+        for r in resSeq |> takeUntilError do
+            yield r
+            last <- Some r
+        match last with
+        | Some r -> yield! f r
+        | None -> ()
     }
     member this.Yield x = result.Return x |> asyncSeq.Yield
     member this.YieldFrom x = result.ReturnFrom x |> asyncSeq.Yield
@@ -69,9 +81,7 @@ type AsyncSeqResultBuilder() =
     member this.Return x = this.YieldFrom (Error x)
     member this.Zero () = result.Zero () |> asyncSeq.Return
     member this.Delay f = asyncSeq.Delay f
-    member this.Combine (x: AsyncSeq<_>, y) =
-        AsyncSeq.append x y
-        |> AsyncSeq.takeWhileInclusive (function | Ok _ -> true | Error _ -> false)
+    member this.Combine (x: AsyncSeq<_>, y) = AsyncSeq.append x y |> takeUntilError
     member this.Using (x, f) = asyncSeq.Using (x, f)
 
 let asyncSeqResult = AsyncSeqResultBuilder()

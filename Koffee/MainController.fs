@@ -65,9 +65,6 @@ module MainLogic =
                 }.WithCursor cursor
         }
 
-        let openPath_m fsReader path select =
-            openPath fsReader path select |> toMutationResult
-
         let openUserPath (fsReader: IFileSystemReader) pathStr model =
             match Path.Parse pathStr with
             | Some path ->
@@ -78,9 +75,6 @@ module MainLogic =
                     openPath fsReader path SelectNone model
                 | Error e -> Error <| ActionError ("open path", e)
             | None -> Error <| InvalidPath pathStr
-
-        let openUserPath_m fsReader pathStr =
-            openUserPath fsReader pathStr |> toMutationResult
 
         let openSelected fsReader (os: IOperatingSystem) (model: MainModel) =
             let node = model.SelectedNode
@@ -98,9 +92,6 @@ module MainLogic =
 
         let refresh fsReader model =
             openPath fsReader model.Location SelectNone model
-
-        let refresh_m fsReader =
-            refresh fsReader |> toMutationResult
 
         let back fsReader model = result {
             match model.BackStack with
@@ -182,9 +173,6 @@ module MainLogic =
                 Status = Some <| MainStatus.find caseSensitive char
             } |> moveCursorToNext (fun n -> equals n.Name.[0] char) false
 
-        let find_m caseSensitive char =
-            find caseSensitive char |> toMutation
-
         let findNext model =
             match model.LastFind with
             | Some (cs, c) -> find cs c model
@@ -230,9 +218,6 @@ module MainLogic =
                 LastSearch = search |> Option.orElse model.LastSearch
             } |> moveCursorToNext (fun n -> n.IsSearchMatch) reverse
 
-        let search_m caseSensitive searchStr reverse =
-            search caseSensitive searchStr reverse |> toMutation
-
         let searchNext reverse model =
             match model.LastSearch with
             | Some (cs, s) -> search cs s reverse model
@@ -247,9 +232,6 @@ module MainLogic =
                 RedoStack = []
                 Status = Some <| MainStatus.actionComplete action model.PathFormat
             }
-
-        let private performedAction_m action =
-            performedAction action |> toMutation
 
         let private setInputSelection cursorPos model =
             let fullLen = model.InputText.Length
@@ -302,9 +284,6 @@ module MainLogic =
                 return CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
         }
 
-        let create_m fsReader fsWriter nodeType name =
-            create fsReader fsWriter nodeType name |> toMutationAsyncResult
-
         let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node model = asyncSeqResult {
             if fsReader.IsEmpty node.Path then
                 yield { model with Status = Some <| MainStatus.undoingCreate node }
@@ -315,9 +294,6 @@ module MainLogic =
             else
                 return CannotUndoNonEmptyCreated node
         }
-
-        let undoCreate_m fsReader fsWriter node =
-            undoCreate fsReader fsWriter node |> toMutationAsyncResult
 
         let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName model = result {
             if node.Type.CanModify then
@@ -336,9 +312,6 @@ module MainLogic =
             else return model
         }
 
-        let rename_m fsReader fsWriter node newName =
-            rename fsReader fsWriter node newName |> toMutationResult
-
         let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName model = result {
             let parentPath = oldNode.Path.Parent
             let currentPath = parentPath.Join currentName
@@ -354,9 +327,6 @@ module MainLogic =
             | Some existingNode ->
                 return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
         }
-
-        let undoRename_m fsReader fsWriter oldNode currentName =
-            undoRename fsReader fsWriter oldNode currentName |> toMutationResult
 
         let registerItem action (model: MainModel) =
             if model.SelectedNode.Type.CanModify then
@@ -415,22 +385,14 @@ module MainLogic =
                 yield model |> performedAction action
         }
 
-        let putItem_m fsReader fsWriter overwrite node putAction =
-            putItem fsReader fsWriter overwrite node putAction |> toMutationAsyncResult
-
         let put fsReader fsWriter overwrite model = asyncSeqResult {
             match model.YankRegister with
             | None -> ()
             | Some (node, putAction) ->
-                let! res = putItem fsReader fsWriter overwrite node putAction model
-                match res with
-                | Ok model when model.InputMode.IsNone ->
+                let! model = putItem fsReader fsWriter overwrite node putAction model
+                if model.InputMode.IsNone then
                     yield { model with YankRegister = None }
-                | _ -> ()
         }
-
-        let put_m fsReader fsWriter overwrite =
-            put fsReader fsWriter overwrite |> toMutationAsyncResult
 
         let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncSeqResult {
             let from = { node with Path = currentPath; Name = currentPath.Name }
@@ -446,9 +408,6 @@ module MainLogic =
                 do! res |> itemActionError action model.PathFormat
                 yield! Navigation.openPath fsReader node.Path.Parent (SelectName node.Name) model
         }
-
-        let undoMove_m fsReader fsWriter node currentPath =
-            undoMove fsReader fsWriter node currentPath |> toMutationAsyncResult
 
         let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainModel) = asyncSeqResult {
             let copyModified =
@@ -468,9 +427,6 @@ module MainLogic =
                 yield! Navigation.refresh fsReader model
         }
 
-        let undoCopy_m fsReader fsWriter node currentPath =
-            undoCopy fsReader fsWriter node currentPath |> toMutationAsyncResult
-
         let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncSeqResult {
             if node.Type.CanModify then
                 let action = DeletedItem (node, permanent)
@@ -480,9 +436,6 @@ module MainLogic =
                 do! res |> itemActionError action model.PathFormat
                 yield! Navigation.refresh fsReader model |> Result.map (performedAction action)
         }
-
-        let delete_m fsReader fsWriter node permanent =
-            delete fsReader fsWriter node permanent |> toMutationAsyncResult
 
 
 type MainController(fsReader: IFileSystemReader,
@@ -511,6 +464,7 @@ type MainController(fsReader: IFileSystemReader,
         })
 
     let resultHandler = MainLogic.toMutationResult >> resultHandler_m
+    let asyncResultHandler = MainLogic.toMutationAsyncResult >> asyncResultHandler_m
 
     interface IController<MainEvents, MainBindModel> with
         member this.InitModel model =
@@ -538,40 +492,40 @@ type MainController(fsReader: IFileSystemReader,
 
     member this.Dispatcher = function
         | KeyPress (chord, handler) -> Async <| this.KeyPress chord handler.Handle
-        | CursorUp -> Sync (fun m -> m.SetCursor (m.Cursor - 1))
-        | CursorUpHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor - m.HalfPageScroll))
-        | CursorDown -> Sync (fun m -> m.SetCursor (m.Cursor + 1))
-        | CursorDownHalfPage -> Sync (fun m -> m.SetCursor (m.Cursor + m.HalfPageScroll))
-        | CursorToFirst -> Sync (fun m -> m.SetCursor 0)
-        | CursorToLast -> Sync (fun m -> m.SetCursor (m.Nodes.Length - 1))
+        | CursorUp -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel -1)
+        | CursorUpHalfPage -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel -m.HalfPageSize)
+        | CursorDown -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel 1)
+        | CursorDownHalfPage -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel m.HalfPageSize)
+        | CursorToFirst -> Sync <| MainLogic.toMutation (fun m -> m.WithCursor 0)
+        | CursorToLast -> Sync <| MainLogic.toMutation (fun m -> m.WithCursor (m.Nodes.Length - 1))
         | OpenPath p -> resultHandler (MainLogic.Navigation.openUserPath fsReader p)
         | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected fsReader operatingSystem)
         | OpenParent -> resultHandler (MainLogic.Navigation.openParent fsReader)
         | Back -> resultHandler (MainLogic.Navigation.back fsReader)
         | Forward -> resultHandler (MainLogic.Navigation.forward fsReader)
         | Refresh -> resultHandler (MainLogic.Navigation.refresh fsReader)
-        | Undo -> asyncResultHandler_m this.Undo
-        | Redo -> asyncResultHandler_m this.Redo
+        | Undo -> asyncResultHandler this.Undo
+        | Redo -> asyncResultHandler this.Redo
         | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fsReader (Prompt promptType))
         | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fsReader (Confirm confirmType))
         | StartInput inputType -> resultHandler (MainLogic.Action.startInput fsReader (Input inputType))
-        | SubmitInput -> asyncResultHandler_m this.SubmitInput
-        | InputCharTyped c -> asyncResultHandler_m (this.InputCharTyped c)
-        | FindNext -> Sync (MainLogic.toMutation MainLogic.Cursor.findNext)
-        | SearchNext -> Sync (MainLogic.toMutation (MainLogic.Cursor.searchNext false))
-        | SearchPrevious -> Sync (MainLogic.toMutation (MainLogic.Cursor.searchNext true))
-        | StartMove -> Sync (MainLogic.toMutation (MainLogic.Action.registerItem Move))
-        | StartCopy -> Sync (MainLogic.toMutation (MainLogic.Action.registerItem Copy))
-        | Put -> asyncResultHandler_m (this.Put false)
-        | Recycle -> asyncResultHandler_m this.Recycle
+        | SubmitInput -> asyncResultHandler this.SubmitInput
+        | InputCharTyped c -> asyncResultHandler (this.InputCharTyped c)
+        | FindNext -> Sync <| MainLogic.toMutation MainLogic.Cursor.findNext
+        | SearchNext -> Sync <| MainLogic.toMutation (MainLogic.Cursor.searchNext false)
+        | SearchPrevious -> Sync <| MainLogic.toMutation (MainLogic.Cursor.searchNext true)
+        | StartMove -> Sync <| MainLogic.toMutation (MainLogic.Action.registerItem Move)
+        | StartCopy -> Sync <| MainLogic.toMutation (MainLogic.Action.registerItem Copy)
+        | Put -> asyncResultHandler (MainLogic.Action.put fsReader fsWriter false)
+        | Recycle -> asyncResultHandler this.Recycle
         | SortList field -> resultHandler (MainLogic.Navigation.sortList fsReader field)
-        | ToggleHidden -> resultHandler_m this.ToggleHidden
-        | OpenSplitScreenWindow -> resultHandler_m this.OpenSplitScreenWindow
+        | ToggleHidden -> resultHandler this.ToggleHidden
+        | OpenSplitScreenWindow -> resultHandler this.OpenSplitScreenWindow
         | OpenSettings -> resultHandler (this.OpenSettings fsReader)
         | OpenExplorer -> Sync this.OpenExplorer
-        | OpenCommandLine -> resultHandler_m this.OpenCommandLine
-        | OpenWithTextEditor -> resultHandler_m this.OpenWithTextEditor
-        | ConfigChanged -> Sync (MainLogic.toMutation (MainLogic.loadConfig fsReader config))
+        | OpenCommandLine -> resultHandler this.OpenCommandLine
+        | OpenWithTextEditor -> resultHandler this.OpenWithTextEditor
+        | ConfigChanged -> Sync <| MainLogic.toMutation (MainLogic.loadConfig fsReader config)
         | Exit -> Sync (ignore >> closeWindow)
 
     member this.KeyPress chord handleKey model = async {
@@ -607,186 +561,189 @@ type MainController(fsReader: IFileSystemReader,
         | None -> ()
     }
 
-    member this.OpenPath = MainLogic.Navigation.openPath_m fsReader
-    member this.Refresh = MainLogic.Navigation.refresh_m fsReader
-
-    member this.Create = MainLogic.Action.create_m fsReader fsWriter
-    member this.Rename = MainLogic.Action.rename_m fsReader fsWriter
-    member this.Put = MainLogic.Action.put_m fsReader fsWriter
-    member this.PutItem = MainLogic.Action.putItem_m fsReader fsWriter
-    member this.Delete = MainLogic.Action.delete_m fsReader fsWriter
-
     member this.ToggleHidden model = result {
-        model.ShowHidden <- not model.ShowHidden
-        do! this.OpenPath model.Path (SelectName model.SelectedNode.Name) model
-        model.Status <- Some <| MainStatus.toggleHidden model.ShowHidden
+        let! model =
+            { model with ShowHidden = not model.ShowHidden }
+            |> MainLogic.Navigation.openPath fsReader model.Location (SelectName model.SelectedNode.Name)
+        return { model with Status = Some <| MainStatus.toggleHidden model.ShowHidden }
     }
 
-    member this.SubmitInput model = asyncResult {
+    member this.SubmitInput model = asyncSeqResult {
         let mode = model.InputMode
-        model.InputMode <- None
+        let model = { model with InputMode = None }
         match mode with
         | Some (Input Search) ->
             let! search, caseSensitive = MainLogic.Cursor.parseSearch model.InputText
             let caseSensitive = caseSensitive |? config.SearchCaseSensitive
-            MainLogic.Cursor.search_m caseSensitive search false model
+            yield MainLogic.Cursor.search caseSensitive search false model
         | Some (Input CreateFile) ->
-            return! this.Create File model.InputText model
+            yield! MainLogic.Action.create fsReader fsWriter File model.InputText model
         | Some (Input CreateFolder) ->
-            return! this.Create Folder model.InputText model
+            yield! MainLogic.Action.create fsReader fsWriter Folder model.InputText model
         | Some (Input (Rename _)) ->
-            return! this.Rename model.SelectedNode model.InputText model
-        | _ -> ()
+            yield! MainLogic.Action.rename fsReader fsWriter model.SelectedNode model.InputText model
+        | _ ->
+            yield model
     }
 
-    member this.InputCharTyped char model = asyncResult {
-        let setBookmark char (path: Path) =
-            let winPath = path.Format Windows
+    member this.InputCharTyped char model = asyncSeqResult {
+        let withBookmark char model =
+            let winPath = model.Location.Format Windows
             config.SetBookmark char winPath
             config.Save()
-            model.Status <- Some <| MainStatus.setBookmark char winPath
-        match model.InputMode with
+            { model with Status = Some <| MainStatus.setBookmark char winPath }
+        let mode = model.InputMode
+        let model = { model with InputMode = None }
+        match mode with
         | Some (Prompt mode) ->
             match mode with
             | Find caseSensitive ->
-                MainLogic.Cursor.find_m caseSensitive char model
-                model.InputMode <- None
+                yield MainLogic.Cursor.find caseSensitive char model
             | GoToBookmark ->
-                model.InputMode <- None
                 match config.GetBookmark char with
-                | Some path -> return! MainLogic.Navigation.openUserPath_m fsReader path model
-                | None -> model.Status <- Some <| MainStatus.noBookmark char
+                | Some path ->
+                    yield! MainLogic.Navigation.openUserPath fsReader path model
+                | None ->
+                    yield { model with Status = Some <| MainStatus.noBookmark char }
             | SetBookmark ->
                 match config.GetBookmark char |> Option.bind Path.Parse with
                 | Some existingPath ->
-                    model.InputMode <- Some (Confirm (OverwriteBookmark (char, existingPath)))
-                    model.InputText <- ""
+                    yield
+                        { model with
+                            InputMode = Some (Confirm (OverwriteBookmark (char, existingPath)))
+                            InputText = ""
+                        }
                 | None -> 
-                    model.InputMode <- None
-                    setBookmark char model.Path
+                    yield withBookmark char model
             | DeleteBookmark ->
-                model.InputMode <- None
                 match config.GetBookmark char with
                 | Some path ->
                     config.RemoveBookmark char
                     config.Save()
-                    model.Status <- Some <| MainStatus.deletedBookmark char path
-                | None -> model.Status <- Some <| MainStatus.noBookmark char
+                    yield { model with Status = Some <| MainStatus.deletedBookmark char path }
+                | None ->
+                    yield { model with Status = Some <| MainStatus.noBookmark char }
         | Some (Confirm confirmType) ->
             match char with
             | 'y' ->
-                model.InputMode <- None
                 match confirmType with
                 | Overwrite (action, src, _) ->
-                    let! res = this.PutItem true src action model
-                    do! res
-                    model.YankRegister <- None
+                    let! model = MainLogic.Action.putItem fsReader fsWriter true src action model
+                    yield { model with YankRegister = None }
                 | Delete ->
-                    let! res = this.Delete model.SelectedNode true model
-                    do! res
-                | OverwriteBookmark (char, _) -> setBookmark char model.Path
+                    yield! MainLogic.Action.delete fsReader fsWriter model.SelectedNode true model
+                | OverwriteBookmark (char, _) ->
+                    yield withBookmark char model
             | 'n' ->
-                model.InputMode <- None
-                model.Status <- Some <| MainStatus.cancelled
+                let model = { model with Status = Some <| MainStatus.cancelled }
                 match confirmType with
                 | Overwrite _ when not model.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
                     // if we were temporarily showing hidden files, refresh
-                    return! this.Refresh model
-                | _ -> ()
+                    yield! MainLogic.Navigation.refresh fsReader model
+                | _ ->
+                    yield model
             | _ -> ()
         | _ -> ()
     }
 
-    member this.Recycle model = asyncResult {
+    member this.Recycle model = asyncSeqResult {
         if model.SelectedNode.Type = NetHost then
             let host = model.SelectedNode.Name
             config.RemoveNetHost host
             config.Save()
-            do! this.Refresh model
-            model.Status <- Some <| MainStatus.removedNetworkHost host
+            let! model = MainLogic.Navigation.refresh fsReader model
+            yield { model with Status = Some <| MainStatus.removedNetworkHost host }
         else
-            let! res = this.Delete model.SelectedNode false model
-            do! res
+            yield! MainLogic.Action.delete fsReader fsWriter model.SelectedNode false model
     }
 
-    member this.Undo model = asyncResult {
+    member this.Undo model = asyncSeqResult {
         match model.UndoStack with
         | action :: rest ->
-            model.UndoStack <- rest
-            match action with
-            | CreatedItem node ->
-                let! res = MainLogic.Action.undoCreate_m fsReader fsWriter node model
-                do! res
-            | RenamedItem (oldNode, curName) ->
-                do! MainLogic.Action.undoRename_m fsReader fsWriter oldNode curName model
-            | MovedItem (node, newPath) ->
-                let! res = MainLogic.Action.undoMove_m fsReader fsWriter node newPath model
-                do! res
-            | CopiedItem (node, newPath) ->
-                let! res = MainLogic.Action.undoCopy_m fsReader fsWriter node newPath model
-                do! res
-            | DeletedItem (node, permanent) ->
-                return! Error <| CannotUndoDelete (permanent, node)
-            model.RedoStack <- action :: model.RedoStack
-            model.Status <- Some <| MainStatus.undoAction action model.PathFormat
-        | [] -> return! Error NoUndoActions
+            let model = { model with UndoStack = rest }
+            let! model =
+                match action with
+                | CreatedItem node ->
+                    MainLogic.Action.undoCreate fsReader fsWriter node model
+                | RenamedItem (oldNode, curName) ->
+                    MainLogic.Action.undoRename fsReader fsWriter oldNode curName model
+                    |> AsyncSeq.singleton
+                | MovedItem (node, newPath) ->
+                    MainLogic.Action.undoMove fsReader fsWriter node newPath model
+                | CopiedItem (node, newPath) ->
+                    MainLogic.Action.undoCopy fsReader fsWriter node newPath model
+                | DeletedItem (node, permanent) ->
+                    Error (CannotUndoDelete (permanent, node))
+                    |> AsyncSeq.singleton
+            yield
+                { model with
+                    RedoStack = action :: model.RedoStack
+                    Status = Some <| MainStatus.undoAction action model.PathFormat
+                }
+        | [] -> return NoUndoActions
     }
 
-    member this.Redo model = asyncResult {
+    member this.Redo model = asyncSeqResult {
         match model.RedoStack with
         | action :: rest ->
-            model.RedoStack <- rest
+            let model = { model with RedoStack = rest }
             let goToPath (nodePath: Path) =
                 let path = nodePath.Parent
-                if path <> model.Path then
-                    this.OpenPath path SelectNone model
-                else Ok ()
-            match action with
-            | CreatedItem node ->
-                do! goToPath node.Path
-                let! res = this.Create node.Type node.Name model
-                do! res
-            | RenamedItem (node, newName) ->
-                do! goToPath node.Path
-                do! this.Rename node newName model
-            | MovedItem (node, newPath)
-            | CopiedItem (node, newPath) ->
-                do! goToPath newPath
-                let moveOrCopy =
-                    match action with
-                    | MovedItem _ -> Move
-                    | _ -> Copy
-                model.Status <- MainStatus.redoingAction action model.PathFormat
-                let! res = this.PutItem false node moveOrCopy model
-                do! res
-            | DeletedItem (node, permanent) ->
-                do! goToPath node.Path
-                model.Status <- MainStatus.redoingAction action model.PathFormat
-                let! res = this.Delete node permanent model
-                do! res
-            model.RedoStack <- rest
-            model.Status <- Some <| MainStatus.redoAction action model.PathFormat
-        | [] -> return! Error NoRedoActions
+                if path <> model.Location then
+                    MainLogic.Navigation.openPath fsReader path SelectNone model
+                else Ok model
+            let! model = asyncSeqResult {
+                match action with
+                | CreatedItem node ->
+                    let! model = goToPath node.Path
+                    yield! MainLogic.Action.create fsReader fsWriter node.Type node.Name model
+                | RenamedItem (node, newName) ->
+                    let! model = goToPath node.Path
+                    yield! MainLogic.Action.rename fsReader fsWriter node newName model
+                | MovedItem (node, newPath)
+                | CopiedItem (node, newPath) ->
+                    let! model = goToPath newPath
+                    let moveOrCopy =
+                        match action with
+                        | MovedItem _ -> Move
+                        | _ -> Copy
+                    yield { model with Status = MainStatus.redoingAction action model.PathFormat }
+                    yield! MainLogic.Action.putItem fsReader fsWriter false node moveOrCopy model
+                | DeletedItem (node, permanent) ->
+                    let! model = goToPath node.Path
+                    yield { model with Status = MainStatus.redoingAction action model.PathFormat }
+                    yield! MainLogic.Action.delete fsReader fsWriter node permanent model
+            }
+            yield
+                { model with
+                    RedoStack = rest
+                    Status = Some <| MainStatus.redoAction action model.PathFormat
+                }
+        | [] -> return NoRedoActions
     }
 
     member this.OpenSplitScreenWindow model = result {
         let mapFst f t = (fst t |> f, snd t)
         let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
                       |> Rect.fit (getScreenBounds())
-        model.WindowLocation <- fitRect.Location
-        model.WindowSize <- fitRect.Size |> mapFst (flip (/) 2)
+        let model =
+            { model with
+                WindowLocation = fitRect.Location
+                WindowSize = fitRect.Size |> mapFst (flip (/) 2)
+            }
 
         let left, top = model.WindowLocation
         let width, height = model.WindowSize
         let left = left + width
         let args = sprintf "\"%s\" --location=%i,%i --size=%i,%i"
-                           (model.Path.Format Windows) left top width height
+                           (model.Location.Format Windows) left top width height
 
         let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
                           |> Result.ofOption CouldNotFindKoffeeExe
         let folder = koffeePath.Parent
         do! operatingSystem.LaunchApp (koffeePath.Format Windows) folder args
             |> Result.mapError (fun e -> CouldNotOpenApp ("Koffee", e))
+        return model
     }
 
     member this.OpenExplorer model =
@@ -794,20 +751,21 @@ type MainController(fsReader: IFileSystemReader,
         model.Status <- Some <| MainStatus.openExplorer
 
     member this.OpenCommandLine model = result {
-        if model.Path <> Path.Root then
-            do! operatingSystem.LaunchApp config.CommandlinePath model.Path ""
+        if model.Location <> Path.Root then
+            do! operatingSystem.LaunchApp config.CommandlinePath model.Location ""
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Commandline tool", e))
-            model.Status <- Some <| MainStatus.openCommandLine model.PathFormatted
+            return { model with Status = Some <| MainStatus.openCommandLine model.LocationFormatted }
+        else return model
     }
 
     member this.OpenWithTextEditor model = result {
         match model.SelectedNode.Type with
         | File ->
             let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
-            do! operatingSystem.LaunchApp config.TextEditor model.Path args
+            do! operatingSystem.LaunchApp config.TextEditor model.Location args
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
-            model.Status <- Some <| MainStatus.openTextEditor model.SelectedNode.Name
-        | _ -> ()
+            return { model with Status = Some <| MainStatus.openTextEditor model.SelectedNode.Name }
+        | _ -> return model
     }
 
     member this.OpenSettings fsReader model = result {

@@ -154,8 +154,14 @@ type MainModel = {
         let index = min this.Cursor (this.Nodes.Length-1)
         this.Nodes.[index]
 
+    member this.LocationFormatted = this.Location.Format this.PathFormat
+
     member this.WithCursor index =
         { this with Cursor = index |> min (this.Nodes.Length - 1) |> max 0 }
+
+    member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
+
+    member this.HalfPageSize = this.PageSize/2 - 1
 
     static member Default =
         { Location = Path.Root
@@ -234,7 +240,7 @@ type MainBindModel() as this =
     member this.PathFormatted = this.Path.Format this.PathFormat
 
     member this.SelectedNode =
-        let index = min this.Cursor (this.Nodes.Length-1)
+        let index = this.Cursor |> min (this.Nodes.Length-1) |> max 0
         this.Nodes.[index]
 
     member this.HalfPageScroll = this.PageSize/2 - 1

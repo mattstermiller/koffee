@@ -48,7 +48,7 @@ let test case =
         | _ -> model.Location
     let testModel = { model with Location = loc }
 
-    let res = MainLogic.Navigation.openPath fsReader path case.Select testModel
+    let res = MainLogic.Nav.openPath fsReader path case.Select testModel
 
 
     let expected =

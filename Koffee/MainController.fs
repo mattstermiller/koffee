@@ -31,7 +31,7 @@ module MainLogic =
     let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
     let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
 
-    module Navigation =
+    module Nav =
         let openPath (fsReader: IFileSystemReader) path select model = result {
             let! nodes = fsReader.GetNodes model.ShowHidden path |> actionError "open path"
             let nodes = nodes |> SortField.SortByTypeThen model.Sort
@@ -255,10 +255,10 @@ module MainLogic =
             match existing with
             | None ->
                 do! fsWriter.Create nodeType createPath |> itemActionError action model.PathFormat
-                let! model = Navigation.openPath fsReader model.Location (SelectName name) model
+                let! model = Nav.openPath fsReader model.Location (SelectName name) model
                 yield model |> performedAction (CreatedItem model.SelectedNode)
             | Some existing ->
-                yield! Navigation.openPath fsReader model.Location (SelectName existing.Name) model
+                yield! Nav.openPath fsReader model.Location (SelectName existing.Name) model
                 return CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
         }
 
@@ -268,7 +268,7 @@ module MainLogic =
                 let! res = runAsync (fun () -> fsWriter.Delete node.Path)
                 do! res |> itemActionError (DeletedItem (node, true)) model.PathFormat
                 if model.Location = node.Path.Parent then
-                    yield! Navigation.refresh fsReader model
+                    yield! Nav.refresh fsReader model
             else
                 return CannotUndoNonEmptyCreated node
         }
@@ -283,7 +283,7 @@ module MainLogic =
                 match existing with
                 | None ->
                     do! fsWriter.Move node.Path newPath |> itemActionError action model.PathFormat
-                    let! model = Navigation.openPath fsReader model.Location (SelectName newName) model
+                    let! model = Nav.openPath fsReader model.Location (SelectName newName) model
                     return model |> performedAction action
                 | Some existingNode ->
                     return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
@@ -301,7 +301,7 @@ module MainLogic =
             match existing with
             | None ->
                 do! fsWriter.Move currentPath oldNode.Path |> itemActionError action model.PathFormat
-                return! Navigation.openPath fsReader parentPath (SelectName oldNode.Name) model
+                return! Nav.openPath fsReader parentPath (SelectName oldNode.Name) model
             | Some existingNode ->
                 return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
         }
@@ -348,7 +348,7 @@ module MainLogic =
                 // refresh node list to make sure we can see the existing file
                 let tempShowHidden = not model.ShowHidden && existing.IsHidden
                 let refreshModel = { model with ShowHidden = if tempShowHidden then true else model.ShowHidden }
-                let! model = Navigation.openPath fsReader model.Location (SelectName existing.Name) refreshModel
+                let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) refreshModel
                 yield
                     { model with
                         ShowHidden = if tempShowHidden then false else model.ShowHidden
@@ -359,7 +359,7 @@ module MainLogic =
                 yield { model with Status = MainStatus.runningAction action model.PathFormat }
                 let! res = runAsync (fun () -> fileSysAction node.Path newPath)
                 do! res |> itemActionError action model.PathFormat
-                let! model = Navigation.openPath fsReader model.Location (SelectName newName) model
+                let! model = Nav.openPath fsReader model.Location (SelectName newName) model
                 yield model |> performedAction action
         }
 
@@ -384,7 +384,7 @@ module MainLogic =
                 yield { model with Status = Some <| MainStatus.undoingMove node }
                 let! res = runAsync (fun () -> fsWriter.Move currentPath node.Path)
                 do! res |> itemActionError action model.PathFormat
-                yield! Navigation.openPath fsReader node.Path.Parent (SelectName node.Name) model
+                yield! Nav.openPath fsReader node.Path.Parent (SelectName node.Name) model
         }
 
         let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainModel) = asyncSeqResult {
@@ -402,7 +402,7 @@ module MainLogic =
             let! res = runAsync (fun () -> fileSysFunc currentPath)
             do! res |> itemActionError action model.PathFormat
             if model.Location = currentPath.Parent then
-                yield! Navigation.refresh fsReader model
+                yield! Nav.refresh fsReader model
         }
 
         let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncSeqResult {
@@ -412,7 +412,7 @@ module MainLogic =
                 yield { model with Status = MainStatus.runningAction action model.PathFormat }
                 let! res = runAsync (fun () -> fileSysFunc node.Path)
                 do! res |> itemActionError action model.PathFormat
-                yield! Navigation.refresh fsReader model |> Result.map (performedAction action)
+                yield! Nav.refresh fsReader model |> Result.map (performedAction action)
         }
 
         let recycle fsReader fsWriter (config: Config) (model: MainModel) = asyncSeqResult {
@@ -420,7 +420,7 @@ module MainLogic =
                 let host = model.SelectedNode.Name
                 config.RemoveNetHost host
                 config.Save()
-                let! model = Navigation.refresh fsReader model
+                let! model = Nav.refresh fsReader model
                 yield { model with Status = Some <| MainStatus.removedNetworkHost host }
             else
                 yield! delete fsReader fsWriter model.SelectedNode false model
@@ -459,7 +459,7 @@ module MainLogic =
                 let goToPath (nodePath: Path) =
                     let path = nodePath.Parent
                     if path <> model.Location then
-                        Navigation.openPath fsReader path SelectNone model
+                        Nav.openPath fsReader path SelectNone model
                     else Ok model
                 let! model = asyncSeqResult {
                     match action with
@@ -541,7 +541,7 @@ module MainLogic =
             openSettings ()
             return!
                 loadConfig fsReader config model
-                |> Navigation.refresh fsReader
+                |> Nav.refresh fsReader
         }
 
 
@@ -571,7 +571,7 @@ module MainLogic =
                         else (config.Window.Left + 30, config.Window.Top + 30))
                 WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
             }
-        match Navigation.openUserPath fsReader startPath model with
+        match Nav.openUserPath fsReader startPath model with
         | Ok model -> model
         | Error e -> model.WithError e
 
@@ -609,7 +609,7 @@ module MainLogic =
             | GoToBookmark ->
                 match config.GetBookmark char with
                 | Some path ->
-                    yield! Navigation.openUserPath fsReader path model
+                    yield! Nav.openUserPath fsReader path model
                 | None ->
                     yield { model with Status = Some <| MainStatus.noBookmark char }
             | SetBookmark ->
@@ -646,7 +646,7 @@ module MainLogic =
                 match confirmType with
                 | Overwrite _ when not model.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
                     // if we were temporarily showing hidden files, refresh
-                    yield! Navigation.refresh fsReader model
+                    yield! Nav.refresh fsReader model
                 | _ ->
                     yield model
             | _ -> ()
@@ -712,12 +712,12 @@ module MainLogic =
         | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
         | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
         | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
-        | OpenPath p -> Sync (resultHandler (Navigation.openUserPath fsReader p))
-        | OpenSelected -> Sync (resultHandler (Navigation.openSelected fsReader os))
-        | OpenParent -> Sync (resultHandler (Navigation.openParent fsReader))
-        | Back -> Sync (resultHandler (Navigation.back fsReader))
-        | Forward -> Sync (resultHandler (Navigation.forward fsReader))
-        | Refresh -> Sync (resultHandler (Navigation.refresh fsReader))
+        | OpenPath p -> Sync (resultHandler (Nav.openUserPath fsReader p))
+        | OpenSelected -> Sync (resultHandler (Nav.openSelected fsReader os))
+        | OpenParent -> Sync (resultHandler (Nav.openParent fsReader))
+        | Back -> Sync (resultHandler (Nav.back fsReader))
+        | Forward -> Sync (resultHandler (Nav.forward fsReader))
+        | Refresh -> Sync (resultHandler (Nav.refresh fsReader))
         | Undo -> Async (asyncResultHandler (Action.undo fsReader fsWriter))
         | Redo -> Async (asyncResultHandler (Action.redo fsReader fsWriter))
         | StartPrompt promptType -> Sync (resultHandler (Action.startInput fsReader (Prompt promptType)))
@@ -732,8 +732,8 @@ module MainLogic =
         | StartCopy -> Sync (Action.registerItem Copy)
         | Put -> Async (asyncResultHandler (Action.put fsReader fsWriter false))
         | Recycle -> Async (asyncResultHandler (Action.recycle fsReader fsWriter config))
-        | SortList field -> Sync (resultHandler (Navigation.sortList fsReader field))
-        | ToggleHidden -> Sync (resultHandler (Navigation.toggleHidden fsReader))
+        | SortList field -> Sync (resultHandler (Nav.sortList fsReader field))
+        | ToggleHidden -> Sync (resultHandler (Nav.toggleHidden fsReader))
         | OpenSplitScreenWindow -> Sync (resultHandler (Action.openSplitScreenWindow os getScreenBounds))
         | OpenSettings -> Sync (resultHandler (Action.openSettings fsReader openSettings config))
         | OpenExplorer -> Sync (Action.openExplorer os)

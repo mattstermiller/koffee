@@ -704,50 +704,66 @@ module MainLogic =
     let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow evt =
         let dispatch =
             dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow
-        match evt with
-        | KeyPress (chord, handler) -> Async (keyPress dispatch keyBindings chord handler.Handle)
-        | CursorUp -> Sync (fun m -> m.WithCursorRel -1)
-        | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel -m.HalfPageSize)
-        | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
-        | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
-        | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
-        | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
-        | OpenPath p -> Sync (resultHandler (Nav.openUserPath fsReader p))
-        | OpenSelected -> Sync (resultHandler (Nav.openSelected fsReader os))
-        | OpenParent -> Sync (resultHandler (Nav.openParent fsReader))
-        | Back -> Sync (resultHandler (Nav.back fsReader))
-        | Forward -> Sync (resultHandler (Nav.forward fsReader))
-        | Refresh -> Sync (resultHandler (Nav.refresh fsReader))
-        | Undo -> Async (asyncResultHandler (Action.undo fsReader fsWriter))
-        | Redo -> Async (asyncResultHandler (Action.redo fsReader fsWriter))
-        | StartPrompt promptType -> Sync (resultHandler (Action.startInput fsReader (Prompt promptType)))
-        | StartConfirm confirmType -> Sync (resultHandler (Action.startInput fsReader (Confirm confirmType)))
-        | StartInput inputType -> Sync (resultHandler (Action.startInput fsReader (Input inputType)))
-        | SubmitInput -> Async (asyncResultHandler (submitInput fsReader fsWriter config))
-        | InputCharTyped c -> Async (asyncResultHandler (inputCharTyped fsReader fsWriter config c))
-        | FindNext -> Sync Cursor.findNext
-        | SearchNext -> Sync (Cursor.searchNext false)
-        | SearchPrevious -> Sync (Cursor.searchNext true)
-        | StartMove -> Sync (Action.registerItem Move)
-        | StartCopy -> Sync (Action.registerItem Copy)
-        | Put -> Async (asyncResultHandler (Action.put fsReader fsWriter false))
-        | Recycle -> Async (asyncResultHandler (Action.recycle fsReader fsWriter config))
-        | SortList field -> Sync (resultHandler (Nav.sortList fsReader field))
-        | ToggleHidden -> Sync (resultHandler (Nav.toggleHidden fsReader))
-        | OpenSplitScreenWindow -> Sync (resultHandler (Action.openSplitScreenWindow os getScreenBounds))
-        | OpenSettings -> Sync (resultHandler (Action.openSettings fsReader openSettings config))
-        | OpenExplorer -> Sync (Action.openExplorer os)
-        | OpenCommandLine -> Sync (resultHandler (Action.openCommandLine os config))
-        | OpenWithTextEditor -> Sync (resultHandler (Action.openWithTextEditor os config))
-        | ConfigChanged -> Sync (loadConfig fsReader config)
-        | Exit -> Sync (fun m -> closeWindow(); m)
+        let handler =
+            match evt with
+            | KeyPress (chord, handler) -> Async (keyPress dispatch keyBindings chord handler.Handle)
+            | CursorUp -> Sync (fun m -> m.WithCursorRel -1)
+            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel -m.HalfPageSize)
+            | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
+            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
+            | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
+            | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
+            | OpenPath p -> Sync (resultHandler (Nav.openUserPath fsReader p))
+            | OpenSelected -> Sync (resultHandler (Nav.openSelected fsReader os))
+            | OpenParent -> Sync (resultHandler (Nav.openParent fsReader))
+            | Back -> Sync (resultHandler (Nav.back fsReader))
+            | Forward -> Sync (resultHandler (Nav.forward fsReader))
+            | Refresh -> Sync (resultHandler (Nav.refresh fsReader))
+            | Undo -> Async (asyncResultHandler (Action.undo fsReader fsWriter))
+            | Redo -> Async (asyncResultHandler (Action.redo fsReader fsWriter))
+            | StartPrompt promptType -> Sync (resultHandler (Action.startInput fsReader (Prompt promptType)))
+            | StartConfirm confirmType -> Sync (resultHandler (Action.startInput fsReader (Confirm confirmType)))
+            | StartInput inputType -> Sync (resultHandler (Action.startInput fsReader (Input inputType)))
+            | SubmitInput -> Async (asyncResultHandler (submitInput fsReader fsWriter config))
+            | InputCharTyped c -> Async (asyncResultHandler (inputCharTyped fsReader fsWriter config c))
+            | FindNext -> Sync Cursor.findNext
+            | SearchNext -> Sync (Cursor.searchNext false)
+            | SearchPrevious -> Sync (Cursor.searchNext true)
+            | StartMove -> Sync (Action.registerItem Move)
+            | StartCopy -> Sync (Action.registerItem Copy)
+            | Put -> Async (asyncResultHandler (Action.put fsReader fsWriter false))
+            | Recycle -> Async (asyncResultHandler (Action.recycle fsReader fsWriter config))
+            | SortList field -> Sync (resultHandler (Nav.sortList fsReader field))
+            | ToggleHidden -> Sync (resultHandler (Nav.toggleHidden fsReader))
+            | OpenSplitScreenWindow -> Sync (resultHandler (Action.openSplitScreenWindow os getScreenBounds))
+            | OpenSettings -> Sync (resultHandler (Action.openSettings fsReader openSettings config))
+            | OpenExplorer -> Sync (Action.openExplorer os)
+            | OpenCommandLine -> Sync (resultHandler (Action.openCommandLine os config))
+            | OpenWithTextEditor -> Sync (resultHandler (Action.openWithTextEditor os config))
+            | ConfigChanged -> Sync (loadConfig fsReader config)
+            | Exit -> Sync (fun m -> closeWindow(); m)
+        let isBusy model =
+            match model.Status with
+            | Some (Busy _) -> true
+            | _ -> false
+        match handler with
+        | handler when evt = ConfigChanged -> handler
+        | Sync handler ->
+            Sync (fun model ->
+                if not (isBusy model) then
+                    handler model
+                else
+                    model
+            )
+        | Async handler ->
+            Async (fun model -> asyncSeq {
+                if not (isBusy model) then
+                    yield! handler model
+            })
 
 
 type MainController(fsReader, fsWriter, os, getScreenBounds, config: Config, keyBindings, openSettings, closeWindow,
                     startOptions) =
-    // TODO: use a property on the model for this, perhaps the Status?
-    let mutable taskRunning = false
-
     let Sync_m = EventHandler<MainBindModel>.Sync
     let Async_m = EventHandler<MainBindModel>.Async
 
@@ -760,26 +776,8 @@ type MainController(fsReader, fsWriter, os, getScreenBounds, config: Config, key
         member this.Dispatcher = fun evt ->
             let dispatch = MainLogic.dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings
                                                 closeWindow
-            match this.LockingDispatcher dispatch evt with
+            match dispatch evt with
             | Sync handler ->
                 Sync_m (fun bindModel -> bindModel.ToModel() |> handler |> bindModel.UpdateFromModel)
             | Async handler ->
                 Async_m (fun bindModel -> bindModel.ToModel() |> handler |> AsyncSeq.iter bindModel.UpdateFromModel)
-
-    member this.LockingDispatcher dispatcher evt =
-        match dispatcher evt with
-        | handler when evt = ConfigChanged -> handler
-        | Sync handler ->
-            Sync (fun model ->
-                if not taskRunning then
-                    handler model
-                else
-                    model
-            )
-        | Async handler ->
-            Async (fun model -> asyncSeq {
-                if not taskRunning then
-                    taskRunning <- true
-                    yield! handler model
-                    taskRunning <- false
-            })

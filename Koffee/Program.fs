@@ -16,9 +16,9 @@ let makeMainMvc config options window =
     let view = MainView(window, config, options)
     let fileSys = FileSystem(config)
     let os = OperatingSystem()
-    let settingsFactory () = makeSettingsMvc config
-    let controller = MainController(fileSys, fileSys, os, settingsFactory, window.GetScreenWorkingArea, window.Close,
-                                    config, KeyBinding.defaults, options)
+    let openSettings () = (makeSettingsMvc config).StartDialog() |> ignore
+    let controller = MainController(fileSys, fileSys, os, window.GetScreenWorkingArea, config, KeyBinding.defaults,
+                                    openSettings, window.Close, options)
     Mvc(model, view, controller)
 
 let logCrash (e: exn) =

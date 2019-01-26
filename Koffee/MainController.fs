@@ -10,6 +10,10 @@ open Koffee.ConfigExt
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
+type VinylEventHandler<'Model> =
+    | Sync of ('Model -> 'Model)
+    | Async of ('Model -> AsyncSeq<'Model>)
+
 module MainLogic =
     let loadConfig (fsReader: IFileSystemReader) (config: Config) model =
         { model with
@@ -26,19 +30,6 @@ module MainLogic =
 
     let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
     let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
-
-    let toMutation handler (bindModel: MainBindModel) =
-        bindModel.ToModel() |> handler |> bindModel.UpdateFromModel
-    let toMutationResult handler (bindModel: MainBindModel) =
-        bindModel.ToModel() |> handler |> Result.map bindModel.UpdateFromModel
-    let toMutationAsyncResult handler (model: MainBindModel) =
-        (Ok (), handler (model.ToModel())) ||> AsyncSeq.fold (fun s res ->
-            match s, res with
-            | Ok (), Ok m ->
-                model.UpdateFromModel m
-                Ok ()
-            | Error e, _ | _, Error e -> Error e
-        )
 
     module Navigation =
         let openPath (fsReader: IFileSystemReader) path select model = result {
@@ -546,15 +537,16 @@ module MainLogic =
             | _ -> return model
         }
 
-        let openSettings fsReader (settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>) (config: Config) model = result {
-            settingsFactory().StartDialog() |> ignore
+        let openSettings fsReader openSettings (config: Config) model = result {
+            openSettings ()
             return!
                 loadConfig fsReader config model
                 |> Navigation.refresh fsReader
         }
 
 
-    let initModel (config: Config) (fsReader: IFileSystemReader) startOptions isFirstInstance model =
+    let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model =
+        config.Load()
         let defaultPath = config.DefaultPath |> Path.Parse |? Path.Root
         let startPath =
             startOptions.StartPath |? (
@@ -562,17 +554,26 @@ module MainLogic =
                 | RestorePrevious -> config.PreviousPath
                 | DefaultPath -> config.DefaultPath
             )
-        { loadConfig fsReader config model with
-            Location =
-                match config.StartPath with
-                | RestorePrevious -> defaultPath
-                | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
-            WindowLocation =
-                startOptions.StartLocation |> Option.defaultWith (fun () ->
-                    if isFirstInstance then (config.Window.Left, config.Window.Top)
-                    else (config.Window.Left + 30, config.Window.Top + 30))
-            WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
-        } |> Navigation.openUserPath fsReader startPath
+        let isFirstInstance =
+            System.Diagnostics.Process.GetProcesses()
+            |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
+            |> Seq.length
+            |> (=) 1
+        let model =
+            { loadConfig fsReader config model with
+                Location =
+                    match config.StartPath with
+                    | RestorePrevious -> defaultPath
+                    | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
+                WindowLocation =
+                    startOptions.StartLocation |> Option.defaultWith (fun () ->
+                        if isFirstInstance then (config.Window.Left, config.Window.Top)
+                        else (config.Window.Left + 30, config.Window.Top + 30))
+                WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
+            }
+        match Navigation.openUserPath fsReader startPath model with
+        | Ok model -> model
+        | Error e -> model.WithError e
 
     let submitInput fsReader fsWriter (config: Config) model = asyncSeqResult {
         let mode = model.InputMode
@@ -652,126 +653,133 @@ module MainLogic =
         | _ -> ()
     }
 
-
-type MainController(fsReader: IFileSystemReader,
-                    fsWriter: IFileSystemWriter,
-                    operatingSystem: IOperatingSystem,
-                    settingsFactory: unit -> Mvc<SettingsEvents, SettingsModel>,
-                    getScreenBounds: unit -> Rectangle,
-                    closeWindow: unit -> unit,
-                    config: Config,
-                    keyBindings: (KeyCombo * MainEvents) list,
-                    startOptions) =
-    // TODO: use a property on the model for this, perhaps the Status?
-    let mutable taskRunning = false
-
-    let applyResult (model: MainBindModel) = function
-        | Ok () -> ()
-        | Error e -> model.SetError e
-
-    let resultHandler_m handler =
-        Sync (fun model -> handler model |> applyResult model)
-
-    let asyncResultHandler_m handler =
-        Async (fun model -> async {
-            let! res = handler model
-            res |> applyResult model
-        })
-
-    let resultHandler = MainLogic.toMutationResult >> resultHandler_m
-    let asyncResultHandler = MainLogic.toMutationAsyncResult >> asyncResultHandler_m
-
-    interface IController<MainEvents, MainBindModel> with
-        member this.InitModel model =
-            let isFirst =
-                System.Diagnostics.Process.GetProcesses()
-                |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
-                |> Seq.length
-                |> (=) 1
-            config.Load()
-            MainLogic.toMutationResult (MainLogic.initModel config fsReader startOptions isFirst) model
-            |> applyResult model
-
-        member this.Dispatcher = this.LockingDispatcher
-
-    member this.LockingDispatcher evt : EventHandler<MainBindModel> =
-        match this.Dispatcher evt with
-        | Sync handler -> Sync (fun m -> if not taskRunning || evt = ConfigChanged then handler m)
-        | Async handler ->
-            Async (fun m -> async {
-                if not taskRunning then
-                    taskRunning <- true
-                    do! handler m
-                    taskRunning <- false
-            })
-
-    member this.Dispatcher = function
-        | KeyPress (chord, handler) -> Async <| this.KeyPress this.Dispatcher chord handler.Handle
-        | CursorUp -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel -1)
-        | CursorUpHalfPage -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel -m.HalfPageSize)
-        | CursorDown -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel 1)
-        | CursorDownHalfPage -> Sync <| MainLogic.toMutation (fun m -> m.WithCursorRel m.HalfPageSize)
-        | CursorToFirst -> Sync <| MainLogic.toMutation (fun m -> m.WithCursor 0)
-        | CursorToLast -> Sync <| MainLogic.toMutation (fun m -> m.WithCursor (m.Nodes.Length - 1))
-        | OpenPath p -> resultHandler (MainLogic.Navigation.openUserPath fsReader p)
-        | OpenSelected -> resultHandler (MainLogic.Navigation.openSelected fsReader operatingSystem)
-        | OpenParent -> resultHandler (MainLogic.Navigation.openParent fsReader)
-        | Back -> resultHandler (MainLogic.Navigation.back fsReader)
-        | Forward -> resultHandler (MainLogic.Navigation.forward fsReader)
-        | Refresh -> resultHandler (MainLogic.Navigation.refresh fsReader)
-        | Undo -> asyncResultHandler (MainLogic.Action.undo fsReader fsWriter)
-        | Redo -> asyncResultHandler (MainLogic.Action.redo fsReader fsWriter)
-        | StartPrompt promptType -> resultHandler (MainLogic.Action.startInput fsReader (Prompt promptType))
-        | StartConfirm confirmType -> resultHandler (MainLogic.Action.startInput fsReader (Confirm confirmType))
-        | StartInput inputType -> resultHandler (MainLogic.Action.startInput fsReader (Input inputType))
-        | SubmitInput -> asyncResultHandler (MainLogic.submitInput fsReader fsWriter config)
-        | InputCharTyped c -> asyncResultHandler (MainLogic.inputCharTyped fsReader fsWriter config c)
-        | FindNext -> Sync <| MainLogic.toMutation MainLogic.Cursor.findNext
-        | SearchNext -> Sync <| MainLogic.toMutation (MainLogic.Cursor.searchNext false)
-        | SearchPrevious -> Sync <| MainLogic.toMutation (MainLogic.Cursor.searchNext true)
-        | StartMove -> Sync <| MainLogic.toMutation (MainLogic.Action.registerItem Move)
-        | StartCopy -> Sync <| MainLogic.toMutation (MainLogic.Action.registerItem Copy)
-        | Put -> asyncResultHandler (MainLogic.Action.put fsReader fsWriter false)
-        | Recycle -> asyncResultHandler (MainLogic.Action.recycle fsReader fsWriter config)
-        | SortList field -> resultHandler (MainLogic.Navigation.sortList fsReader field)
-        | ToggleHidden -> resultHandler (MainLogic.Navigation.toggleHidden fsReader)
-        | OpenSplitScreenWindow -> resultHandler (MainLogic.Action.openSplitScreenWindow operatingSystem getScreenBounds)
-        | OpenSettings -> resultHandler (MainLogic.Action.openSettings fsReader settingsFactory config)
-        | OpenExplorer -> Sync <| MainLogic.toMutation (MainLogic.Action.openExplorer operatingSystem)
-        | OpenCommandLine -> resultHandler (MainLogic.Action.openCommandLine operatingSystem config)
-        | OpenWithTextEditor -> resultHandler (MainLogic.Action.openWithTextEditor operatingSystem config)
-        | ConfigChanged -> Sync <| MainLogic.toMutation (MainLogic.loadConfig fsReader config)
-        | Exit -> Sync (ignore >> closeWindow)
-
-    member this.KeyPress dispatcher chord handleKey model = async {
-        let event =
+    let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
+        let event, model =
             if chord = (ModifierKeys.None, Key.Escape) then
                 handleKey ()
                 if model.InputMode.IsSome then
-                    model.InputMode <- None
+                    (None, { model with InputMode = None })
                 else if not model.KeyCombo.IsEmpty then
-                    model.KeyCombo <- []
+                    (None, { model with KeyCombo = [] })
                 else
-                    model.Status <- None
-                None
+                    (None, { model with Status = None })
             else
                 let keyCombo = List.append model.KeyCombo [chord]
                 match KeyBinding.getMatch keyBindings keyCombo with
                 | KeyBinding.Match newEvent ->
                     handleKey ()
-                    model.KeyCombo <- []
-                    Some newEvent
+                    (Some newEvent, { model with KeyCombo = [] })
                 | KeyBinding.PartialMatch ->
                     handleKey ()
-                    model.KeyCombo <- keyCombo
-                    None
+                    (None, { model with KeyCombo = keyCombo })
                 | KeyBinding.NoMatch ->
-                    model.KeyCombo <- []
-                    None
+                    (None, { model with KeyCombo = [] })
         match event with
         | Some e ->
             match dispatcher e with
-            | Sync handler -> handler model
-            | Async handler -> do! handler model
-        | None -> ()
+            | Sync handler ->
+                yield handler model
+            | Async handler ->
+                yield! handler model
+        | None ->
+            yield model
     }
+
+    let resultHandler handler (model: MainModel) =
+        match handler model with
+        | Ok m -> m
+        | Error e -> model.WithError e
+
+    let asyncResultHandler handler (model: MainModel) = asyncSeq {
+        let mutable last = model
+        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
+            match r with
+            | Ok m ->
+                last <- m
+                yield m
+            | Error e ->
+                yield last.WithError e
+    }
+
+    let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow evt =
+        let dispatch =
+            dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow
+        match evt with
+        | KeyPress (chord, handler) -> Async (keyPress dispatch keyBindings chord handler.Handle)
+        | CursorUp -> Sync (fun m -> m.WithCursorRel -1)
+        | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel -m.HalfPageSize)
+        | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
+        | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
+        | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
+        | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
+        | OpenPath p -> Sync (resultHandler (Navigation.openUserPath fsReader p))
+        | OpenSelected -> Sync (resultHandler (Navigation.openSelected fsReader os))
+        | OpenParent -> Sync (resultHandler (Navigation.openParent fsReader))
+        | Back -> Sync (resultHandler (Navigation.back fsReader))
+        | Forward -> Sync (resultHandler (Navigation.forward fsReader))
+        | Refresh -> Sync (resultHandler (Navigation.refresh fsReader))
+        | Undo -> Async (asyncResultHandler (Action.undo fsReader fsWriter))
+        | Redo -> Async (asyncResultHandler (Action.redo fsReader fsWriter))
+        | StartPrompt promptType -> Sync (resultHandler (Action.startInput fsReader (Prompt promptType)))
+        | StartConfirm confirmType -> Sync (resultHandler (Action.startInput fsReader (Confirm confirmType)))
+        | StartInput inputType -> Sync (resultHandler (Action.startInput fsReader (Input inputType)))
+        | SubmitInput -> Async (asyncResultHandler (submitInput fsReader fsWriter config))
+        | InputCharTyped c -> Async (asyncResultHandler (inputCharTyped fsReader fsWriter config c))
+        | FindNext -> Sync Cursor.findNext
+        | SearchNext -> Sync (Cursor.searchNext false)
+        | SearchPrevious -> Sync (Cursor.searchNext true)
+        | StartMove -> Sync (Action.registerItem Move)
+        | StartCopy -> Sync (Action.registerItem Copy)
+        | Put -> Async (asyncResultHandler (Action.put fsReader fsWriter false))
+        | Recycle -> Async (asyncResultHandler (Action.recycle fsReader fsWriter config))
+        | SortList field -> Sync (resultHandler (Navigation.sortList fsReader field))
+        | ToggleHidden -> Sync (resultHandler (Navigation.toggleHidden fsReader))
+        | OpenSplitScreenWindow -> Sync (resultHandler (Action.openSplitScreenWindow os getScreenBounds))
+        | OpenSettings -> Sync (resultHandler (Action.openSettings fsReader openSettings config))
+        | OpenExplorer -> Sync (Action.openExplorer os)
+        | OpenCommandLine -> Sync (resultHandler (Action.openCommandLine os config))
+        | OpenWithTextEditor -> Sync (resultHandler (Action.openWithTextEditor os config))
+        | ConfigChanged -> Sync (loadConfig fsReader config)
+        | Exit -> Sync (fun m -> closeWindow(); m)
+
+
+type MainController(fsReader, fsWriter, os, getScreenBounds, config: Config, keyBindings, openSettings, closeWindow,
+                    startOptions) =
+    // TODO: use a property on the model for this, perhaps the Status?
+    let mutable taskRunning = false
+
+    let Sync_m = EventHandler<MainBindModel>.Sync
+    let Async_m = EventHandler<MainBindModel>.Async
+
+    interface IController<MainEvents, MainBindModel> with
+        member this.InitModel model =
+            model.ToModel()
+            |> MainLogic.initModel config fsReader startOptions
+            |> model.UpdateFromModel
+
+        member this.Dispatcher = fun evt ->
+            let dispatch = MainLogic.dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings
+                                                closeWindow
+            match this.LockingDispatcher dispatch evt with
+            | Sync handler ->
+                Sync_m (fun bindModel -> bindModel.ToModel() |> handler |> bindModel.UpdateFromModel)
+            | Async handler ->
+                Async_m (fun bindModel -> bindModel.ToModel() |> handler |> AsyncSeq.iter bindModel.UpdateFromModel)
+
+    member this.LockingDispatcher dispatcher evt =
+        match dispatcher evt with
+        | handler when evt = ConfigChanged -> handler
+        | Sync handler ->
+            Sync (fun model ->
+                if not taskRunning then
+                    handler model
+                else
+                    model
+            )
+        | Async handler ->
+            Async (fun model -> asyncSeq {
+                if not taskRunning then
+                    taskRunning <- true
+                    yield! handler model
+                    taskRunning <- false
+            })

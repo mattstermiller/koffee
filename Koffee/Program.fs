@@ -2,7 +2,6 @@
 
 open System.Windows
 open FSharp.Desktop.UI
-open UIHelpers
 open ProgramOptions
 
 let makeSettingsMvc config =

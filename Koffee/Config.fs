@@ -13,6 +13,7 @@ type StartPath =
     | RestorePrevious
     | DefaultPath
 
+[<AutoOpen>]
 module ConfigExt =
     let private filePath = Path.KoffeeData.Join("config.yaml").Format Windows
 

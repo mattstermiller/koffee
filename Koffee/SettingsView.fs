@@ -5,8 +5,6 @@ open System.Windows
 open System.Windows.Data
 open System.Windows.Input
 open FSharp.Desktop.UI
-open UIHelpers
-open ConfigExt
 open System.Windows.Controls.Primitives
 
 type SettingsWindow = FsXaml.XAML<"SettingsWindow.xaml">

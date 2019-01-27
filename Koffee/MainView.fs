@@ -9,9 +9,7 @@ open System.ComponentModel
 open System.Reactive.Linq
 open FSharp.Desktop.UI
 open ModelExtensions
-open UIHelpers
 open Reflection
-open ConfigExt
 open Acadian.FSharp
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">

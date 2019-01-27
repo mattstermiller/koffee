@@ -1,7 +1,6 @@
 ﻿namespace Koffee
 
 open FSharp.Desktop.UI
-open ConfigExt
 
 type SettingsController(config: Config) =
     interface IController<SettingsEvents, SettingsModel> with

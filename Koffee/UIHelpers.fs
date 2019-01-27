@@ -1,4 +1,5 @@
-﻿module UIHelpers
+﻿[<AutoOpen>]
+module UIHelpers
 
 open System.Windows
 open System.Windows.Data

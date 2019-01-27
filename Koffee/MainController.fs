@@ -5,7 +5,6 @@ open System.Threading.Tasks
 open FSharp.Desktop.UI
 open FSharp.Control
 open Acadian.FSharp
-open Koffee.ConfigExt
 
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key

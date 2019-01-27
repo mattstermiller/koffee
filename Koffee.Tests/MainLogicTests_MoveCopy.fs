@@ -3,7 +3,6 @@
 open System
 open NUnit.Framework
 open FsUnitTyped
-open KellermanSoftware.CompareNetObjects
 
 let nodeSameFolder = createNode "/c/path/file 2"
 let nodeDiffFolder = createNode "/c/other/file 2"
@@ -86,7 +85,7 @@ let ``Put item to move or copy returns error`` doCopy =
 
     let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 // move tests
 
@@ -201,7 +200,7 @@ let ``Undo move item handles move error by returning error``() =
 
     let expectedAction = MovedItem (curNode, prevNode.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 // copy tests
 
@@ -300,7 +299,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
                 Nodes = newNodes
                 Cursor = 0
             }
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -325,7 +324,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
             Nodes = newNodes
             Cursor = 0
         }
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -342,4 +341,4 @@ let ``Undo copy item handles errors by returning error and consuming action`` th
 
     let action = DeletedItem (copied, false)
     let expected = testModel.WithError (ItemActionError (action, testModel.PathFormat, ex))
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])

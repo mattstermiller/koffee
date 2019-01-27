@@ -24,17 +24,18 @@ type StructuralEqualityComparer() =
 
 let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
-    comparer
 
-let assertAreEqualWith expected actual (comparer: CompareLogic) =
+let assertAreEqualWith expected actual comparerSetup =
+    let comparer = CompareLogic() 
     comparer.Config.MaxDifferences <- 10
     comparer.Config.CustomComparers.Add(StructuralEqualityComparer())
-    comparer |> ignoreMembers ["SelectedNode"] |> ignore
+    comparer |> ignoreMembers ["SelectedNode"]
+    comparerSetup comparer
     let result = comparer.Compare(expected, actual)
     Assert.IsTrue(result.AreEqual, result.DifferencesString)
 
 let assertAreEqual expected actual =
-    CompareLogic() |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual ignore
 
 let assertOk res =
     match res with

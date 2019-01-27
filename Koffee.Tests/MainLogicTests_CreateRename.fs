@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open KellermanSoftware.CompareNetObjects
 
 let oldNodes = [
     createNode "/c/path/one"
@@ -101,6 +100,7 @@ let ``Undo create empty node calls delete`` curPathDifferent =
     let createdNode = oldNodes.[1]
     let location = if curPathDifferent then createPath "/c/other" else testModel.Location
     let model = { testModel with Location = location }
+
     let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) model
 
     deleted |> shouldEqual (Some createdNode.Path)
@@ -109,7 +109,7 @@ let ``Undo create empty node calls delete`` curPathDifferent =
             model
         else
             { model with Nodes = newNodes; Cursor = 0 }
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<Test>]
 let ``Undo create non-empty node returns error``() =
@@ -117,6 +117,7 @@ let ``Undo create non-empty node returns error``() =
     fsReader.IsEmpty <- fun _ -> false
     let fsWriter = FakeFileSystemWriter()
     let createdNode = oldNodes.[1]
+
     let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) testModel
 
     let expected = testModel.WithError (CannotUndoNonEmptyCreated createdNode)
@@ -129,10 +130,11 @@ let ``Undo create handles delete error by returning error`` () =
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> Error ex
     let createdNode = oldNodes.[1]
+
     let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) testModel
 
     let expected = testModel.WithError (ItemActionError (DeletedItem (createdNode, true), testModel.PathFormat, ex))
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 // rename tests
 

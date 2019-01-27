@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open KellermanSoftware.CompareNetObjects
 
 let oldNodes = [
     createNode "/c/path/one"
@@ -68,4 +67,4 @@ let ``Delete handles error by returning error``() =
 
     let expectedAction = (DeletedItem (oldNodes.[1], true))
     let expected = testModel.WithError (ItemActionError (expectedAction, testModel.PathFormat, ex))
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])

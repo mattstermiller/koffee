@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open KellermanSoftware.CompareNetObjects
 
 let nodes names =
     let toNode name = {
@@ -23,9 +22,7 @@ let testModel cursorStart =
     }
 
 let assertEqualExceptCursor expected actual =
-    CompareLogic()
-    |> ignoreMembers ["Cursor"; "Nodes"; "InputText"]
-    |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "Nodes"; "InputText"])
 
 let find char cursorStart =
     let model = testModel cursorStart

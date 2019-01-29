@@ -34,7 +34,41 @@ type MainView(window: MainWindow,
         ]
         not <| List.contains keyEvt.Key modifierKeys
 
+    let getPrompt pathFormat (node: Node) inputMode =
+        let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
+        match inputMode with
+        | Confirm (Overwrite (_, src, dest)) ->
+            match dest.Type with
+            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
+            | File ->
+                match src.Modified, src.Size, dest.Modified, dest.Size with
+                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                    let compare a b less greater =
+                        if a = b then "same"
+                        else if a < b then less
+                        else greater
+                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                        dest.Name
+                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
+            | _ -> ""
+        | Confirm Delete ->
+            sprintf "Permanently delete %s y/n ?" node.Description
+        | Confirm (OverwriteBookmark (char, existingPath)) ->
+            sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
+        | Prompt (Find caseSensitive) ->
+            sprintf "Find%s:" (if caseSensitive then " case-sensitive" else "")
+        | Prompt promptType ->
+            promptType |> caseName
+        | Input inputType ->
+            inputType |> caseName
+
     override this.SetBindings (model: MainBindModel) =
+        let keepSelectedInView () =
+            if window.NodeGrid.SelectedItem <> null then
+                window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
+
         model.Invoke <- fun f -> window.Dispatcher.Invoke(fun () -> f())
 
         // setup grid
@@ -43,6 +77,34 @@ type MainView(window: MainWindow,
         window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
         window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
+
+        // bind Tab key to switch focus
+        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
+        window.PathBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
+        window.NodeGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
+            window.PathBox.SelectAll()
+            window.PathBox.Focus()
+        ))
+
+        // on selection change, keep selected node in view, make sure node list is focused
+        window.NodeGrid.SelectedCellsChanged.Add (fun _ ->
+            keepSelectedInView ()
+            window.NodeGrid.Focus() |> ignore
+        )
+
+        // on resize, keep selected node in view, update the page size
+        window.NodeGrid.SizeChanged.Add <| fun _ ->
+            keepSelectedInView()
+            let grid = window.NodeGrid
+            grid.Dispatcher.Invoke(fun () ->
+                if grid.HasItems then
+                    let index = grid.SelectedIndex |> max 0
+                    let row = grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow |> Option.ofObj
+                    let itemsPerPage = row |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int)
+                    itemsPerPage |> Option.iter model.set_PageSize
+            )
+
+        window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
 
         // simple bindings
         Binding.OfExpression
@@ -97,37 +159,65 @@ type MainView(window: MainWindow,
         bindPropertyToFunc <@ model.InputTextSelection @> <| fun (start, len) ->
             window.InputBox.Select(start, len)
 
-        // update UI for the input input mode
-        bindPropertyToFunc <@ model.InputMode @> <| fun mode ->
-            this.InputModeChanged mode model.PathFormat model.SelectedNode
-            if mode.IsNone then model.InputTextSelection <- (999, 0)
+        // update UI for the input mode
+        let updateInput _ =
+            match model.InputMode with
+            | Some inputMode ->
+                match inputMode with
+                | Prompt GoToBookmark
+                | Prompt SetBookmark
+                | Prompt DeleteBookmark ->
+                    let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
+                    window.Bookmarks.ItemsSource <- bookmarks
+                    window.BookmarkPanel.Visible <- true
+                | _ ->
+                    window.BookmarkPanel.Visible <- false
+                window.InputText.Text <- getPrompt model.PathFormat model.SelectedNode inputMode
+                window.InputPanel.Visible <- true
+                window.InputBox.Focus() |> ignore
+            | None ->
+                window.InputPanel.Visible <- false
+                window.BookmarkPanel.Visible <- false
+                window.NodeGrid.Focus() |> ignore
+                model.InputTextSelection <- (999, 0)
+        bindPropertyToFunc <@ model.InputMode @> updateInput
 
         // update UI for status
-        let updateStatus _ = this.UpdateStatus model.Status model.KeyCombo model.Nodes
+        let updateStatus _ =
+            window.StatusText.Text <- 
+                if not (model.KeyCombo |> List.isEmpty) then
+                    model.KeyCombo
+                    |> Seq.map KeyBinding.keyDescription
+                    |> String.concat ""
+                    |> sprintf "Pressed %s, waiting for another key..."
+                else
+                    match model.Status with
+                    | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+                    | None ->
+                        let fileSizes = model.Nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                        let fileStr =
+                            match fileSizes with
+                            | [] -> ""
+                            | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
+                        sprintf "%i items%s" model.Nodes.Length fileStr
+            window.StatusText.Foreground <-
+                match model.KeyCombo, model.Status with
+                | [], Some (ErrorMessage _) -> Brushes.Red
+                | _ -> SystemColors.WindowTextBrush
+            let isBusy =
+                match model.Status with
+                | Some (Busy _) -> true
+                | _ -> false
+            let wasBusy = not window.NodeGrid.IsEnabled
+            window.PathBox.IsEnabled <- not isBusy
+            window.NodeGrid.IsEnabled <- not isBusy
+            window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
+            if wasBusy && not isBusy then
+                window.NodeGrid.Focus() |> ignore
         bindPropertyToFunc <@ model.Status @> updateStatus
         bindPropertyToFunc <@ model.KeyCombo @> updateStatus
         bindPropertyToFunc <@ model.Nodes @> updateStatus
 
-        // bind Tab key to switch focus
-        window.PathBox.PreviewKeyDown.Add <| onKey Key.Tab window.NodeGrid.Focus
-        window.PathBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
-        window.NodeGrid.PreviewKeyDown.Add <| onKey Key.Tab (fun () ->
-            window.PathBox.SelectAll()
-            window.PathBox.Focus()
-        )
-
-        // on selection change, keep selected node in view, make sure node list is focused
-        window.NodeGrid.SelectedCellsChanged.Add <| fun _ ->
-            this.KeepSelectedInView()
-            window.NodeGrid.Focus() |> ignore
-
-        // on resize, keep selected node in view, update the page size
-        window.NodeGrid.SizeChanged.Add <| fun _ ->
-            this.KeepSelectedInView()
-            this.ItemsPerPage |> Option.iter model.set_PageSize
-
-        // escape and lost focus resets the input mode
-        window.InputBox.PreviewKeyDown.Add <| onKey Key.Escape window.NodeGrid.Focus
         window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
 
         // on path enter, update to formatted path and focus grid
@@ -202,7 +292,11 @@ type MainView(window: MainWindow,
             config.Save()
 
     override this.EventStreams = [
-        window.Activated |> Observable.choose this.Activated
+        window.Activated |> Observable.choose (fun _ ->
+            if config.Window.RefreshOnActivate then
+                Some Refresh
+            else None
+        )
         window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
             if evt.Key = Key.Enter then Some <| OpenPath window.PathBox.Text
             else None
@@ -227,117 +321,13 @@ type MainView(window: MainWindow,
         )
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
-        window.InputBox.PreviewTextInput |> Observable.choose this.InputKey
+        window.InputBox.PreviewTextInput |> Observable.choose (fun keyEvt ->
+            match keyEvt.Text.ToCharArray() with
+            | [| c |] -> Some (InputCharTyped c)
+            | _ -> None
+        )
         config.Changed |> Observable.mapTo ConfigChanged
     ]
-
-    member this.Activated _ =
-        if config.Window.RefreshOnActivate then
-            Some Refresh
-        else None
-
-    member this.InputKey keyEvt =
-        match keyEvt.Text.ToCharArray() with
-        | [| c |] -> Some (InputCharTyped c)
-        | _ -> None
-
-    member this.UpdateStatus status keyCombo nodes =
-        window.StatusText.Text <- 
-            if not keyCombo.IsEmpty then
-                keyCombo
-                |> Seq.map KeyBinding.keyDescription
-                |> String.concat ""
-                |> sprintf "Pressed %s, waiting for another key..."
-            else
-                match status with
-                | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-                | None ->
-                    let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                    let fileStr =
-                        match fileSizes with
-                        | [] -> ""
-                        | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                    sprintf "%i items%s" nodes.Length fileStr
-        window.StatusText.Foreground <-
-            match keyCombo, status with
-            | [], Some (ErrorMessage _) -> Brushes.Red
-            | _ -> SystemColors.WindowTextBrush
-
-        let isBusy =
-            match status with
-            | Some (Busy _) -> true
-            | _ -> false
-        let wasBusy = not window.NodeGrid.IsEnabled
-        window.PathBox.IsEnabled <- not isBusy
-        window.NodeGrid.IsEnabled <- not isBusy
-        window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
-        if wasBusy && not isBusy then
-            window.NodeGrid.Focus() |> ignore
-
-    member this.InputModeChanged mode pathFormat node =
-        match mode with
-        | Some inputMode ->
-            match inputMode with
-            | Prompt GoToBookmark
-            | Prompt SetBookmark
-            | Prompt DeleteBookmark ->
-                let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
-                window.Bookmarks.ItemsSource <- bookmarks
-                window.BookmarkPanel.Visible <- true
-            | _ ->
-                window.BookmarkPanel.Visible <- false
-            this.ShowInputBar (inputMode |> this.GetPrompt pathFormat node)
-        | None -> this.HideInputBar ()
-
-    member this.GetPrompt pathFormat (node: Node) =
-        let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
-        function
-        | Confirm confirmType ->
-            match confirmType with
-            | Overwrite (_, src, dest) ->
-                match dest.Type with
-                | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
-                | File ->
-                    match src.Modified, src.Size, dest.Modified, dest.Size with
-                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                        let compare a b less greater =
-                            if a = b then "same"
-                            else if a < b then less
-                            else greater
-                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                            dest.Name
-                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
-                | _ -> ""
-            | Delete -> sprintf "Permanently delete %s y/n ?" node.Description
-            | OverwriteBookmark (char, existingPath) ->
-                sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
-        | Prompt (Find caseSensitive) -> sprintf "Find%s:" (if caseSensitive then " case-sensitive" else "")
-        | Prompt promptType -> promptType |> caseName
-        | Input inputType -> inputType |> caseName
-
-    member private this.ShowInputBar label =
-        window.InputText.Text <- label
-        window.InputPanel.Visible <- true
-        window.InputBox.Focus() |> ignore
-
-    member private this.HideInputBar () =
-        window.InputPanel.Visible <- false
-        window.BookmarkPanel.Visible <- false
-        window.NodeGrid.Focus() |> ignore
-
-    member this.KeepSelectedInView () =
-        if window.NodeGrid.SelectedItem <> null then
-            window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
-
-    member this.ItemsPerPage =
-        if window.NodeGrid.HasItems then
-            let index = window.NodeGrid.SelectedIndex |> max 0
-            let row = window.NodeGrid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow |> Option.ofObj
-            row |> Option.map (fun row -> window.NodeGrid.ActualHeight / row.ActualHeight |> int)
-        else
-            None
 
 module MainStatus =
     // navigation

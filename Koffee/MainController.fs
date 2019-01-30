@@ -88,15 +88,13 @@ module MainLogic =
         }
 
         let sortList fsReader field (model: MainModel) = result {
-            let selected = model.SelectedNode.Name
             let desc =
                 match model.Sort with
                 | f, desc when f = field -> not desc
                 | _ -> field = Modified
             model.Sort <- field, desc
-            do! refresh fsReader model
+            do! openPath fsReader model.Path (SelectName model.SelectedNode.Name) model
             model.Status <- Some <| MainStatus.sort field desc
-            model.Nodes |> List.iteri (fun idx node -> if node.Name = selected then model.SetCursor idx)
         }
 
     let initModel (config: Config) (fsReader: IFileSystemReader) startupOptions isFirstInstance (model: MainModel) =

@@ -43,6 +43,9 @@ type MainView(window: MainWindow,
         window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
         window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
+        window.NodeGrid.SelectedCellsChanged.Add(fun _ ->
+            if window.NodeGrid.SelectedItem <> null then
+                window.NodeGrid.ScrollIntoView window.NodeGrid.SelectedItem)
 
         // simple bindings
         Binding.OfExpression

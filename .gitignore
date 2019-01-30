@@ -193,3 +193,5 @@ FakesAssemblies/
 # VIM temp files
 *.swp
 
+# Jetbrains IDE
+.idea/

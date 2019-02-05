@@ -93,7 +93,7 @@ module MainLogic =
                 | f, desc when f = field -> not desc
                 | _ -> field = Modified
             model.Sort <- field, desc
-            do! refresh fsReader model
+            do! openPath fsReader model.Path (SelectName model.SelectedNode.Name) model
             model.Status <- Some <| MainStatus.sort field desc
         }
 

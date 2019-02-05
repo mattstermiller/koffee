@@ -117,7 +117,7 @@ type MainView(window: MainWindow,
         )
 
         // on selection change, keep selected node in view, make sure node list is focused
-        window.NodeGrid.SelectionChanged.Add <| fun _ ->
+        window.NodeGrid.SelectedCellsChanged.Add <| fun _ ->
             this.KeepSelectedInView()
             window.NodeGrid.Focus() |> ignore
 

@@ -28,8 +28,7 @@ type NodeType =
         | NetHost -> "Network Host"
         | NetShare -> "Network Share"
         | _ -> sprintf "%A" this
-        
-[<ReferenceEquality>]
+
 type Node = {
     Path: Path
     Name: string

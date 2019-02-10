@@ -7,16 +7,14 @@ open System.Windows.Controls
 open System.Windows.Media
 open System.ComponentModel
 open System.Reactive.Linq
-open FSharp.Desktop.UI
-open ModelExtensions
+open VinylUI
+open VinylUI.Wpf
 open Reflection
 open Acadian.FSharp
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
-type MainView(window: MainWindow, config: Config) =
-    inherit View<MainEvents, MainBindModel, MainWindow>(window)
-
+module MainView =
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Observable.choose (fun evt ->
             if evt.Key = key then
@@ -64,12 +62,10 @@ type MainView(window: MainWindow, config: Config) =
         | Input inputType ->
             inputType |> caseName
 
-    override this.SetBindings (model: MainBindModel) =
+    let binder (config: Config) (window: MainWindow) model =
         let keepSelectedInView () =
             if window.NodeGrid.SelectedItem <> null then
                 window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
-
-        model.Invoke <- fun f -> window.Dispatcher.Invoke(fun () -> f())
 
         // setup grid
         window.NodeGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
@@ -102,135 +98,126 @@ type MainView(window: MainWindow, config: Config) =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
-        // simple bindings
-        Binding.OfExpression
-            <@
-                window.PathBox.Text <- model.LocationInput |> BindingOptions.UpdateSourceOnChange
-                window.NodeGrid.SelectedIndex <- model.Cursor
-                window.InputBox.Text <- model.InputText |> BindingOptions.UpdateSourceOnChange
-            @>
+        [   Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
 
-        // node list and sort indication
-        bindPropertyToFunc <@ model.Nodes @> <| fun nodes ->
-            window.NodeGrid.ItemsSource <- nodes
-            let sortField, sortDesc = model.Sort
-            let sortDir =
-                if sortDesc then ListSortDirection.Descending
-                else ListSortDirection.Ascending
-            let sortColumnIndex =
-                match sortField with
-                | Name -> 0
-                | Type -> 1
-                | Modified -> 2
-                | Size -> 3
-            window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- System.Nullable sortDir
+            Bind.modelMulti(<@ model.Nodes, model.Cursor, model.Sort @>).toFunc(fun (nodes, cursor, (sortField, sortDesc)) ->
+                if not <| obj.ReferenceEquals(window.NodeGrid.ItemsSource, nodes) then
+                    window.NodeGrid.ItemsSource <- nodes
+                window.NodeGrid.SelectedIndex <- cursor
+                // sort indication
+                let sortDir =
+                    if sortDesc then ListSortDirection.Descending
+                    else ListSortDirection.Ascending
+                let sortColumnIndex =
+                    match sortField with
+                    | Name -> 0
+                    | Type -> 1
+                    | Modified -> 2
+                    | Size -> 3
+                window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- System.Nullable sortDir
+            )
+            Bind.view(<@ window.NodeGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
-        // display path
-        let displayPath _ = window.Dispatcher.Invoke(fun () ->
-            window.PathBox.Text <- model.PathFormatted
-        )
-        bindPropertyToFunc <@ model.Path @> displayPath
-        model.OnPropertyChanged <@ model.PathFormat @> displayPath
+            // display path
+            Bind.model(<@ model.LocationFormatted @>).toViewOneWay(<@ window.PathBox.Text @>)
+            Bind.model(<@ model.TitleLocation @>).toFunc(fun titleLoc ->
+                window.Title <- sprintf "%s  |  Koffee v%s" titleLoc versionStr
+            )
 
-        let updateTitle _ = window.Dispatcher.Invoke(fun () ->
-            window.Title <- sprintf "%s  |  Koffee v%s" model.TitleLocation versionStr
-        )
-        bindPropertyToFunc <@ model.Path @> updateTitle
-        model.OnPropertyChanged <@ model.PathFormat @> updateTitle
-        model.OnPropertyChanged <@ model.ShowFullPathInTitle @> updateTitle
+            Bind.model(<@ model.ShowHidden @>).toFunc(fun sh ->
+                if config.ShowHidden <> sh then
+                    config.ShowHidden <- sh
+                    config.Save()
+            )
 
-        // display and save register
-        bindPropertyToFunc <@ model.YankRegister @> <| fun register ->
-            let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
-            if configRegister <> config.YankRegister then
-                config.YankRegister <- configRegister
-                config.Save()
-            let text =
-                register |> Option.map (fun (node, action) ->
-                    sprintf "%A %A: %s" action node.Type node.Name)
-            window.Dispatcher.Invoke (fun () ->
+            // display and save register
+            Bind.model(<@ model.YankRegister @>).toFunc(fun register ->
+                let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
+                if configRegister <> config.YankRegister then
+                    config.YankRegister <- configRegister
+                    config.Save()
+                let text =
+                    register |> Option.map (fun (node, action) ->
+                        sprintf "%A %A: %s" action node.Type node.Name)
                 window.RegisterText.Text <- text |? ""
-                window.RegisterPanel.Visible <- text.IsSome)
+                window.RegisterPanel.Visible <- text.IsSome
+            )
 
-        // update UI for the input mode
-        let updateInput _ =
-            let (inputMode, (selectStart, selectLen), selected, pathFormat) =
-                (model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat)
-            match inputMode with
-            | Some inputMode ->
-                match inputMode with
-                | Prompt GoToBookmark
-                | Prompt SetBookmark
-                | Prompt DeleteBookmark ->
-                    let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
-                    window.Bookmarks.ItemsSource <- bookmarks
-                    window.BookmarkPanel.Visible <- true
-                | _ ->
-                    window.BookmarkPanel.Visible <- false
-                window.InputText.Text <- getPrompt pathFormat selected inputMode
-                window.InputPanel.Visible <- true
-                window.InputBox.Select(selectStart, selectLen)
-                window.InputBox.Focus() |> ignore
-            | None ->
-                if window.InputPanel.Visible then
-                    window.InputPanel.Visible <- false
-                    window.BookmarkPanel.Visible <- false
-                    window.NodeGrid.Focus() |> ignore
-        bindPropertyToFunc <@ model.InputMode @> updateInput
-        model.OnPropertyChanged <@ model.InputTextSelection @> updateInput
-        model.OnPropertyChanged <@ model.SelectedNode @> updateInput
-        model.OnPropertyChanged <@ model.PathFormat @> updateInput
-
-        // update UI for status
-        let updateStatus _ =
-            let (status, keyCombo, nodes) = (model.Status, model.KeyCombo, model.Nodes)
-            window.StatusText.Text <- 
-                if not (keyCombo |> List.isEmpty) then
-                    keyCombo
-                    |> Seq.map KeyBinding.keyDescription
-                    |> String.concat ""
-                    |> sprintf "Pressed %s, waiting for another key..."
-                else
-                    match status with
-                    | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+            // update UI for input mode
+            Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat) ->
+                    match inputMode with
+                    | Some inputMode ->
+                        match inputMode with
+                        | Prompt GoToBookmark
+                        | Prompt SetBookmark
+                        | Prompt DeleteBookmark ->
+                            let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
+                            window.Bookmarks.ItemsSource <- bookmarks
+                            window.BookmarkPanel.Visible <- true
+                        | _ ->
+                            window.BookmarkPanel.Visible <- false
+                        window.InputText.Text <- getPrompt pathFormat selected inputMode
+                        window.InputPanel.Visible <- true
+                        window.InputBox.Select(selectStart, selectLen)
+                        window.InputBox.Focus() |> ignore
                     | None ->
-                        let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                        let fileStr =
-                            match fileSizes with
-                            | [] -> ""
-                            | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                        sprintf "%i items%s" nodes.Length fileStr
-            window.StatusText.Foreground <-
-                match keyCombo, status with
-                | [], Some (ErrorMessage _) -> Brushes.Red
-                | _ -> SystemColors.WindowTextBrush
-            let isBusy =
-                match status with
-                | Some (Busy _) -> true
-                | _ -> false
-            let wasBusy = not window.NodeGrid.IsEnabled
-            window.PathBox.IsEnabled <- not isBusy
-            window.NodeGrid.IsEnabled <- not isBusy
-            window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
-            if wasBusy && not isBusy then
-                window.NodeGrid.Focus() |> ignore
-        bindPropertyToFunc <@ model.Status @> updateStatus
-        model.OnPropertyChanged <@ model.KeyCombo @> updateStatus
-        model.OnPropertyChanged <@ model.Nodes @> updateStatus
+                        if window.InputPanel.Visible then
+                            window.InputPanel.Visible <- false
+                            window.BookmarkPanel.Visible <- false
+                            window.NodeGrid.Focus() |> ignore
+                )
 
-        bindPropertyToFunc <@ model.WindowLocation @> <| fun (left, top) ->
-            if int window.Left <> left then window.Left <- float left
-            if int window.Top <> top then window.Top <- float top
-        bindPropertyToFunc <@ model.WindowSize @> <| fun (width, height) ->
-            if int window.Width <> width then window.Width <- float width
-            if int window.Height <> height then window.Height <- float height
+            //// update UI for status
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Nodes @>).toFunc(fun (status, keyCombo, nodes) ->
+                window.StatusText.Text <- 
+                    if not (keyCombo |> List.isEmpty) then
+                        keyCombo
+                        |> Seq.map KeyBinding.keyDescription
+                        |> String.concat ""
+                        |> sprintf "Pressed %s, waiting for another key..."
+                    else
+                        match status with
+                        | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
+                        | None ->
+                            let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                            let fileStr =
+                                match fileSizes with
+                                | [] -> ""
+                                | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
+                            sprintf "%i items%s" nodes.Length fileStr
+                window.StatusText.Foreground <-
+                    match keyCombo, status with
+                    | [], Some (ErrorMessage _) -> Brushes.Red
+                    | _ -> SystemColors.WindowTextBrush
+                let isBusy =
+                    match status with
+                    | Some (Busy _) -> true
+                    | _ -> false
+                let wasBusy = not window.NodeGrid.IsEnabled
+                window.PathBox.IsEnabled <- not isBusy
+                window.NodeGrid.IsEnabled <- not isBusy
+                window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
+                if wasBusy && not isBusy then
+                    window.NodeGrid.Focus() |> ignore
+            )
 
-        bindPropertyToFunc <@ model.ShowHidden @> <| fun sh ->
-            if config.ShowHidden <> sh then
-                config.ShowHidden <- sh
-                config.Save()
+            Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
+                window.Dispatcher.Invoke(fun () ->
+                    if int window.Left <> left then window.Left <- float left
+                    if int window.Top <> top then window.Top <- float top
+                )
+            )
+            Bind.model(<@ model.WindowSize @>).toFunc(fun (width, height) ->
+                window.Dispatcher.Invoke(fun () ->
+                    if int window.Width <> width then window.Width <- float width
+                    if int window.Height <> height then window.Height <- float height
+                )
+            )
+        ]
 
-    override this.EventStreams = [
+    let events (config: Config) (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]

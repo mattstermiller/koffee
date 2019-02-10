@@ -2,7 +2,6 @@
 
 open System
 open System.Windows.Input
-open FSharp.Desktop.UI
 open Acadian.FSharp
 
 type NodeType =
@@ -157,9 +156,11 @@ type MainModel = {
     WindowSize: int * int
     SaveWindowSettings: bool
 } with
+    member private this.ClampCursor index =
+         index |> max 0 |> min (this.Nodes.Length - 1)
+
     member this.SelectedNode =
-        let index = min this.Cursor (this.Nodes.Length-1)
-        this.Nodes.[index]
+        this.Nodes.[this.Cursor |> this.ClampCursor]
 
     member this.LocationFormatted = this.Location.Format this.PathFormat
 
@@ -175,159 +176,36 @@ type MainModel = {
         { this with Location = path; LocationInput = path.Format this.PathFormat }
 
     member this.WithCursor index =
-        { this with Cursor = index |> min (this.Nodes.Length - 1) |> max 0 }
+        { this with Cursor = index |> this.ClampCursor }
 
     member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
 
-    static member Default =
-        { Location = Path.Root
-          PathFormat = Windows
-          LocationInput = Path.Root.Format Windows
-          Status = None
-          Nodes = [ Node.Empty ]
-          Sort = Name, false
-          Cursor = 0
-          PageSize = 30
-          ShowHidden = false
-          KeyCombo = []
-          InputMode = None
-          InputText = ""
-          InputTextSelection = 0, 0
-          LastFind = None
-          LastSearch = None
-          BackStack = []
-          ForwardStack = []
-          YankRegister = None
-          UndoStack = []
-          RedoStack = []
-          ShowFullPathInTitle = false
-          WindowLocation = 0, 0
-          WindowSize = 800, 800
-          SaveWindowSettings = true
-        }
-
-[<AbstractClass>]
-type MainBindModel() as this =
-    inherit Model()
-
-    do
-        this.Path <- Path.Root
-        this.PathFormat <- Windows
-        this.Nodes <- [ Node.Empty ]
-        this.Sort <- Name, false
-        this.KeyCombo <- []
-        this.BackStack <- []
-        this.ForwardStack <- []
-        this.UndoStack <- []
-        this.RedoStack <- []
-        this.InputText <- ""
-        this.InputTextSelection <- 0, 0
-        this.WindowLocation <- 0, 0
-        this.WindowSize <- 800, 800
-
-    abstract Path: Path with get, set
-    abstract PathFormat: PathFormat with get, set
-    abstract LocationInput: string with get, set
-    abstract Status: StatusType option with get, set
-    abstract Nodes: Node list with get, set
-    abstract Sort: SortField * desc: bool with get, set
-    abstract Cursor: int with get, set
-    abstract PageSize: int with get, set
-    abstract ShowHidden: bool with get, set
-    abstract KeyCombo: KeyCombo with get, set
-    abstract InputMode: InputMode option with get, set
-    abstract InputText: string with get, set
-    abstract InputTextSelection: start:int * len:int with get, set
-    abstract LastFind: (bool * char) option with get, set
-    abstract LastSearch: (bool * string) option with get, set
-    abstract BackStack: (Path * int) list with get, set
-    abstract ForwardStack: (Path * int) list with get, set
-    abstract YankRegister: (Node * PutAction) option with get, set
-    abstract UndoStack: ItemAction list with get, set
-    abstract RedoStack: ItemAction list with get, set
-    abstract ShowFullPathInTitle: bool with get, set
-    abstract WindowLocation: int * int with get, set
-    abstract WindowSize: int * int with get, set
-    abstract SaveWindowSettings: bool with get, set
-
-    member val Invoke = (fun (f: unit -> unit) -> f ()) with get, set
-
-    member this.HasErrorStatus =
-        match this.Status with
-        | Some (ErrorMessage _) -> true
-        | _ -> false
-
-    member this.PathFormatted = this.Path.Format this.PathFormat
-
-    member this.SelectedNode =
-        let index = this.Cursor |> min (this.Nodes.Length-1) |> max 0
-        this.Nodes.[index]
-
-    member this.HalfPageScroll = this.PageSize/2 - 1
-
-    member this.SetCursor index =
-        this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
-
-    member this.TitleLocation =
-        if this.ShowFullPathInTitle then
-            this.PathFormatted
-        else
-            this.Path.Name |> String.ifEmpty this.PathFormatted
-
-    member this.ToModel () = {
-        Location = this.Path
-        PathFormat = this.PathFormat
-        LocationInput = this.LocationInput
-        Status = this.Status
-        Nodes = this.Nodes
-        Sort = this.Sort
-        Cursor = this.Cursor
-        PageSize = this.PageSize
-        ShowHidden = this.ShowHidden
-        KeyCombo = this.KeyCombo
-        InputMode = this.InputMode
-        InputText = this.InputText
-        InputTextSelection = this.InputTextSelection
-        LastFind = this.LastFind
-        LastSearch = this.LastSearch
-        BackStack = this.BackStack
-        ForwardStack = this.ForwardStack
-        YankRegister = this.YankRegister
-        UndoStack = this.UndoStack
-        RedoStack = this.RedoStack
-        ShowFullPathInTitle = this.ShowFullPathInTitle
-        WindowLocation = this.WindowLocation
-        WindowSize = this.WindowSize
-        SaveWindowSettings = this.SaveWindowSettings
+    static member Default = {
+        Location = Path.Root
+        PathFormat = Windows
+        LocationInput = Path.Root.Format Windows
+        Status = None
+        Nodes = [ Node.Empty ]
+        Sort = Name, false
+        Cursor = 0
+        PageSize = 30
+        ShowHidden = false
+        KeyCombo = []
+        InputMode = None
+        InputText = ""
+        InputTextSelection = 0, 0
+        LastFind = None
+        LastSearch = None
+        BackStack = []
+        ForwardStack = []
+        YankRegister = None
+        UndoStack = []
+        RedoStack = []
+        ShowFullPathInTitle = false
+        WindowLocation = 0, 0
+        WindowSize = 800, 800
+        SaveWindowSettings = true
     }
-
-    member this.UpdateFromModel model =
-        this.Invoke (fun () ->
-            this.Path <- model.Location
-            this.PathFormat <- model.PathFormat
-            this.LocationInput <- model.LocationInput
-            this.Status <- model.Status
-            this.Sort <- model.Sort
-            this.Nodes <- model.Nodes
-            this.Cursor <- model.Cursor
-            this.PageSize <- model.PageSize
-            this.ShowHidden <- model.ShowHidden
-            this.KeyCombo <- model.KeyCombo
-            this.InputTextSelection <- model.InputTextSelection
-            this.InputText <- model.InputText
-            this.InputMode <- model.InputMode
-            this.LastFind <- model.LastFind
-            this.LastSearch <- model.LastSearch
-            this.BackStack <- model.BackStack
-            this.ForwardStack <- model.ForwardStack
-            this.YankRegister <- model.YankRegister
-            this.UndoStack <- model.UndoStack
-            this.RedoStack <- model.RedoStack
-            this.ShowFullPathInTitle <- model.ShowFullPathInTitle
-            this.WindowLocation <- model.WindowLocation
-            this.WindowSize <- model.WindowSize
-            this.SaveWindowSettings <- model.SaveWindowSettings
-        )
 
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler

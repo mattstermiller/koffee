@@ -23,8 +23,7 @@ let nodeCopy num =
 let modelPathNode = createNode "/c/path"
 
 let testModel =
-    { baseModel with
-        Location = modelPathNode.Path
+    { baseModel.WithLocation modelPathNode.Path with
         Nodes = oldNodes
         Cursor = 0
     }
@@ -150,7 +149,7 @@ let ``Undo move item moves it back`` curPathDifferent =
         Ok ()
     let model =
         if curPathDifferent then
-            { testModel with Location = createPath "/c/other" }
+            testModel.WithLocation (createPath "/c/other")
         else
             testModel
 
@@ -179,7 +178,7 @@ let ``Undo move item when previous path is occupied returns error``() =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = prevNode.Path then Ok (Some prevNode) else Ok None
     let fsWriter = FakeFileSystemWriter()
-    let model = { testModel with Location = createPath "/c/other" }
+    let model = testModel.WithLocation (createPath "/c/other")
 
     let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
 
@@ -194,7 +193,7 @@ let ``Undo move item handles move error by returning error``() =
     fsReader.GetNode <- fun _ -> Ok None
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ -> Error ex
-    let model = { testModel with Location = createPath "/c/other" }
+    let model = testModel.WithLocation (createPath "/c/other")
 
     let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
 
@@ -284,7 +283,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
         Ok ()
     let model =
         if curPathDifferent then
-            { testModel with Location = createPath "/c/other" }
+            testModel.WithLocation (createPath "/c/other")
         else
             testModel
 

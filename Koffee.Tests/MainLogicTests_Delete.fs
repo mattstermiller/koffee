@@ -15,8 +15,7 @@ let newNodes = [
 ]
 
 let testModel =
-    { baseModel with
-        Location = createPath "/c/path"
+    { baseModel.WithLocation (createPath "/c/path") with
         Nodes = oldNodes
         Cursor = 1
     }

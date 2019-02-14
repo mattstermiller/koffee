@@ -46,7 +46,7 @@ let test case =
         match case.GetPath with
         | Same -> path
         | _ -> model.Location
-    let testModel = { model with Location = loc }
+    let testModel = model.WithLocation loc
 
     let res = MainLogic.Nav.openPath fsReader path case.Select testModel
 
@@ -54,14 +54,12 @@ let test case =
     let expected =
         match case.GetPath with
         | Same ->
-            Ok { model with
-                    Location = path
+            Ok { model.WithLocation path with
                     Cursor = case.ExpectedCursor |? model.Cursor
                }
         | Different ->
-            Ok { model with
+            Ok { model.WithLocation path with
                     Nodes = newNodes
-                    Location = path
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []

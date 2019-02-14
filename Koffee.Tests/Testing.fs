@@ -29,7 +29,8 @@ let assertAreEqualWith expected actual comparerSetup =
     let comparer = CompareLogic() 
     comparer.Config.MaxDifferences <- 10
     comparer.Config.CustomComparers.Add(StructuralEqualityComparer())
-    comparer |> ignoreMembers ["SelectedNode"]
+    let fields = Reflection.FSharpType.GetRecordFields(typeof<MainModel>) |> Seq.map (fun p -> p.Name)
+    comparer.Config.MembersToInclude.AddRange(fields)
     comparerSetup comparer
     let result = comparer.Compare(expected, actual)
     Assert.IsTrue(result.AreEqual, result.DifferencesString)

@@ -14,8 +14,7 @@ let newNodes = [
 ]
 
 let testModel =
-    { baseModel with
-        Location = createPath "/c/path"
+    { baseModel.WithLocation (createPath "/c/path") with
         Nodes = oldNodes
         Cursor = 0
         InputText = ""
@@ -99,7 +98,7 @@ let ``Undo create empty node calls delete`` curPathDifferent =
         Ok ()
     let createdNode = oldNodes.[1]
     let location = if curPathDifferent then createPath "/c/other" else testModel.Location
-    let model = { testModel with Location = location }
+    let model = testModel.WithLocation location
 
     let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) model
 
@@ -212,7 +211,7 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
         moved <- Some (s, d)
         Ok ()
     let location = if curPathDifferent then createPath "/c/other" else testModel.Location
-    let model = { testModel with Location = location }
+    let model = testModel.WithLocation location
 
     let actual = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name model
                  |> assertOk

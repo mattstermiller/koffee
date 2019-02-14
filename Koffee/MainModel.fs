@@ -51,6 +51,11 @@ with
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
+    static member Empty = {
+        Path = Path.Root; Name = ""; Type = Empty
+        Modified = None; Size = None; IsHidden = false; IsSearchMatch = false
+    }
+
 type SortField =
     | Name
     | Type
@@ -129,6 +134,7 @@ type StatusType =
 type MainModel = {
     Location: Path
     PathFormat: PathFormat
+    LocationInput: string
     Status: StatusType option
     Nodes: Node list // TODO: change to array for performance
     Sort: SortField * bool
@@ -149,6 +155,7 @@ type MainModel = {
     ShowFullPathInTitle: bool
     WindowLocation: int * int
     WindowSize: int * int
+    SaveWindowSettings: bool
 } with
     member this.SelectedNode =
         let index = min this.Cursor (this.Nodes.Length-1)
@@ -156,18 +163,28 @@ type MainModel = {
 
     member this.LocationFormatted = this.Location.Format this.PathFormat
 
+    member this.HalfPageSize = this.PageSize/2 - 1
+
+    member this.TitleLocation =
+        if this.ShowFullPathInTitle then
+            this.LocationFormatted
+        else
+            this.Location.Name |> String.ifEmpty this.LocationFormatted
+
+    member this.WithLocation path =
+        { this with Location = path; LocationInput = path.Format this.PathFormat }
+
     member this.WithCursor index =
         { this with Cursor = index |> min (this.Nodes.Length - 1) |> max 0 }
 
     member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
 
-    member this.HalfPageSize = this.PageSize/2 - 1
-
     static member Default =
         { Location = Path.Root
           PathFormat = Windows
+          LocationInput = Path.Root.Format Windows
           Status = None
-          Nodes = []
+          Nodes = [ Node.Empty ]
           Sort = Name, false
           Cursor = 0
           PageSize = 30
@@ -186,6 +203,7 @@ type MainModel = {
           ShowFullPathInTitle = false
           WindowLocation = 0, 0
           WindowSize = 800, 800
+          SaveWindowSettings = true
         }
 
 [<AbstractClass>]
@@ -195,7 +213,7 @@ type MainBindModel() as this =
     do
         this.Path <- Path.Root
         this.PathFormat <- Windows
-        this.Nodes <- []
+        this.Nodes <- [ Node.Empty ]
         this.Sort <- Name, false
         this.KeyCombo <- []
         this.BackStack <- []
@@ -209,6 +227,7 @@ type MainBindModel() as this =
 
     abstract Path: Path with get, set
     abstract PathFormat: PathFormat with get, set
+    abstract LocationInput: string with get, set
     abstract Status: StatusType option with get, set
     abstract Nodes: Node list with get, set
     abstract Sort: SortField * desc: bool with get, set
@@ -229,6 +248,7 @@ type MainBindModel() as this =
     abstract ShowFullPathInTitle: bool with get, set
     abstract WindowLocation: int * int with get, set
     abstract WindowSize: int * int with get, set
+    abstract SaveWindowSettings: bool with get, set
 
     member val Invoke = (fun (f: unit -> unit) -> f ()) with get, set
 
@@ -248,9 +268,16 @@ type MainBindModel() as this =
     member this.SetCursor index =
         this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
 
+    member this.TitleLocation =
+        if this.ShowFullPathInTitle then
+            this.PathFormatted
+        else
+            this.Path.Name |> String.ifEmpty this.PathFormatted
+
     member this.ToModel () = {
         Location = this.Path
         PathFormat = this.PathFormat
+        LocationInput = this.LocationInput
         Status = this.Status
         Nodes = this.Nodes
         Sort = this.Sort
@@ -271,12 +298,14 @@ type MainBindModel() as this =
         ShowFullPathInTitle = this.ShowFullPathInTitle
         WindowLocation = this.WindowLocation
         WindowSize = this.WindowSize
+        SaveWindowSettings = this.SaveWindowSettings
     }
 
     member this.UpdateFromModel model =
         this.Invoke (fun () ->
             this.Path <- model.Location
             this.PathFormat <- model.PathFormat
+            this.LocationInput <- model.LocationInput
             this.Status <- model.Status
             this.Sort <- model.Sort
             this.Nodes <- model.Nodes
@@ -284,9 +313,9 @@ type MainBindModel() as this =
             this.PageSize <- model.PageSize
             this.ShowHidden <- model.ShowHidden
             this.KeyCombo <- model.KeyCombo
-            this.InputMode <- model.InputMode
-            this.InputText <- model.InputText
             this.InputTextSelection <- model.InputTextSelection
+            this.InputText <- model.InputText
+            this.InputMode <- model.InputMode
             this.LastFind <- model.LastFind
             this.LastSearch <- model.LastSearch
             this.BackStack <- model.BackStack
@@ -297,10 +326,11 @@ type MainBindModel() as this =
             this.ShowFullPathInTitle <- model.ShowFullPathInTitle
             this.WindowLocation <- model.WindowLocation
             this.WindowSize <- model.WindowSize
+            this.SaveWindowSettings <- model.SaveWindowSettings
         )
 
 type MainEvents =
-    | KeyPress of (ModifierKeys * Key) * UIHelpers.KeyHandler
+    | KeyPress of (ModifierKeys * Key) * EvtHandler
     | CursorUp
     | CursorDown
     | CursorUpHalfPage
@@ -310,7 +340,7 @@ type MainEvents =
     | FindNext
     | SearchNext
     | SearchPrevious
-    | OpenPath of string
+    | OpenPath of EvtHandler
     | OpenSelected
     | OpenParent
     | Back
@@ -319,8 +349,10 @@ type MainEvents =
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
     | StartInput of InputType
+    | InputCharTyped of char * EvtHandler
+    | InputDelete of EvtHandler
     | SubmitInput
-    | InputCharTyped of char
+    | CancelInput
     | StartMove
     | StartCopy
     | Put
@@ -334,12 +366,16 @@ type MainEvents =
     | OpenCommandLine
     | OpenWithTextEditor
     | OpenSettings
-    | ConfigChanged
     | Exit
+    | ConfigChanged
+    | PageSizeChanged of int
+    | WindowLocationChanged of int * int
+    | WindowSizeChanged of int * int
+    | WindowMaximizedChanged of bool
+    | Closed
 
     member this.FriendlyName =
         match this with
-        | KeyPress _ -> ""
         | CursorUp -> "Move Cursor Up"
         | CursorDown -> "Move Cursor Down"
         | CursorUpHalfPage -> "Move Cursor Up Half Page"
@@ -355,7 +391,7 @@ type MainEvents =
         | StartPrompt GoToBookmark -> "Go To Bookmark"
         | StartPrompt SetBookmark -> "Set Bookmark"
         | StartPrompt DeleteBookmark -> "Delete Bookmark"
-        | OpenPath path -> sprintf "Open Path \"%s\"" path
+        | OpenPath _ -> "Open Entered Path"
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
@@ -369,8 +405,6 @@ type MainEvents =
         | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
         | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
         | StartConfirm Delete -> "Delete Permanently"
-        | StartConfirm _ -> ""
-        | InputCharTyped _ -> ""
         | SubmitInput -> "Submit Input for the Current Command"
         | StartMove -> "Start Move Item"
         | StartCopy -> "Start Copy Item"
@@ -385,8 +419,8 @@ type MainEvents =
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenWithTextEditor -> "Open Selected File With Text Editor"
         | OpenSettings -> "Open Help/Settings"
-        | ConfigChanged -> "Configuration File Changed"
         | Exit -> "Exit"
+        | _ -> ""
 
     static member Bindable = [
         CursorUp

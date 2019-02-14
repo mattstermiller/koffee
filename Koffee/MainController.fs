@@ -36,13 +36,13 @@ module MainLogic =
             let nodes = nodes |> SortField.SortByTypeThen model.Sort
             let model =
                 if path <> model.Location then
-                    { model with
+                    { model.WithLocation path with
                         BackStack = (model.Location, model.Cursor) :: model.BackStack
                         ForwardStack = []
-                        Location = path
                         Cursor = 0
                     }
-                else model
+                else
+                    model.WithLocation path
             let cursor =
                 match select with
                 | SelectIndex index -> index
@@ -65,6 +65,12 @@ module MainLogic =
                     openPath fsReader path SelectNone model
                 | Error e -> Error <| ActionError ("open path", e)
             | None -> Error <| InvalidPath pathStr
+
+        let openInputPath fsReader (evtHandler: EvtHandler) model = result {
+            let! model = openUserPath fsReader model.LocationInput model
+            evtHandler.Handle ()
+            return model
+        }
 
         let openSelected fsReader (os: IOperatingSystem) (model: MainModel) =
             let node = model.SelectedNode
@@ -569,6 +575,7 @@ module MainLogic =
                         if isFirstInstance then (config.Window.Left, config.Window.Top)
                         else (config.Window.Left + 30, config.Window.Top + 30))
                 WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
+                SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
             }
         match Nav.openUserPath fsReader startPath model with
         | Ok model -> model
@@ -592,7 +599,14 @@ module MainLogic =
             yield model
     }
 
-    let inputCharTyped fsReader fsWriter (config: Config) char model = asyncSeqResult {
+    let inputDelete cancelInput model =
+        match model.InputMode with
+        | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
+            cancelInput ()
+            { model with InputMode = Some (Prompt DeleteBookmark) }
+        | _ -> model
+
+    let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = asyncSeqResult {
         let withBookmark char model =
             let winPath = model.Location.Format Windows
             config.SetBookmark char winPath
@@ -602,12 +616,14 @@ module MainLogic =
         let model = { model with InputMode = None }
         match mode with
         | Some (Prompt mode) ->
+            cancelInput ()
             match mode with
             | Find caseSensitive ->
                 yield Cursor.find caseSensitive char model
             | GoToBookmark ->
                 match config.GetBookmark char with
                 | Some path ->
+                    yield model
                     yield! Nav.openUserPath fsReader path model
                 | None ->
                     yield { model with Status = Some <| MainStatus.noBookmark char }
@@ -630,6 +646,7 @@ module MainLogic =
                 | None ->
                     yield { model with Status = Some <| MainStatus.noBookmark char }
         | Some (Confirm confirmType) ->
+            cancelInput ()
             match char with
             | 'y' ->
                 match confirmType with
@@ -684,6 +701,31 @@ module MainLogic =
             yield model
     }
 
+    let windowLocationChanged (config: Config) (left, top) model =
+        if model.SaveWindowSettings then
+            config.Window.Left <- left
+            config.Window.Top <- top
+            config.Save()
+        { model with WindowLocation = (left, top) }
+
+    let windowSizeChanged (config: Config) (width, height) model =
+        if model.SaveWindowSettings then
+            config.Window.Width <- width
+            config.Window.Height <- height
+            config.Save()
+        { model with WindowSize = (width, height) }
+
+    let windowMaximized (config: Config) maximized model =
+        if model.SaveWindowSettings then
+            config.Window.IsMaximized <- maximized
+            config.Save()
+        model
+
+    let closed (config: Config) model =
+        config.PreviousPath <- model.Location.Format Windows
+        config.Save()
+        model
+
     let resultHandler handler (model: MainModel) =
         match handler model with
         | Ok m -> m
@@ -712,7 +754,7 @@ module MainLogic =
             | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
-            | OpenPath p -> Sync (resultHandler (Nav.openUserPath fsReader p))
+            | OpenPath handler -> Sync (resultHandler (Nav.openInputPath fsReader handler))
             | OpenSelected -> Sync (resultHandler (Nav.openSelected fsReader os))
             | OpenParent -> Sync (resultHandler (Nav.openParent fsReader))
             | Back -> Sync (resultHandler (Nav.back fsReader))
@@ -723,8 +765,10 @@ module MainLogic =
             | StartPrompt promptType -> Sync (resultHandler (Action.startInput fsReader (Prompt promptType)))
             | StartConfirm confirmType -> Sync (resultHandler (Action.startInput fsReader (Confirm confirmType)))
             | StartInput inputType -> Sync (resultHandler (Action.startInput fsReader (Input inputType)))
+            | InputCharTyped (c, handler) -> Async (asyncResultHandler (inputCharTyped fsReader fsWriter config handler.Handle c))
+            | InputDelete handler -> Sync (inputDelete handler.Handle)
             | SubmitInput -> Async (asyncResultHandler (submitInput fsReader fsWriter config))
-            | InputCharTyped c -> Async (asyncResultHandler (inputCharTyped fsReader fsWriter config c))
+            | CancelInput -> Sync (fun m -> { m with InputMode = None })
             | FindNext -> Sync Cursor.findNext
             | SearchNext -> Sync (Cursor.searchNext false)
             | SearchPrevious -> Sync (Cursor.searchNext true)
@@ -739,8 +783,13 @@ module MainLogic =
             | OpenExplorer -> Sync (Action.openExplorer os)
             | OpenCommandLine -> Sync (resultHandler (Action.openCommandLine os config))
             | OpenWithTextEditor -> Sync (resultHandler (Action.openWithTextEditor os config))
-            | ConfigChanged -> Sync (loadConfig fsReader config)
             | Exit -> Sync (fun m -> closeWindow(); m)
+            | ConfigChanged -> Sync (loadConfig fsReader config)
+            | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })
+            | WindowLocationChanged (l, t) -> Sync (windowLocationChanged config (l, t))
+            | WindowSizeChanged (w, h) -> Sync (windowSizeChanged config (w, h))
+            | WindowMaximizedChanged maximized -> Sync (windowMaximized config maximized)
+            | Closed -> Sync (closed config)
         let isBusy model =
             match model.Status with
             | Some (Busy _) -> true

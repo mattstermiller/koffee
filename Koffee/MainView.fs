@@ -14,9 +14,7 @@ open Acadian.FSharp
 
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
-type MainView(window: MainWindow,
-              config: Config,
-              startOptions: StartOptions) =
+type MainView(window: MainWindow, config: Config) =
     inherit View<MainEvents, MainBindModel, MainWindow>(window)
 
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
@@ -33,6 +31,8 @@ type MainView(window: MainWindow,
             Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
         ]
         not <| List.contains keyEvt.Key modifierKeys
+
+    let throttleChanges o = Observable.Throttle(o, System.TimeSpan.FromSeconds(0.5))
 
     let getPrompt pathFormat (node: Node) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
@@ -92,23 +92,20 @@ type MainView(window: MainWindow,
             window.NodeGrid.Focus() |> ignore
         )
 
-        // on resize, keep selected node in view, update the page size
-        window.NodeGrid.SizeChanged.Add <| fun _ ->
-            keepSelectedInView()
-            let grid = window.NodeGrid
-            grid.Dispatcher.Invoke(fun () ->
-                if grid.HasItems then
-                    let index = grid.SelectedIndex |> max 0
-                    let row = grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow |> Option.ofObj
-                    let itemsPerPage = row |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int)
-                    itemsPerPage |> Option.iter model.set_PageSize
-            )
+        window.NodeGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
+
+        if config.Window.IsMaximized then
+            window.WindowState <- WindowState.Maximized
+
+        let version = typeof<MainModel>.Assembly.GetName().Version
+        let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
         // simple bindings
         Binding.OfExpression
             <@
+                window.PathBox.Text <- model.LocationInput |> BindingOptions.UpdateSourceOnChange
                 window.NodeGrid.SelectedIndex <- model.Cursor
                 window.InputBox.Text <- model.InputText |> BindingOptions.UpdateSourceOnChange
             @>
@@ -131,16 +128,16 @@ type MainView(window: MainWindow,
         // display path
         let displayPath _ = window.Dispatcher.Invoke(fun () ->
             window.PathBox.Text <- model.PathFormatted
-            let displayPath =
-                if model.ShowFullPathInTitle then model.PathFormatted
-                else model.Path.Name |> String.ifEmpty model.PathFormatted
-            let version = typeof<MainModel>.Assembly.GetName().Version
-            let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
-            window.Title <- sprintf "%s  |  Koffee v%s" displayPath versionStr
         )
         bindPropertyToFunc <@ model.Path @> displayPath
         model.OnPropertyChanged <@ model.PathFormat @> displayPath
-        model.OnPropertyChanged <@ model.ShowFullPathInTitle @> displayPath
+
+        let updateTitle _ = window.Dispatcher.Invoke(fun () ->
+            window.Title <- sprintf "%s  |  Koffee v%s" model.TitleLocation versionStr
+        )
+        bindPropertyToFunc <@ model.Path @> updateTitle
+        model.OnPropertyChanged <@ model.PathFormat @> updateTitle
+        model.OnPropertyChanged <@ model.ShowFullPathInTitle @> updateTitle
 
         // display and save register
         bindPropertyToFunc <@ model.YankRegister @> <| fun register ->
@@ -155,13 +152,11 @@ type MainView(window: MainWindow,
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.Visible <- text.IsSome)
 
-        // update input text selection
-        bindPropertyToFunc <@ model.InputTextSelection @> <| fun (start, len) ->
-            window.InputBox.Select(start, len)
-
         // update UI for the input mode
         let updateInput _ =
-            match model.InputMode with
+            let (inputMode, (selectStart, selectLen), selected, pathFormat) =
+                (model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat)
+            match inputMode with
             | Some inputMode ->
                 match inputMode with
                 | Prompt GoToBookmark
@@ -172,40 +167,45 @@ type MainView(window: MainWindow,
                     window.BookmarkPanel.Visible <- true
                 | _ ->
                     window.BookmarkPanel.Visible <- false
-                window.InputText.Text <- getPrompt model.PathFormat model.SelectedNode inputMode
+                window.InputText.Text <- getPrompt pathFormat selected inputMode
                 window.InputPanel.Visible <- true
+                window.InputBox.Select(selectStart, selectLen)
                 window.InputBox.Focus() |> ignore
             | None ->
-                window.InputPanel.Visible <- false
-                window.BookmarkPanel.Visible <- false
-                window.NodeGrid.Focus() |> ignore
-                model.InputTextSelection <- (999, 0)
+                if window.InputPanel.Visible then
+                    window.InputPanel.Visible <- false
+                    window.BookmarkPanel.Visible <- false
+                    window.NodeGrid.Focus() |> ignore
         bindPropertyToFunc <@ model.InputMode @> updateInput
+        model.OnPropertyChanged <@ model.InputTextSelection @> updateInput
+        model.OnPropertyChanged <@ model.SelectedNode @> updateInput
+        model.OnPropertyChanged <@ model.PathFormat @> updateInput
 
         // update UI for status
         let updateStatus _ =
+            let (status, keyCombo, nodes) = (model.Status, model.KeyCombo, model.Nodes)
             window.StatusText.Text <- 
-                if not (model.KeyCombo |> List.isEmpty) then
-                    model.KeyCombo
+                if not (keyCombo |> List.isEmpty) then
+                    keyCombo
                     |> Seq.map KeyBinding.keyDescription
                     |> String.concat ""
                     |> sprintf "Pressed %s, waiting for another key..."
                 else
-                    match model.Status with
+                    match status with
                     | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
                     | None ->
-                        let fileSizes = model.Nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                        let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
                         let fileStr =
                             match fileSizes with
                             | [] -> ""
                             | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                        sprintf "%i items%s" model.Nodes.Length fileStr
+                        sprintf "%i items%s" nodes.Length fileStr
             window.StatusText.Foreground <-
-                match model.KeyCombo, model.Status with
+                match keyCombo, status with
                 | [], Some (ErrorMessage _) -> Brushes.Red
                 | _ -> SystemColors.WindowTextBrush
             let isBusy =
-                match model.Status with
+                match status with
                 | Some (Busy _) -> true
                 | _ -> false
             let wasBusy = not window.NodeGrid.IsEnabled
@@ -215,103 +215,36 @@ type MainView(window: MainWindow,
             if wasBusy && not isBusy then
                 window.NodeGrid.Focus() |> ignore
         bindPropertyToFunc <@ model.Status @> updateStatus
-        bindPropertyToFunc <@ model.KeyCombo @> updateStatus
-        bindPropertyToFunc <@ model.Nodes @> updateStatus
+        model.OnPropertyChanged <@ model.KeyCombo @> updateStatus
+        model.OnPropertyChanged <@ model.Nodes @> updateStatus
 
-        window.InputBox.LostFocus.Add (fun _ -> model.InputMode <- None)
-
-        // on path enter, update to formatted path and focus grid
-        window.Loaded.Add <| fun _ ->
-            window.PathBox.PreviewKeyDown.Add (fun evt ->
-                if evt.Key = Key.Enter && not model.HasErrorStatus then
-                    evt.Handled <- true
-                    window.PathBox.Text <- model.PathFormatted
-                    window.NodeGrid.Focus() |> ignore)
-
-        // suppress text input for character prompts
-        window.Loaded.Add <| fun _ ->
-            window.InputBox.PreviewTextInput.Add (fun evt ->
-                match model.InputMode with
-                | Some (Prompt _) | Some (Confirm _) -> evt.Handled <- true
-                | _ -> ())
-
-        // pressing delete when viewing bookmarks allows delete
-        window.InputBox.PreviewKeyDown.Add <| fun evt ->
-            if evt.Key = Key.Delete then
-                match model.InputMode with
-                | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
-                    evt.Handled <- true
-                    model.InputMode <- Some (Prompt DeleteBookmark)
-                | _ -> ()
-
-        // make sure selected item gets set to the cursor
-        let desiredCursor = model.Cursor
-        model.Cursor <- -1
-        window.Loaded.Add (fun _ -> model.Cursor <- desiredCursor)
-
-        // load window settings
         bindPropertyToFunc <@ model.WindowLocation @> <| fun (left, top) ->
             if int window.Left <> left then window.Left <- float left
             if int window.Top <> top then window.Top <- float top
         bindPropertyToFunc <@ model.WindowSize @> <| fun (width, height) ->
             if int window.Width <> width then window.Width <- float width
             if int window.Height <> height then window.Height <- float height
-        if config.Window.IsMaximized then
-            window.WindowState <- WindowState.Maximized
-
-        // setup saving window settings
-        let saveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
-        if saveWindowSettings then
-            window.StateChanged.Add <| fun _ -> 
-                if window.WindowState <> WindowState.Minimized then
-                    config.Window.IsMaximized <- window.WindowState = WindowState.Maximized
-                    config.Save()
-        window.LocationChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add <| fun _ ->
-            window.Dispatcher.Invoke(fun () ->
-                if window.Left > -window.Width && window.Top > -window.Height then
-                    model.WindowLocation <- (int window.Left, int window.Top)
-                    if saveWindowSettings then
-                        config.Window.Left <- int window.Left
-                        config.Window.Top <- int window.Top
-                        config.Save())
-        window.SizeChanged.Throttle(System.TimeSpan.FromSeconds(0.2)).Add <| fun _ -> 
-            window.Dispatcher.Invoke(fun () ->
-                model.WindowSize <- (int window.Width, int window.Height)
-                if saveWindowSettings then
-                    config.Window.Width <- int window.Width
-                    config.Window.Height <- int window.Height
-                    config.Save())
 
         bindPropertyToFunc <@ model.ShowHidden @> <| fun sh ->
             if config.ShowHidden <> sh then
                 config.ShowHidden <- sh
                 config.Save()
 
-        window.Closed.Add <| fun _ ->
-            config.PreviousPath <- model.Path.Format Windows
-            config.Save()
-
     override this.EventStreams = [
-        window.Activated |> Observable.choose (fun _ ->
-            if config.Window.RefreshOnActivate then
-                Some Refresh
-            else None
-        )
-        window.PathBox.PreviewKeyDown |> Observable.choose (fun evt ->
-            if evt.Key = Key.Enter then Some <| OpenPath window.PathBox.Text
-            else None
-        )
         window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
             let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
+            let focusGrid () = window.NodeGrid.Focus() |> ignore
             match evt.Chord with
+            | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (evt.HandlerWithEffect focusGrid))
             | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
             | (modifier, _) when ignoreMods |> (not << List.contains modifier) -> Some keyPress
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
             | _ -> None
         )
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
+
         window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
                                        |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
         window.NodeGrid.PreviewKeyDown |> Observable.choose (fun evt ->
@@ -320,12 +253,55 @@ type MainView(window: MainWindow,
             None
         )
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
+        window.NodeGrid.SizeChanged |> throttleChanges |> Observable.choose (fun _ ->
+            let grid = window.NodeGrid
+            grid.Dispatcher.Invoke(fun () ->
+                if grid.HasItems then
+                    let index = grid.SelectedIndex |> max 0
+                    let row = grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow |> Option.ofObj
+                    row
+                    |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int)
+                    |> Option.map PageSizeChanged
+                else None
+            )
+        )
+
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
+        window.InputBox.PreviewKeyDown |> Observable.choose (fun keyEvt ->
+            if keyEvt.Key = Key.Delete then
+                Some (InputDelete keyEvt.Handler)
+            else None
+        )
         window.InputBox.PreviewTextInput |> Observable.choose (fun keyEvt ->
             match keyEvt.Text.ToCharArray() with
-            | [| c |] -> Some (InputCharTyped c)
+            | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
             | _ -> None
         )
+        window.InputBox.LostFocus |> Observable.mapTo CancelInput
+
+        window.Activated |> Observable.choose (fun _ ->
+            if config.Window.RefreshOnActivate then
+                Some Refresh
+            else None
+        )
+        window.LocationChanged |> throttleChanges |> Observable.choose (fun _ ->
+            window.Dispatcher.Invoke(fun () ->
+                if window.Left > -window.Width && window.Top > -window.Height then
+                    Some (WindowLocationChanged (int window.Left, int window.Top))
+                else None
+            )
+        )
+        window.SizeChanged |> throttleChanges |> Observable.map (fun _ ->
+            window.Dispatcher.Invoke(fun () ->
+                WindowSizeChanged (int window.Width, int window.Height)
+            )
+        )
+        window.StateChanged |> Observable.choose (fun _ ->
+            if window.WindowState <> WindowState.Minimized then
+                Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
+            else None
+        )
+        window.Closed |> Observable.mapTo Closed
         config.Changed |> Observable.mapTo ConfigChanged
     ]
 
@@ -451,10 +427,3 @@ module MainModelExt =
     type MainModel with
         member this.WithError (e: MainError) =
             { this with Status = Some (ErrorMessage e.Message) }
-
-    type MainBindModel with
-        member this.SetError (e: MainError) =
-            this.Status <- Some (ErrorMessage e.Message)
-
-        member this.SetItemError action e =
-            this.SetError <| ItemActionError (action, this.PathFormat, e)

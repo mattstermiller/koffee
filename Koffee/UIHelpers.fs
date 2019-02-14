@@ -28,12 +28,17 @@ let bindPropertyToFunc (propertyExpr: Expr<'a>) bindFunc =
         model.OnPropertyChanged propertyExpr bindFunc
     | _ -> failwith "Invalid property expression. It must be a property of this model type."
 
-type KeyHandler(evt: KeyEventArgs) =
-    member this.Handle () = evt.Handled <- true
+type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
+    member this.Handle () =
+        evt.Handled <- true
+        effect |> Option.iter (fun f -> f ())
+
+type RoutedEventArgs with
+    member this.Handler = EvtHandler(this)
+    member this.HandlerWithEffect f = EvtHandler(this, f)
 
 type KeyEventArgs with
     member this.Chord = (Keyboard.Modifiers, this.Key)
-    member this.Handler = KeyHandler(this)
 
 type UIElement with
     member this.Visible

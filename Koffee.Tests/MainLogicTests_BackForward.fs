@@ -12,10 +12,9 @@ type TestResult = {
 
 let history handler backStack forwardStack =
     let model =
-        { baseModel with
+        { baseModel.WithLocation (createPath "/c/path") with
             BackStack = backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             ForwardStack = forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
-            Location = createPath "/c/path"
             Cursor = 1
         }
 

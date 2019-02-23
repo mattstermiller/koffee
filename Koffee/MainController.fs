@@ -503,9 +503,9 @@ module Action =
 
         let left, top = model.WindowLocation
         let width, height = model.WindowSize
-        let left = left + width
+        let path = (model.Location.Format Windows).TrimEnd([|'\\'|])
         let args = sprintf "\"%s\" --location=%i,%i --size=%i,%i"
-                           (model.Location.Format Windows) left top width height
+                           path (left + width) top width height
 
         let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
                           |> Result.ofOption CouldNotFindKoffeeExe

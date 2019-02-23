@@ -18,6 +18,7 @@ let defaultsAsString = [
     ("G", CursorToLast)
     ("l", OpenSelected)
     ("<enter>", OpenSelected)
+    ("<s-enter>", OpenFileWith)
     ("h", OpenParent)
     ("H", Back)
     ("L", Forward)

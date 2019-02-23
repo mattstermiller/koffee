@@ -5,6 +5,7 @@ open Acadian.FSharp
 
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
+    abstract member OpenFileWith: Path -> Result<unit, exn>
     abstract member OpenExplorer: Node -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
 
@@ -15,6 +16,12 @@ type OperatingSystem() =
         member this.OpenFile path =
             tryResult <| fun () ->
                 ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
+                |> Process.Start |> ignore
+
+        member this.OpenFileWith path =
+            tryResult <| fun () ->
+                let args = sprintf "shell32.dll, OpenAs_RunDLL %s" (wpath path)
+                ProcessStartInfo("rundll32.exe", args, WorkingDirectory = wpath path.Parent)
                 |> Process.Start |> ignore
 
         member this.OpenExplorer node =

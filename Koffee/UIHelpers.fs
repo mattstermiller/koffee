@@ -1,13 +1,10 @@
-﻿module UIHelpers
+﻿[<AutoOpen>]
+module UIHelpers
 
 open System.Windows
 open System.Windows.Data
 open System.Windows.Controls
 open System.Windows.Input
-open FSharp.Desktop.UI
-open FSharp.Quotations
-open ModelExtensions
-open Reflection
 
 let onKey key action (evt: KeyEventArgs) =
     if evt.Key = key then
@@ -19,20 +16,17 @@ let onKeyCombo mods key action (evt: KeyEventArgs) =
         evt.Handled <- true
         action() |> ignore
 
-/// Calls the binding function with the current property value and subscribes the binding function to property changes
-let bindPropertyToFunc (propertyExpr: Expr<'a>) bindFunc =
-    match propertyExpr with
-    | PropertyExpression (:? Model as model, property) ->
-        property.GetValue model :?> 'a |> bindFunc
-        model.OnPropertyChanged propertyExpr bindFunc
-    | _ -> failwith "Invalid property expression. It must be a property of this model type."
+type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
+    member this.Handle () =
+        evt.Handled <- true
+        effect |> Option.iter (fun f -> f ())
 
-type KeyHandler(evt: KeyEventArgs) =
-    member this.Handle () = evt.Handled <- true
+type RoutedEventArgs with
+    member this.Handler = EvtHandler(this)
+    member this.HandlerWithEffect f = EvtHandler(this, f)
 
 type KeyEventArgs with
     member this.Chord = (Keyboard.Modifiers, this.Key)
-    member this.Handler = KeyHandler(this)
 
 type UIElement with
     member this.Visible

@@ -2,8 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Testing
-open KellermanSoftware.CompareNetObjects
 
 let nodes names =
     let toNode name = {
@@ -17,27 +15,27 @@ let nodes names =
     }
     names |> Seq.map toNode |> Seq.toList
 
-let createModel cursorStart =
-    let model = createBaseTestModel()
-    model.Nodes <- "alice,bob,charlie,crystal,apple,cherry".Split(',') |> nodes
-    model.Cursor <- cursorStart
-    model
+let testModel cursorStart =
+    { baseModel with
+        Nodes = "alice,bob,charlie,crystal,apple,cherry".Split(',') |> nodes
+        Cursor = cursorStart
+    }
 
 let assertEqualExceptCursor expected actual =
-    CompareLogic()
-    |> ignoreMembers ["Cursor"; "Nodes"; "InputText"]
-    |> assertAreEqualWith expected actual
+    assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "Nodes"; "InputText"])
 
 let find char cursorStart =
-    let model = createModel cursorStart
-    let expected = createModel cursorStart
+    let model = testModel cursorStart
 
-    MainLogic.Cursor.find true char model
+    let actual = MainLogic.Cursor.find true char model
 
-    expected.LastFind <- Some (true, char)
-    expected.Status <- Some <| MainStatus.find true char
-    assertEqualExceptCursor expected model
-    model.Cursor
+    let expected =
+        { model with
+            LastFind = Some (true, char)
+            Status = Some <| MainStatus.find true char
+        }
+    assertEqualExceptCursor expected actual
+    actual.Cursor
 
 [<Test>]
 let ``Find a char that matches nothing should not change the cursor``() =
@@ -63,20 +61,21 @@ type SearchResult = {
 with
     static member fromModel (model: MainModel) =
         { Cursor = model.Cursor
-          Count = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length }
+          Count = model.Nodes |> Seq.filter (fun n -> n.IsSearchMatch) |> Seq.length
+        }
 
 let assertSearchGiven reverse searchStr cursorStart expectedResult =
     let search = if searchStr <> "" then Some (false, searchStr) else None
-    let model = createModel cursorStart
-    model.LastSearch <- search
-    let expected = createModel cursorStart
+    let model = { testModel cursorStart with LastSearch = search }
 
-    MainLogic.Cursor.searchNext reverse model
+    let actual = MainLogic.Cursor.searchNext reverse model
 
-    expected.LastSearch <- search
-    expected.Status <- search |> Option.map (fun (cs, s) -> MainStatus.search expectedResult.Count cs s)
-    SearchResult.fromModel model |> shouldEqual expectedResult
-    assertEqualExceptCursor expected model
+    let expected =
+        { model with
+            Status = search |> Option.map (fun (cs, s) -> MainStatus.search expectedResult.Count cs s)
+        }
+    SearchResult.fromModel actual |> shouldEqual expectedResult
+    assertEqualExceptCursor expected actual
 
 let assertSearch = assertSearchGiven false
 let assertSearchPrevious = assertSearchGiven true

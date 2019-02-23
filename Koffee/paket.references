@@ -1,12 +1,6 @@
 FSharp.Core
-Castle.Core
-FSharp.Desktop.UI
-FSharp.Quotations.Evaluator
-FSharp.Configuration
 FsXaml.Wpf
-Rx-Core
-Rx-Interfaces
-Rx-Linq
-Rx-Main
-Rx-PlatformServices
+VinylUI
+System.Reactive
+FSharp.Configuration
 Acadian.FSharp

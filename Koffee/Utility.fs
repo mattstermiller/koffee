@@ -3,6 +3,7 @@ module Utility
 
 open System.Text.RegularExpressions
 open System.Linq
+open FSharp.Control
 open Acadian.FSharp
 
 module String =
@@ -33,27 +34,35 @@ module Format =
         else if size > scaleCutoff 1 then scaledStr size 1
         else format size + " B"
 
-type AsyncResultBuilder() =
-    member this.Bind (a, f) = async.Bind(a, f)
-    member this.Bind (r, f) = async {
-        match r with
-        | Ok x -> return! f x
-        | Error e -> return Error e
-    }
-    member this.Return x = result.Return x |> async.Return
-    member this.ReturnFrom x = result.ReturnFrom x |> async.Return
-    member this.ReturnFrom (x: Async<Result<_,_>>) = async.ReturnFrom x
-    member this.Zero () = result.Zero () |> async.Return
-    member this.Delay f = async.Delay f
-    member this.Combine (x, y) = async {
-        let! res = x
-        match res with
-        | Ok () -> return! y
-        | Error e -> return Error e
-    }
-    member this.Using (x, f) = async.Using (x, f)
+type AsyncSeqResultBuilder() =
+    let takeUntilError resSeq =
+        resSeq |> AsyncSeq.takeWhileInclusive Result.isOk
 
-let asyncResult = AsyncResultBuilder()
+    member this.Bind (a, f) = asyncSeq.Bind(a, f)
+    member this.Bind (r, f) = asyncSeq {
+        match r with
+        | Ok x -> yield! f x
+        | Error e -> yield Error e
+    }
+    member this.Bind (resSeq: AsyncSeq<Result<_,_>>, f) = asyncSeq {
+        let mutable last = None
+        for r in resSeq |> takeUntilError do
+            yield r
+            last <- Some r
+        match last with
+        | Some (Ok x) -> yield! f x
+        | _ -> ()
+    }
+    member this.Yield x = result.Return x |> asyncSeq.Yield
+    member this.YieldFrom x = result.ReturnFrom x |> asyncSeq.Yield
+    member this.YieldFrom (x: AsyncSeq<Result<_,_>>) = asyncSeq.YieldFrom x
+    member this.Return x = this.YieldFrom (Error x)
+    member this.Zero () = result.Zero () |> asyncSeq.Return
+    member this.Delay f = asyncSeq.Delay f
+    member this.Combine (x: AsyncSeq<_>, y) = AsyncSeq.append x y |> takeUntilError
+    member this.Using (x, f) = asyncSeq.Using (x, f)
+
+let asyncSeqResult = AsyncSeqResultBuilder()
 
 module Order =
     let by f s = Enumerable.OrderBy(s, (fun x -> f x))

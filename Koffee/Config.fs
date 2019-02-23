@@ -9,10 +9,11 @@ open System.IO
 open Reflection
 open Acadian.FSharp
 
-type StartupPath =
+type StartPath =
     | RestorePrevious
     | DefaultPath
 
+[<AutoOpen>]
 module ConfigExt =
     let private filePath = Path.KoffeeData.Join("config.yaml").Format Windows
 
@@ -35,8 +36,8 @@ module ConfigExt =
             with get () = ParseUnionCase<PathFormat> this.PathFormatName |? Windows
             and set value = this.PathFormatName <- GetUnionCaseName value
 
-        member this.StartupPath
-            with get () = ParseUnionCase<StartupPath> this.StartupPathType |? RestorePrevious
+        member this.StartPath
+            with get () = ParseUnionCase<StartPath> this.StartupPathType |? RestorePrevious
             and set value = this.StartupPathType <- GetUnionCaseName value
 
         member this.YankRegister

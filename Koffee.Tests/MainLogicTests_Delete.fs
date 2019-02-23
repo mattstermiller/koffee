@@ -2,8 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Testing
-open KellermanSoftware.CompareNetObjects
 
 let oldNodes = [
     createNode "/c/path/one"
@@ -16,12 +14,11 @@ let newNodes = [
     oldNodes.[2]
 ]
 
-let createModel () =
-    let model = createBaseTestModel()
-    model.Path <- createPath "/c/path"
-    model.Nodes <- oldNodes
-    model.Cursor <- 1
-    model
+let testModel =
+    { baseModel.WithLocation (createPath "/c/path") with
+        Nodes = oldNodes
+        Cursor = 1
+    }
 
 let ex = System.UnauthorizedAccessException() :> exn
 
@@ -36,11 +33,10 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     fsWriter.Delete <- fun p -> deleted <- Some p; Ok ()
     let mutable recycled = None
     fsWriter.Recycle <- fun p -> recycled <- Some p; Ok ()
-    let model = createModel()
     let node = oldNodes.[1]
-    let res = MainLogic.Action.delete fsReader fsWriter node permanent model |> Async.RunSynchronously
 
-    res |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter node permanent) testModel
+
     if permanent then
         deleted |> shouldEqual (Some node.Path)
         recycled |> shouldEqual None
@@ -48,13 +44,15 @@ let ``Delete calls correct file sys func and sets message`` permanent =
         deleted |> shouldEqual None
         recycled |> shouldEqual (Some node.Path)
     let expectedAction = DeletedItem (oldNodes.[1], permanent)
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+        }
+    assertAreEqual expected actual
 
 [<Test>]
 let ``Delete handles error by returning error``() =
@@ -62,11 +60,10 @@ let ``Delete handles error by returning error``() =
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> Error ex
-    let model = createModel()
     let node = oldNodes.[1]
-    let res = MainLogic.Action.delete fsReader fsWriter node true model |> Async.RunSynchronously
+
+    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter node true) testModel
 
     let expectedAction = (DeletedItem (oldNodes.[1], true))
-    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
-    let expected = createModel()
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
+    let expected = testModel.WithError (ItemActionError (expectedAction, testModel.PathFormat, ex))
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])

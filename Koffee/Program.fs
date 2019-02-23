@@ -1,31 +1,13 @@
 ﻿module Koffee.Program
 
 open System.Windows
-open FSharp.Desktop.UI
-open UIHelpers
+open VinylUI.Wpf
 open ProgramOptions
-
-let makeSettingsMvc config =
-    let model = SettingsModel.Create()
-    let view = SettingsView(SettingsWindow(), config)
-    let controller = SettingsController(config)
-    Mvc(model, view, controller)
-
-let makeMainMvc config options window =
-    let model = MainModel.Create()
-    let view = MainView(window, config, options)
-    let fileSys = FileSystem(config)
-    let os = OperatingSystem()
-    let settingsFactory () = makeSettingsMvc config
-    let controller = MainController(fileSys, fileSys, os, settingsFactory, window.GetScreenWorkingArea, window.Close,
-                                    config, KeyBinding.defaults, options)
-    Mvc(model, view, controller)
 
 let logCrash (e: exn) =
     let timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
     let logFile = Path.KoffeeData.Join(sprintf "crash_%s.log" timestamp).Format Windows
     System.IO.File.WriteAllText(logFile, string e)
-
     let msg =
         "Sorry! An unexpected error caused Koffee to crash:\n\n" +
         sprintf "%s\n\n" e.Message +
@@ -38,14 +20,21 @@ let logCrash (e: exn) =
 [<System.STAThread>]
 let main args =
     let options = parseArgs (Array.toList args)
-
     let config = Config()
+    let fileSys = FileSystem(config)
+    let os = OperatingSystem()
+    let openSettings () = Settings.View().ShowDialog(Settings.start config) |> ignore
     let window = MainWindow()
-    let mvc = makeMainMvc config options window
-
-    use eventLoop = mvc.Start()
-
+    let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let app = Application()
-    try app.Run window |> ignore
+    let run () =
+        app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config KeyBinding.defaults
+                                        openSettings closeWindow options)
+        |> ignore
+#if DEBUG
+    run ()
+#else
+    try run ()
     with e -> logCrash e
+#endif
     0

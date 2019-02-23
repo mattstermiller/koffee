@@ -2,8 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Testing
-open KellermanSoftware.CompareNetObjects
 
 let oldNodes = [
     createNode "/c/path/one"
@@ -15,14 +13,13 @@ let newNodes = [
     createNode "/c/path/new two"
 ]
 
-let createModel () =
-    let model = createBaseTestModel()
-    model.Path <- createPath "/c/path"
-    model.Nodes <- oldNodes
-    model.Cursor <- 0
-    model.InputText <- ""
-    model.InputTextSelection <- (1, 1)
-    model
+let testModel =
+    { baseModel.WithLocation (createPath "/c/path") with
+        Nodes = oldNodes
+        Cursor = 0
+        InputText = ""
+        InputTextSelection = (1, 1)
+    }
 
 let ex = System.UnauthorizedAccessException() :> exn
 
@@ -39,20 +36,20 @@ let ``Create folder calls file sys create, openPath and sets status``() =
         created <- Some (nodeType, path)
         Ok ()
     let createNode = newNodes.[1]
-    let model = createModel()
 
-    MainLogic.Action.create fsReader fsWriter Folder createNode.Name model
-    |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createNode.Name) testModel
 
     created |> shouldEqual (Some (createNode.Type, createNode.Path))
     let expectedAction = CreatedItem createNode
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+        }
+    assertAreEqual expected actual
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -63,15 +60,15 @@ let ``Create folder returns error when item already exists at path`` existingHid
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let createNode = newNodes.[1]
-    let model = createModel()
 
-    let res = MainLogic.Action.create fsReader fsWriter Folder createNode.Name model
+    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createNode.Name) testModel
 
-    res |> shouldEqual (Error (CannotUseNameAlreadyExists ("create", Folder, createNode.Name, existingHidden)))
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 0
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 0
+        }.WithError (CannotUseNameAlreadyExists ("create", Folder, createNode.Name, existingHidden))
+    assertAreEqual expected actual
 
 [<Test>]
 let ``Create folder handles error by returning error``() =
@@ -80,13 +77,11 @@ let ``Create folder handles error by returning error``() =
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Create <- fun _ _ -> Error ex
     let createNode = newNodes.[1]
-    let model = createModel()
 
-    let res = MainLogic.Action.create fsReader fsWriter Folder createNode.Name model
+    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createNode.Name) testModel
 
-    res |> shouldEqual (Error (ItemActionError ((CreatedItem createNode), model.PathFormat, ex)))
-    let expected = createModel()
-    assertAreEqual expected model
+    let expected = testModel.WithError (ItemActionError ((CreatedItem createNode), testModel.PathFormat, ex))
+    assertAreEqual expected actual
 
 // undo create tests
 
@@ -96,26 +91,24 @@ let ``Undo create empty node calls delete`` curPathDifferent =
     let fsReader = FakeFileSystemReader()
     fsReader.IsEmpty <- fun _ -> true
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
-    let model = createModel()
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
         deleted <- Some p
         Ok ()
     let createdNode = oldNodes.[1]
-    if curPathDifferent then
-        model.Path <- createPath "/c/other"
-    let res = MainLogic.Action.undoCreate fsReader fsWriter createdNode model |> Async.RunSynchronously
+    let location = if curPathDifferent then createPath "/c/other" else testModel.Location
+    let model = testModel.WithLocation location
 
-    res |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) model
+
     deleted |> shouldEqual (Some createdNode.Path)
-    let expected = createModel()
-    if curPathDifferent then
-        expected.Path <- createPath "/c/other"
-    else
-        expected.Nodes <- newNodes
-        expected.Cursor <- 0
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
+    let expected =
+        if curPathDifferent then
+            model
+        else
+            { model with Nodes = newNodes; Cursor = 0 }
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<Test>]
 let ``Undo create non-empty node returns error``() =
@@ -123,12 +116,11 @@ let ``Undo create non-empty node returns error``() =
     fsReader.IsEmpty <- fun _ -> false
     let fsWriter = FakeFileSystemWriter()
     let createdNode = oldNodes.[1]
-    let model = createModel()
-    let res = MainLogic.Action.undoCreate fsReader fsWriter createdNode model |> Async.RunSynchronously
 
-    res |> shouldEqual (Error (CannotUndoNonEmptyCreated createdNode))
-    let expected = createModel()
-    assertAreEqual expected model
+    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) testModel
+
+    let expected = testModel.WithError (CannotUndoNonEmptyCreated createdNode)
+    assertAreEqual expected actual
 
 [<Test>]
 let ``Undo create handles delete error by returning error`` () =
@@ -137,12 +129,11 @@ let ``Undo create handles delete error by returning error`` () =
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> Error ex
     let createdNode = oldNodes.[1]
-    let model = createModel()
-    let res = MainLogic.Action.undoCreate fsReader fsWriter createdNode model |> Async.RunSynchronously
 
-    res |> shouldEqual (Error (ItemActionError (DeletedItem (createdNode, true), model.PathFormat, ex)))
-    let expected = createModel()
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
+    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) testModel
+
+    let expected = testModel.WithError (ItemActionError (DeletedItem (createdNode, true), testModel.PathFormat, ex))
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 // rename tests
 
@@ -159,20 +150,21 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     fsWriter.Move <- fun s d ->
         renamed <- Some (s, d)
         Ok ()
-    let model = createModel()
 
-    MainLogic.Action.rename fsReader fsWriter currentNode renamedNode.Name model
-    |> shouldEqual (Ok ())
+    let actual = MainLogic.Action.rename fsReader fsWriter currentNode renamedNode.Name testModel
+                 |> assertOk
 
     renamed |> shouldEqual (Some (currentNode.Path, renamedNode.Path))
     let expectedAction = RenamedItem (currentNode, renamedNode.Name)
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- if diffCaseOnly then 0 else 1
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = if diffCaseOnly then 0 else 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+        }
+    assertAreEqual expected actual
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -182,13 +174,10 @@ let ``Rename to path with existing item returns error`` existingHidden =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = renamedNode.Path then Ok (Some renamedNode) else Ok None
     let fsWriter = FakeFileSystemWriter()
-    let model = createModel()
 
-    let res = MainLogic.Action.rename fsReader fsWriter currentNode renamedNode.Name model
+    let actual = MainLogic.Action.rename fsReader fsWriter currentNode renamedNode.Name testModel
 
-    res |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, renamedNode.Name, existingHidden)))
-    let expected = createModel()
-    assertAreEqual expected model
+    actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, renamedNode.Name, existingHidden)))
 
 [<Test>]
 let ``Rename handles error by returning error``() =
@@ -198,14 +187,11 @@ let ``Rename handles error by returning error``() =
     fsReader.GetNode <- fun _ -> Ok None
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ -> Error ex
-    let model = createModel()
 
-    let res = MainLogic.Action.rename fsReader fsWriter currentNode renamedNode.Name model
+    let actual = MainLogic.Action.rename fsReader fsWriter currentNode renamedNode.Name testModel
 
     let expectedAction = RenamedItem (currentNode, renamedNode.Name)
-    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
-    let expected = createModel()
-    assertAreEqual expected model
+    actual |> shouldEqual (Error (ItemActionError (expectedAction, testModel.PathFormat, ex)))
 
 // undo rename tests
 
@@ -224,20 +210,22 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
     fsWriter.Move <- fun s d ->
         moved <- Some (s, d)
         Ok ()
-    let model = createModel()
-    if curPathDifferent then
-        model.Path <- createPath "/c/other"
-    let res = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name model
+    let location = if curPathDifferent then createPath "/c/other" else testModel.Location
+    let model = testModel.WithLocation location
 
-    res |> shouldEqual (Ok ())
+    let actual = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name model
+                 |> assertOk
+
     moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
-    let expected = createModel()
-    if curPathDifferent then
-        expected.BackStack <- (createPath "/c/other", expected.Cursor) :: expected.BackStack
-        expected.ForwardStack <- []
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    assertAreEqual expected model
+    let expected = { testModel with Nodes = newNodes; Cursor = 1 }
+    let expected =
+        if curPathDifferent then
+            { expected with
+                BackStack = (location, 0) :: expected.BackStack
+                ForwardStack = []
+            }
+        else expected
+    assertAreEqual expected actual
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -247,12 +235,10 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = prevNode.Path then Ok (Some prevNode) else Ok None
     let fsWriter = FakeFileSystemWriter()
-    let model = createModel()
-    let res = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name model
 
-    res |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, prevNode.Name, existingHidden)))
-    let expected = createModel()
-    assertAreEqual expected model
+    let actual = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name testModel
+
+    actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, prevNode.Name, existingHidden)))
 
 [<Test>]
 let ``Undo rename item handles move error by returning error``() =
@@ -262,30 +248,31 @@ let ``Undo rename item handles move error by returning error``() =
     fsWriter.Move <- fun _ _ -> Error ex
     let prevNode = newNodes.[1]
     let curNode = oldNodes.[1]
-    let model = createModel()
-    let res = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name model
+
+    let actual = MainLogic.Action.undoRename fsReader fsWriter prevNode curNode.Name testModel
 
     let expectedAction = RenamedItem (curNode, prevNode.Name)
-    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
-    let expected = createModel()
-    assertAreEqual expected model
+    actual |> shouldEqual (Error (ItemActionError (expectedAction, testModel.PathFormat, ex)))
 
 // start rename selection tests
 
 let renameTextSelection cursorPosition fileName =
     let node = createNode ("/c/path/" + fileName)
-    let model = createModel()
-    model.Nodes <- List.append oldNodes [node]
-    model.Cursor <- model.Nodes.Length - 1
+    let nodes = List.append oldNodes [node]
+    let model =
+        { baseModel with
+            Nodes = nodes
+            Cursor = nodes.Length - 1
+        }
     let inputMode = Input (Rename cursorPosition)
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> Ok None
-    MainLogic.Action.startInput fsReader inputMode model
-    |> shouldEqual (Ok ())
+    let actual = MainLogic.Action.startInput fsReader inputMode model
+                 |> assertOk
 
-    model.InputMode |> shouldEqual (Some inputMode)
-    model.InputText |> shouldEqual node.Name
-    model.InputTextSelection
+    actual.InputMode |> shouldEqual (Some inputMode)
+    actual.InputText |> shouldEqual node.Name
+    actual.InputTextSelection
 
 [<Test>]
 let ``StartInput for rename at beginning sets InputText and selection``() =

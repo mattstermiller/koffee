@@ -3,8 +3,6 @@
 open System
 open NUnit.Framework
 open FsUnitTyped
-open Testing
-open KellermanSoftware.CompareNetObjects
 
 let nodeSameFolder = createNode "/c/path/file 2"
 let nodeDiffFolder = createNode "/c/other/file 2"
@@ -24,12 +22,11 @@ let nodeCopy num =
 
 let modelPathNode = createNode "/c/path"
 
-let createModel () =
-    let model = createBaseTestModel()
-    model.Path <- modelPathNode.Path
-    model.Nodes <- oldNodes
-    model.Cursor <- 0
-    model
+let testModel =
+    { baseModel.WithLocation modelPathNode.Path with
+        Nodes = oldNodes
+        Cursor = 0
+    }
 
 let mockGetNodeFunc nodeFunc path =
     if path = modelPathNode.Path then Ok (Some modelPathNode)
@@ -55,17 +52,18 @@ let ``Put item to move or copy in different folder with item of same name prompt
     let fsWriter = FakeFileSystemWriter()
     let action = if doCopy then Copy else Move
     let item = Some (src, action)
-    let model = createModel()
-    model.YankRegister <- item
-    let res = MainLogic.Action.put fsReader fsWriter false model |> Async.RunSynchronously
+    let model = { testModel with YankRegister = item }
 
-    res |> shouldEqual (Ok ())
-    let expected = createModel()
-    expected.YankRegister <- item
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    expected.InputMode <- Some (Confirm (Overwrite (action, src, dest)))
-    assertAreEqual expected model
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+
+    let expected =
+        { testModel with
+            YankRegister = item
+            Nodes = newNodes
+            Cursor = 1
+            InputMode = Some (Confirm (Overwrite (action, src, dest)))
+        }
+    assertAreEqual expected actual
     loadedHidden |> shouldEqual (Some existingHidden)
 
 [<TestCase(false)>]
@@ -80,15 +78,13 @@ let ``Put item to move or copy returns error`` doCopy =
     fsWriter.Move <- fun _ _ -> if not doCopy then Error ex else failwith "move should not be called"
     fsWriter.Copy <- fun _ _ -> if doCopy then Error ex else failwith "copy should not be called"
     let item = Some (src, if doCopy then Copy else Move)
-    let model = createModel()
-    model.YankRegister <- item
-    let res = MainLogic.Action.put fsReader fsWriter false model |> Async.RunSynchronously
+    let model = { testModel with YankRegister = item }
+
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
     let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
-    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
-    let expected = createModel()
-    expected.YankRegister <- item
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
+    let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 // move tests
 
@@ -101,24 +97,25 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     fsReader.GetNode <- mockGetNode (if overwrite then Some dest else None)
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let mutable moved = None
+    let mutable moved = []
     fsWriter.Move <- fun s d ->
-        moved <- Some (s, d)
+        moved <- (s, d) :: moved
         Ok ()
-    let model = createModel()
-    model.YankRegister <- Some (src, Move)
-    let res = MainLogic.Action.put fsReader fsWriter overwrite model |> Async.RunSynchronously
+    let model = { testModel with YankRegister = Some (src, Move) }
 
-    res |> shouldEqual (Ok ())
-    moved |> shouldEqual (Some (src.Path, dest.Path))
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
+
+    moved |> shouldEqual [src.Path, dest.Path]
     let expectedAction = MovedItem (src, dest.Path)
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+        }
+    assertAreEqual expected actual
 
 [<Test>]
 let ``Put item to move in same folder returns error``() =
@@ -128,14 +125,12 @@ let ``Put item to move in same folder returns error``() =
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let item = Some (src, Move)
-    let model = createModel()
-    model.YankRegister <- item
-    let res = MainLogic.Action.put fsReader fsWriter false model |> Async.RunSynchronously
+    let model = { testModel with YankRegister = item }
 
-    res |> shouldEqual (Error CannotMoveToSameFolder)
-    let expected = createModel()
-    expected.YankRegister <- item
-    assertAreEqual expected model
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+
+    let expected = model.WithError CannotMoveToSameFolder
+    assertAreEqual expected actual
 
 // undo move tests
 
@@ -152,20 +147,29 @@ let ``Undo move item moves it back`` curPathDifferent =
     fsWriter.Move <- fun s d ->
         moved <- Some (s, d)
         Ok ()
-    let model = createModel()
-    if curPathDifferent then
-        model.Path <- createPath "/c/other"
-    let res = MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path model |> Async.RunSynchronously
+    let model =
+        if curPathDifferent then
+            testModel.WithLocation (createPath "/c/other")
+        else
+            testModel
 
-    res |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
+
     moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    if curPathDifferent then
-        expected.BackStack <- (createPath "/c/other", 0) :: expected.BackStack
-        expected.ForwardStack <- []
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 1
+        }
+    let expected =
+        if curPathDifferent then
+            { expected with
+                BackStack = (createPath "/c/other", 0) :: expected.BackStack
+                ForwardStack = []
+            }
+        else
+            expected
+    assertAreEqual expected actual
 
 [<Test>]
 let ``Undo move item when previous path is occupied returns error``() =
@@ -174,14 +178,12 @@ let ``Undo move item when previous path is occupied returns error``() =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = prevNode.Path then Ok (Some prevNode) else Ok None
     let fsWriter = FakeFileSystemWriter()
-    let model = createModel()
-    model.Path <- createPath "/c/other"
-    let res = MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path model |> Async.RunSynchronously
+    let model = testModel.WithLocation (createPath "/c/other")
 
-    res |> shouldEqual (Error (CannotUndoMoveToExisting prevNode))
-    let expected = createModel()
-    expected.Path <- createPath "/c/other"
-    assertAreEqual expected model
+    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
+
+    let expected = model.WithError (CannotUndoMoveToExisting prevNode)
+    assertAreEqual expected actual
 
 [<Test>]
 let ``Undo move item handles move error by returning error``() =
@@ -191,15 +193,13 @@ let ``Undo move item handles move error by returning error``() =
     fsReader.GetNode <- fun _ -> Ok None
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ -> Error ex
-    let model = createModel()
-    model.Path <- createPath "/c/other"
-    let res = MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path model |> Async.RunSynchronously
+    let model = testModel.WithLocation (createPath "/c/other")
+
+    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
 
     let expectedAction = MovedItem (curNode, prevNode.Path)
-    res |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
-    let expected = createModel()
-    expected.Path <- createPath "/c/other"
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
+    let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 // copy tests
 
@@ -212,24 +212,25 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     fsReader.GetNode <- mockGetNode (if overwrite then Some dest else None)
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let mutable copied = None
+    let mutable copied = []
     fsWriter.Copy <- fun s d ->
-        copied <- Some (s, d)
+        copied <- (s, d) :: copied
         Ok ()
-    let model = createModel()
-    model.YankRegister <- Some (src, Copy)
-    let res = MainLogic.Action.put fsReader fsWriter overwrite model |> Async.RunSynchronously
+    let model = { testModel with YankRegister = Some (src, Copy) }
 
-    res |> shouldEqual (Ok ())
-    copied |> shouldEqual (Some (src.Path, dest.Path))
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
+
+    copied |> shouldEqual [(src.Path, dest.Path)]
     let expectedAction = CopiedItem (src, dest.Path)
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 1
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
+        }
+    assertAreEqual expected actual
 
 [<TestCase(0)>]
 [<TestCase(1)>]
@@ -246,22 +247,23 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     fsWriter.Copy <- fun s d ->
         copied <- Some (s, d)
         Ok ()
-    let model = createModel()
-    model.YankRegister <- Some (src, Copy)
-    let res = MainLogic.Action.put fsReader fsWriter false model |> Async.RunSynchronously
+    let model = { testModel with YankRegister = Some (src, Copy) }
 
-    res |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+
     let destName = MainLogic.Action.getCopyName src.Name existingCopies
-    let destPath = model.Path.Join destName
+    let destPath = model.Location.Join destName
     copied |> shouldEqual (Some (src.Path, destPath))
     let expectedAction = CopiedItem (nodeSameFolder, destPath)
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- newNodes.Length - 1
-    expected.UndoStack <- expectedAction :: expected.UndoStack
-    expected.RedoStack <- []
-    expected.Status <- Some <| MainStatus.actionComplete expectedAction model.PathFormat
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = newNodes.Length - 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
+        }
+    assertAreEqual expected actual
 
 // undo copy tests
 
@@ -274,26 +276,29 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
-    let model = createModel()
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
         deleted <- Some p
-        model.Status <- None
         Ok ()
-    if curPathDifferent then
-        model.Path <- createPath "/c/other"
-    let res = MainLogic.Action.undoCopy fsReader fsWriter original copied.Path model |> Async.RunSynchronously
+    let model =
+        if curPathDifferent then
+            testModel.WithLocation (createPath "/c/other")
+        else
+            testModel
 
-    res |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.undoCopy fsReader fsWriter original copied.Path) model
+
     deleted |> shouldEqual (Some copied.Path)
-    let expected = createModel()
-    if curPathDifferent then
-        expected.Path <- createPath "/c/other"
-    else
-        expected.Nodes <- newNodes
-        expected.Cursor <- 0
-    assertAreEqual expected model
+    let expected =
+        if curPathDifferent then
+            model
+        else
+            { testModel with
+                Nodes = newNodes
+                Cursor = 0
+            }
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -305,36 +310,34 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     fsReader.GetNode <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let model = createModel()
     let mutable recycled = None
     fsWriter.Recycle <- fun p ->
         recycled <- Some p
-        model.Status <- None
         Ok ()
-    let res = MainLogic.Action.undoCopy fsReader fsWriter original copied.Path model |> Async.RunSynchronously
 
-    res |> shouldEqual (Ok ())
+    let actual = seqResult (MainLogic.Action.undoCopy fsReader fsWriter original copied.Path) testModel
+
     recycled |> shouldEqual (Some copied.Path)
-    let expected = createModel()
-    expected.Nodes <- newNodes
-    expected.Cursor <- 0
-    assertAreEqual expected model
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = 0
+        }
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo copy item handles errors by returning error and consuming action`` throwOnGetNode =
     let original = nodeDiffFolder
     let copied = nodeSameFolder
-    let model = createModel()
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> if throwOnGetNode then Error ex else Ok None
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Recycle <- fun _ -> Error ex
     fsWriter.Delete <- fun _ -> Error ex
-    let res = MainLogic.Action.undoCopy fsReader fsWriter original copied.Path model |> Async.RunSynchronously
+
+    let actual = seqResult (MainLogic.Action.undoCopy fsReader fsWriter original copied.Path) testModel
 
     let action = DeletedItem (copied, false)
-    let error = ItemActionError (action, model.PathFormat, ex)
-    res |> shouldEqual (Error error)
-    let expected = createModel()
-    CompareLogic() |> ignoreMembers ["Status"] |> assertAreEqualWith expected model
+    let expected = testModel.WithError (ItemActionError (action, testModel.PathFormat, ex))
+    assertAreEqualWith expected actual (ignoreMembers ["Status"])

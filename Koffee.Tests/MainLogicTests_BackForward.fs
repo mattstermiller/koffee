@@ -2,7 +2,6 @@
 
 open NUnit.Framework
 open FsUnitTyped
-open Testing
 
 type TestResult = {
     Path: string
@@ -12,25 +11,27 @@ type TestResult = {
 }
 
 let history handler backStack forwardStack =
-    let model = createBaseTestModel()
-    model.BackStack <- backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
-    model.ForwardStack <- forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
-    model.Path <- createPath "/c/path"
-    model.Cursor <- 1
+    let model =
+        { baseModel.WithLocation (createPath "/c/path") with
+            BackStack = backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
+            ForwardStack = forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
+            Cursor = 1
+        }
 
     let fsReader = FakeFileSystemReader()
     fsReader.GetNodes <- fun _ _ -> Ok <| List.init 9 (fun i -> sprintf "/c/file %i" i |> createNode)
 
-    handler fsReader model |> ignore
+    let actual = handler fsReader model |> assertOk
 
     let pathStr (path: Path, c) = (path.Name, c)
-    { Path = model.Path.Name
-      Cursor = model.Cursor
-      BackStack = model.BackStack |> List.map pathStr
-      ForwardStack = model.ForwardStack |> List.map pathStr }
+    { Path = actual.Location.Name
+      Cursor = actual.Cursor
+      BackStack = actual.BackStack |> List.map pathStr
+      ForwardStack = actual.ForwardStack |> List.map pathStr
+    }
 
-let back = history MainLogic.Navigation.back
-let forward = history MainLogic.Navigation.forward
+let back = history MainLogic.Nav.back
+let forward = history MainLogic.Nav.forward
 
 [<Test>]
 let ``Back without history does nothing``() =

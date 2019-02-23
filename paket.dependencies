@@ -3,17 +3,17 @@ framework = net451
 redirects: on
 
 nuget FSharp.Core ~> 4.5
-nuget Castle.Core
-nuget CompareNETObjects content:none
-nuget FSharp.Desktop.UI
-nuget FSharp.Quotations.Evaluator
-nuget FSharp.Configuration
-nuget FsUnit ~> 2.3.2
 nuget FsXaml.Wpf
-nuget NUnit
-nuget Rx-Core
-nuget Rx-Interfaces
-nuget Rx-Linq
-nuget Rx-Main
-nuget Rx-PlatformServices ~> 2.2.5
+nuget VinylUI ~> 2.2
+nuget System.Reactive ~> 3.1
+nuget System.Reactive.PlatformServices ~> 3.1
+nuget System.Reactive.Windows.Threading ~> 3.1
+nuget System.Reactive.Linq ~> 3.1
+nuget System.Reactive.Core ~> 3.1
+nuget System.Reactive.Interfaces ~> 3.1
+nuget FSharp.Configuration
 nuget Acadian.FSharp ~> 1.1
+
+nuget FsUnit ~> 2.3.2
+nuget CompareNETObjects content:none
+nuget NUnit

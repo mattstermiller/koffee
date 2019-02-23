@@ -5,9 +5,8 @@ open System.IO
 open System.Text.RegularExpressions
 open System.Management
 open Microsoft.VisualBasic.FileIO
-open Koffee
-open ConfigExt
 open Acadian.FSharp
+open Koffee
 
 type IFileSystemReader =
     abstract member GetNode: Path -> Result<Node option, exn>

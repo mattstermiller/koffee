@@ -2,7 +2,6 @@
 
 open System
 open System.Windows.Input
-open FSharp.Desktop.UI
 open Acadian.FSharp
 
 type NodeType =
@@ -51,13 +50,18 @@ with
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
+    static member Empty = {
+        Path = Path.Root; Name = ""; Type = Empty
+        Modified = None; Size = None; IsHidden = false; IsSearchMatch = false
+    }
+
 type SortField =
     | Name
     | Type
     | Modified
     | Size
 
-    static member SortByTypeThen field desc (list: Node list) =
+    static member SortByTypeThen (field, desc) (list: Node list) =
         let orderBy, thenBy =
             if desc then Order.by, Order.thenByDesc
             else Order.byDesc, Order.thenBy
@@ -126,66 +130,85 @@ type StatusType =
             | _ -> ex.Message
         ErrorMessage (sprintf "Could not %s: %s" actionName exnMessage)
 
-[<AbstractClass>]
-type MainModel() as this =
-    inherit Model()
-
-    do
-        this.Path <- Path.Root
-        this.PathFormat <- Windows
-        this.Nodes <- []
-        this.Sort <- Name, false
-        this.KeyCombo <- []
-        this.BackStack <- []
-        this.ForwardStack <- []
-        this.UndoStack <- []
-        this.RedoStack <- []
-        this.InputText <- ""
-        this.InputTextSelection <- 0, 0
-        this.WindowLocation <- 0, 0
-        this.WindowSize <- 800, 800
-
-    abstract Path: Path with get, set
-    abstract PathFormat: PathFormat with get, set
-    abstract Status: StatusType option with get, set
-    abstract Nodes: Node list with get, set
-    abstract Sort: SortField * desc: bool with get, set
-    abstract Cursor: int with get, set
-    abstract PageSize: int with get, set
-    abstract ShowHidden: bool with get, set
-    abstract KeyCombo: KeyCombo with get, set
-    abstract InputMode: InputMode option with get, set
-    abstract InputText: string with get, set
-    abstract InputTextSelection: start:int * len:int with get, set
-    abstract LastFind: (bool * char) option with get, set
-    abstract LastSearch: (bool * string) option with get, set
-    abstract BackStack: (Path * int) list with get, set
-    abstract ForwardStack: (Path * int) list with get, set
-    abstract YankRegister: (Node * PutAction) option with get, set
-    abstract UndoStack: ItemAction list with get, set
-    abstract RedoStack: ItemAction list with get, set
-    abstract ShowFullPathInTitle: bool with get, set
-    abstract WindowLocation: int * int with get, set
-    abstract WindowSize: int * int with get, set
-
-    member this.HasErrorStatus =
-        match this.Status with
-        | Some (ErrorMessage _) -> true
-        | _ -> false
-
-    member this.PathFormatted = this.Path.Format this.PathFormat
+type MainModel = {
+    Location: Path
+    PathFormat: PathFormat
+    LocationInput: string
+    Status: StatusType option
+    Nodes: Node list // TODO: change to array for performance
+    Sort: SortField * bool
+    Cursor: int
+    PageSize: int
+    ShowHidden: bool
+    KeyCombo: KeyCombo
+    InputMode: InputMode option
+    InputText: string
+    InputTextSelection: int * int
+    LastFind: (bool * char) option
+    LastSearch: (bool * string) option
+    BackStack: (Path * int) list
+    ForwardStack: (Path * int) list
+    YankRegister: (Node * PutAction) option
+    UndoStack: ItemAction list
+    RedoStack: ItemAction list
+    ShowFullPathInTitle: bool
+    WindowLocation: int * int
+    WindowSize: int * int
+    SaveWindowSettings: bool
+} with
+    member private this.ClampCursor index =
+         index |> max 0 |> min (this.Nodes.Length - 1)
 
     member this.SelectedNode =
-        let index = min this.Cursor (this.Nodes.Length-1)
-        this.Nodes.[index]
+        this.Nodes.[this.Cursor |> this.ClampCursor]
 
-    member this.HalfPageScroll = this.PageSize/2 - 1
+    member this.LocationFormatted = this.Location.Format this.PathFormat
 
-    member this.SetCursor index =
-        this.Cursor <- index |> min (this.Nodes.Length - 1) |> max 0
+    member this.HalfPageSize = this.PageSize/2 - 1
+
+    member this.TitleLocation =
+        if this.ShowFullPathInTitle then
+            this.LocationFormatted
+        else
+            this.Location.Name |> String.ifEmpty this.LocationFormatted
+
+    member this.WithLocation path =
+        { this with Location = path; LocationInput = path.Format this.PathFormat }
+
+    member this.WithCursor index =
+        { this with Cursor = index |> this.ClampCursor }
+
+    member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
+
+    static member Default = {
+        Location = Path.Root
+        PathFormat = Windows
+        LocationInput = Path.Root.Format Windows
+        Status = None
+        Nodes = [ Node.Empty ]
+        Sort = Name, false
+        Cursor = 0
+        PageSize = 30
+        ShowHidden = false
+        KeyCombo = []
+        InputMode = None
+        InputText = ""
+        InputTextSelection = 0, 0
+        LastFind = None
+        LastSearch = None
+        BackStack = []
+        ForwardStack = []
+        YankRegister = None
+        UndoStack = []
+        RedoStack = []
+        ShowFullPathInTitle = false
+        WindowLocation = 0, 0
+        WindowSize = 800, 800
+        SaveWindowSettings = true
+    }
 
 type MainEvents =
-    | KeyPress of (ModifierKeys * Key) * UIHelpers.KeyHandler
+    | KeyPress of (ModifierKeys * Key) * EvtHandler
     | CursorUp
     | CursorDown
     | CursorUpHalfPage
@@ -195,7 +218,7 @@ type MainEvents =
     | FindNext
     | SearchNext
     | SearchPrevious
-    | OpenPath of string
+    | OpenPath of EvtHandler
     | OpenSelected
     | OpenParent
     | Back
@@ -204,8 +227,10 @@ type MainEvents =
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
     | StartInput of InputType
+    | InputCharTyped of char * EvtHandler
+    | InputDelete of EvtHandler
     | SubmitInput
-    | InputCharTyped of char
+    | CancelInput
     | StartMove
     | StartCopy
     | Put
@@ -219,12 +244,16 @@ type MainEvents =
     | OpenCommandLine
     | OpenWithTextEditor
     | OpenSettings
-    | ConfigChanged
     | Exit
+    | ConfigChanged
+    | PageSizeChanged of int
+    | WindowLocationChanged of int * int
+    | WindowSizeChanged of int * int
+    | WindowMaximizedChanged of bool
+    | Closed
 
     member this.FriendlyName =
         match this with
-        | KeyPress _ -> ""
         | CursorUp -> "Move Cursor Up"
         | CursorDown -> "Move Cursor Down"
         | CursorUpHalfPage -> "Move Cursor Up Half Page"
@@ -240,7 +269,7 @@ type MainEvents =
         | StartPrompt GoToBookmark -> "Go To Bookmark"
         | StartPrompt SetBookmark -> "Set Bookmark"
         | StartPrompt DeleteBookmark -> "Delete Bookmark"
-        | OpenPath path -> sprintf "Open Path \"%s\"" path
+        | OpenPath _ -> "Open Entered Path"
         | OpenSelected -> "Open Selected Item"
         | OpenParent -> "Open Parent Folder"
         | Back -> "Back in Location History"
@@ -254,8 +283,6 @@ type MainEvents =
         | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
         | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
         | StartConfirm Delete -> "Delete Permanently"
-        | StartConfirm _ -> ""
-        | InputCharTyped _ -> ""
         | SubmitInput -> "Submit Input for the Current Command"
         | StartMove -> "Start Move Item"
         | StartCopy -> "Start Copy Item"
@@ -270,8 +297,8 @@ type MainEvents =
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenWithTextEditor -> "Open Selected File With Text Editor"
         | OpenSettings -> "Open Help/Settings"
-        | ConfigChanged -> "Configuration File Changed"
         | Exit -> "Exit"
+        | _ -> ""
 
     static member Bindable = [
         CursorUp

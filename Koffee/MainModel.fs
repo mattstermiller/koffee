@@ -241,6 +241,7 @@ type MainEvents =
     | ToggleHidden
     | OpenSplitScreenWindow
     | OpenExplorer
+    | OpenFileWith
     | OpenCommandLine
     | OpenWithTextEditor
     | OpenSettings
@@ -294,6 +295,7 @@ type MainEvents =
         | ToggleHidden -> "Show/Hide Hidden Folders and Files"
         | OpenSplitScreenWindow -> "Open New Window for Split Screen"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | OpenFileWith -> "Open File With..."
         | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenWithTextEditor -> "Open Selected File With Text Editor"
         | OpenSettings -> "Open Help/Settings"
@@ -340,6 +342,7 @@ type MainEvents =
         ToggleHidden
         OpenSplitScreenWindow
         OpenExplorer
+        OpenFileWith
         OpenCommandLine
         OpenWithTextEditor
         OpenSettings

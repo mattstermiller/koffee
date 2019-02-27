@@ -519,6 +519,16 @@ module Action =
         os.OpenExplorer model.SelectedNode
         { model with Status = Some <| MainStatus.openExplorer }
 
+    let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
+        let node = model.SelectedNode
+        match node.Type with
+        | File ->
+            do! os.OpenFileWith node.Path |> actionError "open file with"
+            return { model with Status = Some <| MainStatus.openFile node.Name }
+        | _ ->
+            return model
+    }
+
     let openCommandLine (os: IOperatingSystem) (config: Config) model = result {
         if model.Location <> Path.Root then
             do! os.LaunchApp config.CommandlinePath model.Location ""
@@ -775,6 +785,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | OpenSplitScreenWindow -> Sync (resultHandler (Action.openSplitScreenWindow os getScreenBounds))
         | OpenSettings -> Sync (resultHandler (Action.openSettings fsReader openSettings config))
         | OpenExplorer -> Sync (Action.openExplorer os)
+        | OpenFileWith -> Sync (resultHandler (Action.openFileWith os))
         | OpenCommandLine -> Sync (resultHandler (Action.openCommandLine os config))
         | OpenWithTextEditor -> Sync (resultHandler (Action.openWithTextEditor os config))
         | Exit -> Sync (fun m -> closeWindow(); m)

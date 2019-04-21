@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>koffee</id>
+    <version>0.4.1</version>
+    <title>Koffee</title>
+    <authors>Matthew A. Miller</authors>
+    <owners>Matthew A. Miller</owners>
+    <projectUrl>https://github.com/mattstermiller/koffee</projectUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@a0c4fe995119cae2c57adb48589206b09d4a4cd6/icon.png</iconUrl>
+    <copyright>2016 Matthew A. Miller</copyright>
+    <licenseUrl>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@0.4.1/LICENSE.txt</licenseUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <releaseNotes>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@0.4.1/RELEASE_NOTES.md</releaseNotes>
+    <projectSourceUrl>https://github.com/mattstermiller/koffee</projectSourceUrl>
+    <tags>koffee file folder explorer vim hjkl</tags>
+    <summary>Fast, keyboard-driven file explorer</summary>
+    <description>The Keyboard-Oriented File and Folder Explorer for Efficiency, or Koffee, is a no-nonsense alternative to Windows Explorer focused on VIM-style keyboard shortcuts, speed, and simplicity. It is built on .NET WPF, written in F#.
+
+The goal of this application is to allow users to navigate and manipulate files and folders very quickly, almost at the speed of thought -- a speed only achievable via keyboard. If you've ever experienced the productivity boost that comes from learning and using all the keyboard shortcuts in an application (or learned to use the text editor VIM), you understand what a big difference it makes.</description>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

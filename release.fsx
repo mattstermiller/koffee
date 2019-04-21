@@ -55,6 +55,13 @@ let copyFile destDir file =
     let dest = joinPath destDir (Path.GetFileName(file))
     File.Copy(file, dest)
 
+let rec copyDir destDir dir =
+    Directory.CreateDirectory destDir |> ignore
+    Directory.EnumerateFiles(dir) |> Seq.iter (copyFile destDir)
+    Directory.EnumerateDirectories(dir) |> Seq.iter (fun d ->
+        let destDir = joinPath destDir (Path.GetFileName d)
+        copyDir destDir d)
+
 let backupFile file =
     if File.Exists(file) then
         let backup = file + ".bak"
@@ -63,6 +70,8 @@ let backupFile file =
         File.Move(file, backup)
 
 try
+    let distConfig = getPath "dist-config"
+
     // update version number
     let version =
         match getVersion() with
@@ -70,7 +79,8 @@ try
         | None -> failwith "Could not read version from release notes"
 
     replaceInFile @"^\[<assembly: Assembly(File)?Version" versionRegex version (getPath @"Koffee\AssemblyInfo.fs")
-    replaceInFile @"^AppVersion=|^OutputBaseFilename=" versionRegex version (getPath "installer.iss")
+    replaceInFile @"^AppVersion=|^OutputBaseFilename=" versionRegex version (joinPath distConfig "installer.iss")
+    replaceInFile @"<version>|<iconUrl>|<licenseUrl>|<releaseNotes>" versionRegex version (joinPath distConfig "chocolatey\koffee.nuspec")
 
     Console.WriteLine(sprintf "Version set to %s" version)
     Console.WriteLine()
@@ -108,7 +118,14 @@ try
     let setupFile = joinPath distDir (sprintf "Koffee-Setup-%s.exe" version)
     backupFile setupFile
     runProcess @"C:\Program Files (x86)\Inno Setup 5\iscc.exe"
-        (sprintf "/Qp \"%s\"" (getPath "installer.iss"))
+        (sprintf "/Qp \"%s\"" (joinPath distConfig "installer.iss"))
+
+    // create Chocolatey package
+    backupFile (joinPath distDir (sprintf "koffee.%s.nupkg" version))
+    let chocoDir = joinPath filesDir "chocolatey"
+    copyDir chocoDir (joinPath distConfig "chocolatey")
+    copyDir (joinPath chocoDir "tools") releaseDir
+    runProcess "choco" (sprintf "pack %s\koffee.nuspec --out %s" chocoDir distDir)
 
     Console.WriteLine()
     Console.WriteLine(sprintf "Complete! Release files have been created in %s" distDir)

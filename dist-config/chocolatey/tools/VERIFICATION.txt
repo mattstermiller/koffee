@@ -1,0 +1,5 @@
+VERIFICATION Verification is intended to assist the Chocolatey moderators and community in verifying that this package's
+contents are trustworthy.
+
+This package is published by the author, Matthew A. Miller. The binaries are identical to the ones in the zip file of
+the same version published on the project's Releases on GitHub: https://github.com/mattstermiller/koffee/releases

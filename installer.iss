@@ -16,7 +16,7 @@ DefaultDirName={pf}\Koffee
 DisableProgramGroupPage=yes
 LicenseFile=LICENSE.txt
 InfoAfterFile=README.md
-OutputDir=Koffee\bin
+OutputDir=dist
 OutputBaseFilename=Koffee-Setup-0.4.1
 Compression=lzma
 SolidCompression=yes
@@ -28,9 +28,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "Koffee\bin\Release\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Koffee\bin\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "Koffee\bin\Release\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist-files\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist-files\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist-files\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

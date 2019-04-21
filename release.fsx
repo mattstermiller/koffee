@@ -8,7 +8,8 @@ open System.IO.Compression
 open System.Text.RegularExpressions
 open System.Diagnostics
 
-let getPath file = Path.Combine(__SOURCE_DIRECTORY__, file)
+let joinPath a b = Path.Combine(a, b)
+let getPath file = joinPath __SOURCE_DIRECTORY__ file
 
 let hasExtension (extensions: string) (file: string) =
     extensions.Split(',') |> Seq.exists file.EndsWith
@@ -50,6 +51,10 @@ let runProcess exe arguments =
     if p.ExitCode <> 0 then
         failwithf "Process failed: %s" (Path.GetFileName exe)
 
+let copyFile destDir file =
+    let dest = joinPath destDir (Path.GetFileName(file))
+    File.Copy(file, dest)
+
 let backupFile file =
     if File.Exists(file) then
         let backup = file + ".bak"
@@ -77,32 +82,36 @@ try
     runProcess @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\msbuild.exe"
         ((getPath @"Koffee\Koffee.fsproj") + " /p:Configuration=Release /verbosity:normal")
 
+    // TODO: run tests
+
     // setup binaries directory
-    let releaseDir = getPath @"Koffee\bin\Koffee"
-    if Directory.Exists(releaseDir) then
-        Directory.Delete(releaseDir, true)
+    let filesDir = getPath "dist-files"
+    let releaseDir = joinPath filesDir "Koffee"
+    if Directory.Exists(filesDir) then
+        Directory.Delete(filesDir, true)
     Directory.CreateDirectory(releaseDir) |> ignore
     let bins = Directory.EnumerateFiles(buildDir)
                |> Seq.filter (not << hasExtension ".pdb,.xml,.tmp")
     let docs = Directory.EnumerateFiles(getPath "")
                |> Seq.filter (hasExtension ".md,.txt")
-    Seq.append bins docs |> Seq.iter (fun file ->
-        let destDir = Path.Combine(releaseDir, Path.GetFileName(file))
-        File.Copy(file, destDir))
+    Seq.append bins docs |> Seq.iter (copyFile releaseDir)
+
+    let distDir = getPath @"dist"
+    Directory.CreateDirectory(distDir) |> ignore
 
     // create zip
-    let zipFile = getPath (sprintf @"Koffee\bin\Koffee-%s.zip" version)
+    let zipFile = joinPath distDir (sprintf "Koffee-%s.zip" version)
     backupFile zipFile
     ZipFile.CreateFromDirectory(releaseDir, zipFile, CompressionLevel.Optimal, true)
 
     // create installer
-    let setupFile = getPath (sprintf @"Koffee\bin\Koffee-Setup-%s.exe" version)
+    let setupFile = joinPath distDir (sprintf "Koffee-Setup-%s.exe" version)
     backupFile setupFile
     runProcess @"C:\Program Files (x86)\Inno Setup 5\iscc.exe"
         (sprintf "/Qp \"%s\"" (getPath "installer.iss"))
 
     Console.WriteLine()
-    Console.WriteLine(@"Complete! Release files have been created in Koffee\bin")
+    Console.WriteLine(sprintf "Complete! Release files have been created in %s" distDir)
 with | e -> Console.WriteLine(e.ToString())
 
 Console.WriteLine()

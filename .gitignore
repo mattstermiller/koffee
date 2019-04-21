@@ -198,3 +198,7 @@ FakesAssemblies/
 
 # Paket package manager
 Paket.Restore.targets
+
+# Release files
+dist/
+dist-files/

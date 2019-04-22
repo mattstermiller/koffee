@@ -119,7 +119,6 @@ module MainView =
             Bind.view(<@ window.NodeGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
             // display path
-            Bind.model(<@ model.LocationFormatted @>).toViewOneWay(<@ window.PathBox.Text @>)
             Bind.model(<@ model.TitleLocation @>).toFunc(fun titleLoc ->
                 window.Title <- sprintf "%s  |  Koffee v%s" titleLoc versionStr
             )

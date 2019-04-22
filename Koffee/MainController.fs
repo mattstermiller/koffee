@@ -568,19 +568,19 @@ let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model 
         |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
         |> Seq.length
         |> (=) 1
+    let location =
+        match config.StartPath with
+        | RestorePrevious -> defaultPath
+        | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
     let model =
         { loadConfig fsReader config model with
-            Location =
-                match config.StartPath with
-                | RestorePrevious -> defaultPath
-                | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
             WindowLocation =
                 startOptions.StartLocation |> Option.defaultWith (fun () ->
                     if isFirstInstance then (config.Window.Left, config.Window.Top)
                     else (config.Window.Left + 30, config.Window.Top + 30))
             WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
-        }
+        }.WithLocation location
     match Nav.openUserPath fsReader startPath model with
     | Ok model -> model
     | Error e -> model.WithError e

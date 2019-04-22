@@ -83,6 +83,11 @@ module Nav =
 
     let refresh fsReader model =
         openPath fsReader model.Location SelectNone model
+        |> Result.map (fun newModel ->
+            if model.Status.IsSome then
+                { newModel with Status = model.Status }
+            else newModel
+        )
 
     let back fsReader model = result {
         match model.BackStack with

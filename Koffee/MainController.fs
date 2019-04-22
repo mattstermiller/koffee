@@ -730,21 +730,24 @@ let closed (config: Config) model =
     config.Save()
     model
 
-let resultHandler handler (model: MainModel) =
-    match handler model with
-    | Ok m -> m
-    | Error e -> model.WithError e
+let SyncResult handler =
+    Sync (fun (model: MainModel) ->
+        match handler model with
+        | Ok m -> m
+        | Error e -> model.WithError e
+    )
 
-let asyncResultHandler handler (model: MainModel) = asyncSeq {
-    let mutable last = model
-    for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
-        match r with
-        | Ok m ->
-            last <- m
-            yield m
-        | Error e ->
-            yield last.WithError e
-}
+let AsyncResult handler =
+    Async (fun (model: MainModel) -> asyncSeq {
+        let mutable last = model
+        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
+            match r with
+            | Ok m ->
+                last <- m
+                yield m
+            | Error e ->
+                yield last.WithError e
+    })
 
 let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow evt =
     let dispatch =
@@ -758,36 +761,36 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
         | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
         | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
-        | OpenPath handler -> Sync (resultHandler (Nav.openInputPath fsReader handler))
-        | OpenSelected -> Sync (resultHandler (Nav.openSelected fsReader os))
-        | OpenParent -> Sync (resultHandler (Nav.openParent fsReader))
-        | Back -> Sync (resultHandler (Nav.back fsReader))
-        | Forward -> Sync (resultHandler (Nav.forward fsReader))
-        | Refresh -> Sync (resultHandler (Nav.refresh fsReader))
-        | Undo -> Async (asyncResultHandler (Action.undo fsReader fsWriter))
-        | Redo -> Async (asyncResultHandler (Action.redo fsReader fsWriter))
-        | StartPrompt promptType -> Sync (resultHandler (Action.startInput fsReader (Prompt promptType)))
-        | StartConfirm confirmType -> Sync (resultHandler (Action.startInput fsReader (Confirm confirmType)))
-        | StartInput inputType -> Sync (resultHandler (Action.startInput fsReader (Input inputType)))
-        | InputCharTyped (c, handler) -> Async (asyncResultHandler (inputCharTyped fsReader fsWriter config handler.Handle c))
+        | OpenPath handler -> SyncResult (Nav.openInputPath fsReader handler)
+        | OpenSelected -> SyncResult (Nav.openSelected fsReader os)
+        | OpenParent -> SyncResult (Nav.openParent fsReader)
+        | Back -> SyncResult (Nav.back fsReader)
+        | Forward -> SyncResult (Nav.forward fsReader)
+        | Refresh -> SyncResult (Nav.refresh fsReader)
+        | Undo -> AsyncResult (Action.undo fsReader fsWriter)
+        | Redo -> AsyncResult (Action.redo fsReader fsWriter)
+        | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
+        | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
+        | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
+        | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter config handler.Handle c)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
-        | SubmitInput -> Async (asyncResultHandler (submitInput fsReader fsWriter config))
+        | SubmitInput -> AsyncResult (submitInput fsReader fsWriter config)
         | CancelInput -> Sync (fun m -> { m with InputMode = None })
         | FindNext -> Sync Cursor.findNext
         | SearchNext -> Sync (Cursor.searchNext false)
         | SearchPrevious -> Sync (Cursor.searchNext true)
         | StartMove -> Sync (Action.registerItem Move)
         | StartCopy -> Sync (Action.registerItem Copy)
-        | Put -> Async (asyncResultHandler (Action.put fsReader fsWriter false))
-        | Recycle -> Async (asyncResultHandler (Action.recycle fsReader fsWriter config))
-        | SortList field -> Sync (resultHandler (Nav.sortList fsReader field))
-        | ToggleHidden -> Sync (resultHandler (Nav.toggleHidden fsReader))
-        | OpenSplitScreenWindow -> Sync (resultHandler (Action.openSplitScreenWindow os getScreenBounds))
-        | OpenSettings -> Sync (resultHandler (Action.openSettings fsReader openSettings config))
+        | Put -> AsyncResult (Action.put fsReader fsWriter false)
+        | Recycle -> AsyncResult (Action.recycle fsReader fsWriter config)
+        | SortList field -> SyncResult (Nav.sortList fsReader field)
+        | ToggleHidden -> SyncResult (Nav.toggleHidden fsReader)
+        | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
+        | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings config)
         | OpenExplorer -> Sync (Action.openExplorer os)
-        | OpenFileWith -> Sync (resultHandler (Action.openFileWith os))
-        | OpenCommandLine -> Sync (resultHandler (Action.openCommandLine os config))
-        | OpenWithTextEditor -> Sync (resultHandler (Action.openWithTextEditor os config))
+        | OpenFileWith -> SyncResult (Action.openFileWith os)
+        | OpenCommandLine -> SyncResult (Action.openCommandLine os config)
+        | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os config)
         | Exit -> Sync (fun m -> closeWindow(); m)
         | ConfigChanged -> Sync (loadConfig fsReader config)
         | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })

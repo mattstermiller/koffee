@@ -138,8 +138,10 @@ module MainView =
                 let text =
                     register |> Option.map (fun (node, action) ->
                         sprintf "%A %A: %s" action node.Type node.Name)
-                window.RegisterText.Text <- text |? ""
-                window.RegisterPanel.Visible <- text.IsSome
+                window.Dispatcher.Invoke(fun () ->
+                    window.RegisterText.Text <- text |? ""
+                    window.RegisterPanel.Visible <- text.IsSome
+                )
             )
 
             // update UI for input mode

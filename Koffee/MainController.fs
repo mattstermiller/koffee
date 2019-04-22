@@ -588,6 +588,7 @@ let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model 
 let submitInput fsReader fsWriter (config: Config) model = asyncSeqResult {
     let mode = model.InputMode
     let model = { model with InputMode = None }
+    yield model
     match mode with
     | Some (Input Search) ->
         let! search, caseSensitive = Cursor.parseSearch model.InputText
@@ -599,8 +600,7 @@ let submitInput fsReader fsWriter (config: Config) model = asyncSeqResult {
         yield! Action.create fsReader fsWriter Folder model.InputText model
     | Some (Input (Rename _)) ->
         yield! Action.rename fsReader fsWriter model.SelectedNode model.InputText model
-    | _ ->
-        yield model
+    | _ -> ()
 }
 
 let inputDelete cancelInput model =

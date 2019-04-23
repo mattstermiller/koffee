@@ -28,6 +28,7 @@ let main args =
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let app = Application()
     let run () =
+        config.Load()
         app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config KeyBinding.defaults
                                         openSettings closeWindow options)
         |> ignore

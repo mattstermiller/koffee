@@ -268,7 +268,7 @@ module MainView =
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->
-            if config.Window.RefreshOnActivate then
+            if config.Window.RefreshOnActivate && window.IsLoaded then
                 Some Refresh
             else None
         )

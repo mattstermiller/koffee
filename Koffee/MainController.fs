@@ -83,6 +83,11 @@ module Nav =
 
     let refresh fsReader model =
         openPath fsReader model.Location SelectNone model
+        |> Result.map (fun newModel ->
+            if model.Status.IsSome then
+                { newModel with Status = model.Status }
+            else newModel
+        )
 
     let back fsReader model = result {
         match model.BackStack with
@@ -555,35 +560,38 @@ module Action =
     }
 
 let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model =
-    config.Load()
-    let defaultPath = config.DefaultPath |> Path.Parse |? Path.Root
-    let startPath =
-        startOptions.StartPath |? (
-            match config.StartPath with
-            | RestorePrevious -> config.PreviousPath
-            | DefaultPath -> config.DefaultPath
-        )
-    let isFirstInstance =
-        System.Diagnostics.Process.GetProcesses()
-        |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
-        |> Seq.length
-        |> (=) 1
-    let location =
-        match config.StartPath with
-        | RestorePrevious -> defaultPath
-        | DefaultPath -> config.PreviousPath |> Path.Parse |? defaultPath
     let model =
         { loadConfig fsReader config model with
             WindowLocation =
                 startOptions.StartLocation |> Option.defaultWith (fun () ->
+                    let isFirstInstance =
+                        System.Diagnostics.Process.GetProcesses()
+                        |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
+                        |> Seq.length
+                        |> (=) 1
                     if isFirstInstance then (config.Window.Left, config.Window.Top)
                     else (config.Window.Left + 30, config.Window.Top + 30))
             WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
-        }.WithLocation location
-    match Nav.openUserPath fsReader startPath model with
-    | Ok model -> model
-    | Error e -> model.WithError e
+        }
+    let paths =
+        (startOptions.StartPath |> Option.toList) @
+            match config.StartPath with
+            | RestorePrevious -> [ config.PreviousPath; config.DefaultPath ]
+            | DefaultPath -> [ config.DefaultPath; config.PreviousPath ]
+    let rec openPath error (paths: string list) =
+        let withError (m: MainModel) = 
+            match error with
+            | Some e -> m.WithError e
+            | None -> m
+        match paths with
+        | [] -> model |> withError
+        | start :: paths ->
+            let prevPath = paths |> Seq.choose Path.Parse |> Seq.tryHead |? Path.Root
+            match Nav.openUserPath fsReader start { model with Location = prevPath } with
+            | Ok model -> model |> withError
+            | Error e -> openPath (Some (error |? e)) paths
+    openPath None paths
 
 let submitInput fsReader fsWriter (config: Config) model = asyncSeqResult {
     let mode = model.InputMode

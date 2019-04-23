@@ -104,7 +104,7 @@ type FileSystem(config: Config) =
         match this.GetNode path with
         | Ok (Some node) when node.Type = File || node.Type = Folder -> action node.Type
         | Ok (Some node) -> Error <| cannotActOnNodeType actionName node.Type
-        | Ok None -> Error <| exn "Path does not exist"
+        | Ok None -> Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         | Error e -> Error e
 
     interface IFileSystemReader with
@@ -155,9 +155,9 @@ type FileSystem(config: Config) =
                         Seq.append folders files
                 else
                     if path.Drive |> Option.exists (fun d -> not <| DriveInfo(wpath d).IsReady) then
-                        Error <| Exception "Drive is not ready"
+                        Error <| exn "Drive is not ready"
                     else
-                        Error <| Exception "Path does not exist"
+                        Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         allNodes |> Result.map (fun allNodes ->
             let nodes =
                 allNodes
@@ -256,7 +256,7 @@ type FileSystem(config: Config) =
                 path.Drive
                 |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
                 |> Option.filter (flip (>) 0L)
-                |> Result.ofOption (Exception "This drive does not have a recycle bin.")
+                |> Result.ofOption (exn "This drive does not have a recycle bin.")
             let! node = this.GetNode path
             let! size =
                 match node with
@@ -266,10 +266,10 @@ type FileSystem(config: Config) =
                     tryResult <| fun () ->
                         DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
                         |> Seq.sumBy (fun fi -> fi.Length)
-                | _ -> Error <| Exception "Cannot recycle this item."
+                | _ -> Error <| exn "Cannot recycle this item."
             let ratio = (double size) / (double driveSize)
             if ratio > 0.03 then
-                return! Error <| Exception "Item cannot fit in the recycle bin."
+                return! Error <| exn "Item cannot fit in the recycle bin."
             else
                 return! tryResult <| fun () ->
                     if nodeType = Folder then

@@ -2,7 +2,7 @@ REDIRECTS: ON
 RESTRICTION: == net451
 NUGET
   remote: https://api.nuget.org/v3/index.json
-    Acadian.FSharp (1.1)
+    Acadian.FSharp (1.2.1)
       FSharp.Core (>= 4.3.4)
     CompareNETObjects (4.57) - content: none
     FSharp.Configuration (1.5)

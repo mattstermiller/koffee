@@ -12,7 +12,7 @@ nuget System.Reactive.Linq ~> 3.1
 nuget System.Reactive.Core ~> 3.1
 nuget System.Reactive.Interfaces ~> 3.1
 nuget FSharp.Configuration
-nuget Acadian.FSharp ~> 1.1
+nuget Acadian.FSharp ~> 1.2.1
 
 nuget FsUnit ~> 2.3.2
 nuget CompareNETObjects content:none

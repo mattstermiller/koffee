@@ -204,14 +204,14 @@ type FileSystem(config: Config) =
             let moveFile source dest =
                 prepForOverwrite <| FileInfo dest
                 FileSystem.MoveFile(source, dest, true)
-            let rec moveDir source dest =
-                if Directory.Exists dest then
+            let rec moveDir sameVolume source dest =
+                if not sameVolume || Directory.Exists dest then
                     // if dest directory exists, merge contents
                     let moveItem moveFunc sourceItem =
                         let destPath = Path.Combine(dest, Path.GetFileName(sourceItem))
                         moveFunc sourceItem destPath
                     Directory.EnumerateFiles(source) |> Seq.iter (moveItem moveFile)
-                    Directory.EnumerateDirectories(source) |> Seq.iter (moveItem moveDir)
+                    Directory.EnumerateDirectories(source) |> Seq.iter (moveItem (moveDir sameVolume))
                     Directory.Delete(source)
                 else
                     Directory.Move(source, dest)
@@ -224,7 +224,9 @@ type FileSystem(config: Config) =
             else
                 return! tryResult <| fun () ->
                     if nodeType = Folder then
-                        moveDir source dest
+                        let getVolume p = p |> Path.GetPathRoot |> String.trimEnd [|'\\'|]
+                        let sameVolume = String.equalsIgnoreCase (getVolume source) (getVolume dest)
+                        moveDir sameVolume source dest
                     else
                         moveFile source dest
         }

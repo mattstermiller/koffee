@@ -4,7 +4,7 @@ redirects: on
 
 nuget FSharp.Core ~> 4.5
 nuget FsXaml.Wpf
-nuget VinylUI ~> 2.2
+nuget VinylUI ~> 2.2.4
 nuget System.Reactive ~> 3.1
 nuget System.Reactive.PlatformServices ~> 3.1
 nuget System.Reactive.Windows.Threading ~> 3.1

@@ -82,6 +82,12 @@ module MainView =
             window.PathBox.Focus()
         ))
 
+        // scroll path to show the end when it overflows
+        window.PathBox.TextChanged.Add (fun _ ->
+            if not window.PathBox.IsFocused then
+                window.PathBox.ScrollToHorizontalOffset(window.PathBox.ActualWidth)
+        )
+
         // on selection change, keep selected node in view, make sure node list is focused
         window.NodeGrid.SelectedCellsChanged.Add (fun _ ->
             keepSelectedInView ()

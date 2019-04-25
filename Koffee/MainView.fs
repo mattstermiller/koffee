@@ -35,9 +35,10 @@ module MainView =
     let getPrompt pathFormat (node: Node) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
-        | Confirm (Overwrite (_, src, dest)) ->
+        | Confirm (Overwrite (putAction, src, dest)) ->
             match dest.Type with
-            | Folder -> sprintf "Folder \"%s\" already exists. Move anyway and merge files y/n ?" dest.Name
+            | Folder ->
+                sprintf "Folder \"%s\" already exists. %A anyway and merge files y/n ?" dest.Name putAction
             | File ->
                 match src.Modified, src.Size, dest.Modified, dest.Size with
                 | Some srcModified, Some srcSize, Some destModified, Some destSize ->

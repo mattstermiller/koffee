@@ -7,7 +7,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{393DAEB7-80CC-4AD6-B501-FB595103A9B7}
 AppName=Koffee
-AppVersion=0.4.1
+AppVersion=!version!
 AppPublisher=Matthew A. Miller
 AppPublisherURL=https://github.com/mattstermiller/koffee
 AppSupportURL=https://github.com/mattstermiller/koffee
@@ -17,7 +17,7 @@ DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE.txt
 InfoAfterFile=..\README.md
 OutputDir=..\dist
-OutputBaseFilename=Koffee-Setup-0.4.1
+OutputBaseFilename=Koffee-Setup-!version!
 Compression=lzma
 SolidCompression=yes
 

@@ -8,6 +8,15 @@ open System.IO.Compression
 open System.Text.RegularExpressions
 open System.Diagnostics
 
+let summary = "Fast, keyboard-driven file explorer."
+let description =
+    "The Keyboard-Oriented File and Folder Explorer for Efficiency, or Koffee, is a no-nonsense alternative to " +
+    "Windows Explorer focused on VIM-style keyboard shortcuts, speed, and simplicity. The goal of this application " +
+    "is to allow users to navigate and manipulate files and folders very quickly, almost at the speed of thought -- " +
+    "a speed only achievable via keyboard. If you've ever experienced the productivity boost that comes from " +
+    "learning and using all the keyboard shortcuts in an application (or learned to use the text editor VIM), you " +
+    "understand what a big difference it makes."
+
 let joinPath a b = Path.Combine(a, b)
 let getPath file = joinPath __SOURCE_DIRECTORY__ file
 
@@ -79,8 +88,6 @@ try
         | None -> failwith "Could not read version from release notes"
 
     replaceInFile @"^\[<assembly: Assembly(File)?Version" versionRegex version (getPath @"Koffee\AssemblyInfo.fs")
-    replaceInFile @"^AppVersion=|^OutputBaseFilename=" versionRegex version (joinPath distConfig "installer.iss")
-    replaceInFile @"<version>|<iconUrl>|<licenseUrl>|<releaseNotes>" versionRegex version (joinPath distConfig "chocolatey\koffee.nuspec")
 
     Console.WriteLine(sprintf "Version set to %s" version)
     Console.WriteLine()
@@ -114,17 +121,29 @@ try
     backupFile zipFile
     ZipFile.CreateFromDirectory(releaseDir, zipFile, CompressionLevel.Optimal, true)
 
+    let substitutions = [
+        ("!version!", version)
+        ("!summary!", summary)
+        ("!description!", description)
+    ]
+    let substitute destDir source =
+        (File.ReadAllText source, substitutions)
+        ||> Seq.fold (fun text (key, sub) -> text.Replace(key, sub))
+        |> (fun text -> File.WriteAllText(joinPath destDir (Path.GetFileName source), text))
+
     // create installer
+    substitute filesDir (joinPath distConfig "installer.iss") 
     let setupFile = joinPath distDir (sprintf "Koffee-Setup-%s.exe" version)
     backupFile setupFile
     runProcess @"C:\Program Files (x86)\Inno Setup 5\iscc.exe"
-        (sprintf "/Qp \"%s\"" (joinPath distConfig "installer.iss"))
+        (sprintf "/Qp \"%s\"" (joinPath filesDir "installer.iss"))
 
     // create Chocolatey package
     backupFile (joinPath distDir (sprintf "koffee.%s.nupkg" version))
     let chocoDir = joinPath filesDir "chocolatey"
     copyDir chocoDir (joinPath distConfig "chocolatey")
     copyDir (joinPath chocoDir "tools") releaseDir
+    substitute chocoDir (joinPath chocoDir "koffee.nuspec")
     runProcess "choco" (sprintf "pack %s\koffee.nuspec --out %s" chocoDir distDir)
 
     Console.WriteLine()

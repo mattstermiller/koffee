@@ -7,9 +7,19 @@ The Keyboard-Oriented File & Folder Explorer for Efficiency, or Koffee, is a no-
 ![Screenshot](screenshot.png)
 
 ## Installation
-Koffee depends on **Microsoft .NET Framework 4.5.1**. You may already have it installed; look for it in the list of installed programs in "Programs and Features" (Windows 10, 8, 7, or Vista) or "Add or Remove Programs" (Windows XP). If you don't see it, head to [Microsoft's download page](https://www.microsoft.com/en-us/download/details.aspx?id=40773) to download and install it.
+Koffee depends on **Microsoft .NET Framework 4.5.1**. It is installed by default on Windows 8.1 or newer. Even on older versions of windows, you may already have it installed; look for it in the list of installed programs in "Programs and Features" (Windows 7 or Vista) or "Add or Remove Programs" (Windows XP). If you don't see it, head to [Microsoft's download page](https://www.microsoft.com/en-us/download/details.aspx?id=40773) to download and install it.
 
-To install Koffee, go to the [releases page](https://github.com/mattstermiller/koffee/releases). From there, you can download and run **Koffee-Setup.exe**, which will guide you through the installation with a wizard. Or, if you prefer to install it yourself, you can download the zip file, unzip the app wherever you want and create your own shortcuts.
+### Via [Chocolatey](https://chocolatey.org/)
+
+    choco install koffee
+
+### Via [Scoop](https://scoop.sh/)
+Koffee is part of the "extras" bucket. If you haven't already, add it with `scoop bucket add extras`.
+
+    scoop install koffee
+
+### Via Installer or Zip
+Go to the [releases page](https://github.com/mattstermiller/koffee/releases). From there, you can download and run **Koffee-Setup.exe**, which will guide you through the installation with a wizard. Or, if you prefer to install it yourself, you can download the zip file, unzip the app wherever you want and create your own shortcuts.
 
 ## Using Koffee
 First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the hotkeys, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.

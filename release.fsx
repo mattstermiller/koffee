@@ -7,6 +7,7 @@ open System.IO
 open System.IO.Compression
 open System.Text.RegularExpressions
 open System.Diagnostics
+open System.Security.Cryptography
 
 let summary = "Fast, keyboard-driven file explorer."
 let description =
@@ -116,6 +117,12 @@ try
     let distDir = getPath @"dist"
     Directory.CreateDirectory(distDir) |> ignore
 
+    let computeHash file =
+        use stream = File.OpenRead(file)
+        use sha = new SHA256Managed()
+        let checksum = sha.ComputeHash(stream)
+        BitConverter.ToString(checksum).Replace("-", "").ToLower()
+
     // create zip
     let zipFile = joinPath distDir (sprintf "Koffee-%s.zip" version)
     backupFile zipFile
@@ -125,6 +132,7 @@ try
         ("!version!", version)
         ("!summary!", summary)
         ("!description!", description)
+        ("!zipHash!", computeHash zipFile)
     ]
     let substitute destDir source =
         (File.ReadAllText source, substitutions)
@@ -145,6 +153,9 @@ try
     copyDir (joinPath chocoDir "tools") releaseDir
     substitute chocoDir (joinPath chocoDir "koffee.nuspec")
     runProcess "choco" (sprintf "pack %s\koffee.nuspec --out %s" chocoDir distDir)
+
+    // Create scoop manifest
+    substitute __SOURCE_DIRECTORY__ (joinPath distConfig "koffee.json") 
 
     Console.WriteLine()
     Console.WriteLine(sprintf "Complete! Release files have been created in %s" distDir)

@@ -7,8 +7,19 @@ open System.IO
 open System.IO.Compression
 open System.Text.RegularExpressions
 open System.Diagnostics
+open System.Security.Cryptography
 
-let getPath file = Path.Combine(__SOURCE_DIRECTORY__, file)
+let summary = "Fast, keyboard-driven file explorer."
+let description =
+    "The Keyboard-Oriented File and Folder Explorer for Efficiency, or Koffee, is a no-nonsense alternative to " +
+    "Windows Explorer focused on VIM-style keyboard shortcuts, speed, and simplicity. The goal of this application " +
+    "is to allow users to navigate and manipulate files and folders very quickly, almost at the speed of thought -- " +
+    "a speed only achievable via keyboard. If you've ever experienced the productivity boost that comes from " +
+    "learning and using all the keyboard shortcuts in an application (or learned to use the text editor VIM), you " +
+    "understand what a big difference it makes."
+
+let joinPath a b = Path.Combine(a, b)
+let getPath file = joinPath __SOURCE_DIRECTORY__ file
 
 let hasExtension (extensions: string) (file: string) =
     extensions.Split(',') |> Seq.exists file.EndsWith
@@ -50,6 +61,17 @@ let runProcess exe arguments =
     if p.ExitCode <> 0 then
         failwithf "Process failed: %s" (Path.GetFileName exe)
 
+let copyFile destDir file =
+    let dest = joinPath destDir (Path.GetFileName(file))
+    File.Copy(file, dest)
+
+let rec copyDir destDir dir =
+    Directory.CreateDirectory destDir |> ignore
+    Directory.EnumerateFiles(dir) |> Seq.iter (copyFile destDir)
+    Directory.EnumerateDirectories(dir) |> Seq.iter (fun d ->
+        let destDir = joinPath destDir (Path.GetFileName d)
+        copyDir destDir d)
+
 let backupFile file =
     if File.Exists(file) then
         let backup = file + ".bak"
@@ -58,6 +80,8 @@ let backupFile file =
         File.Move(file, backup)
 
 try
+    let distConfig = getPath "dist-config"
+
     // update version number
     let version =
         match getVersion() with
@@ -65,7 +89,6 @@ try
         | None -> failwith "Could not read version from release notes"
 
     replaceInFile @"^\[<assembly: Assembly(File)?Version" versionRegex version (getPath @"Koffee\AssemblyInfo.fs")
-    replaceInFile @"^AppVersion=|^OutputBaseFilename=" versionRegex version (getPath "installer.iss")
 
     Console.WriteLine(sprintf "Version set to %s" version)
     Console.WriteLine()
@@ -77,32 +100,65 @@ try
     runProcess @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\msbuild.exe"
         ((getPath @"Koffee\Koffee.fsproj") + " /p:Configuration=Release /verbosity:normal")
 
+    // TODO: run tests
+
     // setup binaries directory
-    let releaseDir = getPath @"Koffee\bin\Koffee"
-    if Directory.Exists(releaseDir) then
-        Directory.Delete(releaseDir, true)
+    let filesDir = getPath "dist-files"
+    let releaseDir = joinPath filesDir "Koffee"
+    if Directory.Exists(filesDir) then
+        Directory.Delete(filesDir, true)
     Directory.CreateDirectory(releaseDir) |> ignore
     let bins = Directory.EnumerateFiles(buildDir)
                |> Seq.filter (not << hasExtension ".pdb,.xml,.tmp")
     let docs = Directory.EnumerateFiles(getPath "")
                |> Seq.filter (hasExtension ".md,.txt")
-    Seq.append bins docs |> Seq.iter (fun file ->
-        let destDir = Path.Combine(releaseDir, Path.GetFileName(file))
-        File.Copy(file, destDir))
+    Seq.append bins docs |> Seq.iter (copyFile releaseDir)
+
+    let distDir = getPath @"dist"
+    Directory.CreateDirectory(distDir) |> ignore
+
+    let computeHash file =
+        use stream = File.OpenRead(file)
+        use sha = new SHA256Managed()
+        let checksum = sha.ComputeHash(stream)
+        BitConverter.ToString(checksum).Replace("-", "").ToLower()
 
     // create zip
-    let zipFile = getPath (sprintf @"Koffee\bin\Koffee-%s.zip" version)
+    let zipFile = joinPath distDir (sprintf "Koffee-%s.zip" version)
     backupFile zipFile
     ZipFile.CreateFromDirectory(releaseDir, zipFile, CompressionLevel.Optimal, true)
 
+    let substitutions = [
+        ("!version!", version)
+        ("!summary!", summary)
+        ("!description!", description)
+        ("!zipHash!", computeHash zipFile)
+    ]
+    let substitute destDir source =
+        (File.ReadAllText source, substitutions)
+        ||> Seq.fold (fun text (key, sub) -> text.Replace(key, sub))
+        |> (fun text -> File.WriteAllText(joinPath destDir (Path.GetFileName source), text))
+
     // create installer
-    let setupFile = getPath (sprintf @"Koffee\bin\Koffee-Setup-%s.exe" version)
+    substitute filesDir (joinPath distConfig "installer.iss") 
+    let setupFile = joinPath distDir (sprintf "Koffee-Setup-%s.exe" version)
     backupFile setupFile
     runProcess @"C:\Program Files (x86)\Inno Setup 5\iscc.exe"
-        (sprintf "/Qp \"%s\"" (getPath "installer.iss"))
+        (sprintf "/Qp \"%s\"" (joinPath filesDir "installer.iss"))
+
+    // create Chocolatey package
+    backupFile (joinPath distDir (sprintf "koffee.%s.nupkg" version))
+    let chocoDir = joinPath filesDir "chocolatey"
+    copyDir chocoDir (joinPath distConfig "chocolatey")
+    copyDir (joinPath chocoDir "tools") releaseDir
+    substitute chocoDir (joinPath chocoDir "koffee.nuspec")
+    runProcess "choco" (sprintf "pack %s\koffee.nuspec --out %s" chocoDir distDir)
+
+    // Create scoop manifest
+    substitute __SOURCE_DIRECTORY__ (joinPath distConfig "koffee.json") 
 
     Console.WriteLine()
-    Console.WriteLine(@"Complete! Release files have been created in Koffee\bin")
+    Console.WriteLine(sprintf "Complete! Release files have been created in %s" distDir)
 with | e -> Console.WriteLine(e.ToString())
 
 Console.WriteLine()

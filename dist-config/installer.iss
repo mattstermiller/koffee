@@ -7,17 +7,17 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{393DAEB7-80CC-4AD6-B501-FB595103A9B7}
 AppName=Koffee
-AppVersion=0.4.1
+AppVersion=!version!
 AppPublisher=Matthew A. Miller
 AppPublisherURL=https://github.com/mattstermiller/koffee
 AppSupportURL=https://github.com/mattstermiller/koffee
 AppUpdatesURL=https://github.com/mattstermiller/koffee
 DefaultDirName={pf}\Koffee
 DisableProgramGroupPage=yes
-LicenseFile=LICENSE.txt
-InfoAfterFile=README.md
-OutputDir=Koffee\bin
-OutputBaseFilename=Koffee-Setup-0.4.1
+LicenseFile=..\LICENSE.txt
+InfoAfterFile=..\README.md
+OutputDir=..\dist
+OutputBaseFilename=Koffee-Setup-!version!
 Compression=lzma
 SolidCompression=yes
 
@@ -28,9 +28,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "Koffee\bin\Release\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Koffee\bin\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "Koffee\bin\Release\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist-files\Koffee\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist-files\Koffee\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist-files\Koffee\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

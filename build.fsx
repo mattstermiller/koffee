@@ -83,6 +83,29 @@ Target.create "test" (fun _ ->
         })
 )
 
+Target.create "install" (fun _ ->
+    let execElevated cmd (args: string) =
+        let args = args.Replace("\"", "\"\"\"")
+        Shell.Exec("powershell", sprintf @"start -verb runas %s -argumentlist '%s'" cmd args)
+    let bin = Path.getFullName buildDir
+    let progFiles = Environment.environVarOrDefault "ProgramFiles(x86)" (Environment.environVar "ProgramFiles")
+    let installDir = progFiles + @"\Koffee"
+    execElevated "robocopy" (sprintf "\"%s\" \"%s\" *.exe* *.dll" bin installDir)
+    |> failIfNonZero
+    Trace.tracefn "Installed in: %s" installDir
+
+    // create shortcut
+    let execPowershell (command: string) =
+        let command = command.Replace("\"", "\"\"\"").Replace("\n", "; ")
+        Shell.Exec("powershell", sprintf "-command \"%s\"" command)
+    execPowershell (sprintf @"
+        $lnkPath = ""$([Environment]::GetFolderPath('StartMenu'))\Programs\Koffee.lnk""
+        $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnkPath)
+        $s.TargetPath = ""%s\Koffee.exe""
+        $s.Save()" installDir)
+    |> failIfNonZero
+)
+
 Target.create "package" (fun _ ->
     Directory.create distDir
 
@@ -150,5 +173,8 @@ open Fake.Core.TargetOperators
     ==> "buildtest"
     ==> "test"
     ==> "package"
+
+"test"
+    ==> "install"
 
 Target.runOrDefault "test"

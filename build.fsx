@@ -164,8 +164,7 @@ Target.create "package" (fun _ ->
     |> failIfNonZero
 
     // create Scoop manifest
-    // TODO: move to publish step
-    substitute "./" (distConfigDir + "koffee.json") |> ignore
+    substitute distDir (distConfigDir + "koffee.json") |> ignore
 
     Trace.tracefn "Release files have been created in: %s" distDir
 )

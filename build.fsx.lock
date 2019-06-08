@@ -4,6 +4,9 @@ NUGET
   remote: https://api.nuget.org/v3/index.json
     BlackFox.VsWhere (1.0)
       FSharp.Core (>= 4.2.3)
+    Fake.API.GitHub (5.13.7)
+      FSharp.Core (>= 4.3.4)
+      Octokit (>= 0.32)
     Fake.Core.CommandLineParsing (5.13.7)
       FParsec (>= 1.0.3)
       FSharp.Core (>= 4.3.4)
@@ -142,6 +145,8 @@ NUGET
       Microsoft.Build.Utilities.Core (>= 15.8.166)
     NETStandard.Library (2.0.3)
       Microsoft.NETCore.Platforms (>= 1.1)
+    Octokit (0.32)
+      NETStandard.Library (>= 1.6)
     runtime.debian.8-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3)
     runtime.debian.9-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3)
     runtime.fedora.23-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3)

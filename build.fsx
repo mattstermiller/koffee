@@ -7,7 +7,8 @@ nuget Fake.DotNet.AssemblyInfoFile
 nuget Fake.DotNet.Paket
 nuget Fake.DotNet.MSBuild
 nuget Fake.DotNet.Testing.NUnit
-nuget Fake.Installer.InnoSetup //"
+nuget Fake.Installer.InnoSetup
+nuget Fake.API.GitHub //"
 #load "./.fake/build.fsx/intellisense.fsx"
 
 open Fake.Core
@@ -16,6 +17,7 @@ open Fake.IO.Globbing.Operators
 open Fake.DotNet
 open Fake.DotNet.Testing
 open Fake.Installer
+open Fake.Api
 open System.IO
 open System.Security.Cryptography
 
@@ -106,6 +108,10 @@ Target.create "install" (fun _ ->
     |> failIfNonZero
 )
 
+let zipFile = sprintf "%sKoffee-%s.zip" distDir version
+let installerBaseFileName = sprintf "Koffee-Setup-%s" version
+let installerFile = distDir + installerBaseFileName + ".exe"
+
 Target.create "package" (fun _ ->
     Directory.create distDir
 
@@ -117,16 +123,15 @@ Target.create "package" (fun _ ->
     |> Shell.copy (distFilesDir + "Koffee")
 
     // create zip
-    let zipFile = sprintf "Koffee-%s.zip" version
     !! (distFilesDir + "Koffee/*")
-    |> Zip.zip distFilesDir (distDir + zipFile)
+    |> Zip.zip distFilesDir zipFile
 
     let computeHash file =
         use stream = File.OpenRead(file)
         use sha = new SHA256Managed()
         let checksum = sha.ComputeHash(stream)
         System.BitConverter.ToString(checksum).Replace("-", "").ToLower()
-    let zipHash = computeHash (distDir + zipFile)
+    let zipHash = computeHash zipFile
 
     let substitutions = [
         ("!version!", version)
@@ -142,11 +147,12 @@ Target.create "package" (fun _ ->
         destFile
 
     // create installer
-    let installer = substitute distFilesDir (distConfigDir + "installer.iss")
+    let installerScript = substitute distFilesDir (distConfigDir + "installer.iss")
     InnoSetup.build (fun p ->
         { p with
-            ScriptFile = installer
+            ScriptFile = installerScript
             QuietMode = InnoSetup.QuietAndProgress
+            OutputBaseFilename = installerBaseFileName
         })
 
     // create Chocolatey package
@@ -164,6 +170,22 @@ Target.create "package" (fun _ ->
     Trace.tracefn "Release files have been created in: %s" distDir
 )
 
+Target.create "publish" (fun _ ->
+    let token =
+       match Environment.environVarOrNone "koffee_deploy_token" with
+       | Some s -> s
+       | None -> failwith "Set the koffee_deploy_token environment variable to a github personal access token with repo access."
+    GitHub.createClientWithToken token
+    |> GitHub.draftNewRelease "mattstermiller" "koffee" ("v" + version) false releaseNotes.Notes
+    |> GitHub.uploadFiles [zipFile; installerFile]
+    |> GitHub.publishDraft
+    |> Async.RunSynchronously
+
+    let chocoPackage = sprintf "%skoffee.%s.nupkg" distDir version
+    Shell.Exec("choco", sprintf "push '%s' --source https://chocolatey.org/" chocoPackage)
+    |> failIfNonZero
+)
+
 open Fake.Core.TargetOperators
 
 "clean"
@@ -173,6 +195,7 @@ open Fake.Core.TargetOperators
     ==> "buildtest"
     ==> "test"
     ==> "package"
+    ==> "publish"
 
 "test"
     ==> "install"

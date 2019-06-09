@@ -8,11 +8,11 @@ open System.Runtime.InteropServices
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [<assembly: AssemblyTitle("Koffee")>]
-[<assembly: AssemblyDescription("The Keyboard-Oriented File & Folder Explorer for Efficiency, or Koffee, is a no-nonsense alternative to Windows Explorer focused on VIM-style keyboard shortcuts, speed, and simplicity.")>]
+[<assembly: AssemblyDescription("The Keyboard-Oriented File and Folder Explorer for Efficiency, or Koffee, is a no-nonsense alternative to Windows Explorer focused on VIM-style keyboard shortcuts, speed, and simplicity.")>]
 [<assembly: AssemblyConfiguration("")>]
 [<assembly: AssemblyCompany("")>]
 [<assembly: AssemblyProduct("Koffee")>]
-[<assembly: AssemblyCopyright("Copyright © Matthew A. Miller 2017")>]
+[<assembly: AssemblyCopyright("Copyright 2019 Matthew A. Miller")>]
 [<assembly: AssemblyTrademark("")>]
 [<assembly: AssemblyCulture("")>]
 
@@ -34,8 +34,8 @@ open System.Runtime.InteropServices
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [<assembly: AssemblyVersion("1.0.*")>]
-[<assembly: AssemblyVersion("0.4.1.0")>]
-[<assembly: AssemblyFileVersion("0.4.1.0")>]
+[<assembly: AssemblyVersion("0.4.1")>]
+[<assembly: AssemblyFileVersion("0.4.1")>]
 
 do
     ()

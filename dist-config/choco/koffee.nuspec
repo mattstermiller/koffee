@@ -12,7 +12,8 @@
     <licenseUrl>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@!version!/LICENSE.txt</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <releaseNotes>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@!version!/RELEASE_NOTES.md</releaseNotes>
-    <projectSourceUrl>https://github.com/mattstermiller/koffee</projectSourceUrl>
+    <projectSourceUrl>https://github.com/mattstermiller/koffee/tree/master/src</projectSourceUrl>
+    <packageSourceUrl>https://github.com/mattstermiller/koffee/tree/master/dist-config/chocolatey</packageSourceUrl>
     <tags>koffee file folder explorer vim hjkl</tags>
     <summary>!summary!</summary>
     <description>!description!</description>

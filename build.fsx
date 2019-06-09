@@ -47,7 +47,7 @@ Target.create "clean" (fun _ ->
 )
 
 Target.create "version" (fun _ ->
-    AssemblyInfoFile.updateAttributes "Koffee/AssemblyInfo.fs" [
+    AssemblyInfoFile.updateAttributes "src/Koffee/AssemblyInfo.fs" [
         AssemblyInfo.Description description
         AssemblyInfo.Version version
         AssemblyInfo.FileVersion version
@@ -55,7 +55,7 @@ Target.create "version" (fun _ ->
 )
 
 Target.create "restore" (fun _ ->
-    Paket.restore id
+    Paket.restore (fun p -> { p with WorkingDir = "src/" })
 )
 
 let buildParams (p: MSBuildParams) =
@@ -65,13 +65,13 @@ let buildParams (p: MSBuildParams) =
     }
 
 Target.create "build" (fun _ ->
-    !! "Koffee/*.fsproj"
+    !! "src/Koffee/*.fsproj"
     |> MSBuild.runRelease buildParams buildDir "Build"
     |> ignore
 )
 
 Target.create "buildtest" (fun _ ->
-    !! "Koffee.Tests/*.fsproj"
+    !! "src/Koffee.Tests/*.fsproj"
     |> MSBuild.runDebug buildParams testDir "Build"
     |> ignore
 )
@@ -81,7 +81,7 @@ Target.create "test" (fun _ ->
     |> NUnit3.run (fun p ->
         { p with
             ShadowCopy = false
-            ToolPath = "packages/NUnit.ConsoleRunner/tools/nunit3-console.exe"
+            ToolPath = "src/packages/NUnit.ConsoleRunner/tools/nunit3-console.exe"
         })
 )
 

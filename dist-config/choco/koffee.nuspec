@@ -7,7 +7,7 @@
     <authors>Matthew A. Miller</authors>
     <owners>Matthew A. Miller</owners>
     <projectUrl>https://github.com/mattstermiller/koffee</projectUrl>
-    <iconUrl>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@!version!/icon.png</iconUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@!version!/src/icon.png</iconUrl>
     <copyright>2016 Matthew A. Miller</copyright>
     <licenseUrl>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@!version!/LICENSE.txt</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>

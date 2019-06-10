@@ -77,7 +77,12 @@ module MainView =
 
         // bind Tab key to switch focus
         window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
+        window.PathBox.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
+            if window.PathBox.SelectionLength > 0 then
+                window.PathBox.Select(window.PathBox.SelectionStart + window.PathBox.SelectionLength, 0)
+            else
+                window.NodeGrid.Focus() |> ignore
+        ))
         window.NodeGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus()
@@ -177,7 +182,7 @@ module MainView =
                             window.NodeGrid.Focus() |> ignore
                 )
 
-            //// update UI for status
+            // update UI for status
             Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Nodes @>).toFunc(fun (status, keyCombo, nodes) ->
                 window.StatusText.Text <- 
                     if not (keyCombo |> List.isEmpty) then

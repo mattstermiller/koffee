@@ -173,7 +173,7 @@ type MainModel = {
             this.Location.Name |> String.ifEmpty this.LocationFormatted
 
     member this.WithLocation path =
-        { this with Location = path; LocationInput = path.Format this.PathFormat }
+        { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
 
     member this.WithCursor index =
         { this with Cursor = index |> this.ClampCursor }

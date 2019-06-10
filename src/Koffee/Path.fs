@@ -10,6 +10,10 @@ type PathFormat =
     | Windows
     | Unix
     override this.ToString() = sprintf "%A" this
+    member this.Separator =
+        match this with
+        | Windows -> @"\"
+        | Unix -> "/"
 
 type Path private (path: string) =
     static let root = ""
@@ -95,6 +99,13 @@ type Path private (path: string) =
                 let drive = (string path.[0]).ToLower()
                 let dirs = path.Substring(2).Replace(@"\", "/")
                 sprintf "/%s%s" drive dirs
+
+    member this.FormatFolder fmt =
+        let formatted = this.Format fmt
+        if path = root || path = net || path |> String.endsWith @"\" then
+            formatted
+        else
+            formatted + fmt.Separator
 
     member this.Name =
         path |> IOPath.GetFileName

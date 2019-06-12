@@ -1,6 +1,20 @@
 # Release Notes
 
-### 0.4.1  Fixes and Refinements
+### 0.4.2
+- Adds "Open With" command
+- Adds ability to go back to previous path when opening to a default path
+- Adds a trailing slash to path in path box
+- Adds message and logging for non-crash errors
+- Changes sorting to keep the same item selected
+- Changes pressing Escape in path box to deselect when text is selected
+- Refactored codebase to switch framework from FSharp.Desktop.UI to VinylUI
+- Fixes moving folders across volumes
+- Fixes opening new window to a drive root not opening correctly
+- Fixes various issues when a path is provided in arguments
+- Fixes path box to scroll horizontally instead of wrapping
+- Fixes copy merge prompt message
+
+### 0.4.1  Fixes and Refinements (2018-06-13)
 - Adds item count and total size of files in status bar
 - Adds status message when removing remembered network hosts
 - Adds trailing slash on folders
@@ -21,7 +35,7 @@
 - Fixes overwrite prompt not clearing previous input text
 - Fixes path entry when entered path is same as current
 
-### 0.4.0  Network and Multi-Window
+### 0.4.0  Network and Multi-Window (2017-11-14)
 - Adds support for network share and path navigation
 - Adds New Window command
 - Adds setting for commandline tool path
@@ -33,7 +47,7 @@
 - Fixes renaming to the same name with only casing differences
 - Fixes create/rename/delete actions to do nothing on node types they can't apply to
 
-### 0.3.1
+### 0.3.1  (2017-09-24)
 - Adds Settings button
 - Fixed moving a folder reporting a false error message and not refreshing
 - Fixed delete key not working in command input box
@@ -43,7 +57,7 @@
 - Fixed create and rename overwriting existing files, now they give error message
 - Fixed minimizing resets remembered window position and maximized state
 
-### 0.3.0  Settings and Bookmarks
+### 0.3.0  Settings and Bookmarks (2017-08-07)
 - Added ability to set, go to, and delete bookmarked locations
 - Added sort by name, size, or modified ascending/descending
 - Added Open With Text Editor command and setting for text editor path
@@ -59,7 +73,7 @@
 - Fixes overwriting for move
 - Fixes overwriting readonly and hidden files
 
-### 0.2.1
+### 0.2.1  (2017-03-18)
 - Added Open Commandline
 - Path box now replaces "~" with user's directory
 - Window title now shows the current folder
@@ -69,7 +83,7 @@
 - Fix empty item buffer appearing after executing a command
 - Fix margins of path text box and command panel
 
-### 0.2.0  File & Folder Manipulation
+### 0.2.0  File & Folder Manipulation (2017-01-28)
 - Create, delete, rename, move, and copy files and folders
 - Undo/redo of file and folder actions
 - Back/forward navigation
@@ -77,7 +91,7 @@
 - Support for opening a path passed in as an argument to the executable
 - Added icon and simple thematic elements
 
-### 0.1.0  Initial Release
+### 0.1.0  Initial Release (2016-10-22)
 - Local file system navigation with VIM hotkeys
 - Find by first character and search with regular expression in current folder
 - Toggle between Windows and Unix-style path formats

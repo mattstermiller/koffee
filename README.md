@@ -39,6 +39,7 @@ _Capitalized letters indicate that the key is combined with Shift._
 - `k` to move the cursor up
 - `h` to go up to the parent folder
 - `l` or `Enter` to open the selected folder or file
+- `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
 - `tab` switches between the main view and the path box

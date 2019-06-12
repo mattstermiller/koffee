@@ -170,9 +170,7 @@ type FileSystem(config: Config) =
                 let text =
                     if path = Path.Network then "Remote hosts that you visit will appear here"
                     else "Empty folder"
-                { Path = path; Name = sprintf "<%s>" text; Type = Empty
-                  Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-                |> List.singleton
+                [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
             else nodes
         )
 

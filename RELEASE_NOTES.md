@@ -2,6 +2,7 @@
 
 ### 0.4.2
 - Adds "Open With" command
+- Adds "Open Properties" command
 - Adds ability to go back to previous path when opening to a default path
 - Adds a trailing slash to path in path box
 - Adds message and logging for non-crash errors

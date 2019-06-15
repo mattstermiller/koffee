@@ -240,10 +240,11 @@ type MainEvents =
     | SortList of SortField
     | ToggleHidden
     | OpenSplitScreenWindow
-    | OpenExplorer
     | OpenFileWith
-    | OpenCommandLine
+    | OpenProperties
     | OpenWithTextEditor
+    | OpenExplorer
+    | OpenCommandLine
     | OpenSettings
     | Exit
     | ConfigChanged
@@ -294,10 +295,11 @@ type MainEvents =
         | SortList field -> sprintf "Sort by %A" field
         | ToggleHidden -> "Show/Hide Hidden Folders and Files"
         | OpenSplitScreenWindow -> "Open New Window for Split Screen"
-        | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenFileWith -> "Open File With..."
-        | OpenCommandLine -> "Open Windows Commandline at Current Location"
+        | OpenProperties -> "Open Properties"
         | OpenWithTextEditor -> "Open Selected File With Text Editor"
+        | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | OpenCommandLine -> "Open Windows Commandline at Current Location"
         | OpenSettings -> "Open Help/Settings"
         | Exit -> "Exit"
         | _ -> ""
@@ -341,10 +343,11 @@ type MainEvents =
         SortList Size
         ToggleHidden
         OpenSplitScreenWindow
-        OpenExplorer
         OpenFileWith
-        OpenCommandLine
+        OpenProperties
         OpenWithTextEditor
+        OpenExplorer
+        OpenCommandLine
         OpenSettings
         Exit
     ]

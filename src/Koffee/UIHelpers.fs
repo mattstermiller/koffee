@@ -26,7 +26,8 @@ type RoutedEventArgs with
     member this.HandlerWithEffect f = EvtHandler(this, f)
 
 type KeyEventArgs with
-    member this.Chord = (Keyboard.Modifiers, this.Key)
+    member this.RealKey = if this.Key = Key.System then this.SystemKey else this.Key
+    member this.Chord = (Keyboard.Modifiers, this.RealKey)
 
 type UIElement with
     member this.Visible

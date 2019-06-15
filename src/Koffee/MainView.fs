@@ -23,12 +23,12 @@ module MainView =
             else
                 None)
 
-    let isNotModifier (keyEvt: KeyEventArgs) =
+    let isNotModifier (evt: KeyEventArgs) =
         let modifierKeys = [
             Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
             Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
         ]
-        not <| List.contains keyEvt.Key modifierKeys
+        not <| List.contains evt.RealKey modifierKeys
 
     let throttleChanges o = Observable.Throttle(o, System.TimeSpan.FromSeconds(0.5))
 
@@ -319,6 +319,7 @@ module MainStatus =
     let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
     let toggleHidden showing = Message <| sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
     let openFile name = Message <| sprintf "Opened File: %s" name
+    let openProperties name = Message <| sprintf "Opened Properties: %s" name
     let openExplorer = Message "Opened Windows Explorer"
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
     let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name

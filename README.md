@@ -38,7 +38,7 @@ _Capitalized letters indicate that the key is combined with Shift._
 - `j` to move the cursor down
 - `k` to move the cursor up
 - `h` to go up to the parent folder
-- `l` or `Enter` to open the selected folder or file
+- `l` or `Enter` to open the selected file or folder
 - `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
@@ -87,6 +87,7 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
 
 #### Other
+- Open the selected file or folder's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
 - Open the commandline tool (configured in the Settings window) at your current location with `Ctrl + Shift + c`

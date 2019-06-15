@@ -41,9 +41,54 @@ module OsInterop =
             )
         SHOpenWithDialog(IntPtr.Zero, &info)
 
+
+    module private OpenPropertiesNative =
+        let SW_SHOW = 5
+        let SEE_MASK_INVOKEIDLIST = 12u
+
+        [<Struct; StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)>]
+        type ShellExecuteInfo =
+            val mutable cbSize: int
+            val mutable fMask: uint32
+            val mutable hwnd: IntPtr
+            [<MarshalAs(UnmanagedType.LPTStr)>]
+            val mutable lpVerb: string
+            [<MarshalAs(UnmanagedType.LPTStr)>]
+            val mutable lpFile: string
+            [<MarshalAs(UnmanagedType.LPTStr)>]
+            val mutable lpParameters: string
+            [<MarshalAs(UnmanagedType.LPTStr)>]
+            val mutable lpDirectory: string
+            val mutable nShow: int
+            val mutable hInstApp: IntPtr
+            val mutable lpIDList: IntPtr
+            [<MarshalAs(UnmanagedType.LPTStr)>]
+            val mutable lpClass: string
+            val mutable hkeyClass: IntPtr
+            val mutable dwHotKey: uint32
+            val mutable hIcon: IntPtr
+            val mutable hProcess: IntPtr
+
+        [<DllImport("shell32.dll", CharSet = CharSet.Auto)>]
+        extern bool ShellExecuteEx(ShellExecuteInfo& lpExecInfo);
+
+    open OpenPropertiesNative
+
+    let openProperties fileName =
+        let mutable info =
+            ShellExecuteInfo(
+                lpVerb = "properties",
+                lpFile = fileName,
+                nShow = SW_SHOW,
+                fMask = SEE_MASK_INVOKEIDLIST
+            )
+        info.cbSize <- Marshal.SizeOf(info)
+        ShellExecuteEx(&info);
+
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
     abstract member OpenFileWith: Path -> Result<unit, exn>
+    abstract member OpenProperties: Path -> Result<unit, exn>
     abstract member OpenExplorer: Node -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
 
@@ -59,6 +104,10 @@ type OperatingSystem() =
         member this.OpenFileWith path =
             tryResult <| fun () ->
                 OsInterop.openFileWith (wpath path) |> ignore
+
+        member this.OpenProperties path =
+            tryResult <| fun () ->
+                OsInterop.openProperties (wpath path) |> ignore
 
         member this.OpenExplorer node =
             match node.Type with

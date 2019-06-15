@@ -534,6 +534,16 @@ module Action =
             return model
     }
 
+    let openProperties (os: IOperatingSystem) (model: MainModel) = result {
+        let node = model.SelectedNode
+        match node.Type with
+        | File | Folder ->
+            do! os.OpenProperties node.Path |> actionError "open properties"
+            return { model with Status = Some <| MainStatus.openProperties node.Name }
+        | _ ->
+            return model
+    }
+
     let openCommandLine (os: IOperatingSystem) (config: Config) model = result {
         if model.Location <> Path.Root then
             do! os.LaunchApp config.CommandlinePath model.Location ""
@@ -794,11 +804,12 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | SortList field -> SyncResult (Nav.sortList fsReader field)
         | ToggleHidden -> SyncResult (Nav.toggleHidden fsReader)
         | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
-        | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings config)
-        | OpenExplorer -> Sync (Action.openExplorer os)
         | OpenFileWith -> SyncResult (Action.openFileWith os)
-        | OpenCommandLine -> SyncResult (Action.openCommandLine os config)
+        | OpenProperties -> SyncResult (Action.openProperties os)
         | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os config)
+        | OpenExplorer -> Sync (Action.openExplorer os)
+        | OpenCommandLine -> SyncResult (Action.openCommandLine os config)
+        | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings config)
         | Exit -> Sync (fun m -> closeWindow(); m)
         | ConfigChanged -> Sync (loadConfig fsReader config)
         | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })

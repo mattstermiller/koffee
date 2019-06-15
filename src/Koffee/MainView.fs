@@ -368,6 +368,7 @@ type MainError =
     | ActionError of actionName: string * exn
     | ItemActionError of ItemAction * PathFormat * exn
     | InvalidPath of string
+    | ShortcutTargetMissing of string
     | InvalidSearchSlash
     | InvalidSearchSwitch of char
     | CannotPutHere
@@ -400,7 +401,8 @@ type MainError =
                 | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
                 | DeletedItem (node, true) -> sprintf "delete %s" node.Description
             (ActionError (actionName, e)).Message
-        | InvalidPath path -> sprintf "Path format is invalid: %s" path
+        | InvalidPath path -> "Path format is invalid: " + path
+        | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | InvalidSearchSlash -> "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
         | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
         | CannotPutHere -> "Cannot put items here"

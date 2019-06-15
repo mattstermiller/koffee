@@ -110,6 +110,9 @@ type Path private (path: string) =
     member this.Name =
         path |> IOPath.GetFileName
 
+    member this.Extension =
+        path |> IOPath.GetExtension |> String.trimStart [|'.'|]
+
     member this.NameAndExt = Path.SplitName this.Name
 
     member this.Drive =

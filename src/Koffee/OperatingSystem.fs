@@ -30,17 +30,6 @@ module OsInterop =
         [<DllImport("shell32.dll", EntryPoint = "SHOpenWithDialog", CharSet = CharSet.Unicode)>]
         extern int SHOpenWithDialog(IntPtr hWndParent, OpenWithInfo& info)
 
-    open OpenWithNative
-
-    let openFileWith fileName =
-        let mutable info =
-            OpenWithInfo(
-                cszFile = fileName,
-                cszClass = "",
-                oaifInFlags = (OpenWithFlags.ALLOW_REGISTRATION ||| OpenWithFlags.EXEC)
-            )
-        SHOpenWithDialog(IntPtr.Zero, &info)
-
 
     module private OpenPropertiesNative =
         let SW_SHOW = 5
@@ -72,7 +61,17 @@ module OsInterop =
         [<DllImport("shell32.dll", CharSet = CharSet.Auto)>]
         extern bool ShellExecuteEx(ShellExecuteInfo& lpExecInfo);
 
+    open OpenWithNative
     open OpenPropertiesNative
+
+    let openFileWith fileName =
+        let mutable info =
+            OpenWithInfo(
+                cszFile = fileName,
+                cszClass = "",
+                oaifInFlags = (OpenWithFlags.ALLOW_REGISTRATION ||| OpenWithFlags.EXEC)
+            )
+        SHOpenWithDialog(IntPtr.Zero, &info)
 
     let openProperties fileName =
         let mutable info =
@@ -85,12 +84,19 @@ module OsInterop =
         info.cbSize <- Marshal.SizeOf(info)
         ShellExecuteEx(&info);
 
+    open IWshRuntimeLibrary
+
+    let getShortcutPath lnkFileName =
+        let link = WshShellClass().CreateShortcut(lnkFileName) :?> IWshShortcut
+        link.TargetPath
+
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
     abstract member OpenFileWith: Path -> Result<unit, exn>
     abstract member OpenProperties: Path -> Result<unit, exn>
     abstract member OpenExplorer: Node -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
+    abstract member GetShortcutPath: Path -> Result<string, exn>
 
 type OperatingSystem() =
     let wpath (path: Path) = path.Format Windows
@@ -122,3 +128,7 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
                 |> Process.Start |> ignore
+
+        member this.GetShortcutPath path =
+            tryResult <| fun () ->
+                OsInterop.getShortcutPath (wpath path)

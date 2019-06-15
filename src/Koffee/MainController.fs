@@ -73,9 +73,33 @@ module Nav =
         | Folder | Drive | NetHost | NetShare ->
             openPath fsReader node.Path SelectNone model
         | File ->
-            os.OpenFile node.Path |> actionError (sprintf "open '%s'" node.Name)
-            |> Result.map (fun () ->
-                { model with Status = Some <| MainStatus.openFile node.Name })
+            let openError e = e |> actionError (sprintf "open '%s'" node.Name)
+            let shortcutFolder = result {
+                let! targetPath =
+                    if node.Path.Extension |> String.equalsIgnoreCase "lnk" then
+                        os.GetShortcutPath node.Path |> openError
+                        |> Result.map Path.Parse
+                    else
+                        Ok None
+                match targetPath with
+                | Some targetPath ->
+                    let! target =
+                        fsReader.GetNode targetPath |> openError
+                        |> Result.bind (Result.ofOption (ShortcutTargetMissing (targetPath.Format model.PathFormat)))
+                    return if target.Type = Folder then Some target.Path else None
+                | None ->
+                    return None
+            }
+            shortcutFolder
+            |> Result.bind (function
+                | Some shortcutFolder ->
+                    openPath fsReader shortcutFolder SelectNone model
+                | None ->
+                    os.OpenFile node.Path |> openError
+                    |> Result.map (fun () ->
+                        { model with Status = Some <| MainStatus.openFile node.Name }
+                    )
+            )
         | _ -> Ok model
 
     let openParent fsReader model =

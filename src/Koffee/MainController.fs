@@ -139,9 +139,10 @@ module Nav =
             match model.Sort with
             | f, desc when f = field -> not desc
             | _ -> field = Modified
+        let select = if model.Cursor = 0 then SelectNone else SelectName model.SelectedNode.Name
         let! model =
             { model with Sort = field, desc }
-            |> openPath fsReader model.Location (SelectName model.SelectedNode.Name)
+            |> openPath fsReader model.Location select
         return { model with Status = Some <| MainStatus.sort field desc }
     }
 

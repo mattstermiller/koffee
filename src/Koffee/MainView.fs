@@ -327,8 +327,8 @@ module MainStatus =
 
     let private runningActionMessage action pathFormat =
         match action with
-        | MovedItem (node, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." node.Description (newPath.Format pathFormat)
-        | CopiedItem (node, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." node.Description (newPath.Format pathFormat)
+        | PutItem (Move, node, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." node.Description (newPath.Format pathFormat)
+        | PutItem (Copy, node, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." node.Description (newPath.Format pathFormat)
         | DeletedItem (node, false) -> Some <| sprintf "Recycling %s..." node.Description
         | DeletedItem (node, true) -> Some <| sprintf "Deleting %s..." node.Description
         | _ -> None
@@ -339,8 +339,8 @@ module MainStatus =
         match action with
         | CreatedItem node -> sprintf "Created %s" node.Description
         | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
-        | MovedItem (node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description (newPath.Format pathFormat)
-        | CopiedItem (node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
+        | PutItem (Move, node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description (newPath.Format pathFormat)
+        | PutItem (Copy, node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
         | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
         | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
     let actionComplete action pathFormat =
@@ -396,8 +396,9 @@ type MainError =
                 match action with
                 | CreatedItem node -> sprintf "create %s" node.Description
                 | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
-                | MovedItem (node, newPath) -> sprintf "move %s to \"%s\"" node.Description (newPath.Format pathFormat)
-                | CopiedItem (node, newPath) -> sprintf "copy %s to \"%s\"" node.Description (newPath.Format pathFormat)
+                | PutItem (action, node, newPath) ->
+                    let action = action |> string |> String.toLower
+                    sprintf "%s %s to \"%s\"" action node.Description (newPath.Format pathFormat)
                 | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
                 | DeletedItem (node, true) -> sprintf "delete %s" node.Description
             (ActionError (actionName, e)).Message

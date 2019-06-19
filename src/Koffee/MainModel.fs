@@ -109,8 +109,7 @@ type InputMode =
 type ItemAction =
     | CreatedItem of Node
     | RenamedItem of Node * newName: string
-    | MovedItem of Node * newPath: Path
-    | CopiedItem of Node * newPath: Path
+    | PutItem of PutAction * Node * newPath: Path
     | DeletedItem of Node * permanent: bool
 
 type SelectType =
@@ -231,8 +230,7 @@ type MainEvents =
     | InputDelete of EvtHandler
     | SubmitInput
     | CancelInput
-    | StartMove
-    | StartCopy
+    | StartAction of PutAction
     | Put
     | Recycle
     | Undo
@@ -286,8 +284,8 @@ type MainEvents =
         | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
         | StartConfirm Delete -> "Delete Permanently"
         | SubmitInput -> "Submit Input for the Current Command"
-        | StartMove -> "Start Move Item"
-        | StartCopy -> "Start Copy Item"
+        | StartAction Move -> "Start Move Item"
+        | StartAction Copy -> "Start Copy Item"
         | Put -> "Put Item to Move/Copy in Current Folder"
         | Recycle -> "Send to Recycle Bin"
         | Undo -> "Undo Action"
@@ -332,8 +330,8 @@ type MainEvents =
         StartInput (Rename ReplaceName)
         StartInput (Rename ReplaceAll)
         StartConfirm Delete
-        StartMove
-        StartCopy
+        StartAction Move
+        StartAction Copy
         Put
         Recycle
         Undo

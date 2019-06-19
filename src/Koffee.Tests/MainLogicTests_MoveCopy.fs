@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogicTests_MoveCopy
+module Koffee.MainLogicTests_MoveCopy
 
 open System
 open NUnit.Framework
@@ -36,11 +36,19 @@ let mockGetNode nodeToReturn = mockGetNodeFunc (fun _ -> nodeToReturn)
 
 let ex = UnauthorizedAccessException() :> exn
 
-[<TestCase(false, false)>]
-[<TestCase(false, true)>]
-[<TestCase(true, false)>]
-[<TestCase(true, true)>]
-let ``Put item to move or copy in different folder with item of same name prompts for overwrite`` doCopy existingHidden =
+let putActionCases () = [
+    TestCaseData(Move)
+    TestCaseData(Copy)
+]
+
+let putItemOverwriteCases () =
+    putActionCases () |> List.collect (fun c -> [
+        TestCaseData(c.Arguments.[0], false)
+        TestCaseData(c.Arguments.[0], true)
+    ])
+
+[<TestCaseSource("putItemOverwriteCases")>]
+let ``Put item in different folder with item of same name prompts for overwrite`` action existingHidden =
     let src = nodeDiffFolder
     let dest = { nodeSameFolder with IsHidden = existingHidden }
     let mutable loadedHidden = None
@@ -50,7 +58,6 @@ let ``Put item to move or copy in different folder with item of same name prompt
         loadedHidden <- Some sh
         Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let action = if doCopy then Copy else Move
     let item = Some (src, action)
     let model = { testModel with YankRegister = item }
 
@@ -66,23 +73,22 @@ let ``Put item to move or copy in different folder with item of same name prompt
     assertAreEqual expected actual
     loadedHidden |> shouldEqual (Some existingHidden)
 
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Put item to move or copy returns error`` doCopy =
+[<TestCaseSource("putActionCases")>]
+let ``Put item handles errors`` action =
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- mockGetNode None
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    fsWriter.Move <- fun _ _ -> if not doCopy then Error ex else failwith "move should not be called"
-    fsWriter.Copy <- fun _ _ -> if doCopy then Error ex else failwith "copy should not be called"
-    let item = Some (src, if doCopy then Copy else Move)
+    fsWriter.Move <- fun _ _ -> if action = Move then Error ex else failwith "move should not be called"
+    fsWriter.Copy <- fun _ _ -> if action = Copy then Error ex else failwith "copy should not be called"
+    let item = Some (src, action)
     let model = { testModel with YankRegister = item }
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
-    let expectedAction = if doCopy then CopiedItem (src, dest.Path) else MovedItem (src, dest.Path)
+    let expectedAction = PutItem (action, src, dest.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
     assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
@@ -106,7 +112,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
     moved |> shouldEqual [src.Path, dest.Path]
-    let expectedAction = MovedItem (src, dest.Path)
+    let expectedAction = PutItem (Move, src, dest.Path)
     let expected =
         { testModel with
             Nodes = newNodes
@@ -197,7 +203,7 @@ let ``Undo move item handles move error by returning error``() =
 
     let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
 
-    let expectedAction = MovedItem (curNode, prevNode.Path)
+    let expectedAction = PutItem (Move, curNode, prevNode.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
     assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
@@ -221,7 +227,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
     copied |> shouldEqual [(src.Path, dest.Path)]
-    let expectedAction = CopiedItem (src, dest.Path)
+    let expectedAction = PutItem (Copy, src, dest.Path)
     let expected =
         { testModel with
             Nodes = newNodes
@@ -254,7 +260,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let destName = MainLogic.Action.getCopyName src.Name existingCopies
     let destPath = model.Location.Join destName
     copied |> shouldEqual (Some (src.Path, destPath))
-    let expectedAction = CopiedItem (nodeSameFolder, destPath)
+    let expectedAction = PutItem (Copy, nodeSameFolder, destPath)
     let expected =
         { testModel with
             Nodes = newNodes

@@ -368,10 +368,11 @@ module Action =
             else
                 Ok node.Name
         let newPath = model.Location.Join newName
-        let fileSysAction, action =
+        let action = PutItem (putAction, node, newPath)
+        let fileSysAction =
             match putAction with
-            | Move -> (fsWriter.Move, MovedItem (node, newPath))
-            | Copy -> (fsWriter.Copy, CopiedItem (node, newPath))
+            | Move -> fsWriter.Move
+            | Copy -> fsWriter.Copy
         let! existing = fsReader.GetNode newPath |> itemActionError action model.PathFormat
         match existing with
         | Some existing when not overwrite ->
@@ -404,7 +405,7 @@ module Action =
 
     let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncSeqResult {
         let from = { node with Path = currentPath; Name = currentPath.Name }
-        let action = MovedItem (from, node.Path)
+        let action = PutItem (Move, from, node.Path)
         let! existing = fsReader.GetNode node.Path |> itemActionError action model.PathFormat
         match existing with
         | Some _ ->
@@ -467,9 +468,9 @@ module Action =
                 | RenamedItem (oldNode, curName) ->
                     undoRename fsReader fsWriter oldNode curName model
                     |> AsyncSeq.singleton
-                | MovedItem (node, newPath) ->
+                | PutItem (Move, node, newPath) ->
                     undoMove fsReader fsWriter node newPath model
-                | CopiedItem (node, newPath) ->
+                | PutItem (Copy, node, newPath) ->
                     undoCopy fsReader fsWriter node newPath model
                 | DeletedItem (node, permanent) ->
                     Error (CannotUndoDelete (permanent, node))
@@ -499,15 +500,10 @@ module Action =
                 | RenamedItem (node, newName) ->
                     let! model = goToPath node.Path
                     yield! rename fsReader fsWriter node newName model
-                | MovedItem (node, newPath)
-                | CopiedItem (node, newPath) ->
+                | PutItem (putAction, node, newPath) ->
                     let! model = goToPath newPath
-                    let moveOrCopy =
-                        match action with
-                        | MovedItem _ -> Move
-                        | _ -> Copy
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! putItem fsReader fsWriter false node moveOrCopy model
+                    yield! putItem fsReader fsWriter false node putAction model
                 | DeletedItem (node, permanent) ->
                     let! model = goToPath node.Path
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
@@ -822,8 +818,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | FindNext -> Sync Cursor.findNext
         | SearchNext -> Sync (Cursor.searchNext false)
         | SearchPrevious -> Sync (Cursor.searchNext true)
-        | StartMove -> Sync (Action.registerItem Move)
-        | StartCopy -> Sync (Action.registerItem Copy)
+        | StartAction action -> Sync (Action.registerItem action)
         | Put -> AsyncResult (Action.put fsReader fsWriter false)
         | Recycle -> AsyncResult (Action.recycle fsReader fsWriter config)
         | SortList field -> SyncResult (Nav.sortList fsReader field)

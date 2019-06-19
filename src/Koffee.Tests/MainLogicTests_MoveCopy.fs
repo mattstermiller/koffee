@@ -90,7 +90,7 @@ let ``Put item handles errors`` action =
 
     let expectedAction = PutItem (action, src, dest.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+    assertAreEqual expected actual
 
 // move tests
 
@@ -205,7 +205,7 @@ let ``Undo move item handles move error by returning error``() =
 
     let expectedAction = PutItem (Move, curNode, prevNode.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+    assertAreEqual expected actual
 
 // copy tests
 
@@ -329,7 +329,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
             Nodes = newNodes
             Cursor = 0
         }
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+    assertAreEqual expected actual
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -346,4 +346,4 @@ let ``Undo copy item handles errors by returning error and consuming action`` th
 
     let action = DeletedItem (copied, false)
     let expected = testModel.WithError (ItemActionError (action, testModel.PathFormat, ex))
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+    assertAreEqual expected actual

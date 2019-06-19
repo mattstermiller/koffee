@@ -66,4 +66,4 @@ let ``Delete handles error by returning error``() =
 
     let expectedAction = (DeletedItem (oldNodes.[1], true))
     let expected = testModel.WithError (ItemActionError (expectedAction, testModel.PathFormat, ex))
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+    assertAreEqual expected actual

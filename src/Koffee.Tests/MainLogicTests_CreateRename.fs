@@ -133,7 +133,7 @@ let ``Undo create handles delete error by returning error`` () =
     let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdNode) testModel
 
     let expected = testModel.WithError (ItemActionError (DeletedItem (createdNode, true), testModel.PathFormat, ex))
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+    assertAreEqual expected actual
 
 // rename tests
 

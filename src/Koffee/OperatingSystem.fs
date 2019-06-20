@@ -84,11 +84,6 @@ module OsInterop =
         info.cbSize <- Marshal.SizeOf(info)
         ShellExecuteEx(&info);
 
-    open IWshRuntimeLibrary
-
-    let getShortcutPath lnkFileName =
-        let link = WshShellClass().CreateShortcut(lnkFileName) :?> IWshShortcut
-        link.TargetPath
 
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
@@ -96,7 +91,6 @@ type IOperatingSystem =
     abstract member OpenProperties: Path -> Result<unit, exn>
     abstract member OpenExplorer: Node -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
-    abstract member GetShortcutPath: Path -> Result<string, exn>
 
 type OperatingSystem() =
     let wpath (path: Path) = path.Format Windows
@@ -128,7 +122,3 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
                 |> Process.Start |> ignore
-
-        member this.GetShortcutPath path =
-            tryResult <| fun () ->
-                OsInterop.getShortcutPath (wpath path)

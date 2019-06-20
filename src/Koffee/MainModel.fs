@@ -83,6 +83,7 @@ type RenamePart =
 type PutAction =
     | Move
     | Copy
+    | Shortcut
 
 type PromptType =
     | Find of caseSensitive: bool
@@ -286,6 +287,7 @@ type MainEvents =
         | SubmitInput -> "Submit Input for the Current Command"
         | StartAction Move -> "Start Move Item"
         | StartAction Copy -> "Start Copy Item"
+        | StartAction Shortcut -> "Start Create Shortcut to Item"
         | Put -> "Put Item to Move/Copy in Current Folder"
         | Recycle -> "Send to Recycle Bin"
         | Undo -> "Undo Action"
@@ -332,6 +334,7 @@ type MainEvents =
         StartConfirm Delete
         StartAction Move
         StartAction Copy
+        StartAction Shortcut
         Put
         Recycle
         Undo

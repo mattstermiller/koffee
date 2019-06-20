@@ -25,7 +25,7 @@ type StructuralEqualityComparer() =
 let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
 
-let assertAreEqualWith expected actual comparerSetup =
+let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     let comparer = CompareLogic() 
     comparer.Config.MaxDifferences <- 10
     comparer.Config.CustomComparers.Add(StructuralEqualityComparer())

@@ -77,7 +77,7 @@ module Nav =
             let shortcutFolder = result {
                 let! targetPath =
                     if node.Path.Extension |> String.equalsIgnoreCase "lnk" then
-                        os.GetShortcutPath node.Path |> openError
+                        fsReader.GetShortcutTarget node.Path |> openError
                         |> Result.map Path.Parse
                     else
                         Ok None
@@ -357,7 +357,8 @@ module Action =
                 return CannotMoveToSameFolder
         | _ -> return CannotPutHere
         let! newName =
-            if putAction = Copy && sameFolder then
+            match putAction with
+            | Copy when sameFolder ->
                 let unused name =
                     match fsReader.GetNode (model.Location.Join name) with
                     | Ok None -> true
@@ -365,7 +366,9 @@ module Action =
                 Seq.init 99 (getCopyName node.Name)
                 |> Seq.tryFind unused
                 |> Result.ofOption (TooManyCopies node.Name)
-            else
+            | Shortcut ->
+                Ok (node.Name + ".lnk")
+            | _ ->
                 Ok node.Name
         let newPath = model.Location.Join newName
         let action = PutItem (putAction, node, newPath)
@@ -373,6 +376,7 @@ module Action =
             match putAction with
             | Move -> fsWriter.Move
             | Copy -> fsWriter.Copy
+            | Shortcut -> fsWriter.CreateShortcut
         let! existing = fsReader.GetNode newPath |> itemActionError action model.PathFormat
         match existing with
         | Some existing when not overwrite ->
@@ -436,6 +440,15 @@ module Action =
             yield! Nav.refresh fsReader model
     }
 
+    let undoShortcut (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) shortcutPath (model: MainModel) = result {
+        let action = DeletedItem ({ Node.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
+        do! fsWriter.Delete shortcutPath |> itemActionError action model.PathFormat
+        if model.Location = shortcutPath.Parent then
+            return! Nav.refresh fsReader model
+        else
+            return model
+    }
+
     let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncSeqResult {
         if node.Type.CanModify then
             let action = DeletedItem (node, permanent)
@@ -472,6 +485,9 @@ module Action =
                     undoMove fsReader fsWriter node newPath model
                 | PutItem (Copy, node, newPath) ->
                     undoCopy fsReader fsWriter node newPath model
+                | PutItem (Shortcut, node, newPath) ->
+                    undoShortcut fsReader fsWriter newPath model
+                    |> AsyncSeq.singleton
                 | DeletedItem (node, permanent) ->
                     Error (CannotUndoDelete (permanent, node))
                     |> AsyncSeq.singleton

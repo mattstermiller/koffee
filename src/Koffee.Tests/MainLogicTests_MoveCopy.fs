@@ -1,10 +1,11 @@
-module Koffee.MainLogicTests_MoveCopy
+﻿module Koffee.MainLogicTests_MoveCopy
 
 open System
 open NUnit.Framework
 open FsUnitTyped
 
 let nodeSameFolder = createNode "/c/path/file 2"
+let nodeSameFolderWith ext = createNode ("/c/path/file 2" + ext)
 let nodeDiffFolder = createNode "/c/other/file 2"
 
 let oldNodes = [
@@ -39,6 +40,7 @@ let ex = UnauthorizedAccessException() :> exn
 let putActionCases () = [
     TestCaseData(Move)
     TestCaseData(Copy)
+    TestCaseData(Shortcut)
 ]
 
 let putItemOverwriteCases () =
@@ -76,13 +78,17 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 [<TestCaseSource("putActionCases")>]
 let ``Put item handles errors`` action =
     let src = nodeDiffFolder
-    let dest = nodeSameFolder
+    let dest = nodeSameFolderWith (if action = Shortcut then ".lnk" else "")
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- mockGetNode None
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    fsWriter.Move <- fun _ _ -> if action = Move then Error ex else failwith "move should not be called"
-    fsWriter.Copy <- fun _ _ -> if action = Copy then Error ex else failwith "copy should not be called"
+    fsWriter.Move <- fun _ _ ->
+        if action = Move then Error ex else failwith "Move should not be called"
+    fsWriter.Copy <- fun _ _ ->
+        if action = Copy then Error ex else failwith "Copy should not be called"
+    fsWriter.CreateShortcut <- fun _ _ ->
+        if action = Shortcut then Error ex else failwith "CreateShortcut should not be called"
     let item = Some (src, action)
     let model = { testModel with YankRegister = item }
 
@@ -346,4 +352,84 @@ let ``Undo copy item handles errors by returning error and consuming action`` th
 
     let action = DeletedItem (copied, false)
     let expected = testModel.WithError (ItemActionError (action, testModel.PathFormat, ex))
+    assertAreEqual expected actual
+
+// shortcut tests
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Put shortcut calls file sys create shortcut`` overwrite =
+    let target = nodeDiffFolder
+    let shortcut = nodeSameFolderWith ".lnk"
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNode <- mockGetNode (if overwrite then Some shortcut else None)
+    let newNodes = newNodes @ [shortcut]
+    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    let fsWriter = FakeFileSystemWriter()
+    let mutable created = []
+    fsWriter.CreateShortcut <- fun target dest ->
+        created <- (target, dest) :: created
+        Ok ()
+    let model = { testModel with YankRegister = Some (target, Shortcut) }
+
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
+
+    created |> shouldEqual [(target.Path, shortcut.Path)]
+    let expectedAction = PutItem (Shortcut, target, shortcut.Path)
+    let expected =
+        { testModel with
+            Nodes = newNodes
+            Cursor = newNodes.Length - 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
+        }
+    assertAreEqual expected actual
+
+// undo shortcut tests
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo create shortcut deletes shortcut`` curPathDifferent =
+    let shortcut = nodeSameFolder
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    let fsWriter = FakeFileSystemWriter()
+    let mutable deleted = None
+    fsWriter.Delete <- fun p ->
+        deleted <- Some p
+        Ok ()
+    let model =
+        if curPathDifferent then
+            testModel.WithLocation (createPath "/c/other")
+        else
+            testModel
+
+    let actual = MainLogic.Action.undoShortcut fsReader fsWriter shortcut.Path model
+                 |> assertOk
+
+    deleted |> shouldEqual (Some shortcut.Path)
+    let expected =
+        if curPathDifferent then
+            model
+        else
+            { model with
+                Nodes = newNodes
+                Cursor = 0
+            }
+    assertAreEqual expected actual
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo create shortcut handles errors by returning error and consuming action`` throwOnDelete =
+    let shortcut = { nodeSameFolder with Type = File }
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNodes <- fun _ _ -> Error ex
+    let fsWriter = FakeFileSystemWriter()
+    fsWriter.Delete <- fun _ -> if throwOnDelete then Error ex else Ok ()
+
+    let actual = MainLogic.Action.undoShortcut fsReader fsWriter shortcut.Path testModel
+
+    let action = DeletedItem (shortcut, false)
+    let expected = Error (ItemActionError (action, testModel.PathFormat, ex))
     assertAreEqual expected actual

@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System
+open IWshRuntimeLibrary
 open System.IO
 open System.Text.RegularExpressions
 open System.Management
@@ -12,9 +13,11 @@ type IFileSystemReader =
     abstract member GetNode: Path -> Result<Node option, exn>
     abstract member GetNodes: showHidden: bool -> Path -> Result<Node list, exn>
     abstract member IsEmpty: Path -> bool
+    abstract member GetShortcutTarget: Path -> Result<string, exn>
 
 type IFileSystemWriter =
     abstract member Create: NodeType -> Path -> Result<unit, exn>
+    abstract member CreateShortcut: target: Path -> path: Path -> Result<unit, exn>
     abstract member Move: fromPath: Path -> toPath: Path -> Result<unit, exn>
     abstract member Copy: fromPath: Path -> toPath: Path -> Result<unit, exn>
     abstract member Recycle: Path -> Result<unit, exn>
@@ -23,6 +26,8 @@ type IFileSystemWriter =
 type FileSystem(config: Config) =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
+
+    let getShortcut path = WshShellClass().CreateShortcut(path) :?> IWshShortcut
 
     let basicNode path name nodeType =
         { Path = path
@@ -107,10 +112,12 @@ type FileSystem(config: Config) =
         | Ok None -> Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         | Error e -> Error e
 
+
     interface IFileSystemReader with
         member this.GetNode path = this.GetNode path
         member this.GetNodes showHidden path = this.GetNodes showHidden path
         member this.IsEmpty path = this.IsEmpty path
+        member this.GetShortcutTarget path = this.GetShortcutTarget path
 
     member this.GetNode path =
         tryResult <| fun () ->
@@ -183,8 +190,14 @@ type FileSystem(config: Config) =
                 FileInfo(wp).Length = 0L
         with _ -> false
 
+    member this.GetShortcutTarget path =
+        tryResult <| fun () ->
+            getShortcut(wpath path).TargetPath
+
+
     interface IFileSystemWriter with
         member this.Create nodeType path = this.Create nodeType path
+        member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move fromPath toPath = this.Move fromPath toPath
         member this.Copy fromPath toPath = this.Copy fromPath toPath
         member this.Recycle path = this.Recycle path
@@ -196,6 +209,12 @@ type FileSystem(config: Config) =
         | File -> tryResult (fun () -> File.Create(wp).Dispose())
         | Folder -> tryResult (fun () -> Directory.CreateDirectory(wp) |> ignore)
         | _ -> Error <| cannotActOnNodeType "create" nodeType
+
+    member this.CreateShortcut target path =
+        tryResult <| fun () ->
+            let shortcut = getShortcut (wpath path)
+            shortcut.TargetPath <- wpath target
+            shortcut.Save()
 
     member this.Move fromPath toPath =
         this.FileOrFolderAction fromPath "move" <| fun nodeType -> result {

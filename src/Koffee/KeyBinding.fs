@@ -46,6 +46,7 @@ let defaultsAsString = [
     ("m", StartPrompt SetBookmark)
     ("d", StartAction Move)
     ("y", StartAction Copy)
+    ("Y", StartAction Shortcut)
     ("p", Put)
     ("<delete>", Recycle)
     ("<s-delete>", StartConfirm Delete)

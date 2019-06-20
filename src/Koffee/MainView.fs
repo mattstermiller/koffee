@@ -341,6 +341,8 @@ module MainStatus =
         | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
         | PutItem (Move, node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description (newPath.Format pathFormat)
         | PutItem (Copy, node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
+        | PutItem (Shortcut, node, _) -> sprintf "Created shortcut to %s \"%s\""
+                                                 (node.Type |> string |> String.toLower) (node.Path.Format pathFormat)
         | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
         | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
     let actionComplete action pathFormat =

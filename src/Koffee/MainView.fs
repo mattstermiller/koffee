@@ -323,6 +323,7 @@ module MainStatus =
     let openExplorer = Message "Opened Windows Explorer"
     let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
     let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name
+    let clipboardCopy path = Message <| sprintf "Copied to clipboard: %s" path
     let removedNetworkHost host = Message <| sprintf "Removed network host: %s" host
 
     let private runningActionMessage action pathFormat =

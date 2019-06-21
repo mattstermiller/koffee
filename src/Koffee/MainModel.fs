@@ -233,6 +233,7 @@ type MainEvents =
     | CancelInput
     | StartAction of PutAction
     | Put
+    | ClipCopy
     | Recycle
     | Undo
     | Redo
@@ -289,6 +290,7 @@ type MainEvents =
         | StartAction Copy -> "Start Copy Item"
         | StartAction Shortcut -> "Start Create Shortcut to Item"
         | Put -> "Put Item to Move/Copy in Current Folder"
+        | ClipCopy -> "Copy to Clipboard"
         | Recycle -> "Send to Recycle Bin"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
@@ -336,6 +338,7 @@ type MainEvents =
         StartAction Copy
         StartAction Shortcut
         Put
+        ClipCopy
         Recycle
         Undo
         Redo

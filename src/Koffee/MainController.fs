@@ -449,6 +449,15 @@ module Action =
             return model
     }
 
+    let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
+        let node = model.SelectedNode
+        match node.Type with
+        | File | Folder ->
+            do! os.CopyToClipboard node.Path |> actionError "copy to clipboard"
+        | _ -> ()
+        return { model with Status = Some (MainStatus.clipboardCopy (node.Path.Format model.PathFormat)) }
+    }
+
     let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncSeqResult {
         if node.Type.CanModify then
             let action = DeletedItem (node, permanent)
@@ -836,6 +845,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | SearchPrevious -> Sync (Cursor.searchNext true)
         | StartAction action -> Sync (Action.registerItem action)
         | Put -> AsyncResult (Action.put fsReader fsWriter false)
+        | ClipCopy -> SyncResult (Action.clipCopy os)
         | Recycle -> AsyncResult (Action.recycle fsReader fsWriter config)
         | SortList field -> SyncResult (Nav.sortList fsReader field)
         | ToggleHidden -> SyncResult (Nav.toggleHidden fsReader)

@@ -76,15 +76,20 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `c` to start with the name (without extension) selected so that typing will replace the name
     - Press `C` to start with the full name selected
     - When you are done editing the name, press `Enter`
-- **Move / Copy**
-    1. Press `d` to start a move or `y` to start a copy of the selected file or folder. The item and operation will be displayed in the lower-right corner of the window.
-    2. Navigate to the destination folder and press `p` to move or copy the item there. A copy to the same folder will append "(copy)" to the name. If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
+- **Move / Copy / Shortcut**
+    1. Press `d` to start a move, `y` to start a copy, or `Y` to start a shortcut of the selected file or folder. The item and operation will be displayed in the lower-right corner of the window.
+    2. Navigate to the destination folder and press `p` to move, copy, or create a shortcut of the item there.
+        - A copy to the same folder will append "(copy)" to the name.
+        - If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
 - **Delete**
     - Press `Delete` to send the currently selected item to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.
     - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
+- **Copy to Clipboard**: Press `Ctrl + c` to copy the selected item to the Windows Clipboard.
+    - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.
+    - Paste in any text editor or text input to insert the file or folder's path there.
 
 #### Other
 - Open the selected file or folder's properties with `Alt + Enter`

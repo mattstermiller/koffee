@@ -3,6 +3,8 @@
 ### 0.4.2
 - Adds "Open With" command
 - Adds "Open Properties" command
+- Adds "Copy to Clipboard" command
+- Adds "Start Create Shortcut to Item" command
 - Adds ability to follow shortcuts to folders
 - Adds ability to go back to previous path when opening to a default path
 - Adds a trailing slash to path in path box

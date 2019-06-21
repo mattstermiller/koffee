@@ -48,6 +48,7 @@ let defaultsAsString = [
     ("y", StartAction Copy)
     ("Y", StartAction Shortcut)
     ("p", Put)
+    ("<c-c>", ClipCopy)
     ("<delete>", Recycle)
     ("<s-delete>", StartConfirm Delete)
     ("sn", SortList Name)

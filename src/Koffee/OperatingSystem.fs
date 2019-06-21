@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System.Diagnostics
+open System.Windows.Forms
 open Acadian.FSharp
 
 module OsInterop =
@@ -91,6 +92,7 @@ type IOperatingSystem =
     abstract member OpenProperties: Path -> Result<unit, exn>
     abstract member OpenExplorer: Node -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
+    abstract member CopyToClipboard: Path -> Result<unit, exn>
 
 type OperatingSystem() =
     let wpath (path: Path) = path.Format Windows
@@ -122,3 +124,10 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
                 |> Process.Start |> ignore
+
+        member this.CopyToClipboard path =
+            tryResult <| fun () ->
+                let path = wpath path
+                let data = DataObject(DataFormats.FileDrop, [|path|])
+                data.SetText(path)
+                Clipboard.SetDataObject(data, true)

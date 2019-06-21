@@ -135,7 +135,7 @@ type MainModel = {
     PathFormat: PathFormat
     LocationInput: string
     Status: StatusType option
-    Nodes: Node list // TODO: change to array for performance
+    Nodes: Node list
     Sort: SortField * bool
     Cursor: int
     PageSize: int

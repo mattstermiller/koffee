@@ -24,34 +24,57 @@ let testModel cursorStart =
 let assertEqualExceptCursor expected actual =
     assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "Nodes"; "InputText"])
 
-let find char cursorStart =
-    let model = testModel cursorStart
+let doFind next prefix cursorStart =
+    let model = { testModel cursorStart with LastFind = Some prefix }
 
-    let actual = MainLogic.Cursor.find true char model
+    let actual =
+        if next then
+            MainLogic.Cursor.findNext model
+        else
+            MainLogic.Cursor.find prefix model
 
     let expected =
         { model with
-            LastFind = Some (true, char)
-            Status = Some <| MainStatus.find true char
+            LastFind = Some prefix
+            Status = if next then Some <| MainStatus.find prefix else None
         }
     assertEqualExceptCursor expected actual
     actual.Cursor
 
-[<Test>]
-let ``Find a char that matches nothing should not change the cursor``() =
-    find 'A' 1 |> shouldEqual 1
+let find = doFind false
+let findNext = doFind true
 
 [<Test>]
-let ``Find a char that matches only the current node should not change the cursor``() =
-    find 'b' 1 |> shouldEqual 1
+let ``Find that matches nothing should not change the cursor``() =
+    find "d" 1 |> shouldEqual 1
 
 [<Test>]
-let ``Find a char that matches the current and next node should set the cursor to the next index``() =
-    find 'c' 2 |> shouldEqual 3
+let ``Find that matches only the current node should not change the cursor``() =
+    find "b" 1 |> shouldEqual 1
 
 [<Test>]
-let ``Find a char that matches a node wrapping around should set the cursor to the that index``() =
-    find 'b' 2 |> shouldEqual 1
+let ``Find that matches the current and next node should not change the cursor``() =
+    find "c" 2 |> shouldEqual 2
+
+[<Test>]
+let ``Find that matches a node wrapping around should set the cursor to the that index``() =
+    find "b" 2 |> shouldEqual 1
+
+[<Test>]
+let ``Find next that matches nothing should not change the cursor``() =
+    findNext "d" 1 |> shouldEqual 1
+
+[<Test>]
+let ``Find next that matches only the current node should not change the cursor``() =
+    findNext "b" 1 |> shouldEqual 1
+
+[<Test>]
+let ``Find next that matches the current and next node should set the cursor to the next index``() =
+    findNext "c" 2 |> shouldEqual 3
+
+[<Test>]
+let ``Find next that matches a node wrapping around should set the cursor to the that index``() =
+    findNext "b" 2 |> shouldEqual 1
 
 
 type SearchResult = {

@@ -154,14 +154,14 @@ module Nav =
     }
 
 module Cursor =
-    let private moveCursorToNext predicate reverse model =
+    let private moveCursorTo next reverse predicate model =
+        let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
         let indexed = model.Nodes |> List.indexed
-        let c = model.Cursor
         let items =
             if reverse then
-                List.append indexed.[c..] indexed.[0..(c-1)] |> List.rev
+                indexed |> rotate (model.Cursor + (if next then 0 else 1)) |> List.rev
             else
-                List.append indexed.[(c+1)..] indexed.[0..c]
+                indexed |> rotate (model.Cursor + (if next then 1 else 0))
         let cursor =
             items
             |> List.filter (snd >> predicate)
@@ -171,19 +171,15 @@ module Cursor =
         | Some cursor -> model.WithCursor cursor
         | None -> model
 
-    let find caseSensitive char model =
-        let lower = System.Char.ToLower
-        let equals =
-            if caseSensitive then (=)
-            else (fun a b -> lower a = lower b)
-        { model with
-            LastFind = Some (caseSensitive, char)
-            Status = Some <| MainStatus.find caseSensitive char
-        } |> moveCursorToNext (fun n -> equals n.Name.[0] char) false
+    let find prefix model =
+        { model with LastFind = Some prefix }
+        |> moveCursorTo false false (fun n -> n.Name |> String.startsWithIgnoreCase prefix)
 
     let findNext model =
         match model.LastFind with
-        | Some (cs, c) -> find cs c model
+        | Some prefix ->
+            { model with Status = Some <| MainStatus.find prefix }
+            |> moveCursorTo true false (fun n -> n.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
     let parseSearch (searchInput: string) =
@@ -224,7 +220,7 @@ module Cursor =
 
         { model with
             LastSearch = search |> Option.orElse model.LastSearch
-        } |> moveCursorToNext (fun n -> n.IsSearchMatch) reverse
+        } |> moveCursorTo true reverse (fun n -> n.IsSearchMatch)
 
     let searchNext reverse model =
         match model.LastSearch with
@@ -649,45 +645,21 @@ let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model 
             | Error e -> openPath (Some (error |? e)) paths
     openPath None paths
 
-let submitInput fsReader fsWriter (config: Config) model = asyncSeqResult {
-    let mode = model.InputMode
-    let model = { model with InputMode = None }
-    yield model
-    match mode with
-    | Some (Input Search) ->
-        let! search, caseSensitive = Cursor.parseSearch model.InputText
-        let caseSensitive = caseSensitive |? config.SearchCaseSensitive
-        yield Cursor.search caseSensitive search false model
-    | Some (Input CreateFile) ->
-        yield! Action.create fsReader fsWriter File model.InputText model
-    | Some (Input CreateFolder) ->
-        yield! Action.create fsReader fsWriter Folder model.InputText model
-    | Some (Input (Rename _)) ->
-        yield! Action.rename fsReader fsWriter model.SelectedNode model.InputText model
-    | _ -> ()
-}
-
-let inputDelete cancelInput model =
-    match model.InputMode with
-    | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
-        cancelInput ()
-        { model with InputMode = Some (Prompt DeleteBookmark) }
-    | _ -> model
-
 let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         let winPath = model.Location.Format Windows
         config.SetBookmark char winPath
         config.Save()
         { model with Status = Some <| MainStatus.setBookmark char winPath }
-    let mode = model.InputMode
-    let model = { model with InputMode = None }
-    match mode with
+    match model.InputMode with
+    | Some (Input (Find _)) ->
+        if char = ';' then // TODO: read key binding?
+            cancelInput ()
+            yield Cursor.findNext model
     | Some (Prompt mode) ->
         cancelInput ()
+        let model = { model with InputMode = None }
         match mode with
-        | Find caseSensitive ->
-            yield Cursor.find caseSensitive char model
         | GoToBookmark ->
             match config.GetBookmark char with
             | Some path ->
@@ -715,6 +687,7 @@ let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = a
                 yield { model with Status = Some <| MainStatus.noBookmark char }
     | Some (Confirm confirmType) ->
         cancelInput ()
+        let model = { model with InputMode = None }
         match char with
         | 'y' ->
             match confirmType with
@@ -734,6 +707,46 @@ let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = a
             | _ ->
                 yield model
         | _ -> ()
+    | _ -> ()
+}
+
+let inputChanged model =
+    match model.InputMode with
+    | Some (Input (Find _)) when String.isNotEmpty model.InputText ->
+        Cursor.find model.InputText model
+    | _ -> model
+
+let inputDelete cancelInput model =
+    match model.InputMode with
+    | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
+        cancelInput ()
+        { model with InputMode = Some (Prompt DeleteBookmark) }
+    | _ -> model
+
+let submitInput fsReader fsWriter os (config: Config) model = asyncSeqResult {
+    match model.InputMode with
+    | Some (Input (Find multi)) ->
+        let model =
+            if multi then { model with InputText = ""  }
+            else { model with InputMode = None }
+        yield! Nav.openSelected fsReader os model
+    | Some (Input Search) ->
+        let model = { model with InputMode = None }
+        let! search, caseSensitive = Cursor.parseSearch model.InputText
+        let caseSensitive = caseSensitive |? config.SearchCaseSensitive
+        yield Cursor.search caseSensitive search false model
+    | Some (Input CreateFile) ->
+        let model = { model with InputMode = None }
+        yield model
+        yield! Action.create fsReader fsWriter File model.InputText model
+    | Some (Input CreateFolder) ->
+        let model = { model with InputMode = None }
+        yield model
+        yield! Action.create fsReader fsWriter Folder model.InputText model
+    | Some (Input (Rename _)) ->
+        let model = { model with InputMode = None }
+        yield model
+        yield! Action.rename fsReader fsWriter model.SelectedNode model.InputText model
     | _ -> ()
 }
 
@@ -837,8 +850,9 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
         | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
         | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter config handler.Handle c)
+        | InputChanged -> Sync (inputChanged)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
-        | SubmitInput -> AsyncResult (submitInput fsReader fsWriter config)
+        | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os config)
         | CancelInput -> Sync (fun m -> { m with InputMode = None })
         | FindNext -> Sync Cursor.findNext
         | SearchNext -> Sync (Cursor.searchNext false)

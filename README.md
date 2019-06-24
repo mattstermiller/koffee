@@ -51,8 +51,11 @@ _Capitalized letters indicate that the key is combined with Shift._
     - `Ctrl + j` and `Ctrl + k` move the cursor by half-pages at a time.
     - `gg` (press `g` twice) jumps to the first item, and `G` jumps to the last item.
 - **Find / Jump to item**:
-    - Press `f` then any character to jump to the next item beginning with that character (not case-sensitive). For example, pressing `fa` will jump to the first file or folder starting with "a" or "A". Then press `;` to continue jumping to more items starting with that same character.
-    - Press `F` then any character to jump to the next item beginning with that character, case-sensitive.
+    - Press `f` then the beginning of a file or folder name. The cursor will jump to the first matching item as you type (not case-sensitive).
+        - Press `;` during or after a Find to jump to the next matching item.
+        - Press `Enter` to open the selected item and close Find.
+        - Press `Esc` to close Find.
+    - Press `F` to start a "multi" Find, which stays open when opening folders.
 - **Search**:
     - Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `Enter` to jump to the next item containing the search term in its name.
     - After doing a search, press `n` to go to the next match, or `N` to go to the previous match.

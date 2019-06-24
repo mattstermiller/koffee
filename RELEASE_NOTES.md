@@ -1,6 +1,9 @@
 # Release Notes
 
-### 0.4.2
+### 0.5.0  Recursive Search
+- #51 Changes Find to a "Starts with" jump
+
+### 0.4.2  (2019-06-20)
 - Adds "Open With" command
 - Adds "Open Properties" command
 - Adds "Copy to Clipboard" command

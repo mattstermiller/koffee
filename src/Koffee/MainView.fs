@@ -1,7 +1,6 @@
 ﻿namespace Koffee
 
 open System.Windows
-open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Controls
 open System.Windows.Media
@@ -56,10 +55,10 @@ module MainView =
             sprintf "Permanently delete %s y/n ?" node.Description
         | Confirm (OverwriteBookmark (char, existingPath)) ->
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
-        | Prompt (Find caseSensitive) ->
-            sprintf "Find%s:" (if caseSensitive then " case-sensitive" else "")
         | Prompt promptType ->
             promptType |> caseName
+        | Input (Find multi) ->
+            sprintf "Find item starting with%s:" (if multi then " (multi)" else "")
         | Input inputType ->
             inputType |> caseName
 
@@ -94,11 +93,8 @@ module MainView =
                 window.PathBox.ScrollToHorizontalOffset(window.PathBox.ActualWidth)
         )
 
-        // on selection change, keep selected node in view, make sure node list is focused
-        window.NodeGrid.SelectedCellsChanged.Add (fun _ ->
-            keepSelectedInView ()
-            window.NodeGrid.Focus() |> ignore
-        )
+        // on selection change, keep selected node in view
+        window.NodeGrid.SelectedCellsChanged.Add (fun _ -> keepSelectedInView ())
 
         window.NodeGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
 
@@ -106,6 +102,8 @@ module MainView =
 
         if config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
+
+        window.NodeGrid.Focus() |> ignore
 
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
@@ -172,9 +170,10 @@ module MainView =
                         | _ ->
                             window.BookmarkPanel.Visible <- false
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
-                        window.InputPanel.Visible <- true
-                        window.InputBox.Select(selectStart, selectLen)
-                        window.InputBox.Focus() |> ignore
+                        if not window.InputPanel.Visible then
+                            window.InputPanel.Visible <- true
+                            window.InputBox.Select(selectStart, selectLen)
+                            window.InputBox.Focus() |> ignore
                     | None ->
                         if window.InputPanel.Visible then
                             window.InputPanel.Visible <- false
@@ -277,6 +276,7 @@ module MainView =
             | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
             | _ -> None
         )
+        window.InputBox.TextChanged |> Observable.mapTo InputChanged
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->
@@ -307,7 +307,7 @@ module MainView =
 
 module MainStatus =
     // navigation
-    let find caseSensitive char = Message <| sprintf "Find %O%s" char (if caseSensitive then " (case-sensitive)" else "")
+    let find prefix = Message <| "Find item starting with: " + prefix
     let search matches caseSensitive searchStr =
         let cs = if caseSensitive then " (case-sensitive)" else ""
         Message <| sprintf "Search \"%s\"%s found %i matches" searchStr cs matches

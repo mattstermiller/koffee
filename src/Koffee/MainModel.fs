@@ -86,7 +86,6 @@ type PutAction =
     | Shortcut
 
 type PromptType =
-    | Find of caseSensitive: bool
     | GoToBookmark
     | SetBookmark
     | DeleteBookmark
@@ -97,6 +96,7 @@ type ConfirmType =
     | OverwriteBookmark of char * existingPath: Path
 
 type InputType =
+    | Find of multi: bool
     | Search
     | CreateFile
     | CreateFolder
@@ -144,7 +144,7 @@ type MainModel = {
     InputText: string
     InputTextSelection: int * int
     InputMode: InputMode option
-    LastFind: (bool * char) option
+    LastFind: string option
     LastSearch: (bool * string) option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
@@ -228,6 +228,7 @@ type MainEvents =
     | StartConfirm of ConfirmType
     | StartInput of InputType
     | InputCharTyped of char * EvtHandler
+    | InputChanged
     | InputDelete of EvtHandler
     | SubmitInput
     | CancelInput
@@ -262,8 +263,8 @@ type MainEvents =
         | CursorDownHalfPage -> "Move Cursor Down Half Page"
         | CursorToFirst -> "Move Cursor to First Item"
         | CursorToLast -> "Move Cursor to Last Item"
-        | StartPrompt (Find false) -> "Find Item Beginning With Character (case-insensitive)"
-        | StartPrompt (Find true) -> "Find Item Beginning With Character (case-sensitive)"
+        | StartInput (Find false) -> "Find Item Starting With..."
+        | StartInput (Find true) -> "Find Item Starting With... (Multi)"
         | FindNext -> "Go To Next Find Match"
         | StartInput Search -> "Search For Items"
         | SearchNext -> "Go To Next Search Match"
@@ -313,8 +314,8 @@ type MainEvents =
         CursorDownHalfPage
         CursorToFirst
         CursorToLast
-        StartPrompt (Find false)
-        StartPrompt (Find true)
+        StartInput (Find false)
+        StartInput (Find true)
         FindNext
         StartInput Search
         SearchNext

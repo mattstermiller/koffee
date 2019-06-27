@@ -31,7 +31,7 @@ NUGET
     System.Reactive.Windows.Threading (3.1.1)
       System.Reactive.Core (>= 3.1.1)
     Tools.InnoSetup (5.6.1)
-    VinylUI (2.2.4)
+    VinylUI (2.2.5)
       FSharp.Control.AsyncSeq (>= 2.0.20 < 2.1)
       FSharp.Quotations.Evaluator (>= 1.1 < 2.0)
       System.Reactive (>= 3.1 < 4.0)

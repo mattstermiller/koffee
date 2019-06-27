@@ -141,9 +141,9 @@ type MainModel = {
     PageSize: int
     ShowHidden: bool
     KeyCombo: KeyCombo
+    InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
-    InputMode: InputMode option
     LastFind: string option
     LastSearch: (bool * string) option
     BackStack: (Path * int) list

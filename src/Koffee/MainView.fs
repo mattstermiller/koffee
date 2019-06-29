@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System.Windows
 open System.Windows.Input
@@ -103,6 +103,7 @@ module MainView =
         if config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
+        window.SettingsButton.Click.Add (fun _ -> window.NodeGrid.Focus() |> ignore)
         window.NodeGrid.Focus() |> ignore
 
         let version = typeof<MainModel>.Assembly.GetName().Version

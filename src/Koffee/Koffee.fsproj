@@ -68,6 +68,7 @@
     <None Include="App.config" />
     <None Include="config.yaml" />
     <Content Include="paket.references" />
+    <Resource Include="AppStyles.xaml" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
     <Compile Include="ValueConverters.fs" />

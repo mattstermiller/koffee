@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -185,12 +185,13 @@ module Nav =
                         (weight, n.Name.ToLower())
                     )
                 | None -> id
-            let! res = runAsync (fun () -> fsReader.GetFolders parentPath)
+            let! res =
+                match model.PathSuggestCache with
+                | Some (cachePath, cache) when cachePath = parentPath -> async { return cache }
+                | _ -> runAsync (fun () -> fsReader.GetFolders parentPath |> Result.mapError (fun e -> e.Message))
             let suggestions =
-                res
-                |> Result.map (filterSort >> List.map (fun n -> n.Path.FormatFolder model.PathFormat))
-                |> Result.mapError (fun e -> e.Message)
-            yield { model with PathSuggestions = suggestions }
+                res |> Result.map (filterSort >> List.map (fun n -> n.Path.FormatFolder model.PathFormat))
+            yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (parentPath, res) }
         | None ->
             yield { model with PathSuggestions = Ok [] }
     }

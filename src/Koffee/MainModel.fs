@@ -135,6 +135,7 @@ type MainModel = {
     LocationInput: string
     PathFormat: PathFormat
     PathSuggestions: Result<string list, string>
+    PathSuggestCache: (Path * Result<Node list, string>) option
     Status: StatusType option
     Nodes: Node list
     Sort: SortField * bool
@@ -186,6 +187,7 @@ type MainModel = {
         PathFormat = Windows
         LocationInput = Path.Root.Format Windows
         PathSuggestions = Ok []
+        PathSuggestCache = None
         Status = None
         Nodes = [ Node.Empty ]
         Sort = Name, false

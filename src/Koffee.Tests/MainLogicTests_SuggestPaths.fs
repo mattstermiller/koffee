@@ -5,12 +5,17 @@ open FsUnitTyped
 open Acadian.FSharp
 open FSharp.Control
 
-let folders = [  
+let folders = [
     "/c/old projects/"
     "/c/programs/"
     "/c/Projects/"
     "/c/temporary/"
 ]
+
+let suggestPaths fsReader model =
+    MainLogic.Nav.suggestPaths fsReader model
+    |> AsyncSeq.lastOrDefault model
+    |> Async.RunSynchronously
 
 let testCases () =
     [   ("/c", [])
@@ -44,10 +49,7 @@ let ``Path suggestions return expected results`` input expected =
         if path = createPath "/c/" then Ok (folders |> List.map createNode) else Ok []
     let model = { baseModel with LocationInput = input }
 
-    let actual = MainLogic.Nav.suggestPaths fsReader model
-                 |> AsyncSeq.lastOrDefault model
-                 |> Async.RunSynchronously
-
+    let actual = suggestPaths fsReader model
     actual.PathSuggestions |> shouldEqual (Ok expected)
 
 [<Test>]
@@ -58,8 +60,32 @@ let ``Path suggestions return error`` () =
         if path = createPath "/c/" then Error err else Ok []
     let model = { baseModel with LocationInput = "/c/" }
 
-    let actual = MainLogic.Nav.suggestPaths fsReader model
-                 |> AsyncSeq.lastOrDefault model
-                 |> Async.RunSynchronously
-
+    let actual = suggestPaths fsReader model
     actual.PathSuggestions |> shouldEqual (Error err.Message)
+
+[<Test>]
+let ``Path suggestions cache folder listings`` () =
+    let mutable fsCalls = 0
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetFolders <- fun path ->
+        fsCalls <- fsCalls + 1
+        Ok []
+    let model =
+        { baseModel with
+            LocationInput = "/c/"
+            PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map createNode))
+        }
+
+    let cacheHit = suggestPaths fsReader model
+    fsCalls |> shouldEqual 0
+    cacheHit |> shouldEqual { model with PathSuggestions = Ok folders }
+
+    let missModel = { model with LocationInput = "/c/path/" }
+    let cacheMiss = suggestPaths fsReader missModel
+    fsCalls |> shouldEqual 1
+    let expected =
+        { missModel with
+            PathSuggestions = Ok []
+            PathSuggestCache = Some (createPath "/c/path/", Ok [])
+        }
+    cacheMiss |> shouldEqual expected

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -79,8 +79,8 @@
     <Compile Include="KeyBinding.fs" />
     <Resource Include="SettingsWindow.xaml" />
     <Compile Include="Settings.fs" />
-    <Compile Include="FileSystem.fs" />
     <Compile Include="OperatingSystem.fs" />
+    <Compile Include="FileSystem.fs" />
     <Compile Include="ProgramOptions.fs" />
     <Resource Include="MainWindow.xaml" />
     <Compile Include="MainView.fs" />
@@ -103,17 +103,6 @@
     <Reference Include="System.Xaml" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
-  </ItemGroup>
-  <ItemGroup>
-    <COMReference Include="Windows Script Host Object Model">
-      <Guid>{f935dc20-1cf0-11d0-adb9-00c04fd58a0b}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <Isolated>False</Isolated>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Private>True</Private>
-    </COMReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

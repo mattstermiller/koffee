@@ -1,7 +1,6 @@
 ﻿namespace Koffee
 
 open System
-open IWshRuntimeLibrary
 open System.IO
 open System.Text.RegularExpressions
 open System.Management
@@ -26,8 +25,6 @@ type IFileSystemWriter =
 type FileSystem(config: Config) =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
-
-    let getShortcut path = WshShellClass().CreateShortcut(path) :?> IWshShortcut
 
     let basicNode path name nodeType =
         { Path = path
@@ -192,7 +189,7 @@ type FileSystem(config: Config) =
 
     member this.GetShortcutTarget path =
         tryResult <| fun () ->
-            getShortcut(wpath path).TargetPath
+            LinkFile.getLinkTarget(wpath path)
 
 
     interface IFileSystemWriter with
@@ -212,9 +209,7 @@ type FileSystem(config: Config) =
 
     member this.CreateShortcut target path =
         tryResult <| fun () ->
-            let shortcut = getShortcut (wpath path)
-            shortcut.TargetPath <- wpath target
-            shortcut.Save()
+            LinkFile.saveLink (wpath target) (wpath path)
 
     member this.Move fromPath toPath =
         this.FileOrFolderAction fromPath "move" <| fun nodeType -> result {

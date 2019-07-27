@@ -131,3 +131,54 @@ type OperatingSystem() =
                 let data = DataObject(DataFormats.FileDrop, [|path|])
                 data.SetText(path)
                 Clipboard.SetDataObject(data, true)
+
+module LinkFile =
+    open System
+    open System.Text
+    open System.Runtime.InteropServices
+    open System.Runtime.InteropServices.ComTypes
+
+    type IShellLinkGetPathFlags =
+        | ShortPath = 1
+        | UncPriority = 2
+        | RawPath = 4
+
+    [<ComImport>]
+    [<InterfaceType(ComInterfaceType.InterfaceIsIUnknown)>]
+    [<Guid("000214F9-0000-0000-C000-000000000046")>]
+    type private IShellLink =
+        abstract member GetPath: [<Out; MarshalAs(UnmanagedType.LPWStr)>] pszFile: StringBuilder -> cchMaxPath: int ->
+                                 [<Out>] pfd: IntPtr -> fFlags: IShellLinkGetPathFlags -> unit
+        abstract member GetIDList: [<Out>] ppidl: IntPtr -> unit
+        abstract member SetIDList: pidl: IntPtr -> unit
+        abstract member GetDescription: [<Out; MarshalAs(UnmanagedType.LPWStr)>] pszName: StringBuilder -> cchMaxName: int -> unit
+        abstract member SetDescription: [<MarshalAs(UnmanagedType.LPWStr)>] pszName: string -> unit
+        abstract member GetWorkingDirectory: [<Out; MarshalAs(UnmanagedType.LPWStr)>] pszDir: StringBuilder -> cchMaxPath: int -> unit
+        abstract member SetWorkingDirectory: [<MarshalAs(UnmanagedType.LPWStr)>] pszDir: string -> unit
+        abstract member GetArguments: [<Out; MarshalAs(UnmanagedType.LPWStr)>] pszArgs: StringBuilder -> cchMaxPath: int -> unit
+        abstract member SetArguments: [<MarshalAs(UnmanagedType.LPWStr)>] pszArgs: string -> unit
+        abstract member GetHotkey: [<Out>] pwHotkey: int16 -> unit
+        abstract member SetHotkey: wHotkey: int16 -> unit
+        abstract member GetShowCmd: [<Out>] piShowCmd: int -> unit
+        abstract member SetShowCmd: iShowCmd: int -> unit
+        abstract member GetIconLocation: [<Out; MarshalAs(UnmanagedType.LPWStr)>] pszIconPath: StringBuilder -> cchIconPath: int -> [<Out>] piIcon: int -> unit
+        abstract member SetIconLocation: [<MarshalAs(UnmanagedType.LPWStr)>] pszIconPath: string -> iIcon: int -> unit
+        abstract member SetRelativePath: [<MarshalAs(UnmanagedType.LPWStr)>] pszPathRel: string -> dwReserved: int -> unit
+        abstract member Resolve: hwnd: IntPtr -> fFlags: int -> unit
+        abstract member SetPath: [<MarshalAs(UnmanagedType.LPWStr)>] pszFile: string -> unit
+
+    let private ShellLink () =
+        let typ = Type.GetTypeFromCLSID (Guid "00021401-0000-0000-C000-000000000046")
+        Activator.CreateInstance typ :?> IShellLink
+
+    let getLinkTarget path =
+        let link = ShellLink ()
+        (link :?> IPersistFile).Load(path, 0)
+        let target = StringBuilder(260)
+        link.GetPath target target.Capacity IntPtr.Zero IShellLinkGetPathFlags.RawPath
+        target.ToString()
+
+    let saveLink target path =
+        let link = ShellLink ()
+        link.SetPath target
+        (link :?> IPersistFile).Save(path, false)

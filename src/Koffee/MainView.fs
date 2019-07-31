@@ -179,13 +179,13 @@ module MainView =
 
             // display and save register
             Bind.model(<@ model.YankRegister @>).toFunc(fun register ->
-                let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
+                let configRegister = register |> Option.map (fun (path, _, action) -> path, action)
                 if configRegister <> config.YankRegister then
                     config.YankRegister <- configRegister
                     config.Save()
                 let text =
-                    register |> Option.map (fun (node, action) ->
-                        sprintf "%A %A: %s" action node.Type node.Name)
+                    register |> Option.map (fun (path, typ, action) ->
+                        sprintf "%A %A: %s" action typ path.Name)
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.Visible <- text.IsSome
             )
@@ -401,6 +401,7 @@ type MainError =
     | ShortcutTargetMissing of string
     | InvalidSearchSlash
     | InvalidSearchSwitch of char
+    | YankRegisterItemMissing of string
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
     | CannotMoveToSameFolder
@@ -436,6 +437,7 @@ type MainError =
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | InvalidSearchSlash -> "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
         | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
+        | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
         | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, nodeType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""

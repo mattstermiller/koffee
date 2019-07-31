@@ -150,7 +150,7 @@ type MainModel = {
     LastSearch: (bool * string) option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
-    YankRegister: (Node * PutAction) option
+    YankRegister: (Path * NodeType * PutAction) option
     UndoStack: ItemAction list
     RedoStack: ItemAction list
     ShowFullPathInTitle: bool

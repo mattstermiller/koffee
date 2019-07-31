@@ -14,7 +14,7 @@ let loadConfig (fsReader: IFileSystemReader) (config: Config) model =
         YankRegister =
             config.YankRegister |> Option.bind (fun (path, action) ->
                 match fsReader.GetNode path with
-                | Ok (Some node) -> Some (node, action)
+                | Ok (Some node) -> Some (node.Path, node.Type, action)
                 | _ -> None
             )
         PathFormat = config.PathFormat
@@ -376,7 +376,7 @@ module Action =
     let registerItem action (model: MainModel) =
         if model.SelectedNode.Type.CanModify then
             { model with
-                YankRegister = Some (model.SelectedNode, action)
+                YankRegister = Some (model.SelectedNode.Path, model.SelectedNode.Type, action)
                 Status = None
             }
         else model
@@ -435,13 +435,17 @@ module Action =
             yield model |> performedAction action
     }
 
-    let put fsReader fsWriter overwrite model = asyncSeqResult {
+    let put (fsReader: IFileSystemReader) fsWriter overwrite model = asyncSeqResult {
         match model.YankRegister with
         | None -> ()
-        | Some (node, putAction) ->
-            let! model = putItem fsReader fsWriter overwrite node putAction model
-            if model.InputMode.IsNone then
-                yield { model with YankRegister = None }
+        | Some (path, _, putAction) ->
+            match! fsReader.GetNode path |> actionError "read yank register item" with
+            | Some node ->
+                let! model = putItem fsReader fsWriter overwrite node putAction model
+                if model.InputMode.IsNone then
+                    yield { model with YankRegister = None }
+            | None ->
+                return YankRegisterItemMissing (path.Format model.PathFormat)
     }
 
     let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncSeqResult {

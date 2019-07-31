@@ -729,6 +729,7 @@ let submitInput fsReader fsWriter os (config: Config) model = asyncSeqResult {
         let model =
             if multi then { model with InputText = ""  }
             else { model with InputMode = None }
+        yield model
         yield! Nav.openSelected fsReader os model
     | Some (Input Search) ->
         let model = { model with InputMode = None }

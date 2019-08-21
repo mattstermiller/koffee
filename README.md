@@ -23,7 +23,8 @@ Go to the [releases page](https://github.com/mattstermiller/koffee/releases). Fr
 
 ### From Source
 You will need to have installed:
-- [Visual Studio or VS Build Tools](https://visualstudio.microsoft.com/downloads/) with the F# compiler option selected
+- [Visual Studio or VS Build Tools](https://visualstudio.microsoft.com/downloads/)
+  - Make sure to select the components "F# compiler" and ".NET Framework 4.5.1 targeting pack"
 - [FAKE](https://fake.build/fake-gettingstarted.html)
 
 Steps:

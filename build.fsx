@@ -191,12 +191,16 @@ open Fake.Core.TargetOperators
     ==> "version"
     ==> "restore"
     ==> "build"
+    ==> "package"
+    <=> "install"
+
+"restore"
     ==> "buildtest"
     ==> "test"
     ==> "package"
+    <=> "install"
+
+"package"
     ==> "publish"
 
-"test"
-    ==> "install"
-
-Target.runOrDefault "test"
+Target.runOrDefault "build"

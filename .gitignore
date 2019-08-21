@@ -11,3 +11,6 @@ dist-files/
 *.VisualState.xml
 TestResult.xml
 
+# vs code
+.vscode/
+.ionide/

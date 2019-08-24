@@ -64,7 +64,7 @@ module MainView =
         | Input inputType ->
             inputType |> caseName
 
-    let binder (config: ConfigFile) (window: MainWindow) model =
+    let binder (configFile: ConfigFile) (window: MainWindow) model =
         let keepSelectedInView () =
             if window.NodeGrid.SelectedItem <> null then
                 window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
@@ -126,7 +126,7 @@ module MainView =
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
 
-        if config.Value.Window.IsMaximized then
+        if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
         window.SettingsButton.Click.Add (fun _ -> window.NodeGrid.Focus() |> ignore)
@@ -171,13 +171,8 @@ module MainView =
                 window.Title <- sprintf "%s  |  Koffee v%s" titleLoc versionStr
             )
 
-            Bind.model(<@ model.ShowHidden @>).toFunc(fun sh ->
-                config.Value <- { config.Value with ShowHidden = sh }
-            )
-
-            // display and save register
-            Bind.model(<@ model.YankRegister @>).toFunc(fun register ->
-                config.Value <- { config.Value with YankRegister = register }
+            // display yank register
+            Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
                     register |> Option.map (fun (path, typ, action) ->
                         sprintf "%A %A: %s" action typ path.Name)
@@ -187,8 +182,8 @@ module MainView =
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat, model.Config.Bookmarks @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -196,7 +191,7 @@ module MainView =
                         | Prompt SetBookmark
                         | Prompt DeleteBookmark ->
                             let bookmarks =
-                                config.Value.Bookmarks
+                                bookmarks
                                 |> List.map (fun (c, p) -> (c, p.Format pathFormat))
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
@@ -257,6 +252,8 @@ module MainView =
                 if int window.Width <> width then window.Width <- float width
                 if int window.Height <> height then window.Height <- float height
             )
+
+            Bind.model(<@ model.Config @>).toFunc(configFile.set_Value)
         ]
 
     let events (config: ConfigFile) (window: MainWindow) = [
@@ -327,7 +324,7 @@ module MainView =
             else None
         )
         window.Closed |> Observable.mapTo Closed
-        config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.mapTo ConfigChanged
+        config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map ConfigFileChanged
     ]
 
 module MainStatus =

@@ -76,7 +76,7 @@
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="MainModel.fs" />
-    <Compile Include="Config.fs" />
+    <Compile Include="PersistFile.fs" />
     <Compile Include="ConfigYaml.fs" />
     <Compile Include="KeyBinding.fs" />
     <Resource Include="SettingsWindow.xaml" />

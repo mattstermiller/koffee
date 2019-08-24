@@ -50,10 +50,18 @@ with
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
-    static member Empty = {
-        Path = Path.Root; Name = ""; Type = Empty
-        Modified = None; Size = None; IsHidden = false; IsSearchMatch = false
-    }
+    static member Empty =
+        { Path = Path.Root; Name = ""; Type = Empty
+          Modified = None; Size = None; IsHidden = false; IsSearchMatch = false
+        }
+
+    static member Basic path name nodeType =
+        { Node.Empty with
+            Path = path
+            Name = name
+            Type = nodeType
+        }
+
 
 type SortField =
     | Name
@@ -130,10 +138,82 @@ type StatusType =
             | _ -> ex.Message
         ErrorMessage (sprintf "Could not %s: %s" actionName exnMessage)
 
+type StartPath =
+    | RestorePrevious
+    | DefaultPath
+
+type WindowConfig = {
+    IsMaximized: bool
+    Location: int * int
+    Size: int * int
+    ShowFullPathInTitle: bool
+    RefreshOnActivate: bool
+}
+
+type Config = {
+    StartPath: StartPath
+    DefaultPath: string
+    PreviousPath: string
+    PathFormat: PathFormat
+    ShowHidden: bool
+    SearchCaseSensitive: bool
+    TextEditor: string
+    CommandlinePath: string
+    YankRegister: (Path * NodeType * PutAction) option
+    Window: WindowConfig
+    Bookmarks: (char * Path) list
+    NetHosts: string list
+}
+with
+    member this.GetBookmark char =
+        this.Bookmarks |> List.tryFind (fst >> (=) char) |> Option.map snd
+
+    member this.WithBookmark char path =
+        let bookmarks =
+            this.Bookmarks
+            |> List.filter (fst >> (<>) char)
+            |> List.append [(char, path)]
+            |> List.sortBy (fun (c, _) ->
+                // sort an upper case letter immediately after its lower case
+                if Char.IsUpper c then Char.ToLower c |> sprintf "%c2" else string c
+            )
+        { this with Bookmarks = bookmarks }
+
+    member this.WithoutBookmark char =
+        { this with Bookmarks = this.Bookmarks |> List.filter (fst >> (<>) char) }
+
+    member this.WithNetHost host =
+        if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
+            this
+        else
+            { this with NetHosts = host :: this.NetHosts |> List.sortBy String.toLower }
+
+    static member FilePath = Path.KoffeeData.Join("config.json").Format Windows
+
+    static member Default = {
+        StartPath = RestorePrevious
+        DefaultPath = Path.Root.Format Windows
+        PreviousPath = Path.Root.Format Windows
+        PathFormat = Windows
+        ShowHidden = false
+        SearchCaseSensitive = false
+        TextEditor = "notepad.exe"
+        CommandlinePath = "cmd.exe"
+        YankRegister = None
+        Window = {
+            IsMaximized = false
+            Location = (200, 200)
+            Size = (800, 800)
+            ShowFullPathInTitle = false
+            RefreshOnActivate = true
+        }
+        Bookmarks = []
+        NetHosts = []
+    }
+
 type MainModel = {
     Location: Path
     LocationInput: string
-    PathFormat: PathFormat
     PathSuggestions: Result<string list, string>
     PathSuggestCache: (Path * Result<Node list, string>) option
     Status: StatusType option
@@ -141,7 +221,6 @@ type MainModel = {
     Sort: SortField * bool
     Cursor: int
     PageSize: int
-    ShowHidden: bool
     KeyCombo: KeyCombo
     InputMode: InputMode option
     InputText: string
@@ -150,13 +229,12 @@ type MainModel = {
     LastSearch: (bool * string) option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
-    YankRegister: (Path * NodeType * PutAction) option
     UndoStack: ItemAction list
     RedoStack: ItemAction list
-    ShowFullPathInTitle: bool
     WindowLocation: int * int
     WindowSize: int * int
     SaveWindowSettings: bool
+    Config: Config
 } with
     member private this.ClampCursor index =
          index |> max 0 |> min (this.Nodes.Length - 1)
@@ -164,12 +242,14 @@ type MainModel = {
     member this.SelectedNode =
         this.Nodes.[this.Cursor |> this.ClampCursor]
 
+    member this.PathFormat = this.Config.PathFormat
+
     member this.LocationFormatted = this.Location.Format this.PathFormat
 
     member this.HalfPageSize = this.PageSize/2 - 1
 
     member this.TitleLocation =
-        if this.ShowFullPathInTitle then
+        if this.Config.Window.ShowFullPathInTitle then
             this.LocationFormatted
         else
             this.Location.Name |> String.ifEmpty this.LocationFormatted
@@ -184,7 +264,6 @@ type MainModel = {
 
     static member Default = {
         Location = Path.Root
-        PathFormat = Windows
         LocationInput = Path.Root.Format Windows
         PathSuggestions = Ok []
         PathSuggestCache = None
@@ -193,7 +272,6 @@ type MainModel = {
         Sort = Name, false
         Cursor = 0
         PageSize = 30
-        ShowHidden = false
         KeyCombo = []
         InputMode = None
         InputText = ""
@@ -202,13 +280,12 @@ type MainModel = {
         LastSearch = None
         BackStack = []
         ForwardStack = []
-        YankRegister = None
         UndoStack = []
         RedoStack = []
-        ShowFullPathInTitle = false
         WindowLocation = 0, 0
         WindowSize = 800, 800
         SaveWindowSettings = true
+        Config = Config.Default
     }
 
 type MainEvents =
@@ -253,7 +330,7 @@ type MainEvents =
     | OpenSettings
     | Exit
     | PathInputChanged
-    | ConfigChanged
+    | ConfigFileChanged of Config
     | PageSizeChanged of int
     | WindowLocationChanged of int * int
     | WindowSizeChanged of int * int

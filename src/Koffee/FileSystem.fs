@@ -23,19 +23,9 @@ type IFileSystemWriter =
     abstract member Recycle: Path -> Result<unit, exn>
     abstract member Delete: Path -> Result<unit, exn>
 
-type FileSystem(config: ConfigFile) =
+type FileSystem() =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
-
-    let basicNode path name nodeType =
-        { Path = path
-          Name = name
-          Type = nodeType
-          Modified = None
-          Size = None
-          IsHidden = false
-          IsSearchMatch = false
-        }
 
     let fileNode (file: FileInfo) =
         { Path = toPath file.FullName
@@ -77,11 +67,8 @@ type FileSystem(config: ConfigFile) =
           IsSearchMatch = false
         }
 
-    let netHostNode path =
-        basicNode path path.Name NetHost
-
     let netShareNode path =
-        { basicNode path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
+        { Node.Basic path path.Name NetShare with IsHidden = path.Name.EndsWith("$") }
 
     let getNetShares (serverPath: Path) =
         let server = serverPath.Name
@@ -125,7 +112,7 @@ type FileSystem(config: ConfigFile) =
             let dir = lazy DirectoryInfo(wp)
             let file = lazy FileInfo(wp)
             if path.IsNetHost then
-                Some (path |> netHostNode)
+                Some (Node.Basic path path.Name NetHost)
             else if path.Parent.IsNetHost && dir.Value.Exists then
                 Some (path |> netShareNode)
             else if path.Drive = Some path then
@@ -142,13 +129,7 @@ type FileSystem(config: ConfigFile) =
             if path = Path.Root then
                 DriveInfo.GetDrives()
                 |> Seq.map driveNode
-                |> flip Seq.append [basicNode Path.Network "Network" Drive]
-                |> Ok
-            else if path = Path.Network then
-                config.Value.NetHosts
-                |> Seq.map (sprintf @"\\%s")
-                |> Seq.choose Path.Parse
-                |> Seq.map netHostNode
+                |> flip Seq.append [Node.Basic Path.Network "Network" Drive]
                 |> Ok
             else if path.IsNetHost then
                 getNetShares path
@@ -166,12 +147,7 @@ type FileSystem(config: ConfigFile) =
                         Error <| exn "Drive is not ready"
                     else
                         Error <| exn (sprintf "Path does not exist: %s" (wpath path))
-        allNodes |> Result.map (fun allNodes ->
-            path.NetHost |> Option.iter (fun n -> config.Value <- config.Value.WithNetHost n)
-            allNodes
-            |> Seq.filter (fun n -> not n.IsHidden || showHidden)
-            |> Seq.toList
-        )
+        allNodes |> Result.map (Seq.filter (fun n -> not n.IsHidden || showHidden) >> Seq.toList)
 
     member this.IsEmpty path =
         let wp = wpath path

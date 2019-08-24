@@ -33,10 +33,8 @@ module ConfigYamlExt =
                     YankRegister = yankRegister
                     Window = {
                         IsMaximized = config.Window.IsMaximized
-                        Left = config.Window.Left
-                        Top = config.Window.Top
-                        Width = config.Window.Width
-                        Height = config.Window.Height
+                        Location = (config.Window.Left, config.Window.Top)
+                        Size = (config.Window.Width, config.Window.Height)
                         ShowFullPathInTitle = false
                         RefreshOnActivate = true
                     }

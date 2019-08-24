@@ -29,6 +29,9 @@ let testModel =
         Cursor = 0
     }
 
+let withReg reg model =
+    { model with Config = { model.Config with YankRegister = reg } }
+
 let mockGetNodeFunc nodeFunc path =
     if path = modelPathNode.Path then Ok (Some modelPathNode)
     else Ok (nodeFunc path)
@@ -63,13 +66,12 @@ let ``Put item in different folder with item of same name prompts for overwrite`
         Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let item = Some (src.Path, src.Type, action)
-    let model = { testModel with YankRegister = item }
+    let model = testModel |> withReg item
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
     let expected =
-        { testModel with
-            YankRegister = item
+        { (testModel |> withReg item) with
             Nodes = newNodes
             Cursor = 1
             InputMode = Some (Confirm (Overwrite (action, src, dest)))
@@ -84,7 +86,7 @@ let ``Put handles missing register item`` () =
     fsReader.GetNode <- mockGetNode []
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let model = { testModel with YankRegister = Some (src.Path, src.Type, Move) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -98,7 +100,7 @@ let ``Put handles error reading register item`` () =
     fsReader.GetNode <- (fun _ -> Error ex)
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let model = { testModel with YankRegister = Some (src.Path, src.Type, Move) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -120,7 +122,7 @@ let ``Put item handles file system errors`` action =
     fsWriter.CreateShortcut <- fun _ _ ->
         if action = Shortcut then Error ex else failwith "CreateShortcut should not be called"
     let item = Some (src.Path, src.Type, action)
-    let model = { testModel with YankRegister = item }
+    let model = testModel |> withReg item
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -143,7 +145,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     fsWriter.Move <- fun s d ->
         moved <- (s, d) :: moved
         Ok ()
-    let model = { testModel with YankRegister = Some (src.Path, src.Type, Move) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
@@ -166,7 +168,7 @@ let ``Put item to move in same folder returns error``() =
     fsReader.GetNode <- mockGetNode [src]
     fsReader.GetNodes <- fun _ _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let model = { testModel with YankRegister = Some (src.Path, src.Type, Move) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -257,7 +259,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     fsWriter.Copy <- fun s d ->
         copied <- (s, d) :: copied
         Ok ()
-    let model = { testModel with YankRegister = Some (src.Path, src.Type, Copy) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
@@ -289,7 +291,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     fsWriter.Copy <- fun s d ->
         copied <- Some (s, d)
         Ok ()
-    let model = { testModel with YankRegister = Some (src.Path, src.Type, Copy) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -400,7 +402,7 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     fsWriter.CreateShortcut <- fun target dest ->
         created <- (target, dest) :: created
         Ok ()
-    let model = { testModel with YankRegister = Some (target.Path, target.Type, Shortcut) }
+    let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 

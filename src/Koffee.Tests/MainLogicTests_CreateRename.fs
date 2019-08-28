@@ -29,7 +29,7 @@ let ex = System.UnauthorizedAccessException() :> exn
 let ``Create folder calls file sys create, openPath and sets status``() =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> Ok None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable created = None
     fsWriter.Create <- fun nodeType path ->
@@ -57,7 +57,7 @@ let ``Create folder returns error when item already exists at path`` existingHid
     let existing = { oldNodes.[1] with IsHidden = existingHidden }
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> Ok <| Some existing
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let createNode = newNodes.[1]
 
@@ -90,7 +90,7 @@ let ``Create folder handles error by returning error``() =
 let ``Undo create empty node calls delete`` curPathDifferent =
     let fsReader = FakeFileSystemReader()
     fsReader.IsEmpty <- fun _ -> true
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
@@ -144,7 +144,7 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let renamedNode = if diffCaseOnly then currentNode else newNodes.[1]
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> if diffCaseOnly then Ok (Some currentNode) else Ok None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable renamed = None
     fsWriter.Move <- fun s d ->
@@ -204,7 +204,7 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
     let curNode = if diffCaseOnly then prevNode else oldNodes.[1]
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> if diffCaseOnly then Ok (Some curNode) else Ok None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable moved = None
     fsWriter.Move <- fun s d ->

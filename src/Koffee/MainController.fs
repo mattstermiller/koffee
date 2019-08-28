@@ -24,16 +24,23 @@ module Nav =
                 |> List.map (fun path -> Node.Basic path path.Name NetHost)
                 |> Ok
             else
-                fsReader.GetNodes model.Config.ShowHidden path |> actionError "open path"
-        let config = path.NetHost |> Option.map model.Config.WithNetHost
+                fsReader.GetNodes path |> actionError "open path"
+        let selectName =
+            match select with
+            | SelectName name -> name
+            | _ -> ""
         let nodes =
-            if nodes.IsEmpty then
+            nodes
+            |> List.filter (fun n -> model.Config.ShowHidden || not n.IsHidden ||
+                                     String.equalsIgnoreCase selectName n.Name)
+            |> SortField.SortByTypeThen model.Sort
+            |> Seq.ifEmpty (
                 let text =
                     if path = Path.Network then "Remote hosts that you visit will appear here"
                     else "Empty folder"
                 [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
-            else
-                nodes |> SortField.SortByTypeThen model.Sort
+            )
+        let config = path.NetHost |> Option.map model.Config.WithNetHost
         let model =
             if path <> model.Location then
                 { model.WithLocation path with
@@ -46,7 +53,7 @@ module Nav =
         let cursor =
             match select with
             | SelectIndex index -> index
-            | SelectName name -> List.tryFindIndex (fun n -> n.Name = name) nodes |? model.Cursor
+            | SelectName name -> List.tryFindIndex (fun n -> String.equalsIgnoreCase n.Name name) nodes |? model.Cursor
             | SelectNone -> model.Cursor
         return
             { model with
@@ -416,14 +423,9 @@ module Action =
         match existing with
         | Some existing when not overwrite ->
             // refresh node list to make sure we can see the existing file
-            let tempShowHidden = not model.Config.ShowHidden && existing.IsHidden
-            let refreshSH = if tempShowHidden then true else model.Config.ShowHidden
-            let refreshModel = { model with Config = { model.Config with ShowHidden = refreshSH } }
-            let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) refreshModel
-            let restoreSH = if tempShowHidden then false else model.Config.ShowHidden
+            let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) model
             yield
                 { model with
-                    Config = { model.Config with ShowHidden = restoreSH }
                     InputMode = Some (Confirm (Overwrite (putAction, node, existing)))
                     InputText = ""
                 }
@@ -749,8 +751,8 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
         | 'n' ->
             let model = { model with Status = Some <| MainStatus.cancelled }
             match confirmType with
-            | Overwrite _ when not model.Config.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
-                // if we were temporarily showing hidden files, refresh
+            | Overwrite _ when not model.Config.ShowHidden && model.SelectedNode.IsHidden ->
+                // if we were temporarily showing a hidden file, refresh
                 yield! Nav.refresh fsReader model
             | _ ->
                 yield model

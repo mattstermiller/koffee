@@ -11,7 +11,7 @@ type FakeFileSystemReader() =
 
     interface IFileSystemReader with
         member this.GetNode path = this.GetNode path
-        member this.GetNodes showHidden path = this.GetNodes showHidden path
+        member this.GetNodes path = this.GetNodes path
         member this.GetFolders path = this.GetFolders path
         member this.IsEmpty path = this.IsEmpty path
         member this.GetShortcutTarget path = this.GetShortcutTarget path

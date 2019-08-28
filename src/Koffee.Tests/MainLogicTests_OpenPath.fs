@@ -35,7 +35,7 @@ let ex = System.UnauthorizedAccessException() :> exn
 
 let test case =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ _ ->
+    fsReader.GetNodes <- fun _ ->
         match case.GetPath with
         | Same -> Ok model.Nodes
         | Different -> Ok newNodes

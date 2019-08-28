@@ -10,7 +10,7 @@ open Koffee
 
 type IFileSystemReader =
     abstract member GetNode: Path -> Result<Node option, exn>
-    abstract member GetNodes: showHidden: bool -> Path -> Result<Node list, exn>
+    abstract member GetNodes: Path -> Result<Node list, exn>
     abstract member GetFolders: Path -> Result<Node list, exn>
     abstract member IsEmpty: Path -> bool
     abstract member GetShortcutTarget: Path -> Result<string, exn>
@@ -100,8 +100,8 @@ type FileSystem() =
 
     interface IFileSystemReader with
         member this.GetNode path = this.GetNode path
-        member this.GetNodes showHidden path = this.GetNodes false showHidden path
-        member this.GetFolders path = this.GetNodes true true path
+        member this.GetNodes path = this.GetNodes false path
+        member this.GetFolders path = this.GetNodes true path
         member this.IsEmpty path = this.IsEmpty path
         member this.GetShortcutTarget path = this.GetShortcutTarget path
 
@@ -124,8 +124,8 @@ type FileSystem() =
             else
                 None
 
-    member this.GetNodes foldersOnly showHidden path =
-        let allNodes =
+    member this.GetNodes foldersOnly path =
+        let nodes =
             if path = Path.Root then
                 DriveInfo.GetDrives()
                 |> Seq.map driveNode
@@ -147,7 +147,7 @@ type FileSystem() =
                         Error <| exn "Drive is not ready"
                     else
                         Error <| exn (sprintf "Path does not exist: %s" (wpath path))
-        allNodes |> Result.map (Seq.filter (fun n -> not n.IsHidden || showHidden) >> Seq.toList)
+        nodes |> Result.map Seq.toList
 
     member this.IsEmpty path =
         let wp = wpath path

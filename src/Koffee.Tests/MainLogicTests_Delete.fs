@@ -27,7 +27,7 @@ let ex = System.UnauthorizedAccessException() :> exn
 [<TestCase(false)>]
 let ``Delete calls correct file sys func and sets message`` permanent =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p -> deleted <- Some p; Ok ()
@@ -57,7 +57,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
 [<Test>]
 let ``Delete handles error by returning error``() =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> Error ex
     let node = oldNodes.[1]

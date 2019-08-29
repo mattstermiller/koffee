@@ -653,8 +653,8 @@ module Action =
     }
 
     let openSettings fsReader openSettings model = result {
-        openSettings ()
-        return! Nav.refresh fsReader model
+        let config = openSettings model.Config
+        return! { model with Config = config } |> Nav.refresh fsReader
     }
 
 let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model =

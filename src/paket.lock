@@ -16,6 +16,7 @@ NUGET
       FSharp.Core (>= 3.1.2.5)
       NUnit (3.5)
     FsXaml.Wpf (3.1.6)
+    Newtonsoft.Json (12.0.2)
     NUnit (3.5)
     NUnit.ConsoleRunner (3.10)
     System.Reactive (3.1.1)

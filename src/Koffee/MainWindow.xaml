@@ -52,8 +52,8 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                            <TextBlock Text="{Binding Key}" Foreground="White" FontWeight="Bold" Width="20"/>
-                            <TextBlock Text="{Binding Value}" Foreground="White"/>
+                            <TextBlock Text="{Binding Item1}" Foreground="White" FontWeight="Bold" Width="20"/>
+                            <TextBlock Text="{Binding Item2}" Foreground="White"/>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

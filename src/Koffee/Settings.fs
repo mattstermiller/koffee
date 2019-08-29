@@ -83,29 +83,21 @@ let private events (view: View) =
       view.RefreshOnActivate |> checkedChanged RefreshWindowOnActivate
     ]
 
-let private dispatcher (config: Config) evt =
-    let configHandler f = Sync (fun m -> f (); config.Save(); m)
+let private dispatcher (config: ConfigFile) evt =
+    let configHandler f = Sync (fun m -> config.Value <- f config.Value; m)
+    let winConfigHandler f = configHandler (fun c -> { c with Window = f c.Window})
     match evt with
-    | StartPathChanged value -> configHandler (fun _ ->
-        config.StartPath <- value)
-    | DefaultPathChanged value -> configHandler (fun _ ->
-        config.DefaultPath <- value)
-    | TextEditorChanged value -> configHandler (fun _ ->
-        config.TextEditor <- value)
-    | CommandlinePathChanged value -> configHandler (fun _ ->
-        config.CommandlinePath <- value)
-    | PathFormatChanged value -> configHandler (fun _ ->
-        config.PathFormat <- value)
-    | ShowFullPathInTitleChanged value -> configHandler (fun _ ->
-        config.Window.ShowFullPathInTitle <- value)
-    | ShowHiddenChanged value -> configHandler (fun _ ->
-        config.ShowHidden <- value)
-    | SearchCaseSensitiveChanged value -> configHandler (fun _ ->
-        config.SearchCaseSensitive <- value)
-    | RefreshWindowOnActivate value -> configHandler (fun _ ->
-        config.Window.RefreshOnActivate <- value)
+    | StartPathChanged value -> configHandler (fun c -> { c with StartPath = value })
+    | DefaultPathChanged value -> configHandler (fun c -> { c with DefaultPath = value})
+    | TextEditorChanged value -> configHandler (fun c -> { c with TextEditor = value})
+    | CommandlinePathChanged value -> configHandler (fun c -> { c with CommandlinePath = value})
+    | PathFormatChanged value -> configHandler (fun c -> { c with PathFormat = value})
+    | ShowFullPathInTitleChanged value -> winConfigHandler (fun w -> { w with ShowFullPathInTitle = value})
+    | ShowHiddenChanged value -> configHandler (fun c -> { c with ShowHidden = value})
+    | SearchCaseSensitiveChanged value -> configHandler (fun c -> { c with SearchCaseSensitive = value})
+    | RefreshWindowOnActivate value -> winConfigHandler (fun w -> { w with RefreshOnActivate = value})
 
-let start config view =
+let start (config: ConfigFile) view =
     let keyBinding (evt: MainEvents) = {
         EventName = evt.FriendlyName
         BoundKeys =
@@ -115,4 +107,4 @@ let start config view =
             |> String.concat " OR "
     }
     let model = { KeyBindings = MainEvents.Bindable |> List.map keyBinding }
-    Framework.start (binder config) events (dispatcher config) view model
+    Framework.start (binder config.Value) events (dispatcher config) view model

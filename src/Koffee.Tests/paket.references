@@ -5,3 +5,4 @@ Acadian.FSharp
 CompareNETObjects
 NUnit
 FsUnit
+Newtonsoft.Json

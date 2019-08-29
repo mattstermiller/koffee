@@ -77,6 +77,7 @@
     <Compile Include="Path.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="Config.fs" />
+    <Compile Include="ConfigYaml.fs" />
     <Compile Include="KeyBinding.fs" />
     <Resource Include="SettingsWindow.xaml" />
     <Compile Include="Settings.fs" />
@@ -186,6 +187,17 @@
         </Reference>
         <Reference Include="FsXaml.Wpf.TypeProvider">
           <HintPath>..\packages\FsXaml.Wpf\lib\net45\FsXaml.Wpf.TypeProvider.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+      </ItemGroup>
+    </When>
+  </Choose>
+  <Choose>
+    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And $(TargetFrameworkVersion) == 'v4.5.1'">
+      <ItemGroup>
+        <Reference Include="Newtonsoft.Json">
+          <HintPath>..\packages\Newtonsoft.Json\lib\net45\Newtonsoft.Json.dll</HintPath>
           <Private>True</Private>
           <Paket>True</Paket>
         </Reference>

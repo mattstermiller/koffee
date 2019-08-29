@@ -19,7 +19,7 @@ let test start path1 path2 =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- validPath >> Result.map (cnst None)
     fsReader.GetNodes <- fun _ -> validPath >> Result.map (cnst [Node.Empty])
-    let config = Config(StartPath = RestorePrevious, PreviousPath = path1, DefaultPath = path2, PathFormat = Unix)
+    let config = { Config.Default with PreviousPath = path1; DefaultPath = path2; PathFormat = Unix }
     let options = { StartPath = start; StartLocation = None; StartSize = None }
     let model = MainLogic.initModel config fsReader options MainModel.Default
     { Start = model.LocationFormatted

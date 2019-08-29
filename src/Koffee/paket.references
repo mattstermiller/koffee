@@ -4,3 +4,4 @@ VinylUI
 System.Reactive
 FSharp.Configuration
 Acadian.FSharp
+Newtonsoft.Json

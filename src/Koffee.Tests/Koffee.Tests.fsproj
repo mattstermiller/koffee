@@ -64,6 +64,7 @@
     <Compile Include="KeyComboParserTests.fs" />
     <Compile Include="PathTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />
+    <Compile Include="ConfigTests.fs" />
     <Compile Include="FakeFileSystem.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
     <Compile Include="MainLogicTests_OpenPath.fs" />
@@ -181,6 +182,17 @@
         </Reference>
         <Reference Include="NHamcrest">
           <HintPath>..\packages\FsUnit\lib\net45\NHamcrest.dll</HintPath>
+          <Private>True</Private>
+          <Paket>True</Paket>
+        </Reference>
+      </ItemGroup>
+    </When>
+  </Choose>
+  <Choose>
+    <When Condition="$(TargetFrameworkIdentifier) == '.NETFramework' And $(TargetFrameworkVersion) == 'v4.5.1'">
+      <ItemGroup>
+        <Reference Include="Newtonsoft.Json">
+          <HintPath>..\packages\Newtonsoft.Json\lib\net45\Newtonsoft.Json.dll</HintPath>
           <Private>True</Private>
           <Paket>True</Paket>
         </Reference>

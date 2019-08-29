@@ -23,7 +23,7 @@ type IFileSystemWriter =
     abstract member Recycle: Path -> Result<unit, exn>
     abstract member Delete: Path -> Result<unit, exn>
 
-type FileSystem(config: Config) =
+type FileSystem(config: ConfigFile) =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
 
@@ -145,7 +145,7 @@ type FileSystem(config: Config) =
                 |> flip Seq.append [basicNode Path.Network "Network" Drive]
                 |> Ok
             else if path = Path.Network then
-                config.NetHosts
+                config.Value.NetHosts
                 |> Seq.map (sprintf @"\\%s")
                 |> Seq.choose Path.Parse
                 |> Seq.map netHostNode
@@ -167,9 +167,7 @@ type FileSystem(config: Config) =
                     else
                         Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         allNodes |> Result.map (fun allNodes ->
-            path.NetHost |> Option.iter (fun n ->
-                if config.AddNetHost n then
-                    config.Save())
+            path.NetHost |> Option.iter (fun n -> config.Value <- config.Value.WithNetHost n)
             allNodes
             |> Seq.filter (fun n -> not n.IsHidden || showHidden)
             |> Seq.toList

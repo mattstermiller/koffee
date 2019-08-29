@@ -64,7 +64,7 @@ module MainView =
         | Input inputType ->
             inputType |> caseName
 
-    let binder (config: Config) (window: MainWindow) model =
+    let binder (config: ConfigFile) (window: MainWindow) model =
         let keepSelectedInView () =
             if window.NodeGrid.SelectedItem <> null then
                 window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
@@ -126,7 +126,7 @@ module MainView =
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
 
-        if config.Window.IsMaximized then
+        if config.Value.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
         window.SettingsButton.Click.Add (fun _ -> window.NodeGrid.Focus() |> ignore)
@@ -172,17 +172,12 @@ module MainView =
             )
 
             Bind.model(<@ model.ShowHidden @>).toFunc(fun sh ->
-                if config.ShowHidden <> sh then
-                    config.ShowHidden <- sh
-                    config.Save()
+                config.Value <- { config.Value with ShowHidden = sh }
             )
 
             // display and save register
             Bind.model(<@ model.YankRegister @>).toFunc(fun register ->
-                let configRegister = register |> Option.map (fun (path, _, action) -> path, action)
-                if configRegister <> config.YankRegister then
-                    config.YankRegister <- configRegister
-                    config.Save()
+                config.Value <- { config.Value with YankRegister = register }
                 let text =
                     register |> Option.map (fun (path, typ, action) ->
                         sprintf "%A %A: %s" action typ path.Name)
@@ -200,7 +195,10 @@ module MainView =
                         | Prompt GoToBookmark
                         | Prompt SetBookmark
                         | Prompt DeleteBookmark ->
-                            let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
+                            let bookmarks =
+                                config.Value.Bookmarks
+                                |> List.map (fun (c, p) -> (c, p.Format pathFormat))
+                                |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarkPanel.Visible <- true
                         | _ ->
@@ -261,7 +259,7 @@ module MainView =
             )
         ]
 
-    let events (config: Config) (window: MainWindow) = [
+    let events (config: ConfigFile) (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -311,7 +309,7 @@ module MainView =
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->
-            if config.Window.RefreshOnActivate && window.IsLoaded then
+            if config.Value.Window.RefreshOnActivate && window.IsLoaded then
                 Some Refresh
             else None
         )
@@ -329,7 +327,7 @@ module MainView =
             else None
         )
         window.Closed |> Observable.mapTo Closed
-        config.Changed.ObserveOn(DispatcherScheduler.Current) |> Observable.mapTo ConfigChanged
+        config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.mapTo ConfigChanged
     ]
 
 module MainStatus =

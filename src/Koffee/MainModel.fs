@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows.Input
@@ -162,7 +162,6 @@ type Config = {
     YankRegister: (Path * NodeType * PutAction) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
-    NetHosts: string list
 }
 with
     member this.GetBookmark char =
@@ -182,14 +181,6 @@ with
     member this.WithoutBookmark char =
         { this with Bookmarks = this.Bookmarks |> List.filter (fst >> (<>) char) }
 
-    member this.WithNetHost host =
-        if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
-            this
-        else
-            { this with NetHosts = host :: this.NetHosts |> List.sortBy String.toLower }
-
-    static member FilePath = Path.KoffeeData.Join("config.json").Format Windows
-
     static member Default = {
         StartPath = RestorePrevious
         DefaultPath = Path.Root.Format Windows
@@ -208,6 +199,22 @@ with
             RefreshOnActivate = true
         }
         Bookmarks = []
+    }
+
+type History = {
+    NetHosts: string list
+}
+with
+    member this.WithNetHost host =
+        if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
+            this
+        else
+            { this with NetHosts = host :: this.NetHosts |> List.sortBy String.toLower }
+
+    member this.WithoutNetHost host =
+        { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
+
+    static member Default = {
         NetHosts = []
     }
 
@@ -235,6 +242,7 @@ type MainModel = {
     WindowSize: int * int
     SaveWindowSettings: bool
     Config: Config
+    History: History
 } with
     member private this.ClampCursor index =
          index |> max 0 |> min (this.Nodes.Length - 1)
@@ -286,6 +294,7 @@ type MainModel = {
         WindowSize = 800, 800
         SaveWindowSettings = true
         Config = Config.Default
+        History = History.Default
     }
 
 type MainEvents =
@@ -331,6 +340,7 @@ type MainEvents =
     | Exit
     | PathInputChanged
     | ConfigFileChanged of Config
+    | HistoryFileChanged of History
     | PageSizeChanged of int
     | WindowLocationChanged of int * int
     | WindowSizeChanged of int * int

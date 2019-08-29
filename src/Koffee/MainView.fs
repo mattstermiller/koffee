@@ -64,7 +64,7 @@ module MainView =
         | Input inputType ->
             inputType |> caseName
 
-    let binder (configFile: ConfigFile) (window: MainWindow) model =
+    let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
         let keepSelectedInView () =
             if window.NodeGrid.SelectedItem <> null then
                 window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
@@ -253,10 +253,11 @@ module MainView =
                 if int window.Height <> height then window.Height <- float height
             )
 
-            Bind.model(<@ model.Config @>).toFunc(configFile.set_Value)
+            Bind.model(<@ model.Config @>).toFunc(config.set_Value)
+            Bind.model(<@ model.History @>).toFunc(history.set_Value)
         ]
 
-    let events (config: ConfigFile) (window: MainWindow) = [
+    let events (config: ConfigFile) (history: HistoryFile) (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -325,6 +326,7 @@ module MainView =
         )
         window.Closed |> Observable.mapTo Closed
         config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map ConfigFileChanged
+        history.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map HistoryFileChanged
     ]
 
 module MainStatus =

@@ -12,7 +12,6 @@ let ``Config can be serialized and deserialized`` () =
             PathFormat = Unix
             YankRegister = Some (createPath "/c/users/name", Folder, Move)
             Bookmarks = [('a', createPath "/c/path1"); ('b', createPath "/c/path2")]
-            NetHosts = ["server1"; "server2"]
         }
     let converters = FSharpJsonConverters.getAll ()
     let serialized = JsonConvert.SerializeObject(config, Formatting.Indented, converters)

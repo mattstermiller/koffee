@@ -134,3 +134,7 @@ type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =
 type ConfigFile(defaultValue) =
     inherit PersistFile<Config>(ConfigFile.FilePath, defaultValue)
     static member FilePath = Path.KoffeeData.Join("config.json").Format Windows
+
+type HistoryFile(defaultValue) =
+    inherit PersistFile<History>(HistoryFile.FilePath, defaultValue)
+    static member FilePath = Path.KoffeeData.Join("history.json").Format Windows

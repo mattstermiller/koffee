@@ -18,7 +18,7 @@ module Nav =
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
         let! nodes =
             if path = Path.Network then
-                model.Config.NetHosts
+                model.History.NetHosts
                 |> List.map (sprintf @"\\%s")
                 |> List.choose Path.Parse
                 |> List.map (fun path -> Node.Basic path path.Name NetHost)
@@ -40,7 +40,7 @@ module Nav =
                     else "Empty folder"
                 [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
             )
-        let config = path.NetHost |> Option.map model.Config.WithNetHost
+        let history = path.NetHost |> Option.map model.History.WithNetHost
         let model =
             if path <> model.Location then
                 { model.WithLocation path with
@@ -59,7 +59,7 @@ module Nav =
             { model with
                 Nodes = nodes
                 Status = None
-                Config = config |? model.Config
+                History = history |? model.History
             }.WithCursor cursor
     }
 
@@ -514,8 +514,7 @@ module Action =
     let recycle fsReader fsWriter (model: MainModel) = asyncSeqResult {
         if model.SelectedNode.Type = NetHost then
             let host = model.SelectedNode.Name
-            let hosts = model.Config.NetHosts |> List.filter (not << String.equalsIgnoreCase host)
-            let model = { model with Config = { model.Config with NetHosts = hosts } }
+            let model = { model with History = model.History.WithoutNetHost host }
             yield model
             let! model = Nav.refresh fsReader model
             yield { model with Status = Some <| MainStatus.removedNetworkHost host }
@@ -657,10 +656,10 @@ module Action =
         return! { model with Config = config } |> Nav.refresh fsReader
     }
 
-let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model =
+let initModel (fsReader: IFileSystemReader) startOptions model =
+    let config = model.Config
     let model =
         { model with
-            Config = config
             WindowLocation =
                 startOptions.StartLocation |> Option.defaultWith (fun () ->
                     let isFirstInstance =
@@ -926,6 +925,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | Exit -> Sync (fun m -> closeWindow(); m)
         | PathInputChanged -> Async (Nav.suggestPaths fsReader)
         | ConfigFileChanged config -> Sync (fun m -> { m with Config = config })
+        | HistoryFileChanged history -> Sync (fun m -> { m with History = history })
         | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })
         | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
         | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
@@ -953,7 +953,10 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
 
 open Koffee.MainView
 
-let start fsReader fsWriter os getScreenBounds (config: ConfigFile) keyBindings openSettings closeWindow startOptions view =
-    let model = MainModel.Default |> initModel config.Value fsReader startOptions
+let start fsReader fsWriter os getScreenBounds (config: ConfigFile) (history: HistoryFile) keyBindings openSettings
+          closeWindow startOptions view =
+    let model =
+        { MainModel.Default with Config = config.Value; History = history.Value }
+        |> initModel fsReader startOptions
     let dispatch = dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow
-    Framework.start (binder config) (events config) dispatch view model
+    Framework.start (binder config history) (events config history) dispatch view model

@@ -1,4 +1,4 @@
-module Koffee.Program
+﻿module Koffee.Program
 
 open System.IO
 open System.Windows
@@ -38,7 +38,9 @@ let logError isCrash (e: exn) =
 [<System.STAThread>]
 let main args =
     let options = parseArgs (Array.toList args)
-    use config = new ConfigFile(loadOldConfig () |? Config.Default)
+    let defaultConfig, defaultHistory = loadOldConfig () |? (Config.Default, History.Default)
+    use config = new ConfigFile(defaultConfig)
+    use history = new HistoryFile(defaultHistory)
     let fileSys = FileSystem()
     let os = OperatingSystem()
     let openSettings config = Settings.View().ShowDialog(Settings.start config).Config
@@ -46,8 +48,8 @@ let main args =
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let app = Application()
     let run () =
-        app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config KeyBinding.defaults
-                                        openSettings closeWindow options)
+        app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config history
+                                        KeyBinding.defaults openSettings closeWindow options)
         |> ignore
 #if DEBUG
     run ()

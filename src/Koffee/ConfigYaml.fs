@@ -21,7 +21,7 @@ module ConfigYamlExt =
                     let typ = path |> Option.bind getPathType
                     let action = ParseUnionCase<PutAction> config.YankRegisterAction
                     (path, typ, action) |||> Option.map3 (fun p t a -> p, t, a)
-                Some {
+                let newConfig = {
                     PathFormat = ParseUnionCase<PathFormat> config.PathFormatName |? Windows
                     StartPath = ParseUnionCase<StartPath> config.StartupPathType |? RestorePrevious
                     DefaultPath = config.DefaultPath
@@ -42,6 +42,7 @@ module ConfigYamlExt =
                         config.Bookmarks
                         |> Seq.choose (fun b -> b.Path |> Path.Parse |> Option.map (fun p -> (b.Key.[1], p)))
                         |> Seq.toList
-                    NetHosts = config.NetHosts |> Seq.toList
                 }
+                let history = { NetHosts = config.NetHosts |> Seq.toList }
+                Some (newConfig, history)
             else None

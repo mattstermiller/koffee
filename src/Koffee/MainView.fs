@@ -151,10 +151,8 @@ module MainView =
                 let text =
                     register |> Option.map (fun (node, action) ->
                         sprintf "%A %A: %s" action node.Type node.Name)
-                window.Dispatcher.Invoke(fun () ->
-                    window.RegisterText.Text <- text |? ""
-                    window.RegisterPanel.Visible <- text.IsSome
-                )
+                window.RegisterText.Text <- text |? ""
+                window.RegisterPanel.Visible <- text.IsSome
             )
 
             // update UI for input mode
@@ -219,16 +217,12 @@ module MainView =
             )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
-                window.Dispatcher.Invoke(fun () ->
-                    if int window.Left <> left then window.Left <- float left
-                    if int window.Top <> top then window.Top <- float top
-                )
+                if int window.Left <> left then window.Left <- float left
+                if int window.Top <> top then window.Top <- float top
             )
             Bind.model(<@ model.WindowSize @>).toFunc(fun (width, height) ->
-                window.Dispatcher.Invoke(fun () ->
-                    if int window.Width <> width then window.Width <- float width
-                    if int window.Height <> height then window.Height <- float height
-                )
+                if int window.Width <> width then window.Width <- float width
+                if int window.Height <> height then window.Height <- float height
             )
         ]
 
@@ -298,7 +292,7 @@ module MainView =
             else None
         )
         window.Closed |> Observable.mapTo Closed
-        config.Changed |> Observable.mapTo ConfigChanged
+        config.Changed.ObserveOn(DispatcherScheduler.Current) |> Observable.mapTo ConfigChanged
     ]
 
 module MainStatus =

@@ -152,8 +152,8 @@ type WindowConfig = {
 
 type Config = {
     StartPath: StartPath
-    DefaultPath: string
-    PreviousPath: string
+    DefaultPath: Path
+    PreviousPath: Path
     PathFormat: PathFormat
     ShowHidden: bool
     SearchCaseSensitive: bool
@@ -183,8 +183,8 @@ with
 
     static member Default = {
         StartPath = RestorePrevious
-        DefaultPath = Path.Root.Format Windows
-        PreviousPath = Path.Root.Format Windows
+        DefaultPath = Path.Root
+        PreviousPath = Path.Root
         PathFormat = Windows
         ShowHidden = false
         SearchCaseSensitive = false

@@ -5,6 +5,7 @@ open System.Windows.Input
 open System.Windows.Controls.Primitives
 open VinylUI
 open VinylUI.Wpf
+open Acadian.FSharp
 
 type KeyBind = {
     EventName: string
@@ -13,11 +14,13 @@ type KeyBind = {
 
 type Model = {
     Config: Config
+    DefaultPath: Result<Path, string>
     KeyBindings: KeyBind list
 }
 
 type Events =
     | StartPathChanged of StartPath
+    | DefaultPathChanged
     | PathFormatChanged of PathFormat
 
 type View = FsXaml.XAML<"SettingsWindow.xaml">
@@ -35,8 +38,10 @@ let private binder (view: View) model =
     check (if model.Config.PathFormat = Windows then view.PathFormatWindows else view.PathFormatUnix)
 
     let isChecked (ic: bool Nullable) = ic.HasValue && ic.Value
+    let validatePath = Path.Parse >> Result.ofOption "Invalid path format."
 
-    [   Bind.view(<@ view.DefaultPath.Text @>).toModel(<@ model.Config.DefaultPath @>)
+    [   Bind.view(<@ view.DefaultPath.Text @>)
+            .toModelResult(<@ model.DefaultPath @>, validatePath, string)
         Bind.view(<@ view.CommandlinePath.Text @>).toModel(<@ model.Config.CommandlinePath @>)
         Bind.view(<@ view.TextEditor.Text @>).toModel(<@ model.Config.TextEditor @>)
 
@@ -55,15 +60,24 @@ let private binder (view: View) model =
 let private events (view: View) =
     [ view.StartPathPrevious.Checked |> Observable.mapTo (StartPathChanged RestorePrevious)
       view.StartPathDefault.Checked |> Observable.mapTo (StartPathChanged DefaultPath)
+      view.DefaultPath.LostFocus |> Observable.mapTo DefaultPathChanged
 
       view.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
       view.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)
     ]
 
+let updateConfig f (model: Model) =
+    { model with Config = f model.Config }
+
+let defaultPathChanged (model: Model) =
+    match model.DefaultPath with
+    | Ok path -> model |> updateConfig (fun c -> { c with DefaultPath = path })
+    | Error _ -> model
+
 let private dispatcher evt =
-    let updateConfig f (m: Model) = { m with Config = f m.Config }
     match evt with
     | StartPathChanged value -> Sync <| updateConfig (fun c -> { c with StartPath = value })
+    | DefaultPathChanged -> Sync defaultPathChanged
     | PathFormatChanged value -> Sync <| updateConfig (fun c -> { c with PathFormat = value})
 
 let start (config: Config) view =
@@ -77,6 +91,7 @@ let start (config: Config) view =
     }
     let model = {
         Config = config
+        DefaultPath = Ok config.DefaultPath
         KeyBindings = MainEvents.Bindable |> List.map keyBinding
     }
     Framework.start binder events dispatcher view model

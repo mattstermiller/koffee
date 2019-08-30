@@ -673,11 +673,11 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
             WindowSize = startOptions.StartSize |? config.Window.Size
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
         }
-    let paths =
-        (startOptions.StartPath |> Option.toList) @
-            match config.StartPath with
-            | RestorePrevious -> [ config.PreviousPath; config.DefaultPath ]
-            | DefaultPath -> [ config.DefaultPath; config.PreviousPath ]
+    let configPaths =
+        match config.StartPath with
+        | RestorePrevious -> [ config.PreviousPath; config.DefaultPath ]
+        | DefaultPath -> [ config.DefaultPath; config.PreviousPath ]
+    let paths = (startOptions.StartPath |> Option.toList) @ (configPaths |> List.map string)
     let rec openPath error (paths: string list) =
         let withError (m: MainModel) = 
             match error with
@@ -857,7 +857,7 @@ let windowMaximized maximized model =
     { model with Config = config }
 
 let closed model =
-    { model with Config = { model.Config with PreviousPath = model.Location.Format Windows } }
+    { model with Config = { model.Config with PreviousPath = model.Location } }
 
 let SyncResult handler =
     Sync (fun (model: MainModel) ->

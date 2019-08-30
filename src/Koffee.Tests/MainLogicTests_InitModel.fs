@@ -19,7 +19,7 @@ let test start path1 path2 =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- validPath >> Result.map (cnst None)
     fsReader.GetNodes <- validPath >> Result.map (cnst [Node.Empty])
-    let config = { Config.Default with PreviousPath = path1; DefaultPath = path2; PathFormat = Unix }
+    let config = { Config.Default with PreviousPath = createPath path1; DefaultPath = createPath path2; PathFormat = Unix }
     let options = { StartPath = start; StartLocation = None; StartSize = None }
     let model = { MainModel.Default with Config = config } |> MainLogic.initModel fsReader options
     { Start = model.LocationFormatted
@@ -30,6 +30,8 @@ let test start path1 path2 =
           | _ -> None
     }
 
+let openError p = (ActionError ("open path", exn p)).Message
+
 [<Test>]
 let ``When all paths are valid, opens start and back is first path`` () =
     test (Some "/c/start") "/c/path1" "/c/path2"
@@ -39,22 +41,17 @@ let ``When all paths are valid, opens start and back is first path`` () =
 [<TestCase(true)>]
 let ``When start is invalid or missing and both paths are valid, opens first path and back is second`` isStartInvalid =
     let start, expectedError =
-        if isStartInvalid then (Some "invalid", Some (InvalidPath "invalid").Message)
+        if isStartInvalid then (Some "/c/invalid", Some (openError "/c/invalid"))
         else (None, None)
     test start "/c/path1" "/c/path2"
     |> shouldEqual { Start = "/c/path1"; Back = Some "/c/path2"; Error = expectedError }
 
 [<Test>]
-let ``When first path is invalid, opens start and back is second`` () =
-    test (Some "/c/start") "invalid" "/c/path2"
-    |> shouldEqual { Start = "/c/start"; Back = Some "/c/path2"; Error = None }
-
-[<Test>]
-let ``When both paths are invalid, opens start and back is root`` () =
-    test (Some "/c/start") "invalid" "invalid2"
-    |> shouldEqual { Start = "/c/start"; Back = Some "/"; Error = None }
+let ``When first path is invalid, opens start and back is first`` () =
+    test (Some "/c/start") "/c/invalid" "/c/path2"
+    |> shouldEqual { Start = "/c/start"; Back = Some "/c/invalid"; Error = None }
 
 [<Test>]
 let ``When all paths are invalid, opens root and back is empty`` () =
-    test (Some "/c/invalid") "invalid1" "invalid2"
-    |> shouldEqual { Start = "/"; Back = None; Error = Some (ActionError ("open path", exn "/c/invalid")).Message }
+    test (Some "/c/invalid") "/c/invalid1" "/c/invalid2"
+    |> shouldEqual { Start = "/"; Back = None; Error = Some (openError "/c/invalid") }

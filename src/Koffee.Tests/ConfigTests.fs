@@ -8,7 +8,7 @@ open Newtonsoft.Json
 let ``Config can be serialized and deserialized`` () =
     let config =
         { Config.Default with
-            DefaultPath = "/c/Documents and Settings/SomeUser/"
+            DefaultPath = createPath "/c/Documents and Settings/SomeUser/"
             PathFormat = Unix
             YankRegister = Some (createPath "/c/users/name", Folder, Move)
             Bookmarks = [('a', createPath "/c/path1"); ('b', createPath "/c/path2")]

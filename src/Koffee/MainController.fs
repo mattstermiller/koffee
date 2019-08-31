@@ -40,7 +40,11 @@ module Nav =
                     else "Empty folder"
                 [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
             )
-        let history = path.NetHost |> Option.map model.History.WithNetHost
+        let history =
+            let hist = model.History.WithPath path
+            match path.NetHost with
+            | Some host -> hist.WithNetHost host
+            | None -> hist
         let model =
             if path <> model.Location then
                 { model.WithLocation path with
@@ -59,7 +63,7 @@ module Nav =
             { model with
                 Nodes = nodes
                 Status = None
-                History = history |? model.History
+                History = history
             }.WithCursor cursor
     }
 
@@ -673,10 +677,11 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
             WindowSize = startOptions.StartSize |? config.Window.Size
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
         }
+    let prevPath = model.History.Paths |> List.tryHead |> Option.toList
     let configPaths =
         match config.StartPath with
-        | RestorePrevious -> [ config.PreviousPath; config.DefaultPath ]
-        | DefaultPath -> [ config.DefaultPath; config.PreviousPath ]
+        | RestorePrevious -> prevPath @ [config.DefaultPath]
+        | DefaultPath -> [config.DefaultPath] @ prevPath
     let paths = (startOptions.StartPath |> Option.toList) @ (configPaths |> List.map string)
     let rec openPath error (paths: string list) =
         let withError (m: MainModel) = 
@@ -856,9 +861,6 @@ let windowMaximized maximized model =
         else model.Config
     { model with Config = config }
 
-let closed model =
-    { model with Config = { model.Config with PreviousPath = model.Location } }
-
 let SyncResult handler =
     Sync (fun (model: MainModel) ->
         match handler model with
@@ -930,7 +932,6 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
         | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
         | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
-        | Closed -> Sync closed
     let isBusy model =
         match model.Status with
         | Some (Busy _) -> true

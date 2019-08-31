@@ -19,9 +19,10 @@ let test start path1 path2 =
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- validPath >> Result.map (cnst None)
     fsReader.GetNodes <- validPath >> Result.map (cnst [Node.Empty])
-    let config = { Config.Default with PreviousPath = createPath path1; DefaultPath = createPath path2; PathFormat = Unix }
+    let config = { Config.Default with DefaultPath = createPath path2; PathFormat = Unix }
+    let history = { Paths = [createPath path1]; NetHosts = [] }
     let options = { StartPath = start; StartLocation = None; StartSize = None }
-    let model = { MainModel.Default with Config = config } |> MainLogic.initModel fsReader options
+    let model = { MainModel.Default with Config = config; History = history } |> MainLogic.initModel fsReader options
     { Start = model.LocationFormatted
       Back = model.BackStack |> List.tryHead |> Option.map (fun (p, _) -> p.Format Unix)
       Error =

@@ -25,7 +25,6 @@ module ConfigYamlExt =
                     PathFormat = ParseUnionCase<PathFormat> config.PathFormatName |? Windows
                     StartPath = ParseUnionCase<StartPath> config.StartupPathType |? RestorePrevious
                     DefaultPath = config.DefaultPath |> Path.Parse |? Path.Root
-                    PreviousPath = config.PreviousPath |> Path.Parse |? Path.Root
                     ShowHidden = config.ShowHidden
                     SearchCaseSensitive = config.SearchCaseSensitive
                     TextEditor = config.TextEditor
@@ -43,6 +42,9 @@ module ConfigYamlExt =
                         |> Seq.choose (fun b -> b.Path |> Path.Parse |> Option.map (fun p -> (b.Key.[1], p)))
                         |> Seq.toList
                 }
-                let history = { NetHosts = config.NetHosts |> Seq.toList }
+                let history = {
+                    Paths = config.PreviousPath |> Path.Parse |> Option.toList
+                    NetHosts = config.NetHosts |> Seq.toList
+                }
                 Some (newConfig, history)
             else None

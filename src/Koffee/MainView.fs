@@ -1,5 +1,6 @@
 ﻿namespace Koffee
 
+open System
 open System.Windows
 open System.Windows.Input
 open System.Windows.Controls
@@ -7,6 +8,7 @@ open System.Windows.Media
 open System.ComponentModel
 open System.Reactive.Linq
 open System.Reactive.Concurrency
+open System.Reactive.Subjects
 open VinylUI
 open VinylUI.Wpf
 open Reflection
@@ -31,7 +33,7 @@ module MainView =
         not <| List.contains evt.RealKey modifierKeys
 
     let throttleChanges o =
-        Observable.Throttle(o, System.TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
+        Observable.Throttle(o, TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
 
     let getPrompt pathFormat (node: Node) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
@@ -135,6 +137,14 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
+        // history save buffering
+        let historyBuffer = new BehaviorSubject<History>(model.History)
+        historyBuffer.Throttle(TimeSpan.FromSeconds(3.0)).Subscribe(history.set_Value) |> ignore
+        window.Closed.Add (fun _ ->
+            history.Value <- historyBuffer.Value
+            historyBuffer.Dispose()
+        )
+
         [   Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
             Bind.model(<@ model.PathSuggestions @>).toFunc(function
                 | Ok paths ->
@@ -162,7 +172,7 @@ module MainView =
                     | Type -> 1
                     | Modified -> 2
                     | Size -> 3
-                window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- System.Nullable sortDir
+                window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- Nullable sortDir
             )
             Bind.view(<@ window.NodeGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
@@ -254,7 +264,7 @@ module MainView =
             )
 
             Bind.model(<@ model.Config @>).toFunc(config.set_Value)
-            Bind.model(<@ model.History @>).toFunc(history.set_Value)
+            Bind.model(<@ model.History @>).toFunc(historyBuffer.OnNext)
         ]
 
     let events (config: ConfigFile) (history: HistoryFile) (window: MainWindow) = [
@@ -324,7 +334,6 @@ module MainView =
                 Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
             else None
         )
-        window.Closed |> Observable.mapTo Closed
         config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map ConfigFileChanged
         history.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map HistoryFileChanged
     ]
@@ -416,7 +425,7 @@ type MainError =
         | ActionError (action, e) ->
             let msg =
                 match e with
-                | :? System.AggregateException as agg -> agg.InnerExceptions.[0].Message
+                | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
                 | e -> e.Message
             sprintf "Could not %s: %s" action msg
         | ItemActionError (action, pathFormat, e) ->

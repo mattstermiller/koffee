@@ -153,7 +153,6 @@ type WindowConfig = {
 type Config = {
     StartPath: StartPath
     DefaultPath: Path
-    PreviousPath: Path
     PathFormat: PathFormat
     ShowHidden: bool
     SearchCaseSensitive: bool
@@ -184,7 +183,6 @@ with
     static member Default = {
         StartPath = RestorePrevious
         DefaultPath = Path.Root
-        PreviousPath = Path.Root
         PathFormat = Windows
         ShowHidden = false
         SearchCaseSensitive = false
@@ -202,9 +200,13 @@ with
     }
 
 type History = {
+    Paths: Path list
     NetHosts: string list
 }
 with
+    member this.WithPath path =
+        { this with Paths = path :: (this.Paths |> List.filter ((<>) path)) |> List.truncate History.MaxPaths }
+
     member this.WithNetHost host =
         if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
             this
@@ -214,7 +216,10 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
+    static member MaxPaths = 200
+
     static member Default = {
+        Paths = []
         NetHosts = []
     }
 
@@ -345,7 +350,6 @@ type MainEvents =
     | WindowLocationChanged of int * int
     | WindowSizeChanged of int * int
     | WindowMaximizedChanged of bool
-    | Closed
 
     member this.FriendlyName =
         match this with

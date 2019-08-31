@@ -12,6 +12,12 @@ let folders = [
     "/c/temporary/"
 ]
 
+let history = folders @ [
+    "/c/users/me/my programs/"
+    "/c/programs/vim/"
+    "/c/programs/grammar wizard/"
+]
+
 let suggestPaths fsReader model =
     MainLogic.Nav.suggestPaths fsReader model
     |> AsyncSeq.lastOrDefault model
@@ -40,6 +46,13 @@ let testCases () =
             folders.[0]
             folders.[2]
         ])
+        ("", [])
+        ("gram", [
+            history.[6]
+            history.[4]
+            history.[1]
+        ])
+        ("invalid/gram", [])
     ] |> List.map (fun (inp, exp) -> TestCaseData(inp, exp))
 
 [<TestCaseSource("testCases")>]
@@ -47,7 +60,11 @@ let ``Path suggestions return expected results`` input expected =
     let fsReader = FakeFileSystemReader()
     fsReader.GetFolders <- fun path ->
         if path = createPath "/c/" then Ok (folders |> List.map createNode) else Ok []
-    let model = { baseModel with LocationInput = input }
+    let model =
+        { baseModel with
+            LocationInput = input
+            History = { baseModel.History with Paths = history |> List.map createPath }
+        }
 
     let actual = suggestPaths fsReader model
     actual.PathSuggestions |> shouldEqual (Ok expected)
@@ -67,13 +84,13 @@ let ``Path suggestions return error`` () =
 let ``Path suggestions cache folder listings`` () =
     let mutable fsCalls = 0
     let fsReader = FakeFileSystemReader()
-    fsReader.GetFolders <- fun path ->
+    fsReader.GetFolders <- fun _ ->
         fsCalls <- fsCalls + 1
         Ok []
     let model =
         { baseModel with
             LocationInput = "/c/"
-            PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map createNode))
+            PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map createPath))
         }
 
     let cacheHit = suggestPaths fsReader model

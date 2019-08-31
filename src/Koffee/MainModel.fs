@@ -227,7 +227,7 @@ type MainModel = {
     Location: Path
     LocationInput: string
     PathSuggestions: Result<string list, string>
-    PathSuggestCache: (Path * Result<Node list, string>) option
+    PathSuggestCache: (Path * Result<Path list, string>) option
     Status: StatusType option
     Nodes: Node list
     Sort: SortField * bool

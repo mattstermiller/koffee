@@ -35,7 +35,7 @@ Steps:
 First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the hotkeys, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.
 
 #### The Basics
-_Capitalized letters indicate that the key is combined with Shift._
+_A capital letter indicates that the letter key is combined with Shift._
 - `j` to move the cursor down
 - `k` to move the cursor up
 - `h` to go up to the parent folder
@@ -43,7 +43,7 @@ _Capitalized letters indicate that the key is combined with Shift._
 - `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
-- `tab` switches between the main view and the path box
+- `Tab` switches between the main view and the path box
 - `?` opens the Settings window, which displays the hotkeys for all commands.
 - `Ctrl + w` to exit
 
@@ -70,6 +70,11 @@ _Capitalized letters indicate that the key is combined with Shift._
     - Press `sn` to sort by name, ascending then descending.
     - Press `sm` to sort by modified date, descending then ascending.
     - Press `ss` to sort by size, ascending then descending.
+- **Path Box Suggestions** will appear when typing in the path box.
+    - When no slashes are in the path box, folders that you have visited before are searched. Folders starting with the first search term are shown first, then other matches sorted by most recently visited.
+    - When a path is in the path box, everything after the last slash is used to search the folder before the last slash. For example, typing "C:\Windows\sy 32" would suggest "C:\Windows\System32".
+    - When suggestions are shown, use the up and down arrow keys to select a suggestion. When there is only one suggestion, it is selected automatically.
+    - Press `Tab` to fill in the path box with the selected suggestion and continue typing, or press `Enter` to open the selected suggestion.
 
 #### File & Folder Manipulation
 - **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `Enter`.

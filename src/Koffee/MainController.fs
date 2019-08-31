@@ -170,36 +170,53 @@ module Nav =
         yield { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
     }
 
-    let suggestPaths (fsReader: IFileSystemReader) model = asyncSeq {
-        let parentLength =
+    let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
+        let getSuggestions search (paths: Path list) =
+            let terms =
+                search
+                |> String.trim
+                |> Option.ofString
+                |> Option.map (String.split ' ' >> Array.toList)
+            let filtered =
+                match terms with
+                | Some terms ->
+                    paths
+                    |> List.filter (fun p -> terms |> List.forall (fun t -> p.Name |> String.containsIgnoreCase t))
+                    |> List.sortBy (fun p ->
+                        let weight = if p.Name |> String.startsWithIgnoreCase terms.[0] then 0 else 1
+                        (weight, p.Name.ToLower())
+                    )
+                | None -> paths
+            filtered |> List.map (fun p -> p.FormatFolder model.PathFormat)
+        let dirAndSearch =
             model.LocationInput
             |> String.replace @"\" "/"
             |> String.lastIndexOf "/"
             |> Option.ofCond (flip (>=) 0)
-        match parentLength |> Option.bind (fun i -> model.LocationInput |> String.substring 0 i |> Path.Parse) with
-        | Some parentPath ->
-            let terms =
-                parentLength
-                |> Option.bind (fun i ->
-                    model.LocationInput |> String.substringFrom (i + 1) |> String.trim |> Option.ofString
-                )
-                |> Option.map (String.split ' ' >> List.ofArray)
-            let filterSort =
-                match terms with
-                | Some terms ->
-                    List.filter (fun n -> terms |> List.forall (fun t -> n.Name |> String.containsIgnoreCase t))
-                    >> List.sortBy (fun n ->
-                        let weight = if n.Name |> String.startsWithIgnoreCase terms.[0] then 0 else 1
-                        (weight, n.Name.ToLower())
+            |> Option.map (fun i ->
+                let dir = model.LocationInput |> String.substring 0 i
+                let search = model.LocationInput |> String.substringFrom (i + 1)
+                (dir, search)
+            )
+        match dirAndSearch with
+        | Some (dir, search) ->
+            match dir |> Path.Parse with
+            | Some dir ->
+                let! pathsRes =
+                    match model.PathSuggestCache with
+                    | Some (cachePath, cache) when cachePath = dir -> async { return cache }
+                    | _ -> runAsync (fun () ->
+                        fsReader.GetFolders dir
+                        |> Result.map (List.map (fun n -> n.Path))
+                        |> Result.mapError (fun e -> e.Message)
                     )
-                | None -> id
-            let! res =
-                match model.PathSuggestCache with
-                | Some (cachePath, cache) when cachePath = parentPath -> async { return cache }
-                | _ -> runAsync (fun () -> fsReader.GetFolders parentPath |> Result.mapError (fun e -> e.Message))
-            let suggestions =
-                res |> Result.map (filterSort >> List.map (fun n -> n.Path.FormatFolder model.PathFormat))
-            yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (parentPath, res) }
+                let suggestions = pathsRes |> Result.map (getSuggestions search)
+                yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (dir, pathsRes) }
+            | None ->
+                yield { model with PathSuggestions = Ok [] }
+        | None when model.LocationInput |> String.isNotEmpty ->
+            let suggestions = getSuggestions model.LocationInput model.History.Paths
+            yield { model with PathSuggestions = Ok suggestions }
         | None ->
             yield { model with PathSuggestions = Ok [] }
     }

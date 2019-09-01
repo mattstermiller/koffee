@@ -1,6 +1,7 @@
 # Release Notes
 
-### 0.5.0  Recursive Search
+### 0.5.0  Recursive Search (WIP)
+- #54 Adds path suggestions as you type in the path box
 - #51 Changes Find to a "Starts with" jump
 - Fixes deadlock/hang when rapidly moving or resizing the window multiple times.
 

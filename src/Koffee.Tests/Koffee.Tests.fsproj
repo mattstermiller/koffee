@@ -67,6 +67,7 @@
     <Compile Include="FakeFileSystem.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
     <Compile Include="MainLogicTests_OpenPath.fs" />
+    <Compile Include="MainLogicTests_SuggestPaths.fs" />
     <Compile Include="MainLogicTests_BackForward.fs" />
     <Compile Include="MainLogicTests_FindSearch.fs" />
     <Compile Include="MainLogicTests_CreateRename.fs" />

@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -25,10 +25,19 @@ let loadConfig (fsReader: IFileSystemReader) (config: Config) model =
 let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
 let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
 
+let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
+
 module Nav =
     let openPath (fsReader: IFileSystemReader) path select model = result {
         let! nodes = fsReader.GetNodes model.ShowHidden path |> actionError "open path"
-        let nodes = nodes |> SortField.SortByTypeThen model.Sort
+        let nodes =
+            if nodes.IsEmpty then
+                let text =
+                    if path = Path.Network then "Remote hosts that you visit will appear here"
+                    else "Empty folder"
+                [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
+            else
+                nodes |> SortField.SortByTypeThen model.Sort
         let model =
             if path <> model.Location then
                 { model.WithLocation path with
@@ -153,6 +162,39 @@ module Nav =
         return { model with Status = Some <| MainStatus.toggleHidden model.ShowHidden }
     }
 
+    let suggestPaths (fsReader: IFileSystemReader) model = asyncSeq {
+        let parentLength =
+            model.LocationInput
+            |> String.replace @"\" "/"
+            |> String.lastIndexOf "/"
+            |> Option.ofCond (flip (>=) 0)
+        match parentLength |> Option.bind (fun i -> model.LocationInput |> String.substring 0 i |> Path.Parse) with
+        | Some parentPath ->
+            let terms =
+                parentLength
+                |> Option.bind (fun i ->
+                    model.LocationInput |> String.substringFrom (i + 1) |> String.trim |> Option.ofString
+                )
+                |> Option.map (String.split ' ' >> List.ofArray)
+            let filterSort =
+                match terms with
+                | Some terms ->
+                    List.filter (fun n -> terms |> List.forall (fun t -> n.Name |> String.containsIgnoreCase t))
+                    >> List.sortBy (fun n ->
+                        let weight = if n.Name |> String.startsWithIgnoreCase terms.[0] then 0 else 1
+                        (weight, n.Name.ToLower())
+                    )
+                | None -> id
+            let! res = runAsync (fun () -> fsReader.GetFolders parentPath)
+            let suggestions =
+                res
+                |> Result.map (filterSort >> List.map (fun n -> n.Path.FormatFolder model.PathFormat))
+                |> Result.mapError (fun e -> e.Message)
+            yield { model with PathSuggestions = suggestions }
+        | None ->
+            yield { model with PathSuggestions = Ok [] }
+    }
+
 module Cursor =
     let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
@@ -228,8 +270,6 @@ module Cursor =
         | None -> model
 
 module Action =
-    let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
-
     let private performedAction action model =
         { model with
             UndoStack = action :: model.UndoStack
@@ -872,6 +912,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | OpenCommandLine -> SyncResult (Action.openCommandLine os config)
         | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings config)
         | Exit -> Sync (fun m -> closeWindow(); m)
+        | PathInputChanged -> Async (Nav.suggestPaths fsReader)
         | ConfigChanged -> Sync (loadConfig fsReader config)
         | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })
         | WindowLocationChanged (l, t) -> Sync (windowLocationChanged config (l, t))

@@ -9,6 +9,12 @@
     <Grid>
         <TextBox x:Name="PathBox" Height="30" Text="/c/path" VerticalAlignment="Top" Margin="0,0,25,0"/>
         <Button x:Name="SettingsButton" Content="?" VerticalAlignment="Top" Height="30" HorizontalAlignment="Right" Width="25"/>
+        <ListBox x:Name="PathSuggestions" Margin="0,30,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">
+            <ListBox.Resources>
+                <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="White"/>
+            </ListBox.Resources>
+        </ListBox>
         <DataGrid x:Name="NodeGrid" Margin="0,30,0,40" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
             <DataGrid.Resources>
                 <Style TargetType="DataGrid">

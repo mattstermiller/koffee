@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System.Windows
 open System.Windows.Input
@@ -76,8 +76,32 @@ module MainView =
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
         window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
 
+        // path suggestions
+        window.PathBox.PreviewKeyDown.Add (fun e ->
+            let paths = window.PathSuggestions
+            let items = paths.Items.Count
+            let selectedPath = paths.SelectedItem |> unbox |> Option.ofString
+            match e.Key with
+            | Key.Up when paths.IsEnabled && items > 0 ->
+                paths.SelectedIndex <- if paths.SelectedIndex > 0 then paths.SelectedIndex - 1 else items - 1
+                e.Handled <- true
+            | Key.Down when paths.IsEnabled && items > 0 ->
+                paths.SelectedIndex <- if paths.SelectedIndex < items - 1 then paths.SelectedIndex + 1 else 0
+                e.Handled <- true
+            | Key.Tab ->
+                if paths.Visible then
+                    selectedPath |> Option.iter (fun path ->
+                        window.PathBox.Text <- path
+                        window.PathBox.Select(path.Length, 0)
+                    )
+                e.Handled <- true
+            | Key.Enter ->
+                selectedPath |> Option.iter window.PathBox.set_Text
+            | _ -> ()
+        )
+        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
+
         // bind Tab key to switch focus
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
         window.PathBox.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
             if window.PathBox.SelectionLength > 0 then
                 window.PathBox.Select(window.PathBox.SelectionStart + window.PathBox.SelectionLength, 0)
@@ -112,6 +136,17 @@ module MainView =
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
         [   Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
+            Bind.model(<@ model.PathSuggestions @>).toFunc(function
+                | Ok paths ->
+                    window.PathSuggestions.ItemsSource <- paths
+                    window.PathSuggestions.SelectedIndex <- if paths.Length = 1 then 0 else -1
+                    window.PathSuggestions.IsEnabled <- true
+                    window.PathSuggestions.Visible <- window.PathBox.IsFocused && not paths.IsEmpty
+                | Error error ->
+                    window.PathSuggestions.ItemsSource <- ["Error: " + error]
+                    window.PathSuggestions.IsEnabled <- false
+                    window.PathSuggestions.Visible <- window.PathBox.IsFocused
+            )
 
             Bind.modelMulti(<@ model.Nodes, model.Cursor, model.Sort @>).toFunc(fun (nodes, cursor, (sortField, sortDesc)) ->
                 if not <| obj.ReferenceEquals(window.NodeGrid.ItemsSource, nodes) then
@@ -239,6 +274,8 @@ module MainView =
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
             | _ -> None
         )
+        window.PathBox.TextChanged |> Observable.filter (fun _ -> window.PathBox.IsFocused)
+                                   |> Observable.mapTo PathInputChanged
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
 
         window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier

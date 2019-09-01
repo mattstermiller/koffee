@@ -11,6 +11,7 @@ open Koffee
 type IFileSystemReader =
     abstract member GetNode: Path -> Result<Node option, exn>
     abstract member GetNodes: showHidden: bool -> Path -> Result<Node list, exn>
+    abstract member GetFolders: Path -> Result<Node list, exn>
     abstract member IsEmpty: Path -> bool
     abstract member GetShortcutTarget: Path -> Result<string, exn>
 
@@ -112,7 +113,8 @@ type FileSystem(config: Config) =
 
     interface IFileSystemReader with
         member this.GetNode path = this.GetNode path
-        member this.GetNodes showHidden path = this.GetNodes showHidden path
+        member this.GetNodes showHidden path = this.GetNodes false showHidden path
+        member this.GetFolders path = this.GetNodes true true path
         member this.IsEmpty path = this.IsEmpty path
         member this.GetShortcutTarget path = this.GetShortcutTarget path
 
@@ -135,7 +137,7 @@ type FileSystem(config: Config) =
             else
                 None
 
-    member this.GetNodes showHidden path =
+    member this.GetNodes foldersOnly showHidden path =
         let allNodes =
             if path = Path.Root then
                 DriveInfo.GetDrives()
@@ -155,27 +157,22 @@ type FileSystem(config: Config) =
                 if dir.Exists then
                     tryResult <| fun () ->
                         let folders = dir.GetDirectories() |> Seq.map folderNode
-                        let files = dir.GetFiles() |> Seq.map fileNode
-                        Seq.append folders files
+                        if foldersOnly then
+                            folders
+                        else
+                            Seq.append folders (dir.GetFiles() |> Seq.map fileNode)
                 else
                     if path.Drive |> Option.exists (fun d -> not <| DriveInfo(wpath d).IsReady) then
                         Error <| exn "Drive is not ready"
                     else
                         Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         allNodes |> Result.map (fun allNodes ->
-            let nodes =
-                allNodes
-                |> Seq.filter (fun n -> not n.IsHidden || showHidden)
-                |> Seq.toList
             path.NetHost |> Option.iter (fun n ->
                 if config.AddNetHost n then
                     config.Save())
-            if nodes.IsEmpty then
-                let text =
-                    if path = Path.Network then "Remote hosts that you visit will appear here"
-                    else "Empty folder"
-                [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
-            else nodes
+            allNodes
+            |> Seq.filter (fun n -> not n.IsHidden || showHidden)
+            |> Seq.toList
         )
 
     member this.IsEmpty path =

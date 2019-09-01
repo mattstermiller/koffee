@@ -132,8 +132,9 @@ type StatusType =
 
 type MainModel = {
     Location: Path
-    PathFormat: PathFormat
     LocationInput: string
+    PathFormat: PathFormat
+    PathSuggestions: Result<string list, string>
     Status: StatusType option
     Nodes: Node list
     Sort: SortField * bool
@@ -184,6 +185,7 @@ type MainModel = {
         Location = Path.Root
         PathFormat = Windows
         LocationInput = Path.Root.Format Windows
+        PathSuggestions = Ok []
         Status = None
         Nodes = [ Node.Empty ]
         Sort = Name, false
@@ -248,6 +250,7 @@ type MainEvents =
     | OpenCommandLine
     | OpenSettings
     | Exit
+    | PathInputChanged
     | ConfigChanged
     | PageSizeChanged of int
     | WindowLocationChanged of int * int

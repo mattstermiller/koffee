@@ -1,14 +1,30 @@
 ﻿module Koffee.Program
 
+open System.IO
 open System.Windows
 open VinylUI.Wpf
 open ProgramOptions
+open Acadian.FSharp
+open Koffee
+
+/// if json config file does not exist, try to load and convert old yaml file
+let loadOldConfig () =
+    if not <| File.Exists(ConfigFile.FilePath) then
+        let getPathType (path: Path) =
+            let wpath = path.Format Windows
+            try
+                if FileInfo(wpath).Exists then Some File
+                else if DirectoryInfo(wpath).Exists then Some Folder
+                else None
+            with _ -> None
+        ConfigYaml.LoadAndConvert getPathType
+    else None
 
 let logError isCrash (e: exn) =
     let typ = if isCrash then "crash" else "error"
     let timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
     let logFile = Path.KoffeeData.Join(sprintf "%s_%s.log" typ timestamp).Format Windows
-    System.IO.File.WriteAllText(logFile, string e)
+    File.WriteAllText(logFile, string e)
     let msg =
         sprintf "Sorry! An unexpected error %s:\n\n"
                 (if isCrash then "caused Koffee to crash" else "occurred in Koffee") +
@@ -22,17 +38,18 @@ let logError isCrash (e: exn) =
 [<System.STAThread>]
 let main args =
     let options = parseArgs (Array.toList args)
-    let config = Config()
-    let fileSys = FileSystem(config)
+    let defaultConfig, defaultHistory = loadOldConfig () |? (Config.Default, History.Default)
+    use config = new ConfigFile(defaultConfig)
+    use history = new HistoryFile(defaultHistory)
+    let fileSys = FileSystem()
     let os = OperatingSystem()
-    let openSettings () = Settings.View().ShowDialog(Settings.start config) |> ignore
+    let openSettings config = Settings.View().ShowDialog(Settings.start config).Config
     let window = MainWindow()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let app = Application()
     let run () =
-        config.Load()
-        app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config KeyBinding.defaults
-                                        openSettings closeWindow options)
+        app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config history
+                                        KeyBinding.defaults openSettings closeWindow options)
         |> ignore
 #if DEBUG
     run ()

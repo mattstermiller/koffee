@@ -1,5 +1,6 @@
-namespace Koffee
+﻿namespace Koffee
 
+open System
 open System.Windows
 open System.Windows.Input
 open System.Windows.Controls
@@ -7,6 +8,7 @@ open System.Windows.Media
 open System.ComponentModel
 open System.Reactive.Linq
 open System.Reactive.Concurrency
+open System.Reactive.Subjects
 open VinylUI
 open VinylUI.Wpf
 open Reflection
@@ -31,7 +33,7 @@ module MainView =
         not <| List.contains evt.RealKey modifierKeys
 
     let throttleChanges o =
-        Observable.Throttle(o, System.TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
+        Observable.Throttle(o, TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
 
     let getPrompt pathFormat (node: Node) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
@@ -64,7 +66,7 @@ module MainView =
         | Input inputType ->
             inputType |> caseName
 
-    let binder (config: Config) (window: MainWindow) model =
+    let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
         let keepSelectedInView () =
             if window.NodeGrid.SelectedItem <> null then
                 window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
@@ -76,8 +78,32 @@ module MainView =
         window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
         window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
 
+        // path suggestions
+        window.PathBox.PreviewKeyDown.Add (fun e ->
+            let paths = window.PathSuggestions
+            let items = paths.Items.Count
+            let selectedPath = paths.SelectedItem |> unbox |> Option.ofString
+            match e.Key with
+            | Key.Up when paths.IsEnabled && items > 0 ->
+                paths.SelectedIndex <- if paths.SelectedIndex > 0 then paths.SelectedIndex - 1 else items - 1
+                e.Handled <- true
+            | Key.Down when paths.IsEnabled && items > 0 ->
+                paths.SelectedIndex <- if paths.SelectedIndex < items - 1 then paths.SelectedIndex + 1 else 0
+                e.Handled <- true
+            | Key.Tab ->
+                if paths.Visible then
+                    selectedPath |> Option.iter (fun path ->
+                        window.PathBox.Text <- path
+                        window.PathBox.Select(path.Length, 0)
+                    )
+                e.Handled <- true
+            | Key.Enter ->
+                selectedPath |> Option.iter window.PathBox.set_Text
+            | _ -> ()
+        )
+        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
+
         // bind Tab key to switch focus
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Tab window.NodeGrid.Focus)
         window.PathBox.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
             if window.PathBox.SelectionLength > 0 then
                 window.PathBox.Select(window.PathBox.SelectionStart + window.PathBox.SelectionLength, 0)
@@ -102,7 +128,7 @@ module MainView =
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
 
-        if config.Window.IsMaximized then
+        if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
         window.SettingsButton.Click.Add (fun _ -> window.NodeGrid.Focus() |> ignore)
@@ -111,7 +137,26 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
+        // history save buffering
+        let historyBuffer = new BehaviorSubject<History>(model.History)
+        historyBuffer.Throttle(TimeSpan.FromSeconds(3.0)).Subscribe(history.set_Value) |> ignore
+        window.Closed.Add (fun _ ->
+            history.Value <- historyBuffer.Value
+            historyBuffer.Dispose()
+        )
+
         [   Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
+            Bind.model(<@ model.PathSuggestions @>).toFunc(function
+                | Ok paths ->
+                    window.PathSuggestions.ItemsSource <- paths
+                    window.PathSuggestions.SelectedIndex <- if paths.Length = 1 then 0 else -1
+                    window.PathSuggestions.IsEnabled <- true
+                    window.PathSuggestions.Visible <- window.PathBox.IsFocused && not paths.IsEmpty
+                | Error error ->
+                    window.PathSuggestions.ItemsSource <- ["Error: " + error]
+                    window.PathSuggestions.IsEnabled <- false
+                    window.PathSuggestions.Visible <- window.PathBox.IsFocused
+            )
 
             Bind.modelMulti(<@ model.Nodes, model.Cursor, model.Sort @>).toFunc(fun (nodes, cursor, (sortField, sortDesc)) ->
                 if not <| obj.ReferenceEquals(window.NodeGrid.ItemsSource, nodes) then
@@ -127,7 +172,7 @@ module MainView =
                     | Type -> 1
                     | Modified -> 2
                     | Size -> 3
-                window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- System.Nullable sortDir
+                window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- Nullable sortDir
             )
             Bind.view(<@ window.NodeGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
@@ -136,36 +181,29 @@ module MainView =
                 window.Title <- sprintf "%s  |  Koffee v%s" titleLoc versionStr
             )
 
-            Bind.model(<@ model.ShowHidden @>).toFunc(fun sh ->
-                if config.ShowHidden <> sh then
-                    config.ShowHidden <- sh
-                    config.Save()
-            )
-
-            // display and save register
-            Bind.model(<@ model.YankRegister @>).toFunc(fun register ->
-                let configRegister = register |> Option.map (fun (node, action) -> node.Path, action)
-                if configRegister <> config.YankRegister then
-                    config.YankRegister <- configRegister
-                    config.Save()
+            // display yank register
+            Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
-                    register |> Option.map (fun (node, action) ->
-                        sprintf "%A %A: %s" action node.Type node.Name)
+                    register |> Option.map (fun (path, typ, action) ->
+                        sprintf "%A %A: %s" action typ path.Name)
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.Visible <- text.IsSome
             )
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat, model.Config.Bookmarks @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
                         | Prompt GoToBookmark
                         | Prompt SetBookmark
                         | Prompt DeleteBookmark ->
-                            let bookmarks = config.GetBookmarks() |> Seq.ifEmpty ([(' ', "No bookmarks set")] |> dict)
+                            let bookmarks =
+                                bookmarks
+                                |> List.map (fun (c, p) -> (c, p.Format pathFormat))
+                                |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarkPanel.Visible <- true
                         | _ ->
@@ -224,9 +262,12 @@ module MainView =
                 if int window.Width <> width then window.Width <- float width
                 if int window.Height <> height then window.Height <- float height
             )
+
+            Bind.model(<@ model.Config @>).toFunc(config.set_Value)
+            Bind.model(<@ model.History @>).toFunc(historyBuffer.OnNext)
         ]
 
-    let events (config: Config) (window: MainWindow) = [
+    let events (config: ConfigFile) (history: HistoryFile) (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -239,6 +280,8 @@ module MainView =
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
             | _ -> None
         )
+        window.PathBox.TextChanged |> Observable.filter (fun _ -> window.PathBox.IsFocused)
+                                   |> Observable.mapTo PathInputChanged
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
 
         window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
@@ -274,7 +317,7 @@ module MainView =
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->
-            if config.Window.RefreshOnActivate && window.IsLoaded then
+            if config.Value.Window.RefreshOnActivate && window.IsLoaded then
                 Some Refresh
             else None
         )
@@ -291,8 +334,8 @@ module MainView =
                 Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
             else None
         )
-        window.Closed |> Observable.mapTo Closed
-        config.Changed.ObserveOn(DispatcherScheduler.Current) |> Observable.mapTo ConfigChanged
+        config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map ConfigFileChanged
+        history.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map HistoryFileChanged
     ]
 
 module MainStatus =
@@ -364,6 +407,7 @@ type MainError =
     | ShortcutTargetMissing of string
     | InvalidSearchSlash
     | InvalidSearchSwitch of char
+    | YankRegisterItemMissing of string
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
     | CannotMoveToSameFolder
@@ -381,7 +425,7 @@ type MainError =
         | ActionError (action, e) ->
             let msg =
                 match e with
-                | :? System.AggregateException as agg -> agg.InnerExceptions.[0].Message
+                | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
                 | e -> e.Message
             sprintf "Could not %s: %s" action msg
         | ItemActionError (action, pathFormat, e) ->
@@ -399,6 +443,7 @@ type MainError =
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | InvalidSearchSlash -> "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
         | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
+        | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
         | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, nodeType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""

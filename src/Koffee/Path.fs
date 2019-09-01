@@ -147,7 +147,7 @@ type Path private (path: string) =
 
     override this.Equals other =
         match other with
-        | :? Path as p -> this.Value = p.Value
+        | :? Path as p -> this.Value |> String.equalsIgnoreCase p.Value
         | _ -> false
 
     override this.GetHashCode() = this.Value.GetHashCode()

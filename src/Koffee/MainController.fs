@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -9,26 +9,42 @@ open Acadian.FSharp
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
-let loadConfig (fsReader: IFileSystemReader) (config: Config) model =
-    { model with
-        YankRegister =
-            config.YankRegister |> Option.bind (fun (path, action) ->
-                match fsReader.GetNode path with
-                | Ok (Some node) -> Some (node, action)
-                | _ -> None
-            )
-        PathFormat = config.PathFormat
-        ShowHidden = config.ShowHidden
-        ShowFullPathInTitle = config.Window.ShowFullPathInTitle
-    }
-
 let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
 let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
 
+let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
+
 module Nav =
-    let openPath (fsReader: IFileSystemReader) path select model = result {
-        let! nodes = fsReader.GetNodes model.ShowHidden path |> actionError "open path"
-        let nodes = nodes |> SortField.SortByTypeThen model.Sort
+    let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
+        let! nodes =
+            if path = Path.Network then
+                model.History.NetHosts
+                |> List.map (sprintf @"\\%s")
+                |> List.choose Path.Parse
+                |> List.map (fun path -> Node.Basic path path.Name NetHost)
+                |> Ok
+            else
+                fsReader.GetNodes path |> actionError "open path"
+        let selectName =
+            match select with
+            | SelectName name -> name
+            | _ -> ""
+        let nodes =
+            nodes
+            |> List.filter (fun n -> model.Config.ShowHidden || not n.IsHidden ||
+                                     String.equalsIgnoreCase selectName n.Name)
+            |> SortField.SortByTypeThen model.Sort
+            |> Seq.ifEmpty (
+                let text =
+                    if path = Path.Network then "Remote hosts that you visit will appear here"
+                    else "Empty folder"
+                [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
+            )
+        let history =
+            let hist = model.History.WithPath path
+            match path.NetHost with
+            | Some host -> hist.WithNetHost host
+            | None -> hist
         let model =
             if path <> model.Location then
                 { model.WithLocation path with
@@ -41,12 +57,13 @@ module Nav =
         let cursor =
             match select with
             | SelectIndex index -> index
-            | SelectName name -> List.tryFindIndex (fun n -> n.Name = name) nodes |? model.Cursor
+            | SelectName name -> List.tryFindIndex (fun n -> String.equalsIgnoreCase n.Name name) nodes |? model.Cursor
             | SelectNone -> model.Cursor
         return
             { model with
                 Nodes = nodes
                 Status = None
+                History = history
             }.WithCursor cursor
     }
 
@@ -146,11 +163,62 @@ module Nav =
         return { model with Status = Some <| MainStatus.sort field desc }
     }
 
-    let toggleHidden fsReader model = result {
-        let! model =
-            { model with ShowHidden = not model.ShowHidden }
-            |> openPath fsReader model.Location (SelectName model.SelectedNode.Name)
-        return { model with Status = Some <| MainStatus.toggleHidden model.ShowHidden }
+    let toggleHidden fsReader (model: MainModel) = asyncSeqResult {
+        let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
+        yield model
+        let! model = model |> openPath fsReader model.Location (SelectName model.SelectedNode.Name)
+        yield { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
+    }
+
+    let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
+        let getSuggestions search (paths: Path list) =
+            let terms =
+                search
+                |> String.trim
+                |> Option.ofString
+                |> Option.map (String.split ' ' >> Array.toList)
+            let filtered =
+                match terms with
+                | Some terms ->
+                    paths
+                    |> List.filter (fun p -> terms |> List.forall (fun t -> p.Name |> String.containsIgnoreCase t))
+                    |> List.sortBy (fun p ->
+                        let weight = if p.Name |> String.startsWithIgnoreCase terms.[0] then 0 else 1
+                        (weight, p.Name.ToLower())
+                    )
+                | None -> paths
+            filtered |> List.map (fun p -> p.FormatFolder model.PathFormat)
+        let dirAndSearch =
+            model.LocationInput
+            |> String.replace @"\" "/"
+            |> String.lastIndexOf "/"
+            |> Option.ofCond (flip (>=) 0)
+            |> Option.map (fun i ->
+                let dir = model.LocationInput |> String.substring 0 i
+                let search = model.LocationInput |> String.substringFrom (i + 1)
+                (dir, search)
+            )
+        match dirAndSearch with
+        | Some (dir, search) ->
+            match dir |> Path.Parse with
+            | Some dir ->
+                let! pathsRes =
+                    match model.PathSuggestCache with
+                    | Some (cachePath, cache) when cachePath = dir -> async { return cache }
+                    | _ -> runAsync (fun () ->
+                        fsReader.GetFolders dir
+                        |> Result.map (List.map (fun n -> n.Path))
+                        |> Result.mapError (fun e -> e.Message)
+                    )
+                let suggestions = pathsRes |> Result.map (getSuggestions search)
+                yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (dir, pathsRes) }
+            | None ->
+                yield { model with PathSuggestions = Ok [] }
+        | None when model.LocationInput |> String.isNotEmpty ->
+            let suggestions = getSuggestions model.LocationInput model.History.Paths
+            yield { model with PathSuggestions = Ok suggestions }
+        | None ->
+            yield { model with PathSuggestions = Ok [] }
     }
 
 module Cursor =
@@ -228,8 +296,6 @@ module Cursor =
         | None -> model
 
 module Action =
-    let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
-
     let private performedAction action model =
         { model with
             UndoStack = action :: model.UndoStack
@@ -299,7 +365,7 @@ module Action =
             return CannotUndoNonEmptyCreated node
     }
 
-    let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName model = result {
+    let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName (model: MainModel) = result {
         if node.Type.CanModify then
             let action = RenamedItem (node, newName)
             let newPath = node.Path.Parent.Join newName
@@ -316,7 +382,7 @@ module Action =
         else return model
     }
 
-    let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName model = result {
+    let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName (model: MainModel) = result {
         let parentPath = oldNode.Path.Parent
         let currentPath = parentPath.Join currentName
         let node = { oldNode with Name = currentName; Path = currentPath }
@@ -334,8 +400,9 @@ module Action =
 
     let registerItem action (model: MainModel) =
         if model.SelectedNode.Type.CanModify then
+            let reg = Some (model.SelectedNode.Path, model.SelectedNode.Type, action)
             { model with
-                YankRegister = Some (model.SelectedNode, action)
+                Config = { model.Config with YankRegister = reg }
                 Status = None
             }
         else model
@@ -377,12 +444,9 @@ module Action =
         match existing with
         | Some existing when not overwrite ->
             // refresh node list to make sure we can see the existing file
-            let tempShowHidden = not model.ShowHidden && existing.IsHidden
-            let refreshModel = { model with ShowHidden = if tempShowHidden then true else model.ShowHidden }
-            let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) refreshModel
+            let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) model
             yield
                 { model with
-                    ShowHidden = if tempShowHidden then false else model.ShowHidden
                     InputMode = Some (Confirm (Overwrite (putAction, node, existing)))
                     InputText = ""
                 }
@@ -394,13 +458,17 @@ module Action =
             yield model |> performedAction action
     }
 
-    let put fsReader fsWriter overwrite model = asyncSeqResult {
-        match model.YankRegister with
+    let put (fsReader: IFileSystemReader) fsWriter overwrite (model: MainModel) = asyncSeqResult {
+        match model.Config.YankRegister with
         | None -> ()
-        | Some (node, putAction) ->
-            let! model = putItem fsReader fsWriter overwrite node putAction model
-            if model.InputMode.IsNone then
-                yield { model with YankRegister = None }
+        | Some (path, _, putAction) ->
+            match! fsReader.GetNode path |> actionError "read yank register item" with
+            | Some node ->
+                let! model = putItem fsReader fsWriter overwrite node putAction model
+                if model.InputMode.IsNone then
+                    yield { model with Config = { model.Config with YankRegister = None } }
+            | None ->
+                return YankRegisterItemMissing (path.Format model.PathFormat)
     }
 
     let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncSeqResult {
@@ -464,11 +532,11 @@ module Action =
             yield! Nav.refresh fsReader model |> Result.map (performedAction action)
     }
 
-    let recycle fsReader fsWriter (config: Config) (model: MainModel) = asyncSeqResult {
+    let recycle fsReader fsWriter (model: MainModel) = asyncSeqResult {
         if model.SelectedNode.Type = NetHost then
             let host = model.SelectedNode.Name
-            config.RemoveNetHost host
-            config.Save()
+            let model = { model with History = model.History.WithoutNetHost host }
+            yield model
             let! model = Nav.refresh fsReader model
             yield { model with Status = Some <| MainStatus.removedNetworkHost host }
         else
@@ -586,34 +654,33 @@ module Action =
             return model
     }
 
-    let openCommandLine (os: IOperatingSystem) (config: Config) model = result {
+    let openCommandLine (os: IOperatingSystem) model = result {
         if model.Location <> Path.Root then
-            do! os.LaunchApp config.CommandlinePath model.Location ""
+            do! os.LaunchApp model.Config.CommandlinePath model.Location ""
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Commandline tool", e))
             return { model with Status = Some <| MainStatus.openCommandLine model.LocationFormatted }
         else return model
     }
 
-    let openWithTextEditor (os: IOperatingSystem) (config: Config) (model: MainModel) = result {
+    let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         match model.SelectedNode.Type with
         | File ->
             let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
-            do! os.LaunchApp config.TextEditor model.Location args
+            do! os.LaunchApp model.Config.TextEditor model.Location args
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
             return { model with Status = Some <| MainStatus.openTextEditor model.SelectedNode.Name }
         | _ -> return model
     }
 
-    let openSettings fsReader openSettings (config: Config) model = result {
-        openSettings ()
-        return!
-            loadConfig fsReader config model
-            |> Nav.refresh fsReader
+    let openSettings fsReader openSettings model = result {
+        let config = openSettings model.Config
+        return! { model with Config = config } |> Nav.refresh fsReader
     }
 
-let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model =
+let initModel (fsReader: IFileSystemReader) startOptions model =
+    let config = model.Config
     let model =
-        { loadConfig fsReader config model with
+        { model with
             WindowLocation =
                 startOptions.StartLocation |> Option.defaultWith (fun () ->
                     let isFirstInstance =
@@ -621,16 +688,18 @@ let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model 
                         |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
                         |> Seq.length
                         |> (=) 1
-                    if isFirstInstance then (config.Window.Left, config.Window.Top)
-                    else (config.Window.Left + 30, config.Window.Top + 30))
-            WindowSize = startOptions.StartSize |? (config.Window.Width, config.Window.Height)
+                    let (left, top) = config.Window.Location
+                    if isFirstInstance then (left, top) else (left + 30, top + 30)
+                )
+            WindowSize = startOptions.StartSize |? config.Window.Size
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
         }
-    let paths =
-        (startOptions.StartPath |> Option.toList) @
-            match config.StartPath with
-            | RestorePrevious -> [ config.PreviousPath; config.DefaultPath ]
-            | DefaultPath -> [ config.DefaultPath; config.PreviousPath ]
+    let prevPath = model.History.Paths |> List.tryHead |> Option.toList
+    let configPaths =
+        match config.StartPath with
+        | RestorePrevious -> prevPath @ [config.DefaultPath]
+        | DefaultPath -> [config.DefaultPath] @ prevPath
+    let paths = (startOptions.StartPath |> Option.toList) @ (configPaths |> List.map string)
     let rec openPath error (paths: string list) =
         let withError (m: MainModel) = 
             match error with
@@ -645,12 +714,12 @@ let initModel (config: Config) (fsReader: IFileSystemReader) startOptions model 
             | Error e -> openPath (Some (error |? e)) paths
     openPath None paths
 
-let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = asyncSeqResult {
+let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
     let withBookmark char model =
-        let winPath = model.Location.Format Windows
-        config.SetBookmark char winPath
-        config.Save()
-        { model with Status = Some <| MainStatus.setBookmark char winPath }
+        { model with
+            Config = model.Config.WithBookmark char model.Location
+            Status = Some <| MainStatus.setBookmark char model.LocationFormatted
+        }
     match model.InputMode with
     | Some (Input (Find _)) ->
         if char = ';' then // TODO: read key binding?
@@ -661,14 +730,14 @@ let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = a
         let model = { model with InputMode = None }
         match mode with
         | GoToBookmark ->
-            match config.GetBookmark char with
+            match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! Nav.openUserPath fsReader path model
+                yield! Nav.openPath fsReader path SelectNone model
             | None ->
                 yield { model with Status = Some <| MainStatus.noBookmark char }
         | SetBookmark ->
-            match config.GetBookmark char |> Option.bind Path.Parse with
+            match model.Config.GetBookmark char with
             | Some existingPath ->
                 yield
                     { model with
@@ -678,11 +747,13 @@ let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = a
             | None -> 
                 yield withBookmark char model
         | DeleteBookmark ->
-            match config.GetBookmark char with
+            match model.Config.GetBookmark char with
             | Some path ->
-                config.RemoveBookmark char
-                config.Save()
-                yield { model with Status = Some <| MainStatus.deletedBookmark char path }
+                yield
+                    { model with
+                        Config = model.Config.WithoutBookmark char
+                        Status = Some <| MainStatus.deletedBookmark char (path.Format model.PathFormat)
+                    }
             | None ->
                 yield { model with Status = Some <| MainStatus.noBookmark char }
     | Some (Confirm confirmType) ->
@@ -693,7 +764,7 @@ let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = a
             match confirmType with
             | Overwrite (action, src, _) ->
                 let! model = Action.putItem fsReader fsWriter true src action model
-                yield { model with YankRegister = None }
+                yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
                 yield! Action.delete fsReader fsWriter model.SelectedNode true model
             | OverwriteBookmark (char, _) ->
@@ -701,8 +772,8 @@ let inputCharTyped fsReader fsWriter (config: Config) cancelInput char model = a
         | 'n' ->
             let model = { model with Status = Some <| MainStatus.cancelled }
             match confirmType with
-            | Overwrite _ when not model.ShowHidden && model.Nodes |> Seq.exists (fun n -> n.IsHidden) ->
-                // if we were temporarily showing hidden files, refresh
+            | Overwrite _ when not model.Config.ShowHidden && model.SelectedNode.IsHidden ->
+                // if we were temporarily showing a hidden file, refresh
                 yield! Nav.refresh fsReader model
             | _ ->
                 yield model
@@ -723,7 +794,7 @@ let inputDelete cancelInput model =
         { model with InputMode = Some (Prompt DeleteBookmark) }
     | _ -> model
 
-let submitInput fsReader fsWriter os (config: Config) model = asyncSeqResult {
+let submitInput fsReader fsWriter os model = asyncSeqResult {
     match model.InputMode with
     | Some (Input (Find multi)) ->
         let model =
@@ -734,7 +805,7 @@ let submitInput fsReader fsWriter os (config: Config) model = asyncSeqResult {
     | Some (Input Search) ->
         let model = { model with InputMode = None }
         let! search, caseSensitive = Cursor.parseSearch model.InputText
-        let caseSensitive = caseSensitive |? config.SearchCaseSensitive
+        let caseSensitive = caseSensitive |? model.Config.SearchCaseSensitive
         yield Cursor.search caseSensitive search false model
     | Some (Input CreateFile) ->
         let model = { model with InputMode = None }
@@ -783,30 +854,29 @@ let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
         yield model
 }
 
-let windowLocationChanged (config: Config) (left, top) model =
-    if model.SaveWindowSettings then
-        config.Window.Left <- left
-        config.Window.Top <- top
-        config.Save()
-    { model with WindowLocation = (left, top) }
+let windowLocationChanged location model =
+    let config =
+        if model.SaveWindowSettings then
+            let window = { model.Config.Window with Location = location }
+            { model.Config with Window = window }
+        else model.Config
+    { model with WindowLocation = location; Config = config }
 
-let windowSizeChanged (config: Config) (width, height) model =
-    if model.SaveWindowSettings then
-        config.Window.Width <- width
-        config.Window.Height <- height
-        config.Save()
-    { model with WindowSize = (width, height) }
+let windowSizeChanged size model =
+    let config =
+        if model.SaveWindowSettings then
+            let window = { model.Config.Window with Size = size }
+            { model.Config with Window = window }
+        else model.Config
+    { model with WindowSize = size; Config = config }
 
-let windowMaximized (config: Config) maximized model =
-    if model.SaveWindowSettings then
-        config.Window.IsMaximized <- maximized
-        config.Save()
-    model
-
-let closed (config: Config) model =
-    config.PreviousPath <- model.Location.Format Windows
-    config.Save()
-    model
+let windowMaximized maximized model =
+    let config =
+        if model.SaveWindowSettings then
+            let window = { model.Config.Window with IsMaximized = maximized }
+            { model.Config with Window = window }
+        else model.Config
+    { model with Config = config }
 
 let SyncResult handler =
     Sync (fun (model: MainModel) ->
@@ -827,9 +897,9 @@ let AsyncResult handler =
                 yield last.WithError e
     })
 
-let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow evt =
+let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow evt =
     let dispatch =
-        dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow
+        dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow
     let handler =
         match evt with
         | KeyPress (chord, handler) -> Async (keyPress dispatch keyBindings chord handler.Handle)
@@ -850,10 +920,10 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
         | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
         | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
-        | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter config handler.Handle c)
+        | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
         | InputChanged -> Sync (inputChanged)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
-        | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os config)
+        | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
         | CancelInput -> Sync (fun m -> { m with InputMode = None })
         | FindNext -> Sync Cursor.findNext
         | SearchNext -> Sync (Cursor.searchNext false)
@@ -861,37 +931,38 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
         | StartAction action -> Sync (Action.registerItem action)
         | Put -> AsyncResult (Action.put fsReader fsWriter false)
         | ClipCopy -> SyncResult (Action.clipCopy os)
-        | Recycle -> AsyncResult (Action.recycle fsReader fsWriter config)
+        | Recycle -> AsyncResult (Action.recycle fsReader fsWriter)
         | SortList field -> SyncResult (Nav.sortList fsReader field)
-        | ToggleHidden -> SyncResult (Nav.toggleHidden fsReader)
+        | ToggleHidden -> AsyncResult (Nav.toggleHidden fsReader)
         | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
         | OpenFileWith -> SyncResult (Action.openFileWith os)
         | OpenProperties -> SyncResult (Action.openProperties os)
-        | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os config)
+        | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
         | OpenExplorer -> Sync (Action.openExplorer os)
-        | OpenCommandLine -> SyncResult (Action.openCommandLine os config)
-        | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings config)
+        | OpenCommandLine -> SyncResult (Action.openCommandLine os)
+        | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings)
         | Exit -> Sync (fun m -> closeWindow(); m)
-        | ConfigChanged -> Sync (loadConfig fsReader config)
+        | PathInputChanged -> Async (Nav.suggestPaths fsReader)
+        | ConfigFileChanged config -> Sync (fun m -> { m with Config = config })
+        | HistoryFileChanged history -> Sync (fun m -> { m with History = history })
         | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })
-        | WindowLocationChanged (l, t) -> Sync (windowLocationChanged config (l, t))
-        | WindowSizeChanged (w, h) -> Sync (windowSizeChanged config (w, h))
-        | WindowMaximizedChanged maximized -> Sync (windowMaximized config maximized)
-        | Closed -> Sync (closed config)
+        | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
+        | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
+        | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
     let isBusy model =
         match model.Status with
         | Some (Busy _) -> true
         | _ -> false
-    match handler with
-    | handler when evt = ConfigChanged -> handler
-    | Sync handler ->
+    match handler, evt with
+    | _, ConfigFileChanged _ -> handler
+    | Sync handler, _ ->
         Sync (fun model ->
             if not (isBusy model) then
                 handler model
             else
                 model
         )
-    | Async handler ->
+    | Async handler, _ ->
         Async (fun model -> asyncSeq {
             if not (isBusy model) then
                 yield! handler model
@@ -900,7 +971,10 @@ let rec dispatcher fsReader fsWriter os getScreenBounds config keyBindings openS
 
 open Koffee.MainView
 
-let start fsReader fsWriter os getScreenBounds (config: Config) keyBindings openSettings closeWindow startOptions view =
-    let model = MainModel.Default |> initModel config fsReader startOptions
-    let dispatch = dispatcher fsReader fsWriter os getScreenBounds config keyBindings openSettings closeWindow
-    Framework.start (binder config) (events config) dispatch view model
+let start fsReader fsWriter os getScreenBounds (config: ConfigFile) (history: HistoryFile) keyBindings openSettings
+          closeWindow startOptions view =
+    let model =
+        { MainModel.Default with Config = config.Value; History = history.Value }
+        |> initModel fsReader startOptions
+    let dispatch = dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow
+    Framework.start (binder config history) (events config history) dispatch view model

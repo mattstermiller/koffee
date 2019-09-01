@@ -29,11 +29,15 @@ let testModel =
         Cursor = 0
     }
 
+let withReg reg model =
+    { model with Config = { model.Config with YankRegister = reg } }
+
 let mockGetNodeFunc nodeFunc path =
     if path = modelPathNode.Path then Ok (Some modelPathNode)
     else Ok (nodeFunc path)
 
-let mockGetNode nodeToReturn = mockGetNodeFunc (fun _ -> nodeToReturn)
+let mockGetNode nodes =
+    mockGetNodeFunc (fun path -> nodes |> List.tryFind (fun n -> n.Path = path))
 
 let ex = UnauthorizedAccessException() :> exn
 
@@ -52,36 +56,60 @@ let putItemOverwriteCases () =
 [<TestCaseSource("putItemOverwriteCases")>]
 let ``Put item in different folder with item of same name prompts for overwrite`` action existingHidden =
     let src = nodeDiffFolder
-    let dest = { nodeSameFolder with IsHidden = existingHidden }
-    let mutable loadedHidden = None
+    let dest = { nodeSameFolderWith (if action = Shortcut then ".lnk" else "") with IsHidden = existingHidden }
+    let newNodes = [newNodes.[0]; dest]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode (Some dest)
-    fsReader.GetNodes <- fun sh path ->
-        loadedHidden <- Some sh
-        Ok newNodes
+    fsReader.GetNode <- mockGetNode [src; dest]
+    fsReader.GetNodes <- fun _ -> Ok (newNodes @ [{ oldNodes.[1] with IsHidden = true }])
     let fsWriter = FakeFileSystemWriter()
-    let item = Some (src, action)
-    let model = { testModel with YankRegister = item }
+    let item = Some (src.Path, src.Type, action)
+    let model = testModel |> withReg item
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
     let expected =
-        { testModel with
-            YankRegister = item
+        { (testModel |> withReg item) with
             Nodes = newNodes
             Cursor = 1
             InputMode = Some (Confirm (Overwrite (action, src, dest)))
         }
     assertAreEqual expected actual
-    loadedHidden |> shouldEqual (Some existingHidden)
+
+[<Test>]
+let ``Put handles missing register item`` () =
+    let src = nodeDiffFolder
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNode <- mockGetNode []
+    fsReader.GetNodes <- fun _ -> Ok newNodes
+    let fsWriter = FakeFileSystemWriter()
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
+
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+
+    let expected = model.WithError (YankRegisterItemMissing (src.Path.Format model.PathFormat))
+    assertAreEqual expected actual
+
+[<Test>]
+let ``Put handles error reading register item`` () =
+    let src = nodeDiffFolder
+    let fsReader = FakeFileSystemReader()
+    fsReader.GetNode <- (fun _ -> Error ex)
+    fsReader.GetNodes <- fun _ -> Ok newNodes
+    let fsWriter = FakeFileSystemWriter()
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
+
+    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+
+    let expected = model.WithError (ActionError ("read yank register item", ex))
+    assertAreEqual expected actual
 
 [<TestCaseSource("putActionCases")>]
-let ``Put item handles errors`` action =
+let ``Put item handles file system errors`` action =
     let src = nodeDiffFolder
     let dest = nodeSameFolderWith (if action = Shortcut then ".lnk" else "")
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNode <- mockGetNode [src]
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ ->
         if action = Move then Error ex else failwith "Move should not be called"
@@ -89,8 +117,8 @@ let ``Put item handles errors`` action =
         if action = Copy then Error ex else failwith "Copy should not be called"
     fsWriter.CreateShortcut <- fun _ _ ->
         if action = Shortcut then Error ex else failwith "CreateShortcut should not be called"
-    let item = Some (src, action)
-    let model = { testModel with YankRegister = item }
+    let item = Some (src.Path, src.Type, action)
+    let model = testModel |> withReg item
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -106,14 +134,14 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode (if overwrite then Some dest else None)
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNode <- mockGetNode ([src] @ (if overwrite then [dest] else []))
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable moved = []
     fsWriter.Move <- fun s d ->
         moved <- (s, d) :: moved
         Ok ()
-    let model = { testModel with YankRegister = Some (src, Move) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
@@ -133,11 +161,10 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
 let ``Put item to move in same folder returns error``() =
     let src = nodeSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNode <- mockGetNode [src]
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
-    let item = Some (src, Move)
-    let model = { testModel with YankRegister = item }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -153,7 +180,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     let curNode = oldNodes.[1]
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun _ -> Ok None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable moved = None
     fsWriter.Move <- fun s d ->
@@ -221,14 +248,14 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let src = nodeDiffFolder
     let dest = nodeSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode (if overwrite then Some dest else None)
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNode <- mockGetNode ([src] @ (if overwrite then [dest] else []))
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable copied = []
     fsWriter.Copy <- fun s d ->
         copied <- (s, d) :: copied
         Ok ()
-    let model = { testModel with YankRegister = Some (src, Copy) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
@@ -252,14 +279,15 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
     let newNodes = List.append newNodes [nodeCopy existingCopies]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNodeFunc (fun p -> if existingPaths |> List.contains p then Some src else None)
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNode <- mockGetNodeFunc (fun p ->
+        if p = src.Path || existingPaths |> List.contains p then Some src else None)
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable copied = None
     fsWriter.Copy <- fun s d ->
         copied <- Some (s, d)
         Ok ()
-    let model = { testModel with YankRegister = Some (src, Copy) }
+    let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
 
@@ -287,7 +315,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
     let copied = { nodeSameFolder with Modified = modified }
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
@@ -320,7 +348,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     let copied = { nodeSameFolder with Modified = time |> Option.map (fun t -> t.AddDays(1.0)) }
     let fsReader = FakeFileSystemReader()
     fsReader.GetNode <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable recycled = None
     fsWriter.Recycle <- fun p ->
@@ -362,15 +390,15 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     let target = nodeDiffFolder
     let shortcut = nodeSameFolderWith ".lnk"
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode (if overwrite then Some shortcut else None)
+    fsReader.GetNode <- mockGetNode ([target] @ (if overwrite then [shortcut] else []))
     let newNodes = newNodes @ [shortcut]
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable created = []
     fsWriter.CreateShortcut <- fun target dest ->
         created <- (target, dest) :: created
         Ok ()
-    let model = { testModel with YankRegister = Some (target, Shortcut) }
+    let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
 
     let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
 
@@ -393,7 +421,7 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
 let ``Undo create shortcut deletes shortcut`` curPathDifferent =
     let shortcut = nodeSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ _ -> Ok newNodes
+    fsReader.GetNodes <- fun _ -> Ok newNodes
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
@@ -424,7 +452,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
 let ``Undo create shortcut handles errors by returning error and consuming action`` throwOnDelete =
     let shortcut = { nodeSameFolder with Type = File }
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ _ -> Error ex
+    fsReader.GetNodes <- fun _ -> Error ex
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> if throwOnDelete then Error ex else Ok ()
 

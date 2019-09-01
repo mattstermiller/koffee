@@ -64,5 +64,5 @@ let baseModel =
         ForwardStack = [createPath "/c/fwd", 9]
         UndoStack = [CreatedItem node]
         RedoStack = [RenamedItem (node, "item")]
-        PathFormat = Unix
+        Config = { Config.Default with PathFormat = Unix }
     }

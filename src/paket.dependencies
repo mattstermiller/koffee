@@ -4,7 +4,7 @@ redirects: on
 
 nuget FSharp.Core ~> 4.5
 nuget FsXaml.Wpf
-nuget VinylUI ~> 2.2.5
+nuget VinylUI ~> 2.3
 nuget System.Reactive ~> 3.1
 nuget System.Reactive.PlatformServices ~> 3.1
 nuget System.Reactive.Windows.Threading ~> 3.1
@@ -13,6 +13,7 @@ nuget System.Reactive.Core ~> 3.1
 nuget System.Reactive.Interfaces ~> 3.1
 nuget FSharp.Configuration
 nuget Acadian.FSharp ~> 1.2.1
+nuget Newtonsoft.Json
 
 nuget FsUnit ~> 2.3.2
 nuget CompareNETObjects content:none

@@ -18,38 +18,35 @@ type TestCase = {
 let model =
     { baseModel with
         Nodes = [
-            createNode "/c/old/old 1"
-            createNode "/c/old/old 2"
-            createNode "/c/old/old 3"
+            createNode "/c/path/file 1"
+            createNode "/c/path/file 2"
+            createNode "/c/path/file 3"
         ]
-        Location = createPath "/c/old"
+        Location = createPath "/c/path"
         Cursor = 2
+        History = baseModel.History.WithPath (createPath "/c/path")
     }
 
 let newNodes = [
-    createNode "/c/path/new 1"
-    createNode "/c/path/new 2"
+    createNode "/c/newpath/new 1"
+    createNode "/c/newpath/new 2"
 ]
 
 let ex = System.UnauthorizedAccessException() :> exn
 
 let test case =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ _ ->
+    fsReader.GetNodes <- fun _ ->
         match case.GetPath with
         | Same -> Ok model.Nodes
         | Different -> Ok newNodes
         | Inaccessible -> Error ex
 
-    let path = createPath "/c/path"
-    let loc =
+    let path =
         match case.GetPath with
-        | Same -> path
-        | _ -> model.Location
-    let testModel = model.WithLocation loc
-
-    let res = MainLogic.Nav.openPath fsReader path case.Select testModel
-
+        | Same -> model.Location
+        | _ -> createPath "/c/newpath"
+    let res = MainLogic.Nav.openPath fsReader path case.Select model
 
     let expected =
         match case.GetPath with
@@ -63,6 +60,7 @@ let test case =
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []
+                    History = model.History.WithPath path
                }
         | Inaccessible ->
             Error (ActionError ("open path", ex))

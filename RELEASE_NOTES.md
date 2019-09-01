@@ -2,6 +2,7 @@
 
 ### 0.5.0  Recursive Search
 - #51 Changes Find to a "Starts with" jump
+- Fixes deadlock/hang when rapidly moving or resizing the window multiple times.
 
 ### 0.4.2  (2019-06-20)
 - Adds "Open With" command

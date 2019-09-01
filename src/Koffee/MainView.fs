@@ -6,6 +6,7 @@ open System.Windows.Controls
 open System.Windows.Media
 open System.ComponentModel
 open System.Reactive.Linq
+open System.Reactive.Concurrency
 open VinylUI
 open VinylUI.Wpf
 open Reflection
@@ -29,7 +30,8 @@ module MainView =
         ]
         not <| List.contains evt.RealKey modifierKeys
 
-    let throttleChanges o = Observable.Throttle(o, System.TimeSpan.FromSeconds(0.5))
+    let throttleChanges o =
+        Observable.Throttle(o, System.TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
 
     let getPrompt pathFormat (node: Node) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
@@ -255,15 +257,12 @@ module MainView =
         window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
         window.NodeGrid.SizeChanged |> throttleChanges |> Observable.choose (fun _ ->
             let grid = window.NodeGrid
-            grid.Dispatcher.Invoke(fun () ->
-                if grid.HasItems then
-                    let index = grid.SelectedIndex |> max 0
-                    let row = grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow |> Option.ofObj
-                    row
-                    |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int)
-                    |> Option.map PageSizeChanged
-                else None
-            )
+            if grid.HasItems then
+                let index = grid.SelectedIndex |> max 0
+                grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
+                |> Option.ofObj
+                |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int |> PageSizeChanged)
+            else None
         )
 
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
@@ -286,16 +285,12 @@ module MainView =
             else None
         )
         window.LocationChanged |> throttleChanges |> Observable.choose (fun _ ->
-            window.Dispatcher.Invoke(fun () ->
-                if window.Left > -window.Width && window.Top > -window.Height then
-                    Some (WindowLocationChanged (int window.Left, int window.Top))
-                else None
-            )
+            if window.Left > -window.Width && window.Top > -window.Height then
+                Some (WindowLocationChanged (int window.Left, int window.Top))
+            else None
         )
         window.SizeChanged |> throttleChanges |> Observable.map (fun _ ->
-            window.Dispatcher.Invoke(fun () ->
-                WindowSizeChanged (int window.Width, int window.Height)
-            )
+            WindowSizeChanged (int window.Width, int window.Height)
         )
         window.StateChanged |> Observable.choose (fun _ ->
             if window.WindowState <> WindowState.Minimized then

@@ -328,6 +328,7 @@ type MainEvents =
     | SubmitInput
     | CancelInput
     | StartAction of PutAction
+    | ClearYank
     | Put
     | ClipCopy
     | Recycle
@@ -386,6 +387,7 @@ type MainEvents =
         | StartAction Move -> "Start Move Item"
         | StartAction Copy -> "Start Copy Item"
         | StartAction Shortcut -> "Start Create Shortcut to Item"
+        | ClearYank -> "Clear Yank Register"
         | Put -> "Put Item to Move/Copy in Current Folder"
         | ClipCopy -> "Copy to Clipboard"
         | Recycle -> "Send to Recycle Bin"
@@ -434,6 +436,7 @@ type MainEvents =
         StartAction Move
         StartAction Copy
         StartAction Shortcut
+        ClearYank
         Put
         ClipCopy
         Recycle

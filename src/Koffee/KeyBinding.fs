@@ -47,6 +47,7 @@ let defaultsAsString = [
     ("d", StartAction Move)
     ("y", StartAction Copy)
     ("Y", StartAction Shortcut)
+    ("<a-y>", ClearYank)
     ("p", Put)
     ("<c-c>", ClipCopy)
     ("<delete>", Recycle)

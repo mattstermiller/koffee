@@ -929,6 +929,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | SearchNext -> Sync (Cursor.searchNext false)
         | SearchPrevious -> Sync (Cursor.searchNext true)
         | StartAction action -> Sync (Action.registerItem action)
+        | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
         | Put -> AsyncResult (Action.put fsReader fsWriter false)
         | ClipCopy -> SyncResult (Action.clipCopy os)
         | Recycle -> AsyncResult (Action.recycle fsReader fsWriter)

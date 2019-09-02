@@ -52,17 +52,17 @@ let seqResult handler (model: MainModel) =
 
 let createPath pathStr = (Path.Parse pathStr).Value
 
-let createNode pathStr =
+let createItem pathStr =
     let path = createPath pathStr
     { Path = path; Name = path.Name; Type = Folder;
       Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
 
 let baseModel =
-    let node = createNode "/c/path/default undo-redo"
+    let item = createItem "/c/path/default undo-redo"
     { MainModel.Default with
         BackStack = [createPath "/c/back", 8]
         ForwardStack = [createPath "/c/fwd", 9]
-        UndoStack = [CreatedItem node]
-        RedoStack = [RenamedItem (node, "item")]
+        UndoStack = [CreatedItem item]
+        RedoStack = [RenamedItem (item, "item")]
         Config = { Config.Default with PathFormat = Unix }
     }

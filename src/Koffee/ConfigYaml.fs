@@ -12,7 +12,7 @@ module ConfigYamlExt =
     let private filePath = Path.KoffeeData.Join("config.yaml").Format Windows
 
     type ConfigYaml with
-        static member LoadAndConvert (getPathType: Path -> NodeType option) =
+        static member LoadAndConvert (getPathType: Path -> ItemType option) =
             if IO.File.Exists filePath then
                 let config = ConfigYaml()
                 config.Load filePath |> ignore

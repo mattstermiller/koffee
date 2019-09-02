@@ -17,8 +17,8 @@ let test start path1 path2 =
             Ok ()
         else Error (exn path)
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- validPath >> Result.map (cnst None)
-    fsReader.GetNodes <- validPath >> Result.map (cnst [Node.Empty])
+    fsReader.GetItem <- validPath >> Result.map (cnst None)
+    fsReader.GetItems <- validPath >> Result.map (cnst [Item.Empty])
     let config = { Config.Default with DefaultPath = createPath path2; PathFormat = Unix }
     let history = { Paths = [createPath path1]; NetHosts = [] }
     let options = { StartPath = start; StartLocation = None; StartSize = None }

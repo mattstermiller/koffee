@@ -59,7 +59,7 @@ let testCases () =
 let ``Path suggestions return expected results`` input expected =
     let fsReader = FakeFileSystemReader()
     fsReader.GetFolders <- fun path ->
-        if path = createPath "/c/" then Ok (folders |> List.map createNode) else Ok []
+        if path = createPath "/c/" then Ok (folders |> List.map createItem) else Ok []
     let model =
         { baseModel with
             LocationInput = input

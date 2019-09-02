@@ -35,7 +35,7 @@ module MainView =
     let throttleChanges o =
         Observable.Throttle(o, TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
 
-    let getPrompt pathFormat (node: Node) inputMode =
+    let getPrompt pathFormat (item: Item) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
         | Confirm (Overwrite (putAction, src, dest)) ->
@@ -56,7 +56,7 @@ module MainView =
                 | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
             | _ -> ""
         | Confirm Delete ->
-            sprintf "Permanently delete %s y/n ?" node.Description
+            sprintf "Permanently delete %s y/n ?" item.Description
         | Confirm (OverwriteBookmark (char, existingPath)) ->
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | Prompt promptType ->
@@ -68,15 +68,15 @@ module MainView =
 
     let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
         let keepSelectedInView () =
-            if window.NodeGrid.SelectedItem <> null then
-                window.NodeGrid.ScrollIntoView(window.NodeGrid.SelectedItem)
+            if window.ItemGrid.SelectedItem <> null then
+                window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
 
         // setup grid
-        window.NodeGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
-        window.NodeGrid.AddColumn("Type")
-        window.NodeGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
-        window.NodeGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
-        window.NodeGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
+        window.ItemGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
+        window.ItemGrid.AddColumn("Type")
+        window.ItemGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
+        window.ItemGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
+        window.ItemGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
 
         // path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
@@ -108,9 +108,9 @@ module MainView =
             if window.PathBox.SelectionLength > 0 then
                 window.PathBox.Select(window.PathBox.SelectionStart + window.PathBox.SelectionLength, 0)
             else
-                window.NodeGrid.Focus() |> ignore
+                window.ItemGrid.Focus() |> ignore
         ))
-        window.NodeGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
+        window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus()
         ))
@@ -121,18 +121,18 @@ module MainView =
                 window.PathBox.ScrollToHorizontalOffset(window.PathBox.ActualWidth)
         )
 
-        // on selection change, keep selected node in view
-        window.NodeGrid.SelectedCellsChanged.Add (fun _ -> keepSelectedInView ())
+        // on selection change, keep selected item in view
+        window.ItemGrid.SelectedCellsChanged.Add (fun _ -> keepSelectedInView ())
 
-        window.NodeGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
+        window.ItemGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
 
-        window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.NodeGrid.Focus)
+        window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.ItemGrid.Focus)
 
         if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
-        window.SettingsButton.Click.Add (fun _ -> window.NodeGrid.Focus() |> ignore)
-        window.NodeGrid.Focus() |> ignore
+        window.SettingsButton.Click.Add (fun _ -> window.ItemGrid.Focus() |> ignore)
+        window.ItemGrid.Focus() |> ignore
 
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
@@ -158,10 +158,10 @@ module MainView =
                     window.PathSuggestions.Visible <- window.PathBox.IsFocused
             )
 
-            Bind.modelMulti(<@ model.Nodes, model.Cursor, model.Sort @>).toFunc(fun (nodes, cursor, (sortField, sortDesc)) ->
-                if not <| obj.ReferenceEquals(window.NodeGrid.ItemsSource, nodes) then
-                    window.NodeGrid.ItemsSource <- nodes
-                window.NodeGrid.SelectedIndex <- cursor
+            Bind.modelMulti(<@ model.Items, model.Cursor, model.Sort @>).toFunc(fun (items, cursor, (sortField, sortDesc)) ->
+                if not <| obj.ReferenceEquals(window.ItemGrid.ItemsSource, items) then
+                    window.ItemGrid.ItemsSource <- items
+                window.ItemGrid.SelectedIndex <- cursor
                 // sort indication
                 let sortDir =
                     if sortDesc then ListSortDirection.Descending
@@ -172,9 +172,9 @@ module MainView =
                     | Type -> 1
                     | Modified -> 2
                     | Size -> 3
-                window.NodeGrid.Columns.[sortColumnIndex].SortDirection <- Nullable sortDir
+                window.ItemGrid.Columns.[sortColumnIndex].SortDirection <- Nullable sortDir
             )
-            Bind.view(<@ window.NodeGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
+            Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
             // display path
             Bind.model(<@ model.TitleLocation @>).toFunc(fun titleLoc ->
@@ -192,7 +192,7 @@ module MainView =
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedNode, model.PathFormat, model.Config.Bookmarks @>)
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
                     | Some inputMode ->
@@ -217,11 +217,11 @@ module MainView =
                         if window.InputPanel.Visible then
                             window.InputPanel.Visible <- false
                             window.BookmarkPanel.Visible <- false
-                            window.NodeGrid.Focus() |> ignore
+                            window.ItemGrid.Focus() |> ignore
                 )
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Nodes @>).toFunc(fun (status, keyCombo, nodes) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Items @>).toFunc(fun (status, keyCombo, items) ->
                 window.StatusText.Text <- 
                     if not (keyCombo |> List.isEmpty) then
                         keyCombo
@@ -232,12 +232,12 @@ module MainView =
                         match status with
                         | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
                         | None ->
-                            let fileSizes = nodes |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                            let fileSizes = items |> List.choose (fun n -> if n.Type = File then n.Size else None)
                             let fileStr =
                                 match fileSizes with
                                 | [] -> ""
                                 | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                            sprintf "%i items%s" nodes.Length fileStr
+                            sprintf "%i items%s" items.Length fileStr
                 window.StatusText.Foreground <-
                     match keyCombo, status with
                     | [], Some (ErrorMessage _) -> Brushes.Red
@@ -246,12 +246,12 @@ module MainView =
                     match status with
                     | Some (Busy _) -> true
                     | _ -> false
-                let wasBusy = not window.NodeGrid.IsEnabled
+                let wasBusy = not window.ItemGrid.IsEnabled
                 window.PathBox.IsEnabled <- not isBusy
-                window.NodeGrid.IsEnabled <- not isBusy
+                window.ItemGrid.IsEnabled <- not isBusy
                 window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
                 if wasBusy && not isBusy then
-                    window.NodeGrid.Focus() |> ignore
+                    window.ItemGrid.Focus() |> ignore
             )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
@@ -272,7 +272,7 @@ module MainView =
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
             let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
-            let focusGrid () = window.NodeGrid.Focus() |> ignore
+            let focusGrid () = window.ItemGrid.Focus() |> ignore
             match evt.Chord with
             | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (evt.HandlerWithEffect focusGrid))
             | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
@@ -284,16 +284,16 @@ module MainView =
                                    |> Observable.mapTo PathInputChanged
         window.SettingsButton.Click |> Observable.mapTo OpenSettings
 
-        window.NodeGrid.PreviewKeyDown |> Observable.filter isNotModifier
+        window.ItemGrid.PreviewKeyDown |> Observable.filter isNotModifier
                                        |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
-        window.NodeGrid.PreviewKeyDown |> Observable.choose (fun evt ->
+        window.ItemGrid.PreviewKeyDown |> Observable.choose (fun evt ->
             if evt.Chord = (ModifierKeys.Control, Key.C) then
                 evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
             None
         )
-        window.NodeGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
-        window.NodeGrid.SizeChanged |> throttleChanges |> Observable.choose (fun _ ->
-            let grid = window.NodeGrid
+        window.ItemGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
+        window.ItemGrid.SizeChanged |> throttleChanges |> Observable.choose (fun _ ->
+            let grid = window.ItemGrid
             if grid.HasItems then
                 let index = grid.SelectedIndex |> max 0
                 grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
@@ -361,35 +361,35 @@ module MainStatus =
 
     let private runningActionMessage action pathFormat =
         match action with
-        | PutItem (Move, node, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." node.Description (newPath.Format pathFormat)
-        | PutItem (Copy, node, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." node.Description (newPath.Format pathFormat)
-        | DeletedItem (node, false) -> Some <| sprintf "Recycling %s..." node.Description
-        | DeletedItem (node, true) -> Some <| sprintf "Deleting %s..." node.Description
+        | PutItem (Move, item, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." item.Description (newPath.Format pathFormat)
+        | PutItem (Copy, item, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." item.Description (newPath.Format pathFormat)
+        | DeletedItem (item, false) -> Some <| sprintf "Recycling %s..." item.Description
+        | DeletedItem (item, true) -> Some <| sprintf "Deleting %s..." item.Description
         | _ -> None
     let runningAction action pathFormat =
         runningActionMessage action pathFormat |> Option.map Busy
     let checkingIsRecyclable = Busy <| "Calculating size..."
     let private actionCompleteMessage action pathFormat =
         match action with
-        | CreatedItem node -> sprintf "Created %s" node.Description
-        | RenamedItem (node, newName) -> sprintf "Renamed %s to \"%s\"" node.Description newName
-        | PutItem (Move, node, newPath) -> sprintf "Moved %s to \"%s\"" node.Description (newPath.Format pathFormat)
-        | PutItem (Copy, node, newPath) -> sprintf "Copied %s to \"%s\"" node.Description (newPath.Format pathFormat)
-        | PutItem (Shortcut, node, _) -> sprintf "Created shortcut to %s \"%s\""
-                                                 (node.Type |> string |> String.toLower) (node.Path.Format pathFormat)
-        | DeletedItem (node, false) -> sprintf "Sent %s to Recycle Bin" node.Description
-        | DeletedItem (node, true) -> sprintf "Deleted %s" node.Description
+        | CreatedItem item -> sprintf "Created %s" item.Description
+        | RenamedItem (item, newName) -> sprintf "Renamed %s to \"%s\"" item.Description newName
+        | PutItem (Move, item, newPath) -> sprintf "Moved %s to \"%s\"" item.Description (newPath.Format pathFormat)
+        | PutItem (Copy, item, newPath) -> sprintf "Copied %s to \"%s\"" item.Description (newPath.Format pathFormat)
+        | PutItem (Shortcut, item, _) -> sprintf "Created shortcut to %s \"%s\""
+                                                 (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
+        | DeletedItem (item, false) -> sprintf "Sent %s to Recycle Bin" item.Description
+        | DeletedItem (item, true) -> sprintf "Deleted %s" item.Description
     let actionComplete action pathFormat =
         actionCompleteMessage action pathFormat |> Message
 
     let cancelled = Message <| "Cancelled"
 
     // undo/redo
-    let undoingCreate (node: Node) = Busy <| sprintf "Undoing creation of %s - Deleting..." node.Description
-    let undoingMove (node: Node) = Busy <| sprintf "Undoing move of %s..." node.Description
-    let undoingCopy (node: Node) isDeletionPermanent =
+    let undoingCreate (item: Item) = Busy <| sprintf "Undoing creation of %s - Deleting..." item.Description
+    let undoingMove (item: Item) = Busy <| sprintf "Undoing move of %s..." item.Description
+    let undoingCopy (item: Item) isDeletionPermanent =
         let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
-        Busy <| sprintf "Undoing copy of %s - %s..." node.Description undoVerb
+        Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
     let undoAction action pathFormat =
         Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
 
@@ -409,12 +409,12 @@ type MainError =
     | InvalidSearchSwitch of char
     | YankRegisterItemMissing of string
     | CannotPutHere
-    | CannotUseNameAlreadyExists of actionName: string * nodeType: NodeType * name: string * hidden: bool
+    | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
     | CannotMoveToSameFolder
     | TooManyCopies of fileName: string
-    | CannotUndoNonEmptyCreated of Node
-    | CannotUndoMoveToExisting of moded: Node
-    | CannotUndoDelete of permanent: bool * node: Node
+    | CannotUndoNonEmptyCreated of Item
+    | CannotUndoMoveToExisting of moded: Item
+    | CannotUndoDelete of permanent: bool * item: Item
     | NoUndoActions
     | NoRedoActions
     | CouldNotOpenApp of app: string * exn
@@ -431,13 +431,13 @@ type MainError =
         | ItemActionError (action, pathFormat, e) ->
             let actionName =
                 match action with
-                | CreatedItem node -> sprintf "create %s" node.Description
-                | RenamedItem (node, newName) -> sprintf "rename %s" node.Description
-                | PutItem (action, node, newPath) ->
+                | CreatedItem item -> sprintf "create %s" item.Description
+                | RenamedItem (item, newName) -> sprintf "rename %s" item.Description
+                | PutItem (action, item, newPath) ->
                     let action = action |> string |> String.toLower
-                    sprintf "%s %s to \"%s\"" action node.Description (newPath.Format pathFormat)
-                | DeletedItem (node, false) -> sprintf "recycle %s" node.Description
-                | DeletedItem (node, true) -> sprintf "delete %s" node.Description
+                    sprintf "%s %s to \"%s\"" action item.Description (newPath.Format pathFormat)
+                | DeletedItem (item, false) -> sprintf "recycle %s" item.Description
+                | DeletedItem (item, true) -> sprintf "delete %s" item.Description
             (ActionError (actionName, e)).Message
         | InvalidPath path -> "Path format is invalid: " + path
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
@@ -445,20 +445,20 @@ type MainError =
         | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
         | CannotPutHere -> "Cannot put items here"
-        | CannotUseNameAlreadyExists (actionName, nodeType, name, hidden) ->
+        | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""
             sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
-                    actionName nodeType name append
+                    actionName itemType name append
         | CannotMoveToSameFolder -> "Cannot move item to same folder it is already in"
         | TooManyCopies fileName -> sprintf "There are already too many copies of \"%s\"" fileName
-        | CannotUndoNonEmptyCreated node ->
-            sprintf "Cannot undo creation of %s because it is no longer empty" node.Description
+        | CannotUndoNonEmptyCreated item ->
+            sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
         | CannotUndoMoveToExisting moved -> sprintf "Cannot undo move of %s because an item exists in its previous location" moved.Name
-        | CannotUndoDelete (permanent, node) ->
+        | CannotUndoDelete (permanent, item) ->
             if permanent then
-                sprintf "Cannot undo deletion of %s" node.Description
+                sprintf "Cannot undo deletion of %s" item.Description
             else
-                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" node.Description
+                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
         | NoUndoActions -> "No more actions to undo"
         | NoRedoActions -> "No more actions to redo"
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message

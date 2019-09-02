@@ -19,7 +19,7 @@ let history handler backStack forwardStack =
         }
 
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ -> Ok <| List.init 9 (fun i -> sprintf "/c/file %i" i |> createNode)
+    fsReader.GetItems <- fun _ -> Ok <| List.init 9 (fun i -> sprintf "/c/file %i" i |> createItem)
 
     let actual = handler fsReader model |> assertOk
 

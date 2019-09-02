@@ -21,7 +21,7 @@
                 <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="White"/>
             </ListBox.Resources>
         </ListBox>
-        <DataGrid x:Name="NodeGrid" Margin="0,30,0,40" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+        <DataGrid x:Name="ItemGrid" Margin="0,30,0,40" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
             <DataGrid.Resources>
                 <Style TargetType="DataGrid">
                     <Setter Property="AlternatingRowBackground" Value="#eaeaea"/>
@@ -32,7 +32,7 @@
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding Type}" Value="{x:Static my:NodeType.Folder}">
+                        <DataTrigger Binding="{Binding Type}" Value="{x:Static my:ItemType.Folder}">
                             <Setter Property="Foreground" Value="#7c450b"/>
                             <Setter Property="FontWeight" Value="DemiBold"/>
                         </DataTrigger>

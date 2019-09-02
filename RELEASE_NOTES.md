@@ -56,7 +56,7 @@
 - Adds setting to refresh window on focus
 - Move/copy item buffer is now saved to config and shared across instances
 - Fixes renaming to the same name with only casing differences
-- Fixes create/rename/delete actions to do nothing on node types they can't apply to
+- Fixes create/rename/delete actions to do nothing on item types they can't apply to
 
 ### 0.3.1  (2017-09-24)
 - Adds Settings button

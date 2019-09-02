@@ -16,29 +16,29 @@ let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
 
 module Nav =
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-        let! nodes =
+        let! items =
             if path = Path.Network then
                 model.History.NetHosts
                 |> List.map (sprintf @"\\%s")
                 |> List.choose Path.Parse
-                |> List.map (fun path -> Node.Basic path path.Name NetHost)
+                |> List.map (fun path -> Item.Basic path path.Name NetHost)
                 |> Ok
             else
-                fsReader.GetNodes path |> actionError "open path"
+                fsReader.GetItems path |> actionError "open path"
         let selectName =
             match select with
             | SelectName name -> name
             | _ -> ""
-        let nodes =
-            nodes
-            |> List.filter (fun n -> model.Config.ShowHidden || not n.IsHidden ||
-                                     String.equalsIgnoreCase selectName n.Name)
+        let items =
+            items
+            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
+                                     String.equalsIgnoreCase selectName i.Name)
             |> SortField.SortByTypeThen model.Sort
             |> Seq.ifEmpty (
                 let text =
                     if path = Path.Network then "Remote hosts that you visit will appear here"
                     else "Empty folder"
-                [ { Node.Empty with Path = path; Name = sprintf "<%s>" text } ]
+                [ { Item.Empty with Path = path; Name = sprintf "<%s>" text } ]
             )
         let history =
             let hist = model.History.WithPath path
@@ -57,11 +57,11 @@ module Nav =
         let cursor =
             match select with
             | SelectIndex index -> index
-            | SelectName name -> List.tryFindIndex (fun n -> String.equalsIgnoreCase n.Name name) nodes |? model.Cursor
+            | SelectName name -> List.tryFindIndex (fun i -> String.equalsIgnoreCase i.Name name) items |? model.Cursor
             | SelectNone -> model.Cursor
         return
             { model with
-                Nodes = nodes
+                Items = items
                 Status = None
                 History = history
             }.WithCursor cursor
@@ -70,9 +70,9 @@ module Nav =
     let openUserPath (fsReader: IFileSystemReader) pathStr model =
         match Path.Parse pathStr with
         | Some path ->
-            match fsReader.GetNode path with
-            | Ok (Some node) when node.Type = File ->
-                openPath fsReader path.Parent (SelectName node.Name) model
+            match fsReader.GetItem path with
+            | Ok (Some item) when item.Type = File ->
+                openPath fsReader path.Parent (SelectName item.Name) model
             | Ok _ ->
                 openPath fsReader path SelectNone model
             | Error e -> Error <| ActionError ("open path", e)
@@ -85,23 +85,23 @@ module Nav =
     }
 
     let openSelected fsReader (os: IOperatingSystem) (model: MainModel) =
-        let node = model.SelectedNode
-        match node.Type with
+        let item = model.SelectedItem
+        match item.Type with
         | Folder | Drive | NetHost | NetShare ->
-            openPath fsReader node.Path SelectNone model
+            openPath fsReader item.Path SelectNone model
         | File ->
-            let openError e = e |> actionError (sprintf "open '%s'" node.Name)
+            let openError e = e |> actionError (sprintf "open '%s'" item.Name)
             let shortcutFolder = result {
                 let! targetPath =
-                    if node.Path.Extension |> String.equalsIgnoreCase "lnk" then
-                        fsReader.GetShortcutTarget node.Path |> openError
+                    if item.Path.Extension |> String.equalsIgnoreCase "lnk" then
+                        fsReader.GetShortcutTarget item.Path |> openError
                         |> Result.map Path.Parse
                     else
                         Ok None
                 match targetPath with
                 | Some targetPath ->
                     let! target =
-                        fsReader.GetNode targetPath |> openError
+                        fsReader.GetItem targetPath |> openError
                         |> Result.bind (Result.ofOption (ShortcutTargetMissing (targetPath.Format model.PathFormat)))
                     return if target.Type = Folder then Some target.Path else None
                 | None ->
@@ -112,9 +112,9 @@ module Nav =
                 | Some shortcutFolder ->
                     openPath fsReader shortcutFolder SelectNone model
                 | None ->
-                    os.OpenFile node.Path |> openError
+                    os.OpenFile item.Path |> openError
                     |> Result.map (fun () ->
-                        { model with Status = Some <| MainStatus.openFile node.Name }
+                        { model with Status = Some <| MainStatus.openFile item.Name }
                     )
             )
         | _ -> Ok model
@@ -156,7 +156,7 @@ module Nav =
             match model.Sort with
             | f, desc when f = field -> not desc
             | _ -> field = Modified
-        let select = if model.Cursor = 0 then SelectNone else SelectName model.SelectedNode.Name
+        let select = if model.Cursor = 0 then SelectNone else SelectName model.SelectedItem.Name
         let! model =
             { model with Sort = field, desc }
             |> openPath fsReader model.Location select
@@ -166,7 +166,7 @@ module Nav =
     let toggleHidden fsReader (model: MainModel) = asyncSeqResult {
         let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
         yield model
-        let! model = model |> openPath fsReader model.Location (SelectName model.SelectedNode.Name)
+        let! model = model |> openPath fsReader model.Location (SelectName model.SelectedItem.Name)
         yield { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
     }
 
@@ -207,7 +207,7 @@ module Nav =
                     | Some (cachePath, cache) when cachePath = dir -> async { return cache }
                     | _ -> runAsync (fun () ->
                         fsReader.GetFolders dir
-                        |> Result.map (List.map (fun n -> n.Path))
+                        |> Result.map (List.map (fun i -> i.Path))
                         |> Result.mapError (fun e -> e.Message)
                     )
                 let suggestions = pathsRes |> Result.map (getSuggestions search)
@@ -224,7 +224,7 @@ module Nav =
 module Cursor =
     let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
-        let indexed = model.Nodes |> List.indexed
+        let indexed = model.Items |> List.indexed
         let items =
             if reverse then
                 indexed |> rotate (model.Cursor + (if next then 0 else 1)) |> List.rev
@@ -241,13 +241,13 @@ module Cursor =
 
     let find prefix model =
         { model with LastFind = Some prefix }
-        |> moveCursorTo false false (fun n -> n.Name |> String.startsWithIgnoreCase prefix)
+        |> moveCursorTo false false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
 
     let findNext model =
         match model.LastFind with
         | Some prefix ->
             { model with Status = Some <| MainStatus.find prefix }
-            |> moveCursorTo true false (fun n -> n.Name |> String.startsWithIgnoreCase prefix)
+            |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
     let parseSearch (searchInput: string) =
@@ -266,29 +266,29 @@ module Cursor =
         let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
         let options = if caseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
 
-        let searchStatus nodes =
-            let matches = nodes |> List.filter (fun n -> n.IsSearchMatch) |> List.length
+        let searchStatus items =
+            let matches = items |> List.filter (fun i -> i.IsSearchMatch) |> List.length
             MainStatus.search matches caseSensitive searchStr
 
-        // if search is different, update node flags
+        // if search is different, update item flags
         let model =
-            if model.Status <> Some (searchStatus model.Nodes) then
-                let nodes = model.Nodes |> List.map (fun n ->
-                    let isMatch = search |> Option.exists (fun (cs, s) -> Regex.IsMatch(n.Name, s, options))
-                    if isMatch && not n.IsSearchMatch then { n with IsSearchMatch = true }
-                    else if not isMatch && n.IsSearchMatch then { n with IsSearchMatch = false }
-                    else n
+            if model.Status <> Some (searchStatus model.Items) then
+                let items = model.Items |> List.map (fun i ->
+                    let isMatch = search |> Option.exists (fun (cs, s) -> Regex.IsMatch(i.Name, s, options))
+                    if isMatch && not i.IsSearchMatch then { i with IsSearchMatch = true }
+                    else if not isMatch && i.IsSearchMatch then { i with IsSearchMatch = false }
+                    else i
                 )
                 { model with
-                    Nodes = nodes
-                    Status = search |> Option.map (fun _ -> searchStatus nodes)
+                    Items = items
+                    Status = search |> Option.map (fun _ -> searchStatus items)
                 }
             else
                 model
 
         { model with
             LastSearch = search |> Option.orElse model.LastSearch
-        } |> moveCursorTo true reverse (fun n -> n.IsSearchMatch)
+        } |> moveCursorTo true reverse (fun i -> i.IsSearchMatch)
 
     let searchNext reverse model =
         match model.LastSearch with
@@ -321,86 +321,86 @@ module Action =
             match inputMode with
             | Input CreateFile
             | Input CreateFolder ->
-                match fsReader.GetNode model.Location with
-                | Ok (Some node) when node.Type.CanCreateIn -> Ok true
+                match fsReader.GetItem model.Location with
+                | Ok (Some item) when item.Type.CanCreateIn -> Ok true
                 | Ok _ -> Error <| CannotPutHere
                 | Error e -> Error <| ActionError ("create item", e)
             | Input (Rename _)
-            | Confirm Delete -> Ok model.SelectedNode.Type.CanModify 
+            | Confirm Delete -> Ok model.SelectedItem.Type.CanModify 
             | _ -> Ok true
         if allowed then
             let model = { model with InputMode = Some inputMode }
             match inputMode with
             | Input (Rename pos) ->
-                return { model with InputText = model.SelectedNode.Name }
+                return { model with InputText = model.SelectedItem.Name }
                        |> setInputSelection pos 
             | _ ->
                 return { model with InputText = "" }
         else return model
     }
 
-    let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) nodeType name model = asyncSeqResult {
+    let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) itemType name model = asyncSeqResult {
         let createPath = model.Location.Join name
-        let action = CreatedItem { Path = createPath; Name = name; Type = nodeType;
+        let action = CreatedItem { Path = createPath; Name = name; Type = itemType;
                                    Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
-        let! existing = fsReader.GetNode createPath |> itemActionError action model.PathFormat
+        let! existing = fsReader.GetItem createPath |> itemActionError action model.PathFormat
         match existing with
         | None ->
-            do! fsWriter.Create nodeType createPath |> itemActionError action model.PathFormat
+            do! fsWriter.Create itemType createPath |> itemActionError action model.PathFormat
             let! model = Nav.openPath fsReader model.Location (SelectName name) model
-            yield model |> performedAction (CreatedItem model.SelectedNode)
+            yield model |> performedAction (CreatedItem model.SelectedItem)
         | Some existing ->
             yield! Nav.openPath fsReader model.Location (SelectName existing.Name) model
-            return CannotUseNameAlreadyExists ("create", nodeType, name, existing.IsHidden)
+            return CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
     }
 
-    let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node model = asyncSeqResult {
-        if fsReader.IsEmpty node.Path then
-            yield { model with Status = Some <| MainStatus.undoingCreate node }
-            let! res = runAsync (fun () -> fsWriter.Delete node.Path)
-            do! res |> itemActionError (DeletedItem (node, true)) model.PathFormat
-            if model.Location = node.Path.Parent then
+    let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item model = asyncSeqResult {
+        if fsReader.IsEmpty item.Path then
+            yield { model with Status = Some <| MainStatus.undoingCreate item }
+            let! res = runAsync (fun () -> fsWriter.Delete item.Path)
+            do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
+            if model.Location = item.Path.Parent then
                 yield! Nav.refresh fsReader model
         else
-            return CannotUndoNonEmptyCreated node
+            return CannotUndoNonEmptyCreated item
     }
 
-    let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node newName (model: MainModel) = result {
-        if node.Type.CanModify then
-            let action = RenamedItem (node, newName)
-            let newPath = node.Path.Parent.Join newName
+    let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item newName (model: MainModel) = result {
+        if item.Type.CanModify then
+            let action = RenamedItem (item, newName)
+            let newPath = item.Path.Parent.Join newName
             let! existing =
-                if String.equalsIgnoreCase node.Name newName then Ok None
-                else fsReader.GetNode newPath |> itemActionError action model.PathFormat
+                if String.equalsIgnoreCase item.Name newName then Ok None
+                else fsReader.GetItem newPath |> itemActionError action model.PathFormat
             match existing with
             | None ->
-                do! fsWriter.Move node.Path newPath |> itemActionError action model.PathFormat
+                do! fsWriter.Move item.Path newPath |> itemActionError action model.PathFormat
                 let! model = Nav.openPath fsReader model.Location (SelectName newName) model
                 return model |> performedAction action
-            | Some existingNode ->
-                return! Error <| CannotUseNameAlreadyExists ("rename", node.Type, newName, existingNode.IsHidden)
+            | Some existingItem ->
+                return! Error <| CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)
         else return model
     }
 
-    let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldNode currentName (model: MainModel) = result {
-        let parentPath = oldNode.Path.Parent
+    let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldItem currentName (model: MainModel) = result {
+        let parentPath = oldItem.Path.Parent
         let currentPath = parentPath.Join currentName
-        let node = { oldNode with Name = currentName; Path = currentPath }
-        let action = RenamedItem (node, oldNode.Name)
+        let item = { oldItem with Name = currentName; Path = currentPath }
+        let action = RenamedItem (item, oldItem.Name)
         let! existing =
-            if String.equalsIgnoreCase oldNode.Name currentName then Ok None
-            else fsReader.GetNode oldNode.Path |> itemActionError action model.PathFormat
+            if String.equalsIgnoreCase oldItem.Name currentName then Ok None
+            else fsReader.GetItem oldItem.Path |> itemActionError action model.PathFormat
         match existing with
         | None ->
-            do! fsWriter.Move currentPath oldNode.Path |> itemActionError action model.PathFormat
-            return! Nav.openPath fsReader parentPath (SelectName oldNode.Name) model
-        | Some existingNode ->
-            return! Error <| CannotUseNameAlreadyExists ("rename", oldNode.Type, oldNode.Name, existingNode.IsHidden)
+            do! fsWriter.Move currentPath oldItem.Path |> itemActionError action model.PathFormat
+            return! Nav.openPath fsReader parentPath (SelectName oldItem.Name) model
+        | Some existingItem ->
+            return! Error <| CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
     }
 
     let registerItem action (model: MainModel) =
-        if model.SelectedNode.Type.CanModify then
-            let reg = Some (model.SelectedNode.Path, model.SelectedNode.Type, action)
+        if model.SelectedItem.Type.CanModify then
+            let reg = Some (model.SelectedItem.Path, model.SelectedItem.Type, action)
             { model with
                 Config = { model.Config with YankRegister = reg }
                 Status = None
@@ -412,9 +412,9 @@ module Action =
         let number = if i = 0 then "" else sprintf " %i" (i+1)
         sprintf "%s (copy%s)%s" nameNoExt number ext
 
-    let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite node putAction model = asyncSeqResult {
-        let sameFolder = node.Path.Parent = model.Location
-        match! fsReader.GetNode model.Location |> actionError "put item" with
+    let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite item putAction model = asyncSeqResult {
+        let sameFolder = item.Path.Parent = model.Location
+        match! fsReader.GetItem model.Location |> actionError "put item" with
         | Some container when container.Type.CanCreateIn ->
             if putAction = Move && sameFolder then
                 return CannotMoveToSameFolder
@@ -423,36 +423,36 @@ module Action =
             match putAction with
             | Copy when sameFolder ->
                 let unused name =
-                    match fsReader.GetNode (model.Location.Join name) with
+                    match fsReader.GetItem (model.Location.Join name) with
                     | Ok None -> true
                     | _ -> false
-                Seq.init 99 (getCopyName node.Name)
+                Seq.init 99 (getCopyName item.Name)
                 |> Seq.tryFind unused
-                |> Result.ofOption (TooManyCopies node.Name)
+                |> Result.ofOption (TooManyCopies item.Name)
             | Shortcut ->
-                Ok (node.Name + ".lnk")
+                Ok (item.Name + ".lnk")
             | _ ->
-                Ok node.Name
+                Ok item.Name
         let newPath = model.Location.Join newName
-        let action = PutItem (putAction, node, newPath)
+        let action = PutItem (putAction, item, newPath)
         let fileSysAction =
             match putAction with
             | Move -> fsWriter.Move
             | Copy -> fsWriter.Copy
             | Shortcut -> fsWriter.CreateShortcut
-        let! existing = fsReader.GetNode newPath |> itemActionError action model.PathFormat
+        let! existing = fsReader.GetItem newPath |> itemActionError action model.PathFormat
         match existing with
         | Some existing when not overwrite ->
-            // refresh node list to make sure we can see the existing file
+            // refresh item list to make sure we can see the existing file
             let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) model
             yield
                 { model with
-                    InputMode = Some (Confirm (Overwrite (putAction, node, existing)))
+                    InputMode = Some (Confirm (Overwrite (putAction, item, existing)))
                     InputText = ""
                 }
         | _ ->
             yield { model with Status = MainStatus.runningAction action model.PathFormat }
-            let! res = runAsync (fun () -> fileSysAction node.Path newPath)
+            let! res = runAsync (fun () -> fileSysAction item.Path newPath)
             do! res |> itemActionError action model.PathFormat
             let! model = Nav.openPath fsReader model.Location (SelectName newName) model
             yield model |> performedAction action
@@ -462,42 +462,42 @@ module Action =
         match model.Config.YankRegister with
         | None -> ()
         | Some (path, _, putAction) ->
-            match! fsReader.GetNode path |> actionError "read yank register item" with
-            | Some node ->
-                let! model = putItem fsReader fsWriter overwrite node putAction model
+            match! fsReader.GetItem path |> actionError "read yank register item" with
+            | Some item ->
+                let! model = putItem fsReader fsWriter overwrite item putAction model
                 if model.InputMode.IsNone then
                     yield { model with Config = { model.Config with YankRegister = None } }
             | None ->
                 return YankRegisterItemMissing (path.Format model.PathFormat)
     }
 
-    let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node currentPath (model: MainModel) = asyncSeqResult {
-        let from = { node with Path = currentPath; Name = currentPath.Name }
-        let action = PutItem (Move, from, node.Path)
-        let! existing = fsReader.GetNode node.Path |> itemActionError action model.PathFormat
+    let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item currentPath (model: MainModel) = asyncSeqResult {
+        let from = { item with Path = currentPath; Name = currentPath.Name }
+        let action = PutItem (Move, from, item.Path)
+        let! existing = fsReader.GetItem item.Path |> itemActionError action model.PathFormat
         match existing with
         | Some _ ->
             // TODO: prompt for overwrite here?
-            return CannotUndoMoveToExisting node
+            return CannotUndoMoveToExisting item
         | None ->
-            yield { model with Status = Some <| MainStatus.undoingMove node }
-            let! res = runAsync (fun () -> fsWriter.Move currentPath node.Path)
+            yield { model with Status = Some <| MainStatus.undoingMove item }
+            let! res = runAsync (fun () -> fsWriter.Move currentPath item.Path)
             do! res |> itemActionError action model.PathFormat
-            yield! Nav.openPath fsReader node.Path.Parent (SelectName node.Name) model
+            yield! Nav.openPath fsReader item.Path.Parent (SelectName item.Name) model
     }
 
-    let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) node (currentPath: Path) (model: MainModel) = asyncSeqResult {
+    let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item (currentPath: Path) (model: MainModel) = asyncSeqResult {
         let copyModified =
-            match fsReader.GetNode currentPath with
+            match fsReader.GetItem currentPath with
             | Ok (Some copy) -> copy.Modified
             | _ -> None
         let isDeletionPermanent =
-            match node.Modified, copyModified with
+            match item.Modified, copyModified with
             | Some orig, Some copy when orig = copy -> true
             | _ -> false
-        let action = DeletedItem ({ node with Path = currentPath }, isDeletionPermanent)
+        let action = DeletedItem ({ item with Path = currentPath }, isDeletionPermanent)
         let fileSysFunc = if isDeletionPermanent then fsWriter.Delete else fsWriter.Recycle
-        yield { model with Status = Some <| MainStatus.undoingCopy node isDeletionPermanent }
+        yield { model with Status = Some <| MainStatus.undoingCopy item isDeletionPermanent }
         let! res = runAsync (fun () -> fileSysFunc currentPath)
         do! res |> itemActionError action model.PathFormat
         if model.Location = currentPath.Parent then
@@ -505,7 +505,7 @@ module Action =
     }
 
     let undoShortcut (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) shortcutPath (model: MainModel) = result {
-        let action = DeletedItem ({ Node.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
+        let action = DeletedItem ({ Item.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
         do! fsWriter.Delete shortcutPath |> itemActionError action model.PathFormat
         if model.Location = shortcutPath.Parent then
             return! Nav.refresh fsReader model
@@ -514,33 +514,33 @@ module Action =
     }
 
     let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
-        let node = model.SelectedNode
-        match node.Type with
+        let item = model.SelectedItem
+        match item.Type with
         | File | Folder ->
-            do! os.CopyToClipboard node.Path |> actionError "copy to clipboard"
+            do! os.CopyToClipboard item.Path |> actionError "copy to clipboard"
         | _ -> ()
-        return { model with Status = Some (MainStatus.clipboardCopy (node.Path.Format model.PathFormat)) }
+        return { model with Status = Some (MainStatus.clipboardCopy (item.Path.Format model.PathFormat)) }
     }
 
-    let delete fsReader (fsWriter: IFileSystemWriter) node permanent (model: MainModel) = asyncSeqResult {
-        if node.Type.CanModify then
-            let action = DeletedItem (node, permanent)
+    let delete fsReader (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asyncSeqResult {
+        if item.Type.CanModify then
+            let action = DeletedItem (item, permanent)
             let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
             yield { model with Status = MainStatus.runningAction action model.PathFormat }
-            let! res = runAsync (fun () -> fileSysFunc node.Path)
+            let! res = runAsync (fun () -> fileSysFunc item.Path)
             do! res |> itemActionError action model.PathFormat
             yield! Nav.refresh fsReader model |> Result.map (performedAction action)
     }
 
     let recycle fsReader fsWriter (model: MainModel) = asyncSeqResult {
-        if model.SelectedNode.Type = NetHost then
-            let host = model.SelectedNode.Name
+        if model.SelectedItem.Type = NetHost then
+            let host = model.SelectedItem.Name
             let model = { model with History = model.History.WithoutNetHost host }
             yield model
             let! model = Nav.refresh fsReader model
             yield { model with Status = Some <| MainStatus.removedNetworkHost host }
         else
-            yield! delete fsReader fsWriter model.SelectedNode false model
+            yield! delete fsReader fsWriter model.SelectedItem false model
     }
 
     let undo fsReader fsWriter model = asyncSeqResult {
@@ -549,20 +549,20 @@ module Action =
             let model = { model with UndoStack = rest }
             let! model =
                 match action with
-                | CreatedItem node ->
-                    undoCreate fsReader fsWriter node model
-                | RenamedItem (oldNode, curName) ->
-                    undoRename fsReader fsWriter oldNode curName model
+                | CreatedItem item ->
+                    undoCreate fsReader fsWriter item model
+                | RenamedItem (oldItem, curName) ->
+                    undoRename fsReader fsWriter oldItem curName model
                     |> AsyncSeq.singleton
-                | PutItem (Move, node, newPath) ->
-                    undoMove fsReader fsWriter node newPath model
-                | PutItem (Copy, node, newPath) ->
-                    undoCopy fsReader fsWriter node newPath model
-                | PutItem (Shortcut, node, newPath) ->
+                | PutItem (Move, item, newPath) ->
+                    undoMove fsReader fsWriter item newPath model
+                | PutItem (Copy, item, newPath) ->
+                    undoCopy fsReader fsWriter item newPath model
+                | PutItem (Shortcut, item, newPath) ->
                     undoShortcut fsReader fsWriter newPath model
                     |> AsyncSeq.singleton
-                | DeletedItem (node, permanent) ->
-                    Error (CannotUndoDelete (permanent, node))
+                | DeletedItem (item, permanent) ->
+                    Error (CannotUndoDelete (permanent, item))
                     |> AsyncSeq.singleton
             yield
                 { model with
@@ -576,27 +576,27 @@ module Action =
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
-            let goToPath (nodePath: Path) =
-                let path = nodePath.Parent
+            let goToPath (itemPath: Path) =
+                let path = itemPath.Parent
                 if path <> model.Location then
                     Nav.openPath fsReader path SelectNone model
                 else Ok model
             let! model = asyncSeqResult {
                 match action with
-                | CreatedItem node ->
-                    let! model = goToPath node.Path
-                    yield! create fsReader fsWriter node.Type node.Name model
-                | RenamedItem (node, newName) ->
-                    let! model = goToPath node.Path
-                    yield! rename fsReader fsWriter node newName model
-                | PutItem (putAction, node, newPath) ->
+                | CreatedItem item ->
+                    let! model = goToPath item.Path
+                    yield! create fsReader fsWriter item.Type item.Name model
+                | RenamedItem (item, newName) ->
+                    let! model = goToPath item.Path
+                    yield! rename fsReader fsWriter item newName model
+                | PutItem (putAction, item, newPath) ->
                     let! model = goToPath newPath
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! putItem fsReader fsWriter false node putAction model
-                | DeletedItem (node, permanent) ->
-                    let! model = goToPath node.Path
+                    yield! putItem fsReader fsWriter false item putAction model
+                | DeletedItem (item, permanent) ->
+                    let! model = goToPath item.Path
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! delete fsReader fsWriter node permanent model
+                    yield! delete fsReader fsWriter item permanent model
             }
             yield
                 { model with
@@ -631,25 +631,25 @@ module Action =
     }
 
     let openExplorer (os: IOperatingSystem) (model: MainModel) =
-        os.OpenExplorer model.SelectedNode
+        os.OpenExplorer model.SelectedItem
         { model with Status = Some <| MainStatus.openExplorer }
 
     let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
-        let node = model.SelectedNode
-        match node.Type with
+        let item = model.SelectedItem
+        match item.Type with
         | File ->
-            do! os.OpenFileWith node.Path |> actionError "open file with"
-            return { model with Status = Some <| MainStatus.openFile node.Name }
+            do! os.OpenFileWith item.Path |> actionError "open file with"
+            return { model with Status = Some <| MainStatus.openFile item.Name }
         | _ ->
             return model
     }
 
     let openProperties (os: IOperatingSystem) (model: MainModel) = result {
-        let node = model.SelectedNode
-        match node.Type with
+        let item = model.SelectedItem
+        match item.Type with
         | File | Folder ->
-            do! os.OpenProperties node.Path |> actionError "open properties"
-            return { model with Status = Some <| MainStatus.openProperties node.Name }
+            do! os.OpenProperties item.Path |> actionError "open properties"
+            return { model with Status = Some <| MainStatus.openProperties item.Name }
         | _ ->
             return model
     }
@@ -663,12 +663,12 @@ module Action =
     }
 
     let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
-        match model.SelectedNode.Type with
+        match model.SelectedItem.Type with
         | File ->
-            let args = model.SelectedNode.Path.Format Windows |> sprintf "\"%s\""
+            let args = model.SelectedItem.Path.Format Windows |> sprintf "\"%s\""
             do! os.LaunchApp model.Config.TextEditor model.Location args
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
-            return { model with Status = Some <| MainStatus.openTextEditor model.SelectedNode.Name }
+            return { model with Status = Some <| MainStatus.openTextEditor model.SelectedItem.Name }
         | _ -> return model
     }
 
@@ -766,13 +766,13 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
                 let! model = Action.putItem fsReader fsWriter true src action model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fsReader fsWriter model.SelectedNode true model
+                yield! Action.delete fsReader fsWriter model.SelectedItem true model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
         | 'n' ->
             let model = { model with Status = Some <| MainStatus.cancelled }
             match confirmType with
-            | Overwrite _ when not model.Config.ShowHidden && model.SelectedNode.IsHidden ->
+            | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
                 // if we were temporarily showing a hidden file, refresh
                 yield! Nav.refresh fsReader model
             | _ ->
@@ -818,7 +818,7 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
     | Some (Input (Rename _)) ->
         let model = { model with InputMode = None }
         yield model
-        yield! Action.rename fsReader fsWriter model.SelectedNode model.InputText model
+        yield! Action.rename fsReader fsWriter model.SelectedItem model.InputText model
     | _ -> ()
 }
 
@@ -908,7 +908,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
         | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
         | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
-        | CursorToLast -> Sync (fun m -> m.WithCursor (m.Nodes.Length - 1))
+        | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
         | OpenPath handler -> SyncResult (Nav.openInputPath fsReader handler)
         | OpenSelected -> SyncResult (Nav.openSelected fsReader os)
         | OpenParent -> SyncResult (Nav.openParent fsReader)

@@ -3,20 +3,20 @@
 open NUnit.Framework
 open FsUnitTyped
 
-let oldNodes = [
-    createNode "/c/path/one"
-    createNode "/c/path/two"
-    createNode "/c/path/three"
+let oldItems = [
+    createItem "/c/path/one"
+    createItem "/c/path/two"
+    createItem "/c/path/three"
 ]
 
-let newNodes = [
-    oldNodes.[0]
-    oldNodes.[2]
+let newItems = [
+    oldItems.[0]
+    oldItems.[2]
 ]
 
 let testModel =
     { baseModel.WithLocation (createPath "/c/path") with
-        Nodes = oldNodes
+        Items = oldItems
         Cursor = 1
     }
 
@@ -27,26 +27,26 @@ let ex = System.UnauthorizedAccessException() :> exn
 [<TestCase(false)>]
 let ``Delete calls correct file sys func and sets message`` permanent =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p -> deleted <- Some p; Ok ()
     let mutable recycled = None
     fsWriter.Recycle <- fun p -> recycled <- Some p; Ok ()
-    let node = oldNodes.[1]
+    let item = oldItems.[1]
 
-    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter node permanent) testModel
+    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter item permanent) testModel
 
     if permanent then
-        deleted |> shouldEqual (Some node.Path)
+        deleted |> shouldEqual (Some item.Path)
         recycled |> shouldEqual None
     else
         deleted |> shouldEqual None
-        recycled |> shouldEqual (Some node.Path)
-    let expectedAction = DeletedItem (oldNodes.[1], permanent)
+        recycled |> shouldEqual (Some item.Path)
+    let expectedAction = DeletedItem (oldItems.[1], permanent)
     let expected =
         { testModel with
-            Nodes = newNodes
+            Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -57,13 +57,13 @@ let ``Delete calls correct file sys func and sets message`` permanent =
 [<Test>]
 let ``Delete handles error by returning error``() =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> Error ex
-    let node = oldNodes.[1]
+    let item = oldItems.[1]
 
-    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter node true) testModel
+    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter item true) testModel
 
-    let expectedAction = (DeletedItem (oldNodes.[1], true))
+    let expectedAction = (DeletedItem (oldItems.[1], true))
     let expected = testModel.WithError (ItemActionError (expectedAction, testModel.PathFormat, ex))
     assertAreEqual expected actual

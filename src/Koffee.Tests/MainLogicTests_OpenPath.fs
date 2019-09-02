@@ -17,29 +17,29 @@ type TestCase = {
 
 let model =
     { baseModel with
-        Nodes = [
-            createNode "/c/path/file 1"
-            createNode "/c/path/file 2"
-            createNode "/c/path/file 3"
+        Items = [
+            createItem "/c/path/file 1"
+            createItem "/c/path/file 2"
+            createItem "/c/path/file 3"
         ]
         Location = createPath "/c/path"
         Cursor = 2
         History = baseModel.History.WithPath (createPath "/c/path")
     }
 
-let newNodes = [
-    createNode "/c/newpath/new 1"
-    createNode "/c/newpath/new 2"
+let newItems = [
+    createItem "/c/newpath/new 1"
+    createItem "/c/newpath/new 2"
 ]
 
 let ex = System.UnauthorizedAccessException() :> exn
 
 let test case =
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ ->
+    fsReader.GetItems <- fun _ ->
         match case.GetPath with
-        | Same -> Ok model.Nodes
-        | Different -> Ok newNodes
+        | Same -> Ok model.Items
+        | Different -> Ok newItems
         | Inaccessible -> Error ex
 
     let path =
@@ -56,7 +56,7 @@ let test case =
                }
         | Different ->
             Ok { model.WithLocation path with
-                    Nodes = newNodes
+                    Items = newItems
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []
@@ -80,7 +80,7 @@ let ``Opening same path does not modify navigation history``() =
            ExpectedCursor = Some 1 }
 
 [<Test>]
-let ``Opening a path that throws on GetNodes sets error status only``() =
+let ``Opening a path that throws on GetItems sets error status only``() =
     test { GetPath = Inaccessible
            Select = (SelectIndex 1)
            ExpectedCursor = None }

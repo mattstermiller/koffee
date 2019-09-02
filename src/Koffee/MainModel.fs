@@ -4,7 +4,7 @@ open System
 open System.Windows.Input
 open Acadian.FSharp
 
-type NodeType =
+type ItemType =
     | File
     | Folder
     | Drive
@@ -28,10 +28,10 @@ type NodeType =
         | NetShare -> "Network Share"
         | _ -> sprintf "%A" this
 
-type Node = {
+type Item = {
     Path: Path
     Name: string
-    Type: NodeType
+    Type: ItemType
     Modified: DateTime option
     Size: int64 option
     IsHidden: bool
@@ -55,11 +55,11 @@ with
           Modified = None; Size = None; IsHidden = false; IsSearchMatch = false
         }
 
-    static member Basic path name nodeType =
-        { Node.Empty with
+    static member Basic path name itemType =
+        { Item.Empty with
             Path = path
             Name = name
-            Type = nodeType
+            Type = itemType
         }
 
 
@@ -69,17 +69,17 @@ type SortField =
     | Modified
     | Size
 
-    static member SortByTypeThen (field, desc) (list: Node list) =
+    static member SortByTypeThen (field, desc) (list: Item list) =
         let orderBy, thenBy =
             if desc then Order.by, Order.thenByDesc
             else Order.byDesc, Order.thenBy
         let selector =
             match field with
-            | Name -> (fun n -> n.Name.ToLower() :> obj)
-            | Type -> (fun n -> n.Type :> obj)
-            | Modified -> (fun n -> n.Modified :> obj)
-            | Size -> (fun n -> n.Size :> obj)
-        list |> orderBy (fun n -> n.Type) |> thenBy selector |> Seq.toList
+            | Name -> (fun i -> i.Name.ToLower() :> obj)
+            | Type -> (fun i -> i.Type :> obj)
+            | Modified -> (fun i -> i.Modified :> obj)
+            | Size -> (fun i -> i.Size :> obj)
+        list |> orderBy (fun i -> i.Type) |> thenBy selector |> Seq.toList
 
 type RenamePart =
     | Begin
@@ -99,7 +99,7 @@ type PromptType =
     | DeleteBookmark
 
 type ConfirmType =
-    | Overwrite of PutAction * src: Node * dest: Node
+    | Overwrite of PutAction * src: Item * dest: Item
     | Delete
     | OverwriteBookmark of char * existingPath: Path
 
@@ -116,10 +116,10 @@ type InputMode =
     | Input of InputType
 
 type ItemAction =
-    | CreatedItem of Node
-    | RenamedItem of Node * newName: string
-    | PutItem of PutAction * Node * newPath: Path
-    | DeletedItem of Node * permanent: bool
+    | CreatedItem of Item
+    | RenamedItem of Item * newName: string
+    | PutItem of PutAction * Item * newPath: Path
+    | DeletedItem of Item * permanent: bool
 
 type SelectType =
     | SelectNone
@@ -158,7 +158,7 @@ type Config = {
     SearchCaseSensitive: bool
     TextEditor: string
     CommandlinePath: string
-    YankRegister: (Path * NodeType * PutAction) option
+    YankRegister: (Path * ItemType * PutAction) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
 }
@@ -229,7 +229,7 @@ type MainModel = {
     PathSuggestions: Result<string list, string>
     PathSuggestCache: (Path * Result<Path list, string>) option
     Status: StatusType option
-    Nodes: Node list
+    Items: Item list
     Sort: SortField * bool
     Cursor: int
     PageSize: int
@@ -250,10 +250,10 @@ type MainModel = {
     History: History
 } with
     member private this.ClampCursor index =
-         index |> max 0 |> min (this.Nodes.Length - 1)
+         index |> max 0 |> min (this.Items.Length - 1)
 
-    member this.SelectedNode =
-        this.Nodes.[this.Cursor |> this.ClampCursor]
+    member this.SelectedItem =
+        this.Items.[this.Cursor |> this.ClampCursor]
 
     member this.PathFormat = this.Config.PathFormat
 
@@ -281,7 +281,7 @@ type MainModel = {
         PathSuggestions = Ok []
         PathSuggestCache = None
         Status = None
-        Nodes = [ Node.Empty ]
+        Items = [ Item.Empty ]
         Sort = Name, false
         Cursor = 0
         PageSize = 30

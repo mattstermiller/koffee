@@ -4,40 +4,40 @@ open System
 open NUnit.Framework
 open FsUnitTyped
 
-let nodeSameFolder = createNode "/c/path/file 2"
-let nodeSameFolderWith ext = createNode ("/c/path/file 2" + ext)
-let nodeDiffFolder = createNode "/c/other/file 2"
+let itemSameFolder = createItem "/c/path/file 2"
+let itemSameFolderWith ext = createItem ("/c/path/file 2" + ext)
+let itemDiffFolder = createItem "/c/other/file 2"
 
-let oldNodes = [
-    createNode "/c/path/file 1"
-    createNode "/c/path/file 3"
+let oldItems = [
+    createItem "/c/path/file 1"
+    createItem "/c/path/file 3"
 ]
 
-let newNodes = [
-    createNode "/c/path/file 1"
-    nodeSameFolder
+let newItems = [
+    createItem "/c/path/file 1"
+    itemSameFolder
 ]
 
-let nodeCopy num =
-    createNode ("/c/path/" + (MainLogic.Action.getCopyName "file 2" num))
+let itemCopy num =
+    createItem ("/c/path/" + (MainLogic.Action.getCopyName "file 2" num))
 
-let modelPathNode = createNode "/c/path"
+let modelPathItem = createItem "/c/path"
 
 let testModel =
-    { baseModel.WithLocation modelPathNode.Path with
-        Nodes = oldNodes
+    { baseModel.WithLocation modelPathItem.Path with
+        Items = oldItems
         Cursor = 0
     }
 
 let withReg reg model =
     { model with Config = { model.Config with YankRegister = reg } }
 
-let mockGetNodeFunc nodeFunc path =
-    if path = modelPathNode.Path then Ok (Some modelPathNode)
-    else Ok (nodeFunc path)
+let mockGetItemFunc itemFunc path =
+    if path = modelPathItem.Path then Ok (Some modelPathItem)
+    else Ok (itemFunc path)
 
-let mockGetNode nodes =
-    mockGetNodeFunc (fun path -> nodes |> List.tryFind (fun n -> n.Path = path))
+let mockGetItem items =
+    mockGetItemFunc (fun path -> items |> List.tryFind (fun n -> n.Path = path))
 
 let ex = UnauthorizedAccessException() :> exn
 
@@ -55,12 +55,12 @@ let putItemOverwriteCases () =
 
 [<TestCaseSource("putItemOverwriteCases")>]
 let ``Put item in different folder with item of same name prompts for overwrite`` action existingHidden =
-    let src = nodeDiffFolder
-    let dest = { nodeSameFolderWith (if action = Shortcut then ".lnk" else "") with IsHidden = existingHidden }
-    let newNodes = [newNodes.[0]; dest]
+    let src = itemDiffFolder
+    let dest = { itemSameFolderWith (if action = Shortcut then ".lnk" else "") with IsHidden = existingHidden }
+    let newItems = [newItems.[0]; dest]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode [src; dest]
-    fsReader.GetNodes <- fun _ -> Ok (newNodes @ [{ oldNodes.[1] with IsHidden = true }])
+    fsReader.GetItem <- mockGetItem [src; dest]
+    fsReader.GetItems <- fun _ -> Ok (newItems @ [{ oldItems.[1] with IsHidden = true }])
     let fsWriter = FakeFileSystemWriter()
     let item = Some (src.Path, src.Type, action)
     let model = testModel |> withReg item
@@ -69,7 +69,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 
     let expected =
         { (testModel |> withReg item) with
-            Nodes = newNodes
+            Items = newItems
             Cursor = 1
             InputMode = Some (Confirm (Overwrite (action, src, dest)))
         }
@@ -77,10 +77,10 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 
 [<Test>]
 let ``Put handles missing register item`` () =
-    let src = nodeDiffFolder
+    let src = itemDiffFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode []
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- mockGetItem []
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
@@ -91,10 +91,10 @@ let ``Put handles missing register item`` () =
 
 [<Test>]
 let ``Put handles error reading register item`` () =
-    let src = nodeDiffFolder
+    let src = itemDiffFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- (fun _ -> Error ex)
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- (fun _ -> Error ex)
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
@@ -105,11 +105,11 @@ let ``Put handles error reading register item`` () =
 
 [<TestCaseSource("putActionCases")>]
 let ``Put item handles file system errors`` action =
-    let src = nodeDiffFolder
-    let dest = nodeSameFolderWith (if action = Shortcut then ".lnk" else "")
+    let src = itemDiffFolder
+    let dest = itemSameFolderWith (if action = Shortcut then ".lnk" else "")
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode [src]
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- mockGetItem [src]
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ ->
         if action = Move then Error ex else failwith "Move should not be called"
@@ -131,11 +131,11 @@ let ``Put item handles file system errors`` action =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to move in different folder calls file sys move`` (overwrite: bool) =
-    let src = nodeDiffFolder
-    let dest = nodeSameFolder
+    let src = itemDiffFolder
+    let dest = itemSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode ([src] @ (if overwrite then [dest] else []))
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- mockGetItem ([src] @ (if overwrite then [dest] else []))
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable moved = []
     fsWriter.Move <- fun s d ->
@@ -149,7 +149,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let expectedAction = PutItem (Move, src, dest.Path)
     let expected =
         { testModel with
-            Nodes = newNodes
+            Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -159,10 +159,10 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
 
 [<Test>]
 let ``Put item to move in same folder returns error``() =
-    let src = nodeSameFolder
+    let src = itemSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode [src]
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- mockGetItem [src]
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
@@ -176,11 +176,11 @@ let ``Put item to move in same folder returns error``() =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo move item moves it back`` curPathDifferent =
-    let prevNode = newNodes.[1]
-    let curNode = oldNodes.[1]
+    let prevItem = newItems.[1]
+    let curItem = oldItems.[1]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- fun _ -> Ok None
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- fun _ -> Ok None
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable moved = None
     fsWriter.Move <- fun s d ->
@@ -192,12 +192,12 @@ let ``Undo move item moves it back`` curPathDifferent =
         else
             testModel
 
-    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
+    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevItem curItem.Path) model
 
-    moved |> shouldEqual (Some (curNode.Path, prevNode.Path))
+    moved |> shouldEqual (Some (curItem.Path, prevItem.Path))
     let expected =
         { testModel with
-            Nodes = newNodes
+            Items = newItems
             Cursor = 1
         }
     let expected =
@@ -212,31 +212,31 @@ let ``Undo move item moves it back`` curPathDifferent =
 
 [<Test>]
 let ``Undo move item when previous path is occupied returns error``() =
-    let prevNode = newNodes.[1]
-    let curNode = oldNodes.[1]
+    let prevItem = newItems.[1]
+    let curItem = oldItems.[1]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- fun p -> if p = prevNode.Path then Ok (Some prevNode) else Ok None
+    fsReader.GetItem <- fun p -> if p = prevItem.Path then Ok (Some prevItem) else Ok None
     let fsWriter = FakeFileSystemWriter()
     let model = testModel.WithLocation (createPath "/c/other")
 
-    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
+    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevItem curItem.Path) model
 
-    let expected = model.WithError (CannotUndoMoveToExisting prevNode)
+    let expected = model.WithError (CannotUndoMoveToExisting prevItem)
     assertAreEqual expected actual
 
 [<Test>]
 let ``Undo move item handles move error by returning error``() =
-    let prevNode = newNodes.[1]
-    let curNode = oldNodes.[1]
+    let prevItem = newItems.[1]
+    let curItem = oldItems.[1]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- fun _ -> Ok None
+    fsReader.GetItem <- fun _ -> Ok None
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ -> Error ex
     let model = testModel.WithLocation (createPath "/c/other")
 
-    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevNode curNode.Path) model
+    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevItem curItem.Path) model
 
-    let expectedAction = PutItem (Move, curNode, prevNode.Path)
+    let expectedAction = PutItem (Move, curItem, prevItem.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
     assertAreEqual expected actual
 
@@ -245,11 +245,11 @@ let ``Undo move item handles move error by returning error``() =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put item to copy in different folder calls file sys copy`` (overwrite: bool) =
-    let src = nodeDiffFolder
-    let dest = nodeSameFolder
+    let src = itemDiffFolder
+    let dest = itemSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode ([src] @ (if overwrite then [dest] else []))
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- mockGetItem ([src] @ (if overwrite then [dest] else []))
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable copied = []
     fsWriter.Copy <- fun s d ->
@@ -263,7 +263,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let expectedAction = PutItem (Copy, src, dest.Path)
     let expected =
         { testModel with
-            Nodes = newNodes
+            Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -275,13 +275,13 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
 [<TestCase(1)>]
 [<TestCase(2)>]
 let ``Put item to copy in same folder calls file sys copy with new name`` existingCopies =
-    let src = nodeSameFolder
-    let existingPaths = List.init existingCopies (fun i -> (nodeCopy i).Path)
-    let newNodes = List.append newNodes [nodeCopy existingCopies]
+    let src = itemSameFolder
+    let existingPaths = List.init existingCopies (fun i -> (itemCopy i).Path)
+    let newItems = List.append newItems [itemCopy existingCopies]
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNodeFunc (fun p ->
+    fsReader.GetItem <- mockGetItemFunc (fun p ->
         if p = src.Path || existingPaths |> List.contains p then Some src else None)
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable copied = None
     fsWriter.Copy <- fun s d ->
@@ -294,11 +294,11 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let destName = MainLogic.Action.getCopyName src.Name existingCopies
     let destPath = model.Location.Join destName
     copied |> shouldEqual (Some (src.Path, destPath))
-    let expectedAction = PutItem (Copy, nodeSameFolder, destPath)
+    let expectedAction = PutItem (Copy, itemSameFolder, destPath)
     let expected =
         { testModel with
-            Nodes = newNodes
-            Cursor = newNodes.Length - 1
+            Items = newItems
+            Cursor = newItems.Length - 1
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
             Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
@@ -311,11 +311,11 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
 [<TestCase(true)>]
 let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferent =
     let modified = Some (DateTime(2000, 1, 1))
-    let original = { nodeDiffFolder with Modified = modified }
-    let copied = { nodeSameFolder with Modified = modified }
+    let original = { itemDiffFolder with Modified = modified }
+    let copied = { itemSameFolder with Modified = modified }
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
@@ -335,7 +335,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
             model
         else
             { testModel with
-                Nodes = newNodes
+                Items = newItems
                 Cursor = 0
             }
     assertAreEqualWith expected actual (ignoreMembers ["Status"])
@@ -344,11 +344,11 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
 [<TestCase(true)>]
 let ``Undo copy item when copy has different or no timestamp recycles copy`` hasTimestamp =
     let time = if hasTimestamp then Some (DateTime(2000, 1, 1)) else None
-    let original = { nodeDiffFolder with Modified = time }
-    let copied = { nodeSameFolder with Modified = time |> Option.map (fun t -> t.AddDays(1.0)) }
+    let original = { itemDiffFolder with Modified = time }
+    let copied = { itemSameFolder with Modified = time |> Option.map (fun t -> t.AddDays(1.0)) }
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- fun p -> if p = copied.Path then Ok (Some copied) else Ok None
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable recycled = None
     fsWriter.Recycle <- fun p ->
@@ -360,18 +360,18 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     recycled |> shouldEqual (Some copied.Path)
     let expected =
         { testModel with
-            Nodes = newNodes
+            Items = newItems
             Cursor = 0
         }
     assertAreEqual expected actual
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo copy item handles errors by returning error and consuming action`` throwOnGetNode =
-    let original = nodeDiffFolder
-    let copied = nodeSameFolder
+let ``Undo copy item handles errors by returning error and consuming action`` throwOnGetItem =
+    let original = itemDiffFolder
+    let copied = itemSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- fun _ -> if throwOnGetNode then Error ex else Ok None
+    fsReader.GetItem <- fun _ -> if throwOnGetItem then Error ex else Ok None
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Recycle <- fun _ -> Error ex
     fsWriter.Delete <- fun _ -> Error ex
@@ -387,12 +387,12 @@ let ``Undo copy item handles errors by returning error and consuming action`` th
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Put shortcut calls file sys create shortcut`` overwrite =
-    let target = nodeDiffFolder
-    let shortcut = nodeSameFolderWith ".lnk"
+    let target = itemDiffFolder
+    let shortcut = itemSameFolderWith ".lnk"
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNode <- mockGetNode ([target] @ (if overwrite then [shortcut] else []))
-    let newNodes = newNodes @ [shortcut]
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItem <- mockGetItem ([target] @ (if overwrite then [shortcut] else []))
+    let newItems = newItems @ [shortcut]
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable created = []
     fsWriter.CreateShortcut <- fun target dest ->
@@ -406,8 +406,8 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     let expectedAction = PutItem (Shortcut, target, shortcut.Path)
     let expected =
         { testModel with
-            Nodes = newNodes
-            Cursor = newNodes.Length - 1
+            Items = newItems
+            Cursor = newItems.Length - 1
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
             Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
@@ -419,9 +419,9 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo create shortcut deletes shortcut`` curPathDifferent =
-    let shortcut = nodeSameFolder
+    let shortcut = itemSameFolder
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ -> Ok newNodes
+    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p ->
@@ -442,7 +442,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
             model
         else
             { model with
-                Nodes = newNodes
+                Items = newItems
                 Cursor = 0
             }
     assertAreEqual expected actual
@@ -450,9 +450,9 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo create shortcut handles errors by returning error and consuming action`` throwOnDelete =
-    let shortcut = { nodeSameFolder with Type = File }
+    let shortcut = { itemSameFolder with Type = File }
     let fsReader = FakeFileSystemReader()
-    fsReader.GetNodes <- fun _ -> Error ex
+    fsReader.GetItems <- fun _ -> Error ex
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> if throwOnDelete then Error ex else Ok ()
 

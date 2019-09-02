@@ -90,7 +90,7 @@ type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
     abstract member OpenFileWith: Path -> Result<unit, exn>
     abstract member OpenProperties: Path -> Result<unit, exn>
-    abstract member OpenExplorer: Node -> unit
+    abstract member OpenExplorer: Item -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member CopyToClipboard: Path -> Result<unit, exn>
 
@@ -111,12 +111,12 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 OsInterop.openProperties (wpath path) |> ignore
 
-        member this.OpenExplorer node =
-            match node.Type with
-            | File | Folder when node.Path <> Path.Root ->
-                Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath node.Path)) |> ignore
+        member this.OpenExplorer item =
+            match item.Type with
+            | File | Folder when item.Path <> Path.Root ->
+                Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath item.Path)) |> ignore
             | Drive | Empty ->
-                Process.Start("explorer.exe", sprintf "\"%s\"" (wpath node.Path)) |> ignore
+                Process.Start("explorer.exe", sprintf "\"%s\"" (wpath item.Path)) |> ignore
             | _ ->
                 Process.Start("explorer.exe") |> ignore
 

@@ -54,8 +54,7 @@ let createPath pathStr = (Path.Parse pathStr).Value
 
 let createItem pathStr =
     let path = createPath pathStr
-    { Path = path; Name = path.Name; Type = Folder;
-      Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+    Item.Basic path path.Name Folder
 
 let baseModel =
     let item = createItem "/c/path/default undo-redo"

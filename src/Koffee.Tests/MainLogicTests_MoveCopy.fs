@@ -58,9 +58,10 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     let src = itemDiffFolder
     let dest = { itemSameFolderWith (if action = Shortcut then ".lnk" else "") with IsHidden = existingHidden }
     let newItems = [newItems.[0]; dest]
+    let newDir = newItems @ [{ oldItems.[1] with IsHidden = true }]
     let fsReader = FakeFileSystemReader()
     fsReader.GetItem <- mockGetItem [src; dest]
-    fsReader.GetItems <- fun _ -> Ok (newItems @ [{ oldItems.[1] with IsHidden = true }])
+    fsReader.GetItems <- fun _ -> Ok newDir
     let fsWriter = FakeFileSystemWriter()
     let item = Some (src.Path, src.Type, action)
     let model = testModel |> withReg item
@@ -69,6 +70,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 
     let expected =
         { (testModel |> withReg item) with
+            Directory = newDir
             Items = newItems
             Cursor = 1
             InputMode = Some (Confirm (Overwrite (action, src, dest)))
@@ -149,6 +151,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
     let expectedAction = PutItem (Move, src, dest.Path)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -197,17 +200,17 @@ let ``Undo move item moves it back`` curPathDifferent =
     moved |> shouldEqual (Some (curItem.Path, prevItem.Path))
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 1
-        }
-    let expected =
-        if curPathDifferent then
-            { expected with
-                BackStack = (createPath "/c/other", 0) :: expected.BackStack
-                ForwardStack = []
-            }
-        else
-            expected
+        } |> (fun m ->
+            if curPathDifferent then
+                { m with
+                    BackStack = (createPath "/c/other", 0) :: m.BackStack
+                    ForwardStack = []
+                }
+            else m
+        )
     assertAreEqual expected actual
 
 [<Test>]
@@ -263,6 +266,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
     let expectedAction = PutItem (Copy, src, dest.Path)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -297,6 +301,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let expectedAction = PutItem (Copy, itemSameFolder, destPath)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = newItems.Length - 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -335,6 +340,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
             model
         else
             { testModel with
+                Directory = newItems
                 Items = newItems
                 Cursor = 0
             }
@@ -360,6 +366,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
     recycled |> shouldEqual (Some copied.Path)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 0
         }
@@ -406,6 +413,7 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     let expectedAction = PutItem (Shortcut, target, shortcut.Path)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = newItems.Length - 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -442,6 +450,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
             model
         else
             { model with
+                Directory = newItems
                 Items = newItems
                 Cursor = 0
             }

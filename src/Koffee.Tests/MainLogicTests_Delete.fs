@@ -46,6 +46,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     let expectedAction = DeletedItem (oldItems.[1], permanent)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack

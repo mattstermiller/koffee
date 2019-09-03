@@ -30,6 +30,11 @@
             <TextBlock Name="InputText" Text="Input:" Foreground="White" VerticalAlignment="Center" Margin="6,6,0,6"/>
             <TextBox Name="InputBox" TextWrapping="NoWrap" Margin="6"/>
         </DockPanel>
+        <!-- Search panel -->
+        <DockPanel DockPanel.Dock="Bottom" Name="SearchPanel" Background="{DynamicResource FocusBrush}" Visibility="Collapsed">
+            <!-- reserve same amount of vertical space as InputBox --> <TextBox Width="0" Margin="0,6,0,6"/>
+            <TextBlock Name="SearchStatus" Text="Search results for..." Foreground="White" VerticalAlignment="Center" Margin="6"/>
+        </DockPanel>
         <Grid>
             <!-- Path suggestions -->
             <ListBox Name="PathSuggestions" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">
@@ -56,9 +61,6 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsHidden}" Value="true">
                                 <Setter Property="Foreground" Value="DarkGray"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsSearchMatch}" Value="true">
-                                <Setter Property="Background" Value="#ecbe68"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

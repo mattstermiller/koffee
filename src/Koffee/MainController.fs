@@ -15,8 +15,34 @@ let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError 
 let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
 
 module Nav =
+    let select selectType (model: MainModel) =
+        model.WithCursor (
+            match selectType with
+            | SelectIndex index -> index
+            | SelectName name ->
+                model.Items |> List.tryFindIndex (fun i -> String.equalsIgnoreCase i.Name name) |? model.Cursor
+            | SelectNone -> model.Cursor
+        )
+
+    let listDirectory selectType model =
+        let selectName =
+            match selectType with
+            | SelectName name -> name
+            | _ -> ""
+        let items =
+            model.Directory
+            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
+                                     String.equalsIgnoreCase selectName i.Name)
+            |> Seq.ifEmpty (
+                let text =
+                    if model.Location = Path.Network then "Remote hosts that you visit will appear here"
+                    else "Empty folder"
+                [ { Item.Empty with Name = sprintf "<%s>" text } ]
+            )
+        { model with Items = items } |> select selectType
+
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-        let! items =
+        let! directory =
             if path = Path.Network then
                 model.History.NetHosts
                 |> List.map (sprintf @"\\%s")
@@ -25,46 +51,27 @@ module Nav =
                 |> Ok
             else
                 fsReader.GetItems path |> actionError "open path"
-        let selectName =
-            match select with
-            | SelectName name -> name
-            | _ -> ""
-        let items =
-            items
-            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
-                                     String.equalsIgnoreCase selectName i.Name)
-            |> SortField.SortByTypeThen model.Sort
-            |> Seq.ifEmpty (
-                let text =
-                    if path = Path.Network then "Remote hosts that you visit will appear here"
-                    else "Empty folder"
-                [ { Item.Empty with Path = path; Name = sprintf "<%s>" text } ]
-            )
+        let directory = directory |> SortField.SortByTypeThen model.Sort
         let history =
             let hist = model.History.WithPath path
             match path.NetHost with
             | Some host -> hist.WithNetHost host
             | None -> hist
-        let model =
-            if path <> model.Location then
-                { model.WithLocation path with
-                    BackStack = (model.Location, model.Cursor) :: model.BackStack
-                    ForwardStack = []
-                    Cursor = 0
-                }
-            else
-                model.WithLocation path
-        let cursor =
-            match select with
-            | SelectIndex index -> index
-            | SelectName name -> List.tryFindIndex (fun i -> String.equalsIgnoreCase i.Name name) items |? model.Cursor
-            | SelectNone -> model.Cursor
         return
-            { model with
-                Items = items
-                Status = None
+            { model.WithLocation path with
+                Directory = directory
                 History = history
-            }.WithCursor cursor
+                CurrentSearch = None
+                Status = None
+            } |> (fun m ->
+                if path <> model.Location then
+                    { m with
+                        BackStack = (model.Location, model.Cursor) :: model.BackStack
+                        ForwardStack = []
+                        Cursor = 0
+                    }
+                else m
+            ) |> listDirectory select
     }
 
     let openUserPath (fsReader: IFileSystemReader) pathStr model =
@@ -117,7 +124,7 @@ module Nav =
                         { model with Status = Some <| MainStatus.openFile item.Name }
                     )
             )
-        | _ -> Ok model
+        | Empty -> Ok model
 
     let openParent fsReader model =
         openPath fsReader model.Location.Parent (SelectName model.Location.Name) model
@@ -221,7 +228,7 @@ module Nav =
             yield { model with PathSuggestions = Ok [] }
     }
 
-module Cursor =
+module Search =
     let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
         let indexed = model.Items |> List.indexed
@@ -250,50 +257,31 @@ module Cursor =
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
-    let parseSearch (searchInput: string) =
-        match searchInput.Split('/') with
-        | [| search |] -> Ok (search, None)
-        | [| search; switches |] ->
-            (Ok (search, None), switches) ||> Seq.fold (fun res c ->
-                match res, c with
-                | Ok _, c when not <| Seq.contains c "ci" -> Error <| InvalidSearchSwitch c
-                | Ok (s, None), 'c' -> Ok (s, Some true)
-                | Ok (s, None), 'i' -> Ok (s, Some false)
-                | _ -> res)
-        | _ -> Error InvalidSearchSlash
+    let search model =
+        let search = model.InputText |> Option.ofString
+        let filter = search |> Option.bind (fun input ->
+            let options = if model.Config.SearchCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
+            try Some (Regex(input, options).IsMatch)
+            with :? System.ArgumentException -> None
+        )
+        match search, filter with
+        | Some _, Some filter ->
+            let items =
+                model.Directory
+                |> List.filter (fun item -> filter item.Name)
+                |> Seq.ifEmpty [ { Item.Empty with Name = "<No Search Results>" } ]
+            { model with
+                Items = items
+                Cursor = 0
+            } |> Nav.select (SelectName model.SelectedItem.Name)
+        | Some _, None ->
+            model
+        | None, _ ->
+            model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
 
-    let search caseSensitive searchStr reverse model =
-        let search = if searchStr <> "" then Some (caseSensitive, searchStr) else None
-        let options = if caseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
-
-        let searchStatus items =
-            let matches = items |> List.filter (fun i -> i.IsSearchMatch) |> List.length
-            MainStatus.search matches caseSensitive searchStr
-
-        // if search is different, update item flags
-        let model =
-            if model.Status <> Some (searchStatus model.Items) then
-                let items = model.Items |> List.map (fun i ->
-                    let isMatch = search |> Option.exists (fun (cs, s) -> Regex.IsMatch(i.Name, s, options))
-                    if isMatch && not i.IsSearchMatch then { i with IsSearchMatch = true }
-                    else if not isMatch && i.IsSearchMatch then { i with IsSearchMatch = false }
-                    else i
-                )
-                { model with
-                    Items = items
-                    Status = search |> Option.map (fun _ -> searchStatus items)
-                }
-            else
-                model
-
-        { model with
-            LastSearch = search |> Option.orElse model.LastSearch
-        } |> moveCursorTo true reverse (fun i -> i.IsSearchMatch)
-
-    let searchNext reverse model =
-        match model.LastSearch with
-        | Some (cs, s) -> search cs s reverse model
-        | None -> model
+    let cancelSearch model =
+        { model with CurrentSearch = None }
+        |> Nav.listDirectory (SelectName model.SelectedItem.Name)
 
 module Action =
     let private performedAction action model =
@@ -305,14 +293,14 @@ module Action =
 
     let private setInputSelection cursorPos model =
         let fullLen = model.InputText.Length
-        let nameLen = Path.SplitName model.InputText |> fst |> String.length
+        let nameLen = lazy (Path.SplitName model.InputText |> fst |> String.length)
         { model with
             InputTextSelection =
                 match cursorPos with
                 | Begin -> (0, 0)
-                | EndName -> (nameLen, 0)
+                | EndName -> (nameLen.Value, 0)
                 | End -> (fullLen, 0)
-                | ReplaceName -> (0, nameLen)
+                | ReplaceName -> (0, nameLen.Value)
                 | ReplaceAll -> (0, fullLen)
         }
 
@@ -331,9 +319,12 @@ module Action =
         if allowed then
             let model = { model with InputMode = Some inputMode }
             match inputMode with
+            | Input Search ->
+                return { model with InputText = model.CurrentSearch |? "" }
+                       |> setInputSelection End
             | Input (Rename pos) ->
                 return { model with InputText = model.SelectedItem.Name }
-                       |> setInputSelection pos 
+                       |> setInputSelection pos
             | _ ->
                 return { model with InputText = "" }
         else return model
@@ -341,8 +332,7 @@ module Action =
 
     let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) itemType name model = asyncSeqResult {
         let createPath = model.Location.Join name
-        let action = CreatedItem { Path = createPath; Name = name; Type = itemType;
-                                   Modified = None; Size = None; IsHidden = false; IsSearchMatch = false }
+        let action = CreatedItem (Item.Basic createPath name itemType)
         let! existing = fsReader.GetItem createPath |> itemActionError action model.PathFormat
         match existing with
         | None ->
@@ -724,7 +714,7 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
     | Some (Input (Find _)) ->
         if char = ';' then // TODO: read key binding?
             cancelInput ()
-            yield Cursor.findNext model
+            yield Search.findNext model
     | Some (Prompt mode) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -784,7 +774,9 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
 let inputChanged model =
     match model.InputMode with
     | Some (Input (Find _)) when String.isNotEmpty model.InputText ->
-        Cursor.find model.InputText model
+        Search.find model.InputText model
+    | Some (Input Search) ->
+        Search.search model
     | _ -> model
 
 let inputDelete cancelInput model =
@@ -803,10 +795,7 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
         yield model
         yield! Nav.openSelected fsReader os model
     | Some (Input Search) ->
-        let model = { model with InputMode = None }
-        let! search, caseSensitive = Cursor.parseSearch model.InputText
-        let caseSensitive = caseSensitive |? model.Config.SearchCaseSensitive
-        yield Cursor.search caseSensitive search false model
+        yield { model with InputMode = None; CurrentSearch = model.InputText |> Option.ofString }
     | Some (Input CreateFile) ->
         let model = { model with InputMode = None }
         yield model
@@ -822,6 +811,12 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
     | _ -> ()
 }
 
+let cancelInput model =
+    { model with InputMode = None }
+    |>  match model.InputMode with
+        | Some (Input Search) -> Search.cancelSearch
+        | _ -> id
+
 let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
     let event, model =
         if chord = (ModifierKeys.None, Key.Escape) then
@@ -831,7 +826,7 @@ let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
             else if not model.KeyCombo.IsEmpty then
                 (None, { model with KeyCombo = [] })
             else
-                (None, { model with Status = None })
+                (None, { model with Status = None } |> Search.cancelSearch)
         else
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
@@ -924,10 +919,8 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | InputChanged -> Sync (inputChanged)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
         | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
-        | CancelInput -> Sync (fun m -> { m with InputMode = None })
-        | FindNext -> Sync Cursor.findNext
-        | SearchNext -> Sync (Cursor.searchNext false)
-        | SearchPrevious -> Sync (Cursor.searchNext true)
+        | CancelInput -> Sync cancelInput
+        | FindNext -> Sync Search.findNext
         | StartAction action -> Sync (Action.registerItem action)
         | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
         | Put -> AsyncResult (Action.put fsReader fsWriter false)

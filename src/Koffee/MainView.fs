@@ -219,6 +219,14 @@ module MainView =
                             window.BookmarkPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )
+            Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function
+                | None, _
+                | Some _, Some (Input Search) ->
+                    window.SearchPanel.Visibility <- Visibility.Collapsed
+                | Some search, _ ->
+                    window.SearchStatus.Text <- sprintf "Search results for \"%s\"" search
+                    window.SearchPanel.Visible <- true
+            )
 
             // update UI for status
             Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Items @>).toFunc(fun (status, keyCombo, items) ->
@@ -341,9 +349,6 @@ module MainView =
 module MainStatus =
     // navigation
     let find prefix = Message <| "Find item starting with: " + prefix
-    let search matches caseSensitive searchStr =
-        let cs = if caseSensitive then " (case-sensitive)" else ""
-        Message <| sprintf "Search \"%s\"%s found %i matches" searchStr cs matches
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

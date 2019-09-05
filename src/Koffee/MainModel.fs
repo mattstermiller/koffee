@@ -156,6 +156,7 @@ type Config = {
     PathFormat: PathFormat
     ShowHidden: bool
     SearchCaseSensitive: bool
+    SearchRegex: bool
     TextEditor: string
     CommandlinePath: string
     YankRegister: (Path * ItemType * PutAction) option
@@ -186,6 +187,7 @@ with
         PathFormat = Windows
         ShowHidden = false
         SearchCaseSensitive = false
+        SearchRegex = false
         TextEditor = "notepad.exe"
         CommandlinePath = "cmd.exe"
         YankRegister = None
@@ -239,7 +241,7 @@ type MainModel = {
     InputText: string
     InputTextSelection: int * int
     LastFind: string option
-    CurrentSearch: string option
+    CurrentSearch: (string * bool * bool) option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
     UndoStack: ItemAction list

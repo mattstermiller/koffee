@@ -131,6 +131,7 @@ module MainView =
             if window.SearchOptions.IsVisible then
                 match e.Chord with
                 | ModifierKeys.Control, Key.I -> window.SearchCaseSensitive.Toggle()
+                | ModifierKeys.Control, Key.R -> window.SearchRegex.Toggle()
                 | _ -> ()
         )
 
@@ -178,7 +179,9 @@ module MainView =
                     | Type -> 1
                     | Modified -> 2
                     | Size -> 3
-                window.ItemGrid.Columns.[sortColumnIndex].SortDirection <- Nullable sortDir
+                window.ItemGrid.Columns |> Seq.iteri (fun i c ->
+                    c.SortDirection <- if i = sortColumnIndex then Nullable sortDir else Nullable()
+                )
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
@@ -199,6 +202,7 @@ module MainView =
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.Config.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.Config.SearchRegex @>, ((=) (Nullable true)), Nullable)
             Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
@@ -234,8 +238,12 @@ module MainView =
                 | None, _
                 | Some _, Some (Input Search) ->
                     window.SearchPanel.Visibility <- Visibility.Collapsed
-                | Some search, _ ->
-                    window.SearchStatus.Text <- sprintf "Search results for \"%s\"" search
+                | Some (search, cs, re), _ ->
+                    window.SearchStatus.Text <- 
+                        [   sprintf "Search results for \"%s\"" search
+                            (if cs then "Case-sensitive" else "Not case-sensitive")
+                            (if re then "Regular Expression" else "")
+                        ] |> List.filter String.isNotEmpty |> String.concat ", "
                     window.SearchPanel.Visible <- true
             )
 
@@ -334,6 +342,7 @@ module MainView =
         )
         window.InputBox.TextChanged |> Observable.mapTo InputChanged
         window.SearchCaseSensitive.CheckedChanged |> Observable.mapTo InputChanged
+        window.SearchRegex.CheckedChanged |> Observable.mapTo InputChanged
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->

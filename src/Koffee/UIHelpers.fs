@@ -1,10 +1,12 @@
 ﻿[<AutoOpen>]
 module UIHelpers
 
+open System
 open System.Windows
 open System.Windows.Data
 open System.Windows.Controls
 open System.Windows.Input
+open System.Reactive.Linq
 
 let onKey key action (evt: KeyEventArgs) =
     if evt.Key = key then
@@ -33,6 +35,16 @@ type UIElement with
     member this.Visible
         with get () = this.Visibility = Visibility.Visible
         and set value = this.Visibility <- if value then Visibility.Visible else Visibility.Hidden
+
+type CheckBox with
+    member this.Toggle () =
+        this.IsChecked <- not (this.IsChecked.GetValueOrDefault()) |> Nullable
+
+    member this.CheckedChanged =
+        ([  this.Checked
+            this.Unchecked
+            this.Indeterminate
+        ] |> Seq.cast<IObservable<_>>).Merge()
 
 type DataGrid with
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter,

@@ -28,6 +28,9 @@
         <!-- Input panel -->
         <DockPanel DockPanel.Dock="Bottom" Name="InputPanel" Background="{DynamicResource FocusBrush}" Visibility="Collapsed">
             <TextBlock Name="InputText" Text="Input:" Foreground="White" VerticalAlignment="Center" Margin="6,6,0,6"/>
+            <StackPanel Name="SearchOptions" DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                <CheckBox Name="SearchCaseSensitive" Content="Case-sensitive (Ctrl+i)" Foreground="White" Margin="0,0,6,0"/>
+            </StackPanel>
             <TextBox Name="InputBox" TextWrapping="NoWrap" Margin="6"/>
         </DockPanel>
         <!-- Search panel -->

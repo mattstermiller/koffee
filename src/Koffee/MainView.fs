@@ -127,6 +127,12 @@ module MainView =
         window.ItemGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.ItemGrid.Focus)
+        window.InputBox.PreviewKeyDown.Add (fun e ->
+            if window.SearchOptions.IsVisible then
+                match e.Chord with
+                | ModifierKeys.Control, Key.I -> window.SearchCaseSensitive.Toggle()
+                | _ -> ()
+        )
 
         if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
@@ -192,6 +198,7 @@ module MainView =
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
+            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.Config.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
@@ -208,6 +215,10 @@ module MainView =
                             window.BookmarkPanel.Visible <- true
                         | _ ->
                             window.BookmarkPanel.Visible <- false
+                        window.SearchOptions.Visibility <-
+                            match inputMode with
+                            | Input Search -> Visibility.Visible
+                            | _ -> Visibility.Collapsed
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
                         if not window.InputPanel.Visible then
                             window.InputPanel.Visible <- true
@@ -322,6 +333,7 @@ module MainView =
             | _ -> None
         )
         window.InputBox.TextChanged |> Observable.mapTo InputChanged
+        window.SearchCaseSensitive.CheckedChanged |> Observable.mapTo InputChanged
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->

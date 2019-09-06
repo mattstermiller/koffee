@@ -49,8 +49,6 @@ let private binder (view: View) model =
             .toModel(<@ model.Config.Window.ShowFullPathInTitle @>, isChecked, Nullable)
         Bind.view(<@ view.ShowHidden.IsChecked @>)
             .toModel(<@ model.Config.ShowHidden @>, isChecked, Nullable)
-        Bind.view(<@ view.SearchCaseSensitive.IsChecked @>)
-            .toModel(<@ model.Config.SearchCaseSensitive @>, isChecked, Nullable)
         Bind.view(<@ view.RefreshOnActivate.IsChecked @>)
             .toModel(<@ model.Config.Window.RefreshOnActivate @>, isChecked, Nullable)
 

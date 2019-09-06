@@ -312,7 +312,6 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
-    | FindNext
     | OpenPath of EvtHandler
     | OpenSelected
     | OpenParent
@@ -327,6 +326,7 @@ type MainEvents =
     | InputDelete of EvtHandler
     | SubmitInput
     | CancelInput
+    | FindNext
     | StartAction of PutAction
     | ClearYank
     | Put

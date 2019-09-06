@@ -215,7 +215,7 @@ module MainView =
                             window.InputBox.Focus() |> ignore
                     | None ->
                         if window.InputPanel.Visible then
-                            window.InputPanel.Visible <- false
+                            window.InputPanel.Visibility <- Visibility.Collapsed
                             window.BookmarkPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )

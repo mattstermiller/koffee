@@ -31,7 +31,7 @@ type KeyEventArgs with
 
 type UIElement with
     member this.Visible
-        with get () = this.Visibility <> Visibility.Hidden
+        with get () = this.Visibility = Visibility.Visible
         and set value = this.Visibility <- if value then Visibility.Visible else Visibility.Hidden
 
 type DataGrid with

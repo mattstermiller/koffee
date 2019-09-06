@@ -56,6 +56,7 @@ let test case =
                }
         | Different ->
             Ok { model.WithLocation path with
+                    Directory = newItems
                     Items = newItems
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
@@ -65,7 +66,7 @@ let test case =
         | Inaccessible ->
             Error (ActionError ("open path", ex))
 
-    res |> shouldEqual expected
+    assertAreEqual expected res
 
 [<Test>]
 let ``Opening a valid path updates model correctly``() =

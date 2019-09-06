@@ -127,6 +127,13 @@ module MainView =
         window.ItemGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.ItemGrid.Focus)
+        window.InputBox.PreviewKeyDown.Add (fun e ->
+            if window.SearchOptions.IsVisible then
+                match e.Chord with
+                | ModifierKeys.Control, Key.I -> window.SearchCaseSensitive.Toggle()
+                | ModifierKeys.Control, Key.R -> window.SearchRegex.Toggle()
+                | _ -> ()
+        )
 
         if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
@@ -172,7 +179,9 @@ module MainView =
                     | Type -> 1
                     | Modified -> 2
                     | Size -> 3
-                window.ItemGrid.Columns.[sortColumnIndex].SortDirection <- Nullable sortDir
+                window.ItemGrid.Columns |> Seq.iteri (fun i c ->
+                    c.SortDirection <- if i = sortColumnIndex then Nullable sortDir else Nullable()
+                )
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
@@ -192,6 +201,8 @@ module MainView =
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
+            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.Config.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.Config.SearchRegex @>, ((=) (Nullable true)), Nullable)
             Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
@@ -208,6 +219,10 @@ module MainView =
                             window.BookmarkPanel.Visible <- true
                         | _ ->
                             window.BookmarkPanel.Visible <- false
+                        window.SearchOptions.Visibility <-
+                            match inputMode with
+                            | Input Search -> Visibility.Visible
+                            | _ -> Visibility.Collapsed
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
                         if not window.InputPanel.Visible then
                             window.InputPanel.Visible <- true
@@ -215,10 +230,22 @@ module MainView =
                             window.InputBox.Focus() |> ignore
                     | None ->
                         if window.InputPanel.Visible then
-                            window.InputPanel.Visible <- false
+                            window.InputPanel.Visibility <- Visibility.Collapsed
                             window.BookmarkPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )
+            Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function
+                | None, _
+                | Some _, Some (Input Search) ->
+                    window.SearchPanel.Visibility <- Visibility.Collapsed
+                | Some (search, cs, re), _ ->
+                    window.SearchStatus.Text <- 
+                        [   sprintf "Search results for \"%s\"" search
+                            (if cs then "Case-sensitive" else "Not case-sensitive")
+                            (if re then "Regular Expression" else "")
+                        ] |> List.filter String.isNotEmpty |> String.concat ", "
+                    window.SearchPanel.Visible <- true
+            )
 
             // update UI for status
             Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Items @>).toFunc(fun (status, keyCombo, items) ->
@@ -314,6 +341,8 @@ module MainView =
             | _ -> None
         )
         window.InputBox.TextChanged |> Observable.mapTo InputChanged
+        window.SearchCaseSensitive.CheckedChanged |> Observable.mapTo InputChanged
+        window.SearchRegex.CheckedChanged |> Observable.mapTo InputChanged
         window.InputBox.LostFocus |> Observable.mapTo CancelInput
 
         window.Activated |> Observable.choose (fun _ ->
@@ -341,9 +370,6 @@ module MainView =
 module MainStatus =
     // navigation
     let find prefix = Message <| "Find item starting with: " + prefix
-    let search matches caseSensitive searchStr =
-        let cs = if caseSensitive then " (case-sensitive)" else ""
-        Message <| sprintf "Search \"%s\"%s found %i matches" searchStr cs matches
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

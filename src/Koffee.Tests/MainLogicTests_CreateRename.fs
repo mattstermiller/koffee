@@ -43,6 +43,7 @@ let ``Create folder calls file sys create, openPath and sets status``() =
     let expectedAction = CreatedItem createItem
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -65,6 +66,7 @@ let ``Create folder returns error when item already exists at path`` existingHid
 
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = 0
         }.WithError (CannotUseNameAlreadyExists ("create", Folder, createItem.Name, existingHidden))
@@ -107,7 +109,11 @@ let ``Undo create empty item calls delete`` curPathDifferent =
         if curPathDifferent then
             model
         else
-            { model with Items = newItems; Cursor = 0 }
+            { model with
+                Directory = newItems
+                Items = newItems
+                Cursor = 0
+            }
     assertAreEqualWith expected actual (ignoreMembers ["Status"])
 
 [<Test>]
@@ -158,6 +164,7 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let expectedAction = RenamedItem (currentItem, renamedItem.Name)
     let expected =
         { testModel with
+            Directory = newItems
             Items = newItems
             Cursor = if diffCaseOnly then 0 else 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -217,14 +224,19 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
                  |> assertOk
 
     moved |> shouldEqual (Some (curItem.Path, prevItem.Path))
-    let expected = { testModel with Items = newItems; Cursor = 1 }
     let expected =
-        if curPathDifferent then
-            { expected with
-                BackStack = (location, 0) :: expected.BackStack
-                ForwardStack = []
-            }
-        else expected
+        { testModel with
+            Directory = newItems
+            Items = newItems
+            Cursor = 1
+        } |> (fun m ->
+            if curPathDifferent then
+                { m with
+                    BackStack = (location, 0) :: m.BackStack
+                    ForwardStack = []
+                }
+            else m
+        )
     assertAreEqual expected actual
 
 [<TestCase(false)>]

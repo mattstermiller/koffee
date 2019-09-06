@@ -58,10 +58,11 @@ _A capital letter indicates that the letter key is combined with Shift._
         - Press `Esc` to close Find.
     - Press `F` to start a "multi" Find, which stays open when opening folders.
 - **Search**:
-    - Press `/` to start a search. This will move your cursor to a search box at the bottom of the window. Enter any part of a file or folder name and press `Enter` to jump to the next item containing the search term in its name.
-    - After doing a search, press `n` to go to the next match, or `N` to go to the previous match.
-    - Searches' case-sensitivity is an option in Settings, or you can override the setting by suffixing a search with `/c` for case-sensitive or `/i` for case-insensitive searching.
-    - The search box accepts regular expressions for powerful searching. _(Don't know what regular expression are? That's OK, just know that some characters like `.`, `*`, `+`, `^`, `$`, `(`, `)`, `[`, `]` have special meaning. Put a `\` in front of these characters to search for them literally.)_
+    - Press `/` to start a search. This will move your cursor to a search input at the bottom of the window where you can enter space-separated search terms. The list will be filtered to matching items as you type.
+    - Press `Ctrl + i` to toggle whether the search is case-sensitive.
+    - Press `Ctrl + r` to toggle regular expression mode instead of term matching.
+    - Press `Enter` to close the search input and navigate the results. The current search filter will be shown at the bottom of the window.
+    - Press `Esc` when the search input is open or when a search filter is active to cancel the search.
 - **Bookmarks**
     - Set a bookmark by pressing `m`. The list of bookmarks already set are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
     - Go to a bookmark by pressing `'`. The list of bookmarks are shown. Enter one of the bookmark characters to go to that bookmark.

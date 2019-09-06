@@ -34,7 +34,6 @@ type FileSystem() =
           Modified = Some file.LastWriteTime
           Size = Some file.Length
           IsHidden = file.Attributes.HasFlag FileAttributes.Hidden
-          IsSearchMatch = false
         }
 
     let folderItem (dirInfo: DirectoryInfo) =
@@ -44,7 +43,6 @@ type FileSystem() =
           Modified = Some dirInfo.LastWriteTime
           Size = None
           IsHidden = dirInfo.Attributes.HasFlag FileAttributes.Hidden
-          IsSearchMatch = false
         }
 
     let driveItem (drive: DriveInfo) =
@@ -64,7 +62,6 @@ type FileSystem() =
           Modified = None
           Size = if drive.IsReady then Some drive.TotalSize else None
           IsHidden = false
-          IsSearchMatch = false
         }
 
     let netShareItem path =

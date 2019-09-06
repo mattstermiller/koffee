@@ -26,6 +26,7 @@ type ItemType =
         match this with
         | NetHost -> "Network Host"
         | NetShare -> "Network Share"
+        | Empty -> ""
         | _ -> sprintf "%A" this
 
 type Item = {
@@ -35,7 +36,6 @@ type Item = {
     Modified: DateTime option
     Size: int64 option
     IsHidden: bool
-    IsSearchMatch: bool
 }
 with
     override this.ToString() = this.Path.Format Windows
@@ -52,7 +52,7 @@ with
 
     static member Empty =
         { Path = Path.Root; Name = ""; Type = Empty
-          Modified = None; Size = None; IsHidden = false; IsSearchMatch = false
+          Modified = None; Size = None; IsHidden = false
         }
 
     static member Basic path name itemType =
@@ -156,6 +156,7 @@ type Config = {
     PathFormat: PathFormat
     ShowHidden: bool
     SearchCaseSensitive: bool
+    SearchRegex: bool
     TextEditor: string
     CommandlinePath: string
     YankRegister: (Path * ItemType * PutAction) option
@@ -186,6 +187,7 @@ with
         PathFormat = Windows
         ShowHidden = false
         SearchCaseSensitive = false
+        SearchRegex = false
         TextEditor = "notepad.exe"
         CommandlinePath = "cmd.exe"
         YankRegister = None
@@ -229,6 +231,7 @@ type MainModel = {
     PathSuggestions: Result<string list, string>
     PathSuggestCache: (Path * Result<Path list, string>) option
     Status: StatusType option
+    Directory: Item list
     Items: Item list
     Sort: SortField * bool
     Cursor: int
@@ -238,7 +241,7 @@ type MainModel = {
     InputText: string
     InputTextSelection: int * int
     LastFind: string option
-    LastSearch: (bool * string) option
+    CurrentSearch: (string * bool * bool) option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
     UndoStack: ItemAction list
@@ -281,6 +284,7 @@ type MainModel = {
         PathSuggestions = Ok []
         PathSuggestCache = None
         Status = None
+        Directory = []
         Items = [ Item.Empty ]
         Sort = Name, false
         Cursor = 0
@@ -290,7 +294,7 @@ type MainModel = {
         InputText = ""
         InputTextSelection = 0, 0
         LastFind = None
-        LastSearch = None
+        CurrentSearch = None
         BackStack = []
         ForwardStack = []
         UndoStack = []
@@ -310,9 +314,6 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
-    | FindNext
-    | SearchNext
-    | SearchPrevious
     | OpenPath of EvtHandler
     | OpenSelected
     | OpenParent
@@ -327,6 +328,7 @@ type MainEvents =
     | InputDelete of EvtHandler
     | SubmitInput
     | CancelInput
+    | FindNext
     | StartAction of PutAction
     | ClearYank
     | Put
@@ -364,8 +366,6 @@ type MainEvents =
         | StartInput (Find true) -> "Find Item Starting With... (Multi)"
         | FindNext -> "Go To Next Find Match"
         | StartInput Search -> "Search For Items"
-        | SearchNext -> "Go To Next Search Match"
-        | SearchPrevious -> "Go To Previous Search Match"
         | StartPrompt GoToBookmark -> "Go To Bookmark"
         | StartPrompt SetBookmark -> "Set Bookmark"
         | StartPrompt DeleteBookmark -> "Delete Bookmark"
@@ -416,8 +416,6 @@ type MainEvents =
         StartInput (Find true)
         FindNext
         StartInput Search
-        SearchNext
-        SearchPrevious
         StartPrompt GoToBookmark
         StartPrompt SetBookmark
         OpenSelected

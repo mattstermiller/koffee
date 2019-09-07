@@ -5,6 +5,7 @@ open System.Threading.Tasks
 open FSharp.Control
 open VinylUI
 open Acadian.FSharp
+open System.Windows.Controls
 
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
@@ -83,6 +84,7 @@ module Nav =
                 Directory = directory
                 History = history
                 CurrentSearch = None
+                SearchHistoryIndex = -1
                 Status = None
             } |> (fun m ->
                 if path <> model.Location then
@@ -293,7 +295,7 @@ module Search =
             model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
 
     let cancelSearch model =
-        { model with CurrentSearch = None }
+        { model with CurrentSearch = None; SearchHistoryIndex = -1 }
         |> Nav.listDirectory (SelectName model.SelectedItem.Name)
 
 module Action =
@@ -793,6 +795,18 @@ let inputChanged model =
         Search.search model
     | _ -> model
 
+let inputHistory offset model =
+    match model.InputMode with
+    | Some (Input Search) ->
+        let index = model.SearchHistoryIndex + offset |> max -1 |> min (model.History.Searches.Length-1)
+        let input = if index < 0 then "" else model.History.Searches.[index]
+        { model with
+            InputText = input
+            InputTextSelection = (input.Length, 0)
+            SearchHistoryIndex = index
+        }
+    | _ -> model
+
 let inputDelete cancelInput model =
     match model.InputMode with
     | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
@@ -809,11 +823,16 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
         yield model
         yield! Nav.openSelected fsReader os model
     | Some (Input Search) ->
-        let current =
-            model.InputText
-            |> Option.ofString
-            |> Option.map (fun i -> (i, model.Config.SearchCaseSensitive, model.Config.SearchRegex))
-        yield { model with InputMode = None; CurrentSearch = current }
+        let search = model.InputText |> Option.ofString
+        yield
+            { model with
+                InputMode = None
+                CurrentSearch = search |> Option.map (fun i ->
+                    (i, model.Config.SearchCaseSensitive, model.Config.SearchRegex)
+                )
+                SearchHistoryIndex = 0
+                History = search |> Option.map model.History.WithSearch |? model.History
+            }
     | Some (Input CreateFile) ->
         let model = { model with InputMode = None }
         yield model
@@ -934,7 +953,9 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
         | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
         | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
-        | InputChanged -> Sync (inputChanged)
+        | InputChanged -> Sync inputChanged
+        | InputBack -> Sync (inputHistory 1)
+        | InputForward -> Sync (inputHistory -1)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
         | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
         | CancelInput -> Sync cancelInput

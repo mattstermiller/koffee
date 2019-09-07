@@ -20,7 +20,7 @@ let test start path1 path2 =
     fsReader.GetItem <- validPath >> Result.map (cnst None)
     fsReader.GetItems <- validPath >> Result.map (cnst [Item.Empty])
     let config = { Config.Default with DefaultPath = createPath path2; PathFormat = Unix }
-    let history = { Paths = [createPath path1]; NetHosts = [] }
+    let history = { History.Default with Paths = [createPath path1] }
     let options = { StartPath = start; StartLocation = None; StartSize = None }
     let model = { MainModel.Default with Config = config; History = history } |> MainLogic.initModel fsReader options
     { Start = model.LocationFormatted

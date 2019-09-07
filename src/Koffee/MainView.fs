@@ -234,6 +234,9 @@ module MainView =
                             window.BookmarkPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )
+            Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
+                window.InputBox.Select(selectStart, selectLen)
+            )
             Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function
                 | None, _
                 | Some _, Some (Input Search) ->
@@ -331,9 +334,11 @@ module MainView =
 
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
         window.InputBox.PreviewKeyDown |> Observable.choose (fun keyEvt ->
-            if keyEvt.Key = Key.Delete then
-                Some (InputDelete keyEvt.Handler)
-            else None
+            match keyEvt.Key with
+            | Key.Up -> Some InputBack
+            | Key.Down -> Some InputForward
+            | Key.Delete -> Some (InputDelete keyEvt.Handler)
+            | _ -> None
         )
         window.InputBox.PreviewTextInput |> Observable.choose (fun keyEvt ->
             match keyEvt.Text.ToCharArray() with

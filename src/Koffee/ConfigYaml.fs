@@ -43,9 +43,10 @@ module ConfigYamlExt =
                             |> Seq.choose (fun b -> b.Path |> Path.Parse |> Option.map (fun p -> (b.Key.[1], p)))
                             |> Seq.toList
                     }
-                let history = {
-                    Paths = config.PreviousPath |> Path.Parse |> Option.toList
-                    NetHosts = config.NetHosts |> Seq.toList
-                }
+                let history =
+                    { History.Default with
+                        Paths = config.PreviousPath |> Path.Parse |> Option.toList
+                        NetHosts = config.NetHosts |> Seq.toList
+                    }
                 Some (newConfig, history)
             else None

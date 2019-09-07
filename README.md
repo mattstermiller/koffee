@@ -61,6 +61,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `/` to start a search. This will move your cursor to a search input at the bottom of the window where you can enter space-separated search terms. The list will be filtered to matching items as you type.
     - Press `Ctrl + i` to toggle whether the search is case-sensitive.
     - Press `Ctrl + r` to toggle regular expression mode instead of term matching.
+    - Press `Up` to go back through previous searches and `Down` to go forward.
     - Press `Enter` to close the search input and navigate the results. The current search filter will be shown at the bottom of the window.
     - Press `Esc` when the search input is open or when a search filter is active to cancel the search.
 - **Bookmarks**

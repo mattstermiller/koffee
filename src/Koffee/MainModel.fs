@@ -203,11 +203,18 @@ with
 
 type History = {
     Paths: Path list
+    Searches: string list
     NetHosts: string list
 }
 with
+    static member private pushDistinct max list item =
+        item :: (list |> List.filter ((<>) item)) |> List.truncate max
+
     member this.WithPath path =
-        { this with Paths = path :: (this.Paths |> List.filter ((<>) path)) |> List.truncate History.MaxPaths }
+        { this with Paths = History.pushDistinct History.MaxPaths this.Paths path }
+
+    member this.WithSearch search =
+        { this with Searches = History.pushDistinct History.MaxSearches this.Searches search }
 
     member this.WithNetHost host =
         if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
@@ -219,9 +226,11 @@ with
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
     static member MaxPaths = 200
+    static member MaxSearches = 50
 
     static member Default = {
         Paths = []
+        Searches = []
         NetHosts = []
     }
 
@@ -242,6 +251,7 @@ type MainModel = {
     InputTextSelection: int * int
     LastFind: string option
     CurrentSearch: (string * bool * bool) option
+    SearchHistoryIndex: int
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
     UndoStack: ItemAction list
@@ -295,6 +305,7 @@ type MainModel = {
         InputTextSelection = 0, 0
         LastFind = None
         CurrentSearch = None
+        SearchHistoryIndex = -1
         BackStack = []
         ForwardStack = []
         UndoStack = []
@@ -325,6 +336,8 @@ type MainEvents =
     | StartInput of InputType
     | InputCharTyped of char * EvtHandler
     | InputChanged
+    | InputBack
+    | InputForward
     | InputDelete of EvtHandler
     | SubmitInput
     | CancelInput

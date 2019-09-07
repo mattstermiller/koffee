@@ -5,6 +5,7 @@
 - #51 Changes Find to a "Starts with" jump
 - #73 Changes Search to filter as you type, moves case-sensitivity setting to search panel, makes Regex searching
   optional (default is now space-separated term matching)
+- #22 Adds search history
 - #74 Adds command to clear yank register
 - Fixes deadlock/hang when rapidly moving or resizing the window multiple times
 - Replaces configuration back-end, changing format to JSON and eliminating file load latency

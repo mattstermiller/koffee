@@ -72,7 +72,7 @@ module MainView =
                 window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
 
         // setup grid
-        window.ItemGrid.AddColumn("DisplayName", "Name", widthWeight = 3.0)
+        window.ItemGrid.AddColumn("DisplayName", "Name", widthWeight = 1.0)
         window.ItemGrid.AddColumn("Type")
         window.ItemGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
         window.ItemGrid.AddColumn("SizeFormatted", "Size", alignRight = true)

@@ -7,6 +7,7 @@ open System.Windows.Data
 open System.Windows.Controls
 open System.Windows.Input
 open System.Reactive.Linq
+open Acadian.FSharp
 
 let onKey key action (evt: KeyEventArgs) =
     if evt.Key = key then
@@ -49,12 +50,10 @@ type CheckBox with
 type DataGrid with
     member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter,
                            ?format: string) =
-        let headerStr = defaultArg header propName
-        let width = defaultArg widthWeight 1.0
-
         let col = DataGridTextColumn()
-        col.Header <- headerStr
-        col.Width <- DataGridLength(width, DataGridLengthUnitType.Star)
+        col.Header <- header |? propName
+        let widthType = if widthWeight.IsSome then DataGridLengthUnitType.Star else DataGridLengthUnitType.Auto
+        col.Width <- DataGridLength(widthWeight |? 1.0, widthType)
         if alignRight = Some true then
             col.ElementStyle <- Style(typedefof<TextBlock>)
             col.ElementStyle.Setters.Add(Setter(FrameworkElement.HorizontalAlignmentProperty,

@@ -29,6 +29,14 @@ type ItemType =
         | Empty -> ""
         | _ -> sprintf "%A" this
 
+    member this.Symbol =
+        match this with
+        | File -> "📄"
+        | Folder | NetShare -> "📂"
+        | Drive -> "💿"
+        | NetHost -> "💻"
+        | Empty -> ""
+
 type Item = {
     Path: Path
     Name: string
@@ -39,11 +47,6 @@ type Item = {
 }
 with
     override this.ToString() = this.Path.Format Windows
-
-    member this.DisplayName =
-        match this.Type with
-        | Folder | NetShare -> this.Name + @"\"
-        | _ -> this.Name
 
     member this.Description =
         sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name

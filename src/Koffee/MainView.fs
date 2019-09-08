@@ -72,16 +72,16 @@ module MainView =
                 window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
 
         // setup grid
-        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.DisplayName @>, "Name", widthWeight = 1.0)
-        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Type @>)
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Type @>, "", conversion = (fun t -> t.Symbol))
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Name @>, widthWeight = 1.0)
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Modified @>, conversion = Option.toNullable,
                                   format = FormatString.dateTime)
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.SizeFormatted @>, "Size", alignRight = true)
         window.ItemGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
         let sortColumnsIndex =
             function
-            | Name -> 0
-            | Type -> 1
+            | Type -> 0
+            | Name -> 1
             | Modified -> 2
             | Size -> 3
 
@@ -196,7 +196,7 @@ module MainView =
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
                     register |> Option.map (fun (path, typ, action) ->
-                        sprintf "%A %A: %s" action typ path.Name)
+                        sprintf "%A: %s %s" action typ.Symbol path.Name)
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.Visible <- text.IsSome
             )

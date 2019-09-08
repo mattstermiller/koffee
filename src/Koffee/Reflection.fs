@@ -1,9 +1,7 @@
 ﻿module Reflection
 
 open FSharp.Reflection
-open FSharp.Quotations
 open FSharp.Quotations.Patterns
-open FSharp.Quotations.DerivedPatterns
 open FSharp.Quotations.Evaluator
 
 let GetUnionCaseName value =
@@ -24,4 +22,10 @@ let (|PropertyExpression|_|) expr =
     match expr with
     | PropertyGet (Some objExpr, property, []) ->
         Some (QuotationEvaluator.EvaluateUntyped objExpr, property)
+    | _ -> None
+
+let (|PropertySelector|_|) expr =
+    match expr with
+    | Lambda (_, PropertyGet (_, property, [])) ->
+        Some property
     | _ -> None

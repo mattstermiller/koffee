@@ -60,7 +60,6 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Testing.fs" />
     <Compile Include="RectTests.fs" />
-    <Compile Include="ValueConverterTests.fs" />
     <Compile Include="KeyComboParserTests.fs" />
     <Compile Include="PathTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />

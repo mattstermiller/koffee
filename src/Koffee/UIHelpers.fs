@@ -7,6 +7,7 @@ open System.Windows.Data
 open System.Windows.Controls
 open System.Windows.Input
 open System.Reactive.Linq
+open Microsoft.FSharp.Quotations
 open Acadian.FSharp
 
 let onKey key action (evt: KeyEventArgs) =
@@ -48,8 +49,12 @@ type CheckBox with
         ] |> Seq.cast<IObservable<_>>).Merge()
 
 type DataGrid with
-    member this.AddColumn (propName, ?header: string, ?widthWeight, ?alignRight, ?converter: IValueConverter,
-                           ?format: string) =
+    member this.AddColumn (projection: Expr<'a -> 'v>, ?header: string, ?widthWeight, ?alignRight,
+                           ?conversion: 'v -> _, ?format: string) =
+        let propName =
+            match projection with
+            | Reflection.PropertySelector prop -> prop.Name
+            | _ -> failwith "Projection expression must be a function that returns a property from an item."
         let col = DataGridTextColumn()
         col.Header <- header |? propName
         let widthType = if widthWeight.IsSome then DataGridLengthUnitType.Star else DataGridLengthUnitType.Auto
@@ -60,8 +65,14 @@ type DataGrid with
                                                 HorizontalAlignment.Right))
 
         let binding = Binding(propName)
-        if converter.IsSome then binding.Converter <- converter.Value
-        if format.IsSome then binding.StringFormat <- format.Value
+        conversion |> Option.iter (fun convert ->
+            binding.Converter <- 
+                { new IValueConverter with
+                    member this.Convert(value, _, _, _) = value |> unbox<'v> |> convert |> box
+                    member this.ConvertBack(value, _, _, _) = value
+                }
+        )
+        format |> Option.iter binding.set_StringFormat
         col.Binding <- binding
 
         this.Columns.Add col

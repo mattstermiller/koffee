@@ -26,8 +26,8 @@ type Events =
 type View = FsXaml.XAML<"SettingsWindow.xaml">
 
 let private binder (view: View) model =
-    view.KeyBindings.AddColumn("EventName", "Command", widthWeight = 3.0)
-    view.KeyBindings.AddColumn("BoundKeys", "Bound Keys")
+    view.KeyBindings.AddColumn(<@ fun k -> k.EventName @>, "Command", widthWeight = 3.0)
+    view.KeyBindings.AddColumn(<@ fun k -> k.BoundKeys @>, "Bound Keys")
 
     view.PreviewKeyDown.Add (onKey Key.Escape view.Close)
     view.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W view.Close)

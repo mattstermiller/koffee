@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -72,11 +72,18 @@ module MainView =
                 window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
 
         // setup grid
-        window.ItemGrid.AddColumn("DisplayName", "Name", widthWeight = 1.0)
-        window.ItemGrid.AddColumn("Type")
-        window.ItemGrid.AddColumn("Modified", converter = ValueConverters.OptionValue(), format = FormatString.dateTime)
-        window.ItemGrid.AddColumn("SizeFormatted", "Size", alignRight = true)
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.DisplayName @>, "Name", widthWeight = 1.0)
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Type @>)
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Modified @>, conversion = Option.toNullable,
+                                  format = FormatString.dateTime)
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.SizeFormatted @>, "Size", alignRight = true)
         window.ItemGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
+        let sortColumnsIndex =
+            function
+            | Name -> 0
+            | Type -> 1
+            | Modified -> 2
+            | Size -> 3
 
         // path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
@@ -173,14 +180,9 @@ module MainView =
                 let sortDir =
                     if sortDesc then ListSortDirection.Descending
                     else ListSortDirection.Ascending
-                let sortColumnIndex =
-                    match sortField with
-                    | Name -> 0
-                    | Type -> 1
-                    | Modified -> 2
-                    | Size -> 3
+                let sortIndex = sortColumnsIndex sortField
                 window.ItemGrid.Columns |> Seq.iteri (fun i c ->
-                    c.SortDirection <- if i = sortColumnIndex then Nullable sortDir else Nullable()
+                    c.SortDirection <- if i = sortIndex then Nullable sortDir else Nullable()
                 )
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)

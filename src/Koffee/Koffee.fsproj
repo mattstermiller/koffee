@@ -71,7 +71,6 @@
     <Resource Include="AppStyles.xaml" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
-    <Compile Include="ValueConverters.fs" />
     <Compile Include="UIHelpers.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />

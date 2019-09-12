@@ -987,7 +987,8 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | Some (Busy _) -> true
         | _ -> false
     match handler, evt with
-    | _, ConfigFileChanged _ -> handler
+    | _, ConfigFileChanged _
+    | _, HistoryFileChanged _ -> handler
     | Sync handler, _ ->
         Sync (fun model ->
             if not (isBusy model) then

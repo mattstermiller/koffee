@@ -5,7 +5,6 @@ open System.Threading.Tasks
 open FSharp.Control
 open VinylUI
 open Acadian.FSharp
-open System.Windows.Controls
 
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
@@ -35,6 +34,15 @@ let private filterByTerms sort caseSensitive search proj items =
             matches
     | None -> items
 
+let clearSearchProps model =
+    model.SubDirectoryCancel.Cancel()
+    { model with
+        CurrentSearch = None
+        SearchHistoryIndex = -1
+        SubDirectories = None
+        Progress = None
+    }
+
 module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
@@ -54,7 +62,7 @@ module Nav =
             model.Directory
             |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
                                      String.equalsIgnoreCase selectName i.Name)
-            |> SortField.SortByTypeThen model.Sort
+            |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
             |> Seq.ifEmpty (
                 let text =
                     if model.Location = Path.Network then "Remote hosts that you visit will appear here"
@@ -83,10 +91,9 @@ module Nav =
             { model.WithLocation path with
                 Directory = directory
                 History = history
-                CurrentSearch = None
-                SearchHistoryIndex = -1
                 Status = None
-            } |> (fun m ->
+            } |> clearSearchProps
+              |> (fun m ->
                 if path <> model.Location then
                     { m with
                         BackStack = (model.Location, model.Cursor) :: model.BackStack
@@ -149,11 +156,17 @@ module Nav =
             )
         | Empty -> Ok model
 
-    let openParent fsReader model =
-        openPath fsReader model.Location.Parent (SelectName model.Location.Name) model
+    let openParent fsReader (model: MainModel) =
+        if model.CurrentSearch.IsSome then
+            if model.SelectedItem.Type = Empty then
+                Ok (model |> clearSearchProps |> listDirectory SelectNone)
+            else
+                openPath fsReader model.SelectedItem.Path.Parent (SelectName model.SelectedItem.Name) model
+        else
+            openPath fsReader model.Location.Parent (SelectName model.Location.Name) model
 
-    let refresh fsReader model =
-        openPath fsReader model.Location SelectNone model
+    let refresh fsReader (model: MainModel) =
+        openPath fsReader model.SelectedItem.Path.Parent SelectNone model
         |> Result.map (fun newModel ->
             if model.Status.IsSome then
                 { newModel with Status = model.Status }
@@ -184,11 +197,11 @@ module Nav =
     let sortList field model =
         let desc =
             match model.Sort with
-            | f, desc when f = field -> not desc
+            | Some (f, desc) when f = field -> not desc
             | _ -> field = Modified
         let selectType = if model.Cursor = 0 then SelectNone else SelectName model.SelectedItem.Name
         { model with
-            Sort = field, desc
+            Sort = Some (field, desc)
             Items = model.Items |> SortField.SortByTypeThen (field, desc)
             Status = Some <| MainStatus.sort field desc
         } |> select selectType
@@ -267,9 +280,10 @@ module Search =
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
-    let search model =
-        let search = model.InputText |> Option.ofString
-        let filter = search |> Option.bind (fun input ->
+    let private getFilter model =
+        model.InputText
+        |> Option.ofString
+        |> Option.bind (fun input ->
             if model.SearchRegex then
                 let options = if model.SearchCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
                 try
@@ -279,23 +293,76 @@ module Search =
             else
                 Some (filterByTerms false model.SearchCaseSensitive input (fun item -> item.Name))
         )
-        match search, filter with
-        | Some _, Some filter ->
-            let items =
-                model.Directory
-                |> filter
-                |> Seq.ifEmpty [ { Item.Empty with Name = "<No Search Results>" } ]
-            { model with
-                Items = items
-                Cursor = 0
-            } |> Nav.select (SelectName model.SelectedItem.Name)
-        | Some _, None ->
-            model
-        | None, _ ->
-            model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
 
-    let cancelSearch model =
-        { model with CurrentSearch = None; SearchHistoryIndex = -1 }
+    let private enumerateSubDirs (fsReader: IFileSystemReader) (resultsEvent: Event<_>) isCancelled items = async {
+        let getDirs = List.filter (fun t -> t.Type = Folder)
+        let rec enumerate progressFactor dirs = async {
+            for dir in dirs do
+                if not <| isCancelled () then
+                    let! subItemsRes = runAsync (fun () -> fsReader.GetItems dir.Path)
+                    if not <| isCancelled () then
+                        let subItems = subItemsRes |> Result.toOption |? []
+                        let subDirs = getDirs subItems
+                        let progressFactor = progressFactor / float (subDirs.Length + 1)
+                        resultsEvent.Trigger (subItems, Some progressFactor)
+                        do! enumerate progressFactor subDirs
+        }
+        let dirs = getDirs items
+        do! enumerate (1.0 / float dirs.Length) dirs
+        resultsEvent.Trigger ([], None)
+    }
+
+    let search fsReader (model: MainModel) = asyncSeq {
+        let current = Some (model.InputText, model.SearchCaseSensitive, model.SearchRegex,
+                            model.SearchSubFolders)
+        let model = { model with CurrentSearch = current }
+        match model.InputText |> String.isNotEmpty, getFilter model with
+        | true, Some filter ->
+            let withItems items model =
+                { model with
+                    Items = items |> Seq.ifEmpty [ { Item.Empty with Name = "<No Search Results>" } ]
+                    Cursor = 0
+                } |> Nav.select (SelectName model.SelectedItem.Name)
+            let items = model.Directory |> filter
+            if model.SearchSubFolders then
+                match model.SubDirectories with
+                | None ->
+                    let cancelToken = CancelToken()
+                    yield
+                        { model with
+                            SubDirectories = Some []
+                            SubDirectoryCancel = cancelToken
+                            Sort = None
+                        } |> withItems items
+                    do! enumerateSubDirs fsReader model.SubDirectoryResults cancelToken.get_IsCancelled model.Directory
+                | Some subDirs ->
+                    let items = items @ filter subDirs |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
+                    yield model |> withItems items
+            else
+                model.SubDirectoryCancel.Cancel()
+                yield { model with SubDirectories = None } |> withItems items
+        | true, None ->
+            yield model
+        | false, _ ->
+            yield model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
+    }
+
+    let addSubDirResults newItems progressIncr model =
+        let filter = getFilter model |? cnst []
+        let items =
+            match filter newItems, model.Items with
+            | [], _ -> model.Items
+            | matches, [item] when item.Type = Empty -> matches
+            | matches, _ -> model.Items @ matches
+        { model with
+            SubDirectories = model.SubDirectories |> Option.map (flip (@) newItems)
+            Items = items
+            Progress = progressIncr |> Option.map ((+) (model.Progress |? 0.0))
+        }
+
+    let clearSearch model =
+        model
+        |> clearSearchProps
         |> Nav.listDirectory (SelectName model.SelectedItem.Name)
 
 module Action =
@@ -319,31 +386,36 @@ module Action =
                 | ReplaceAll -> (0, fullLen)
         }
 
-    let startInput (fsReader: IFileSystemReader) inputMode model = result {
+    let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = result {
         let! allowed =
             match inputMode with
             | Input CreateFile
             | Input CreateFolder ->
-                match fsReader.GetItem model.Location with
-                | Ok (Some item) when item.Type.CanCreateIn -> Ok true
-                | Ok _ -> Error <| CannotPutHere
-                | Error e -> Error <| ActionError ("create item", e)
+                if model.IsSearchingSubFolders then
+                    Error CannotPutHere
+                else
+                    match fsReader.GetItem model.Location with
+                    | Ok (Some item) when item.Type.CanCreateIn -> Ok true
+                    | Ok _ -> Error <| CannotPutHere
+                    | Error e -> Error <| ActionError ("create item", e)
             | Input (Rename _)
             | Confirm Delete -> Ok model.SelectedItem.Type.CanModify 
+            | Prompt SetBookmark when model.IsSearchingSubFolders -> Ok false
             | _ -> Ok true
         if allowed then
             let model = { model with InputMode = Some inputMode }
             match inputMode with
             | Input Search ->
-                let input = model.CurrentSearch |> Option.map (fun (s, _, _) -> s) |? ""
-                return { model with InputText = input }
+                let input, sub = model.CurrentSearch |> Option.map (fun (s, _, _, sub) -> (s, sub)) |? ("", false)
+                return { model with InputText = input; SearchSubFolders = sub }
                        |> setInputSelection End
             | Input (Rename pos) ->
                 return { model with InputText = model.SelectedItem.Name }
                        |> setInputSelection pos
             | _ ->
                 return { model with InputText = "" }
-        else return model
+        else
+            return model
     }
 
     let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) itemType name model = asyncSeqResult {
@@ -381,8 +453,11 @@ module Action =
             match existing with
             | None ->
                 do! fsWriter.Move item.Path newPath |> itemActionError action model.PathFormat
-                let! model = Nav.openPath fsReader model.Location (SelectName newName) model
-                return model |> performedAction action
+                let newItem = { item with Name = newName; Path = newPath }
+                let substitute = List.map (fun i -> if i = item then newItem else i)
+                return
+                    { model with Directory = model.Directory |> substitute; Items = model.Items |> substitute }
+                    |> performedAction action
             | Some existingItem ->
                 return! Error <| CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)
         else return model
@@ -468,6 +543,8 @@ module Action =
         match model.Config.YankRegister with
         | None -> ()
         | Some (path, _, putAction) ->
+            if model.IsSearchingSubFolders then
+                return CannotPutHere
             match! fsReader.GetItem path |> actionError "read yank register item" with
             | Some item ->
                 let! model = putItem fsReader fsWriter overwrite item putAction model
@@ -528,25 +605,33 @@ module Action =
         return { model with Status = Some (MainStatus.clipboardCopy (item.Path.Format model.PathFormat)) }
     }
 
-    let delete fsReader (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asyncSeqResult {
+    let delete (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asyncSeqResult {
         if item.Type.CanModify then
             let action = DeletedItem (item, permanent)
             let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
             yield { model with Status = MainStatus.runningAction action model.PathFormat }
             let! res = runAsync (fun () -> fileSysFunc item.Path)
             do! res |> itemActionError action model.PathFormat
-            yield! Nav.refresh fsReader model |> Result.map (performedAction action)
+            yield
+                { model with
+                    Directory = model.Directory |> List.except [item]
+                    Items = model.Items |> List.except [item]
+                }.WithCursor model.Cursor
+                |> performedAction action
     }
 
-    let recycle fsReader fsWriter (model: MainModel) = asyncSeqResult {
+    let recycle fsWriter (model: MainModel) = asyncSeqResult {
         if model.SelectedItem.Type = NetHost then
             let host = model.SelectedItem.Name
-            let model = { model with History = model.History.WithoutNetHost host }
-            yield model
-            let! model = Nav.refresh fsReader model
-            yield { model with Status = Some <| MainStatus.removedNetworkHost host }
+            yield
+                { model with
+                    Directory = model.Directory |> List.except [model.SelectedItem]
+                    Items = model.Items |> List.except [model.SelectedItem]
+                    History = model.History.WithoutNetHost host
+                    Status = Some <| MainStatus.removedNetworkHost host
+                }.WithCursor model.Cursor
         else
-            yield! delete fsReader fsWriter model.SelectedItem false model
+            yield! delete fsWriter model.SelectedItem false model
     }
 
     let undo fsReader fsWriter model = asyncSeqResult {
@@ -602,7 +687,7 @@ module Action =
                 | DeletedItem (item, permanent) ->
                     let! model = goToPath item.Path
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! delete fsReader fsWriter item permanent model
+                    yield! delete fsWriter item permanent model
             }
             yield
                 { model with
@@ -720,6 +805,16 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
             | Error e -> openPath (Some (error |? e)) paths
     openPath None paths
 
+let refreshOrResearch fsReader model = asyncSeqResult {
+    if model.CurrentSearch.IsSome then
+        yield!
+            { model with SubDirectories = None }
+            |> Search.search fsReader
+            |> AsyncSeq.map Ok
+    else
+        yield! Nav.refresh fsReader model
+}
+
 let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         { model with
@@ -772,7 +867,7 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
                 let! model = Action.putItem fsReader fsWriter true src action model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fsReader fsWriter model.SelectedItem true model
+                yield! Action.delete fsWriter model.SelectedItem true model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
         | 'n' ->
@@ -787,13 +882,14 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
     | _ -> ()
 }
 
-let inputChanged model =
+let inputChanged fsReader model = asyncSeq {
     match model.InputMode with
     | Some (Input (Find _)) when String.isNotEmpty model.InputText ->
-        Search.find model.InputText model
+        yield Search.find model.InputText model
     | Some (Input Search) ->
-        Search.search model
-    | _ -> model
+        yield! Search.search fsReader model
+    | _ -> ()
+}
 
 let inputHistory offset model =
     match model.InputMode with
@@ -836,7 +932,7 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
         yield
             { model with
                 InputMode = None
-                CurrentSearch = search
+                CurrentSearch = if search.IsNone then None else model.CurrentSearch
                 SearchHistoryIndex = 0
                 History = search |> Option.map model.History.WithSearch |? model.History
             }
@@ -858,19 +954,21 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
 let cancelInput model =
     { model with InputMode = None }
     |>  match model.InputMode with
-        | Some (Input Search) -> Search.cancelSearch
+        | Some (Input Search) -> Search.clearSearch
         | _ -> id
 
 let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
     let event, model =
         if chord = (ModifierKeys.None, Key.Escape) then
             handleKey ()
-            if model.InputMode.IsSome then
-                (None, { model with InputMode = None })
-            else if not model.KeyCombo.IsEmpty then
-                (None, { model with KeyCombo = [] })
-            else
-                (None, { model with Status = None } |> Search.cancelSearch)
+            let model =
+                if model.InputMode.IsSome then
+                    { model with InputMode = None }
+                else if not model.KeyCombo.IsEmpty then
+                    { model with KeyCombo = [] }
+                else
+                    { model with Status = None } |> Search.clearSearch
+            (None, model)
         else
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
@@ -917,6 +1015,11 @@ let windowMaximized maximized model =
         else model.Config
     { model with Config = config }
 
+let windowActivated fsReader model =
+    if model.Config.Window.RefreshOnActivate && not model.IsSearchingSubFolders then
+        model |> Nav.refresh fsReader
+    else Ok model
+
 let SyncResult handler =
     Sync (fun (model: MainModel) ->
         match handler model with
@@ -953,17 +1056,18 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | OpenParent -> SyncResult (Nav.openParent fsReader)
         | Back -> SyncResult (Nav.back fsReader)
         | Forward -> SyncResult (Nav.forward fsReader)
-        | Refresh -> SyncResult (Nav.refresh fsReader)
+        | Refresh -> AsyncResult (refreshOrResearch fsReader)
         | Undo -> AsyncResult (Action.undo fsReader fsWriter)
         | Redo -> AsyncResult (Action.redo fsReader fsWriter)
         | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
         | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
         | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
         | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
-        | InputChanged -> Sync inputChanged
+        | InputChanged -> Async (inputChanged fsReader)
         | InputBack -> Sync (inputHistory 1)
         | InputForward -> Sync (inputHistory -1)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
+        | SubDirectoryResults (items, progressIncr) -> Sync (Search.addSubDirResults items progressIncr)
         | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
         | CancelInput -> Sync cancelInput
         | FindNext -> Sync Search.findNext
@@ -971,7 +1075,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
         | Put -> AsyncResult (Action.put fsReader fsWriter false)
         | ClipCopy -> SyncResult (Action.clipCopy os)
-        | Recycle -> AsyncResult (Action.recycle fsReader fsWriter)
+        | Recycle -> AsyncResult (Action.recycle fsWriter)
         | SortList field -> Sync (Nav.sortList field)
         | ToggleHidden -> AsyncResult (Nav.toggleHidden fsReader)
         | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
@@ -989,6 +1093,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
         | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
         | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
+        | WindowActivated -> SyncResult (windowActivated fsReader)
     let isBusy model =
         match model.Status with
         | Some (Busy _) -> true
@@ -1018,4 +1123,4 @@ let start fsReader fsWriter os getScreenBounds (config: ConfigFile) (history: Hi
         { MainModel.Default with Config = config.Value; History = history.Value }
         |> initModel fsReader startOptions
     let dispatch = dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow
-    Framework.start (binder config history) (events config history) dispatch view model
+    Framework.start (binder config history) (events config history model.SubDirectoryResults.Publish) dispatch view model

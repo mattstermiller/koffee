@@ -16,6 +16,7 @@ let newItems = [
 
 let testModel =
     { baseModel.WithLocation (createPath "/c/path") with
+        Directory = oldItems
         Items = oldItems
         Cursor = 1
     }
@@ -26,8 +27,6 @@ let ex = System.UnauthorizedAccessException() :> exn
 [<TestCase(true)>]
 [<TestCase(false)>]
 let ``Delete calls correct file sys func and sets message`` permanent =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     let mutable deleted = None
     fsWriter.Delete <- fun p -> deleted <- Some p; Ok ()
@@ -35,7 +34,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     fsWriter.Recycle <- fun p -> recycled <- Some p; Ok ()
     let item = oldItems.[1]
 
-    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter item permanent) testModel
+    let actual = seqResult (MainLogic.Action.delete fsWriter item permanent) testModel
 
     if permanent then
         deleted |> shouldEqual (Some item.Path)
@@ -57,13 +56,11 @@ let ``Delete calls correct file sys func and sets message`` permanent =
 
 [<Test>]
 let ``Delete handles error by returning error``() =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItems <- fun _ -> Ok newItems
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> Error ex
     let item = oldItems.[1]
 
-    let actual = seqResult (MainLogic.Action.delete fsReader fsWriter item true) testModel
+    let actual = seqResult (MainLogic.Action.delete fsWriter item true) testModel
 
     let expectedAction = (DeletedItem (oldItems.[1], true))
     let expected = testModel.WithError (ItemActionError (expectedAction, testModel.PathFormat, ex))

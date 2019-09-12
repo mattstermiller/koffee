@@ -44,6 +44,9 @@ module Observable =
     let onCurrent (o: IObservable<_>) =
         o.ObserveOn(DispatcherScheduler.Current)
 
+    let buffer (seconds: float) (o: IObservable<_>) =
+        o.Buffer(TimeSpan.FromSeconds(seconds))
+
 type AsyncSeqResultBuilder() =
     let takeUntilError resSeq =
         resSeq |> AsyncSeq.takeWhileInclusive Result.isOk

@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -69,8 +69,11 @@ module MainView =
                 window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
 
         // setup grid
+        let mutable relativePathFormat = string
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Type @>, "", conversion = (fun t -> t.Symbol))
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Name @>, widthWeight = 1.0)
+        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Path @>, "Relative Path", widthWeight = 1.0,
+                                  conversion = (fun p -> p.Parent |> relativePathFormat))
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Modified @>, conversion = Option.toNullable,
                                   format = FormatString.dateTime)
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.SizeFormatted @>, "Size", alignRight = true)
@@ -79,8 +82,14 @@ module MainView =
             function
             | Type -> 0
             | Name -> 1
-            | Modified -> 2
-            | Size -> 3
+            | Modified -> 3
+            | Size -> 4
+        let setRelativePath relInfo =
+            relativePathFormat <-
+                match relInfo with
+                | Some (path, fmt) -> (fun p -> p.FormatRelativeFolder fmt path)
+                | None -> string
+            window.ItemGrid.Columns.[2].Visibility <- if relInfo.IsSome then Visibility.Visible else Visibility.Collapsed
 
         // path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
@@ -136,6 +145,7 @@ module MainView =
                 match e.Chord with
                 | ModifierKeys.Control, Key.I -> window.SearchCaseSensitive.Toggle()
                 | ModifierKeys.Control, Key.R -> window.SearchRegex.Toggle()
+                | ModifierKeys.Control, Key.S -> window.SearchSubFolders.Toggle()
                 | _ -> ()
         )
 
@@ -169,18 +179,31 @@ module MainView =
                     window.PathSuggestions.Visible <- window.PathBox.IsFocused
             )
 
-            Bind.modelMulti(<@ model.Items, model.Cursor, model.Sort @>).toFunc(fun (items, cursor, (sortField, sortDesc)) ->
+            Bind.modelMulti(<@ model.Items, model.Cursor, model.Sort @>).toFunc(fun (items, cursor, sort) ->
                 if not <| obj.ReferenceEquals(window.ItemGrid.ItemsSource, items) then
                     window.ItemGrid.ItemsSource <- items
                 window.ItemGrid.SelectedIndex <- cursor
                 // sort indication
-                let sortDir =
-                    if sortDesc then ListSortDirection.Descending
-                    else ListSortDirection.Ascending
-                let sortIndex = sortColumnsIndex sortField
+                let sortIndex, sortDir =
+                    match sort with
+                    | Some (field, desc) ->
+                        let index = sortColumnsIndex field
+                        let dir = if desc then ListSortDirection.Descending else ListSortDirection.Ascending
+                        (Some index, Some dir)
+                    | None -> (None, None)
                 window.ItemGrid.Columns |> Seq.iteri (fun i c ->
-                    c.SortDirection <- if i = sortIndex then Nullable sortDir else Nullable()
+                    c.SortDirection <- if Some i = sortIndex then sortDir |> Option.toNullable else Nullable()
                 )
+            )
+            Bind.model(<@ model.Items @>).toFunc(fun items ->
+                // directory status
+                window.DirectoryStatus.Text <-
+                    let fileSizes = items |> List.choose (fun n -> if n.Type = File then n.Size else None)
+                    let fileStr =
+                        match fileSizes with
+                        | [] -> ""
+                        | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
+                    sprintf "%i item%s%s" items.Length (if items.Length = 1 then "" else "s") fileStr
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
@@ -202,6 +225,7 @@ module MainView =
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchRegex @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchSubFolders @>, ((=) (Nullable true)), Nullable)
             Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
@@ -240,17 +264,20 @@ module MainView =
                 | None, _
                 | Some _, Some (Input Search) ->
                     window.SearchPanel.Visibility <- Visibility.Collapsed
-                | Some (search, cs, re), _ ->
+                | Some (search, cs, re, sub), _ ->
                     window.SearchStatus.Text <- 
                         [   sprintf "Search results for \"%s\"" search
                             (if cs then "Case-sensitive" else "Not case-sensitive")
                             (if re then "Regular Expression" else "")
+                            (if sub then "Sub-Folders" else "")
                         ] |> List.filter String.isNotEmpty |> String.concat ", "
                     window.SearchPanel.Visible <- true
             )
+            Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
+                .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.Items @>).toFunc(fun (status, keyCombo, items) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo @>).toFunc(fun (status, keyCombo) ->
                 window.StatusText.Text <- 
                     if not (keyCombo |> List.isEmpty) then
                         keyCombo
@@ -260,13 +287,7 @@ module MainView =
                     else
                         match status with
                         | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-                        | None ->
-                            let fileSizes = items |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                            let fileStr =
-                                match fileSizes with
-                                | [] -> ""
-                                | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                            sprintf "%i items%s" items.Length fileStr
+                        | None -> ""
                 window.StatusText.Foreground <-
                     match keyCombo, status with
                     | [], Some (ErrorMessage _) -> Brushes.Red
@@ -282,6 +303,10 @@ module MainView =
                 if wasBusy && not isBusy then
                     window.ItemGrid.Focus() |> ignore
             )
+            Bind.model(<@ model.Progress @>).toFunc(fun progress ->
+                window.Progress.Value <- progress |? 0.0
+                window.Progress.Visibility <- if progress.IsSome then Visibility.Visible else Visibility.Collapsed
+            )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
                 if int window.Left <> left then window.Left <- float left
@@ -296,7 +321,8 @@ module MainView =
             Bind.model(<@ model.History @>).toFunc(historyBuffer.OnNext)
         ]
 
-    let events (config: ConfigFile) (history: HistoryFile) (window: MainWindow) = [
+    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<Item list * float option>)
+               (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -347,13 +373,15 @@ module MainView =
         window.InputBox.TextChanged |> Obs.mapTo InputChanged
         window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
         window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
+        window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
+        subDirResults |> Obs.buffer 0.3
+                      |> Obs.filter Seq.isNotEmpty
+                      |> Obs.onCurrent
+                      |> Obs.map (Seq.reduce (fun (i1, p1) (i2, p2) -> (i1 @ i2, (p1, p2) ||> Option.map2 (+))))
+                      |> Obs.map SubDirectoryResults
         window.InputBox.LostFocus |> Obs.mapTo CancelInput
 
-        window.Activated |> Obs.choose (fun _ ->
-            if config.Value.Window.RefreshOnActivate && window.IsLoaded then
-                Some Refresh
-            else None
-        )
+        window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
         window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
             if window.Left > -window.Width && window.Top > -window.Height then
                 Some (WindowLocationChanged (int window.Left, int window.Top))

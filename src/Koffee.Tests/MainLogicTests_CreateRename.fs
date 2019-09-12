@@ -15,6 +15,7 @@ let newItems = [
 
 let testModel =
     { baseModel.WithLocation (createPath "/c/path") with
+        Directory = oldItems
         Items = oldItems
         Cursor = 0
         InputText = ""
@@ -148,6 +149,7 @@ let ``Undo create handles delete error by returning error`` () =
 let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let currentItem = oldItems.[1]
     let renamedItem = if diffCaseOnly then currentItem else newItems.[1]
+    let newItems = [oldItems.[0]; renamedItem]
     let fsReader = FakeFileSystemReader()
     fsReader.GetItem <- fun _ -> if diffCaseOnly then Ok (Some currentItem) else Ok None
     fsReader.GetItems <- fun _ -> Ok newItems
@@ -166,7 +168,6 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
         { testModel with
             Directory = newItems
             Items = newItems
-            Cursor = if diffCaseOnly then 0 else 1
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
             Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat

@@ -233,6 +233,11 @@ with
         NetHosts = []
     }
 
+type CancelToken() =
+    let mutable cancelled = false
+    member this.IsCancelled = cancelled
+    member this.Cancel () = cancelled <- true
+
 type MainModel = {
     Location: Path
     LocationInput: string
@@ -241,7 +246,7 @@ type MainModel = {
     Status: StatusType option
     Directory: Item list
     Items: Item list
-    Sort: SortField * bool
+    Sort: (SortField * bool) option
     Cursor: int
     PageSize: int
     KeyCombo: KeyCombo
@@ -251,8 +256,13 @@ type MainModel = {
     LastFind: string option
     SearchCaseSensitive: bool
     SearchRegex: bool
-    CurrentSearch: (string * bool * bool) option
+    SearchSubFolders: bool
+    CurrentSearch: (string * bool * bool * bool) option
+    SubDirectories: Item list option
+    SubDirectoryResults: Event<Item list * float option>
+    SubDirectoryCancel: CancelToken
     SearchHistoryIndex: int
+    Progress: float option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
     UndoStack: ItemAction list
@@ -274,6 +284,8 @@ type MainModel = {
     member this.LocationFormatted = this.Location.Format this.PathFormat
 
     member this.HalfPageSize = this.PageSize/2 - 1
+
+    member this.IsSearchingSubFolders = this.CurrentSearch |> Option.exists (fun (_, _, _, sub) -> sub)
 
     member this.TitleLocation =
         if this.Config.Window.ShowFullPathInTitle then
@@ -297,7 +309,7 @@ type MainModel = {
         Status = None
         Directory = []
         Items = [ Item.Empty ]
-        Sort = Name, false
+        Sort = Some (Name, false)
         Cursor = 0
         PageSize = 30
         KeyCombo = []
@@ -308,7 +320,12 @@ type MainModel = {
         SearchCaseSensitive = false
         SearchRegex = false
         CurrentSearch = None
+        SearchSubFolders = false
+        SubDirectories = None
+        SubDirectoryResults = Event<_>()
+        SubDirectoryCancel = CancelToken()
         SearchHistoryIndex = -1
+        Progress = None
         BackStack = []
         ForwardStack = []
         UndoStack = []
@@ -342,6 +359,7 @@ type MainEvents =
     | InputBack
     | InputForward
     | InputDelete of EvtHandler
+    | SubDirectoryResults of (Item list * float option)
     | SubmitInput
     | CancelInput
     | FindNext
@@ -369,6 +387,7 @@ type MainEvents =
     | WindowLocationChanged of int * int
     | WindowSizeChanged of int * int
     | WindowMaximizedChanged of bool
+    | WindowActivated
 
     member this.FriendlyName =
         match this with

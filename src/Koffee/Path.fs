@@ -102,10 +102,14 @@ type Path private (path: string) =
 
     member this.FormatFolder fmt =
         let formatted = this.Format fmt
-        if path = root || path = net || path |> String.endsWith @"\" then
+        if path = root || path = net || path |> String.endsWith fmt.Separator then
             formatted
         else
             formatted + fmt.Separator
+
+    member this.FormatRelativeFolder fmt (relativeTo: Path) =
+        if this = Path.Root then ""
+        else (this.Format fmt |> String.replace (relativeTo.Format fmt) ".") + fmt.Separator
 
     member this.Name =
         path |> IOPath.GetFileName

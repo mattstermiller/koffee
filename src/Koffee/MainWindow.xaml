@@ -20,6 +20,9 @@
         </DockPanel>
         <!-- Status bar -->
         <DockPanel DockPanel.Dock="Bottom">
+            <Border DockPanel.Dock="Left" BorderThickness="0,0,2,0" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                <TextBlock Name="DirectoryStatus" Text="2 items, 100 KB" VerticalAlignment="Center" Margin="6,2,6,2"/>
+            </Border>
             <Border Name="RegisterPanel" DockPanel.Dock="Right" Background="White" BorderThickness="4" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden">
                 <TextBlock Name="RegisterText" Text="register" Height="20" Margin="6,2,6,2" VerticalAlignment="Center"/>
             </Border>
@@ -36,9 +39,11 @@
             <StackPanel Name="SearchOptions" DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal">
                 <CheckBox Name="SearchCaseSensitive" Content="Case-sensitive (Ctrl+i)" Foreground="White" Margin="0,0,8,0"/>
                 <CheckBox Name="SearchRegex" Content="Regex (Ctrl+r)" Foreground="White" Margin="0,0,8,0"/>
+                <CheckBox Name="SearchSubFolders" Content="Sub-Folders (Ctrl+s)" Foreground="White" Margin="0,0,8,0"/>
             </StackPanel>
             <TextBox Name="InputBox" TextWrapping="NoWrap" Margin="6"/>
         </DockPanel>
+        <ProgressBar DockPanel.Dock="Bottom" Name="Progress" Maximum="1.0" Height="12"/>
         <Grid>
             <!-- Path suggestions -->
             <ListBox Name="PathSuggestions" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">

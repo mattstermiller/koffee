@@ -1,8 +1,11 @@
 ﻿[<AutoOpen>]
 module Utility
 
+open System
 open System.Text.RegularExpressions
 open System.Linq
+open System.Reactive.Linq
+open System.Reactive.Concurrency
 open FSharp.Control
 open Acadian.FSharp
 
@@ -33,6 +36,13 @@ module Format =
         else if size > scaleCutoff 2 then scaledStr size 2
         else if size > scaleCutoff 1 then scaledStr size 1
         else format size + " B"
+
+module Observable =
+    let throttle (seconds: float) (o: IObservable<_>) =
+        o.Throttle(TimeSpan.FromSeconds(seconds))
+
+    let onCurrent (o: IObservable<_>) =
+        o.ObserveOn(DispatcherScheduler.Current)
 
 type AsyncSeqResultBuilder() =
     let takeUntilError resSeq =

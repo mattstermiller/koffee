@@ -6,19 +6,19 @@ open System.Windows.Input
 open System.Windows.Controls
 open System.Windows.Media
 open System.ComponentModel
-open System.Reactive.Linq
-open System.Reactive.Concurrency
 open System.Reactive.Subjects
 open VinylUI
 open VinylUI.Wpf
 open Reflection
 open Acadian.FSharp
 
+module Obs = Observable
+
 type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
 module MainView =
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
-        keyEvent |> Observable.choose (fun evt ->
+        keyEvent |> Obs.choose (fun evt ->
             if evt.Key = key then
                 evt.Handled <- true
                 Some <| resultFunc()
@@ -31,9 +31,6 @@ module MainView =
             Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
         ]
         not <| List.contains evt.RealKey modifierKeys
-
-    let throttleChanges o =
-        Observable.Throttle(o, TimeSpan.FromSeconds(0.5)).ObserveOn(DispatcherScheduler.Current)
 
     let getPrompt pathFormat (item: Item) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
@@ -153,7 +150,7 @@ module MainView =
 
         // history save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
-        historyBuffer.Throttle(TimeSpan.FromSeconds(3.0)).Subscribe(history.set_Value) |> ignore
+        (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
         window.Closed.Add (fun _ ->
             history.Value <- historyBuffer.Value
             historyBuffer.Dispose()
@@ -300,7 +297,7 @@ module MainView =
         ]
 
     let events (config: ConfigFile) (history: HistoryFile) (window: MainWindow) = [
-        window.PathBox.PreviewKeyDown |> Observable.filter isNotModifier |> Observable.choose (fun evt ->
+        window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
             let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
@@ -312,19 +309,19 @@ module MainView =
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
             | _ -> None
         )
-        window.PathBox.TextChanged |> Observable.filter (fun _ -> window.PathBox.IsFocused)
-                                   |> Observable.mapTo PathInputChanged
-        window.SettingsButton.Click |> Observable.mapTo OpenSettings
+        window.PathBox.TextChanged |> Obs.filter (fun _ -> window.PathBox.IsFocused)
+                                   |> Obs.mapTo PathInputChanged
+        window.SettingsButton.Click |> Obs.mapTo OpenSettings
 
-        window.ItemGrid.PreviewKeyDown |> Observable.filter isNotModifier
-                                       |> Observable.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
-        window.ItemGrid.PreviewKeyDown |> Observable.choose (fun evt ->
+        window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier
+                                       |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
+        window.ItemGrid.PreviewKeyDown |> Obs.choose (fun evt ->
             if evt.Chord = (ModifierKeys.Control, Key.C) then
                 evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
             None
         )
-        window.ItemGrid.MouseDoubleClick |> Observable.mapTo OpenSelected
-        window.ItemGrid.SizeChanged |> throttleChanges |> Observable.choose (fun _ ->
+        window.ItemGrid.MouseDoubleClick |> Obs.mapTo OpenSelected
+        window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
             let grid = window.ItemGrid
             if grid.HasItems then
                 let index = grid.SelectedIndex |> max 0
@@ -335,43 +332,43 @@ module MainView =
         )
 
         window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
-        window.InputBox.PreviewKeyDown |> Observable.choose (fun keyEvt ->
+        window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
             match keyEvt.Key with
             | Key.Up -> Some InputBack
             | Key.Down -> Some InputForward
             | Key.Delete -> Some (InputDelete keyEvt.Handler)
             | _ -> None
         )
-        window.InputBox.PreviewTextInput |> Observable.choose (fun keyEvt ->
+        window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
             match keyEvt.Text.ToCharArray() with
             | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
             | _ -> None
         )
-        window.InputBox.TextChanged |> Observable.mapTo InputChanged
-        window.SearchCaseSensitive.CheckedChanged |> Observable.mapTo InputChanged
-        window.SearchRegex.CheckedChanged |> Observable.mapTo InputChanged
-        window.InputBox.LostFocus |> Observable.mapTo CancelInput
+        window.InputBox.TextChanged |> Obs.mapTo InputChanged
+        window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
+        window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
+        window.InputBox.LostFocus |> Obs.mapTo CancelInput
 
-        window.Activated |> Observable.choose (fun _ ->
+        window.Activated |> Obs.choose (fun _ ->
             if config.Value.Window.RefreshOnActivate && window.IsLoaded then
                 Some Refresh
             else None
         )
-        window.LocationChanged |> throttleChanges |> Observable.choose (fun _ ->
+        window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
             if window.Left > -window.Width && window.Top > -window.Height then
                 Some (WindowLocationChanged (int window.Left, int window.Top))
             else None
         )
-        window.SizeChanged |> throttleChanges |> Observable.map (fun _ ->
+        window.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.map (fun _ ->
             WindowSizeChanged (int window.Width, int window.Height)
         )
-        window.StateChanged |> Observable.choose (fun _ ->
+        window.StateChanged |> Obs.choose (fun _ ->
             if window.WindowState <> WindowState.Minimized then
                 Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
             else None
         )
-        config.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map ConfigFileChanged
-        history.FileChanged.ObserveOn(DispatcherScheduler.Current) |> Observable.map HistoryFileChanged
+        config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
+        history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
     ]
 
 module MainStatus =

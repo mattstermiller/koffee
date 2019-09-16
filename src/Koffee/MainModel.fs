@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows.Input
@@ -158,8 +158,6 @@ type Config = {
     DefaultPath: Path
     PathFormat: PathFormat
     ShowHidden: bool
-    SearchCaseSensitive: bool
-    SearchRegex: bool
     TextEditor: string
     CommandlinePath: string
     YankRegister: (Path * ItemType * PutAction) option
@@ -189,8 +187,6 @@ with
         DefaultPath = Path.Root
         PathFormat = Windows
         ShowHidden = false
-        SearchCaseSensitive = false
-        SearchRegex = false
         TextEditor = "notepad.exe"
         CommandlinePath = "cmd.exe"
         YankRegister = None
@@ -206,7 +202,7 @@ with
 
 type History = {
     Paths: Path list
-    Searches: string list
+    Searches: (string * bool * bool) list
     NetHosts: string list
 }
 with
@@ -253,6 +249,8 @@ type MainModel = {
     InputText: string
     InputTextSelection: int * int
     LastFind: string option
+    SearchCaseSensitive: bool
+    SearchRegex: bool
     CurrentSearch: (string * bool * bool) option
     SearchHistoryIndex: int
     BackStack: (Path * int) list
@@ -307,6 +305,8 @@ type MainModel = {
         InputText = ""
         InputTextSelection = 0, 0
         LastFind = None
+        SearchCaseSensitive = false
+        SearchRegex = false
         CurrentSearch = None
         SearchHistoryIndex = -1
         BackStack = []

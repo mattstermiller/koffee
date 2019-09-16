@@ -200,8 +200,8 @@ module MainView =
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
-            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.Config.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
-            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.Config.SearchRegex @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchRegex @>, ((=) (Nullable true)), Nullable)
             Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with

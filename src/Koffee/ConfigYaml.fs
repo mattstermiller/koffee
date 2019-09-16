@@ -27,7 +27,6 @@ module ConfigYamlExt =
                         StartPath = ParseUnionCase<StartPath> config.StartupPathType |? RestorePrevious
                         DefaultPath = config.DefaultPath |> Path.Parse |? Path.Root
                         ShowHidden = config.ShowHidden
-                        SearchCaseSensitive = config.SearchCaseSensitive
                         TextEditor = config.TextEditor
                         CommandlinePath = config.CommandlinePath
                         YankRegister = yankRegister

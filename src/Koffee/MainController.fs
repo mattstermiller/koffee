@@ -270,14 +270,14 @@ module Search =
     let search model =
         let search = model.InputText |> Option.ofString
         let filter = search |> Option.bind (fun input ->
-            if model.Config.SearchRegex then
-                let options = if model.Config.SearchCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
+            if model.SearchRegex then
+                let options = if model.SearchCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
                 try
                     let re = Regex(input, options)
                     Some (List.filter (fun item -> re.IsMatch item.Name))
                 with :? System.ArgumentException -> None
             else
-                Some (filterByTerms false model.Config.SearchCaseSensitive input (fun item -> item.Name))
+                Some (filterByTerms false model.SearchCaseSensitive input (fun item -> item.Name))
         )
         match search, filter with
         | Some _, Some filter ->
@@ -799,10 +799,16 @@ let inputHistory offset model =
     match model.InputMode with
     | Some (Input Search) ->
         let index = model.SearchHistoryIndex + offset |> max -1 |> min (model.History.Searches.Length-1)
-        let input = if index < 0 then "" else model.History.Searches.[index]
+        let input, case, regex =
+            if index < 0 then
+                ("", model.SearchCaseSensitive, model.SearchRegex)
+            else
+                model.History.Searches.[index]
         { model with
             InputText = input
             InputTextSelection = (input.Length, 0)
+            SearchCaseSensitive = case
+            SearchRegex = regex
             SearchHistoryIndex = index
         }
     | _ -> model
@@ -823,13 +829,14 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
         yield model
         yield! Nav.openSelected fsReader os model
     | Some (Input Search) ->
-        let search = model.InputText |> Option.ofString
+        let search =
+            model.InputText
+            |> Option.ofString
+            |> Option.map (fun i -> (i, model.SearchCaseSensitive, model.SearchRegex))
         yield
             { model with
                 InputMode = None
-                CurrentSearch = search |> Option.map (fun i ->
-                    (i, model.Config.SearchCaseSensitive, model.Config.SearchRegex)
-                )
+                CurrentSearch = search
                 SearchHistoryIndex = 0
                 History = search |> Option.map model.History.WithSearch |? model.History
             }

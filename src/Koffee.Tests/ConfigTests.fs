@@ -15,6 +15,5 @@ let ``Config can be serialized and deserialized`` () =
         }
     let converters = FSharpJsonConverters.getAll ()
     let serialized = JsonConvert.SerializeObject(config, Formatting.Indented, converters)
-    printfn "%s" serialized
     let deserialized = JsonConvert.DeserializeObject<Config>(serialized, converters)
     deserialized |> shouldEqual config

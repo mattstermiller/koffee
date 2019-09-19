@@ -807,8 +807,12 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
 
 let refreshOrResearch fsReader model = asyncSeqResult {
     if model.CurrentSearch.IsSome then
+        let! newModel = model |> Nav.openPath fsReader model.Location (SelectName model.SelectedItem.Name)
         yield!
-            { model with SubDirectories = None }
+            { newModel with
+                CurrentSearch = model.CurrentSearch
+                SearchHistoryIndex = model.SearchHistoryIndex
+            }
             |> Search.search fsReader
             |> AsyncSeq.map Ok
     else

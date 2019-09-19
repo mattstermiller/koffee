@@ -1015,10 +1015,12 @@ let windowMaximized maximized model =
         else model.Config
     { model with Config = config }
 
-let windowActivated fsReader model =
+let windowActivated fsReader model = asyncSeqResult {
     if model.Config.Window.RefreshOnActivate && not model.IsSearchingSubFolders then
-        model |> Nav.refresh fsReader
-    else Ok model
+        yield! model |> refreshOrResearch fsReader
+    else
+        yield model
+}
 
 let SyncResult handler =
     Sync (fun (model: MainModel) ->
@@ -1093,7 +1095,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
         | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
         | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
-        | WindowActivated -> SyncResult (windowActivated fsReader)
+        | WindowActivated -> AsyncResult (windowActivated fsReader)
     let isBusy model =
         match model.Status with
         | Some (Busy _) -> true

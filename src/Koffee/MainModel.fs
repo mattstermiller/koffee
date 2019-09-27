@@ -259,7 +259,6 @@ type MainModel = {
     SearchSubFolders: bool
     CurrentSearch: (string * bool * bool * bool) option
     SubDirectories: Item list option
-    SubDirectoryResults: Event<Item list * float option>
     SubDirectoryCancel: CancelToken
     SearchHistoryIndex: int
     Progress: float option
@@ -322,7 +321,6 @@ type MainModel = {
         CurrentSearch = None
         SearchSubFolders = false
         SubDirectories = None
-        SubDirectoryResults = Event<_>()
         SubDirectoryCancel = CancelToken()
         SearchHistoryIndex = -1
         Progress = None
@@ -359,7 +357,8 @@ type MainEvents =
     | InputBack
     | InputForward
     | InputDelete of EvtHandler
-    | SubDirectoryResults of (Item list * float option)
+    | SubDirectoryResults of Item list
+    | AddProgress of float option
     | SubmitInput
     | CancelInput
     | FindNext

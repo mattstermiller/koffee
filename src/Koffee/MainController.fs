@@ -294,7 +294,8 @@ module Search =
                 Some (filterByTerms false model.SearchCaseSensitive input (fun item -> item.Name))
         )
 
-    let private enumerateSubDirs (fsReader: IFileSystemReader) (resultsEvent: Event<_>) isCancelled items = async {
+    let private enumerateSubDirs (fsReader: IFileSystemReader) (subDirResults: Event<_>) (progress: Event<_>)
+                                 isCancelled items = async {
         let getDirs = List.filter (fun t -> t.Type = Folder)
         let rec enumerate progressFactor dirs = async {
             for dir in dirs do
@@ -304,15 +305,16 @@ module Search =
                         let subItems = subItemsRes |> Result.toOption |? []
                         let subDirs = getDirs subItems
                         let progressFactor = progressFactor / float (subDirs.Length + 1)
-                        resultsEvent.Trigger (subItems, Some progressFactor)
+                        subDirResults.Trigger subItems
+                        progress.Trigger (Some progressFactor)
                         do! enumerate progressFactor subDirs
         }
         let dirs = getDirs items
         do! enumerate (1.0 / float dirs.Length) dirs
-        resultsEvent.Trigger ([], None)
+        progress.Trigger None
     }
 
-    let search fsReader (model: MainModel) = asyncSeq {
+    let search fsReader subDirResults progress (model: MainModel) = asyncSeq {
         let current = Some (model.InputText, model.SearchCaseSensitive, model.SearchRegex,
                             model.SearchSubFolders)
         let model = { model with CurrentSearch = current }
@@ -334,7 +336,7 @@ module Search =
                             SubDirectoryCancel = cancelToken
                             Sort = None
                         } |> withItems items
-                    do! enumerateSubDirs fsReader model.SubDirectoryResults cancelToken.get_IsCancelled model.Directory
+                    do! enumerateSubDirs fsReader subDirResults progress cancelToken.get_IsCancelled model.Directory
                 | Some subDirs ->
                     let items = items @ filter subDirs |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                     yield model |> withItems items
@@ -347,7 +349,7 @@ module Search =
             yield model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
     }
 
-    let addSubDirResults newItems progressIncr model =
+    let addSubDirResults newItems model =
         let filter = getFilter model |? cnst []
         let items =
             match filter newItems, model.Items with
@@ -357,7 +359,6 @@ module Search =
         { model with
             SubDirectories = model.SubDirectories |> Option.map (flip (@) newItems)
             Items = items
-            Progress = progressIncr |> Option.map ((+) (model.Progress |? 0.0))
         }
 
     let clearSearch model =
@@ -805,7 +806,7 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
             | Error e -> openPath (Some (error |? e)) paths
     openPath None paths
 
-let refreshOrResearch fsReader model = asyncSeqResult {
+let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     if model.CurrentSearch.IsSome then
         let! newModel = model |> Nav.openPath fsReader model.Location (SelectName model.SelectedItem.Name)
         yield!
@@ -813,7 +814,7 @@ let refreshOrResearch fsReader model = asyncSeqResult {
                 CurrentSearch = model.CurrentSearch
                 SearchHistoryIndex = model.SearchHistoryIndex
             }
-            |> Search.search fsReader
+            |> Search.search fsReader subDirResults progress
             |> AsyncSeq.map Ok
     else
         yield! Nav.refresh fsReader model
@@ -886,12 +887,12 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
     | _ -> ()
 }
 
-let inputChanged fsReader model = asyncSeq {
+let inputChanged fsReader subDirResults progress model = asyncSeq {
     match model.InputMode with
     | Some (Input (Find _)) when String.isNotEmpty model.InputText ->
         yield Search.find model.InputText model
     | Some (Input Search) ->
-        yield! Search.search fsReader model
+        yield! Search.search fsReader subDirResults progress model
     | _ -> ()
 }
 
@@ -995,6 +996,9 @@ let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
         yield model
 }
 
+let addProgress incr model =
+    { model with Progress = incr |> Option.map ((+) (model.Progress |? 0.0)) }
+
 let windowLocationChanged location model =
     let config =
         if model.SaveWindowSettings then
@@ -1019,9 +1023,9 @@ let windowMaximized maximized model =
         else model.Config
     { model with Config = config }
 
-let windowActivated fsReader model = asyncSeqResult {
+let windowActivated fsReader subDirResults progress model = asyncSeqResult {
     if model.Config.Window.RefreshOnActivate && not model.IsSearchingSubFolders then
-        yield! model |> refreshOrResearch fsReader
+        yield! model |> refreshOrResearch fsReader subDirResults progress
     else
         yield model
 }
@@ -1045,9 +1049,9 @@ let AsyncResult handler =
                 yield last.WithError e
     })
 
-let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow evt =
+let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow subDirResults progress evt =
     let dispatch =
-        dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow
+        dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow subDirResults progress
     let handler =
         match evt with
         | KeyPress (chord, handler) -> Async (keyPress dispatch keyBindings chord handler.Handle)
@@ -1062,20 +1066,21 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | OpenParent -> SyncResult (Nav.openParent fsReader)
         | Back -> SyncResult (Nav.back fsReader)
         | Forward -> SyncResult (Nav.forward fsReader)
-        | Refresh -> AsyncResult (refreshOrResearch fsReader)
+        | Refresh -> AsyncResult (refreshOrResearch fsReader subDirResults progress)
         | Undo -> AsyncResult (Action.undo fsReader fsWriter)
         | Redo -> AsyncResult (Action.redo fsReader fsWriter)
         | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
         | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
         | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
         | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
-        | InputChanged -> Async (inputChanged fsReader)
+        | InputChanged -> Async (inputChanged fsReader subDirResults progress)
         | InputBack -> Sync (inputHistory 1)
         | InputForward -> Sync (inputHistory -1)
         | InputDelete handler -> Sync (inputDelete handler.Handle)
-        | SubDirectoryResults (items, progressIncr) -> Sync (Search.addSubDirResults items progressIncr)
+        | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
         | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
         | CancelInput -> Sync cancelInput
+        | AddProgress incr -> Sync (addProgress incr)
         | FindNext -> Sync Search.findNext
         | StartAction action -> Sync (Action.registerItem action)
         | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
@@ -1099,7 +1104,7 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
         | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
         | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
-        | WindowActivated -> AsyncResult (windowActivated fsReader)
+        | WindowActivated -> AsyncResult (windowActivated fsReader subDirResults progress)
     let isBusy model =
         match model.Status with
         | Some (Busy _) -> true
@@ -1120,13 +1125,14 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
                 yield! handler model
         })
 
-
-open Koffee.MainView
-
 let start fsReader fsWriter os getScreenBounds (config: ConfigFile) (history: HistoryFile) keyBindings openSettings
           closeWindow startOptions view =
     let model =
         { MainModel.Default with Config = config.Value; History = history.Value }
         |> initModel fsReader startOptions
-    let dispatch = dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow
-    Framework.start (binder config history) (events config history model.SubDirectoryResults.Publish) dispatch view model
+    let subDirResults = Event<_>()
+    let progress = Event<_>()
+    let events = MainView.events config history subDirResults.Publish progress.Publish
+    let dispatch =
+        dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow subDirResults progress
+    Framework.start (MainView.binder config history) events dispatch view model

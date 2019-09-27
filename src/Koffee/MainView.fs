@@ -321,7 +321,7 @@ module MainView =
             Bind.model(<@ model.History @>).toFunc(historyBuffer.OnNext)
         ]
 
-    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<Item list * float option>)
+    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (progress: IObservable<_>)
                (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
@@ -377,9 +377,12 @@ module MainView =
         subDirResults |> Obs.buffer 0.3
                       |> Obs.filter Seq.isNotEmpty
                       |> Obs.onCurrent
-                      |> Obs.map (Seq.reduce (fun (i1, p1) (i2, p2) -> (i1 @ i2, (p1, p2) ||> Option.map2 (+))))
-                      |> Obs.map SubDirectoryResults
+                      |> Obs.map (List.concat >> SubDirectoryResults)
         window.InputBox.LostFocus |> Obs.mapTo CancelInput
+        progress |> Obs.buffer 0.3
+                 |> Obs.filter Seq.isNotEmpty
+                 |> Obs.onCurrent
+                 |> Obs.map (Seq.reduce (Option.map2 (+)) >> AddProgress)
 
         window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
         window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->

@@ -166,7 +166,7 @@ module Nav =
             openPath fsReader model.Location.Parent (SelectName model.Location.Name) model
 
     let refresh fsReader (model: MainModel) =
-        openPath fsReader model.SelectedItem.Path.Parent SelectNone model
+        openPath fsReader model.Location SelectNone model
         |> Result.map (fun newModel ->
             if model.Status.IsSome then
                 { newModel with Status = model.Status }

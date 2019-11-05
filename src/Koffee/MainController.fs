@@ -67,7 +67,7 @@ module Nav =
                 let text =
                     if model.Location = Path.Network then "Remote hosts that you visit will appear here"
                     else "Empty folder"
-                [ { Item.Empty with Name = sprintf "<%s>" text } ]
+                [ { Item.Empty with Name = sprintf "<%s>" text; Path = model.Location } ]
             )
         { model with Items = items } |> select selectType
 
@@ -321,8 +321,9 @@ module Search =
         match model.InputText |> String.isNotEmpty, getFilter model with
         | true, Some filter ->
             let withItems items model =
+                let noResults = [ { Item.Empty with Name = "<No Search Results>"; Path = model.Location } ]
                 { model with
-                    Items = items |> Seq.ifEmpty [ { Item.Empty with Name = "<No Search Results>" } ]
+                    Items = items |> Seq.ifEmpty noResults
                     Cursor = 0
                 } |> Nav.select (SelectName model.SelectedItem.Name)
             let items = model.Directory |> filter

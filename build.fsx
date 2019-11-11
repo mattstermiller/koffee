@@ -181,7 +181,7 @@ Target.create "publish" (fun _ ->
     |> Async.RunSynchronously
 
     let chocoPackage = sprintf "%skoffee.%s.nupkg" distDir version
-    Shell.Exec("choco", sprintf "push '%s' --source https://chocolatey.org/" chocoPackage)
+    Shell.Exec("choco", sprintf "push \"%s\" --source https://chocolatey.org/" chocoPackage)
     |> failIfNonZero
 )
 

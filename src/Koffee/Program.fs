@@ -40,6 +40,9 @@ let logError isCrash (e: exn) =
 
 let run args =
     let options = parseArgs (Array.toList args)
+    let dir = Path.KoffeeData.Format Windows
+    if not (Directory.Exists dir) then
+        Directory.CreateDirectory dir |> ignore
     let defaultConfig, defaultHistory = loadOldConfig () |? (Config.Default, History.Default)
     use config = new ConfigFile(defaultConfig)
     use history = new HistoryFile(defaultHistory)

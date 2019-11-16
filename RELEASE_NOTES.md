@@ -1,6 +1,9 @@
 # Release Notes
 
-### 0.5.0  Recursive Search (WIP)
+### 0.5.1  (2019-11-15)
+- #75 Fixes crash on startup when the Koffee AppData folder does not exist
+
+### 0.5.0  Recursive Search (2019-11-11)
 - #54 Adds path suggestions as you type in the path box
 - #51 Changes Find to a "Starts with" jump
 - #73 Changes Search to filter as you type, moves case-sensitivity setting to search panel, makes Regex searching

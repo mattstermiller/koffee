@@ -24,19 +24,21 @@ let logError isCrash (e: exn) =
     let typ = if isCrash then "crash" else "error"
     let timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
     let logFile = Path.KoffeeData.Join(sprintf "%s_%s.log" typ timestamp).Format Windows
-    File.WriteAllText(logFile, string e)
+    let logWritten =
+        try
+            File.WriteAllText(logFile, string e)
+            sprintf "This error has been logged to: \n%s\n\n" logFile
+        with _ -> ""
     let msg =
         sprintf "Sorry! An unexpected error %s:\n\n"
                 (if isCrash then "caused Koffee to crash" else "occurred in Koffee") +
         sprintf "%s\n\n" e.Message +
-        sprintf "This error has been logged to: \n%s\n\n" logFile +
-        "Please report this as an issue on Koffee's GitHub project.\n\n" +
+        logWritten +
+        "Please report this as an issue on Koffee's GitHub project:\n" +
         "https://github.com/mattstermiller/koffee/issues"
     MessageBox.Show(msg, sprintf "Koffee %s!" typ, MessageBoxButton.OK, MessageBoxImage.Error) |> ignore
 
-[<EntryPoint>]
-[<System.STAThread>]
-let main args =
+let run args =
     let options = parseArgs (Array.toList args)
     let defaultConfig, defaultHistory = loadOldConfig () |? (Config.Default, History.Default)
     use config = new ConfigFile(defaultConfig)
@@ -46,16 +48,18 @@ let main args =
     let openSettings config = Settings.View().ShowDialog(Settings.start config).Config
     let window = MainWindow()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
-    let app = Application()
-    let run () =
-        app.Run(window, MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config history
-                                        KeyBinding.defaults openSettings closeWindow options)
-        |> ignore
+    let start = MainLogic.start fileSys fileSys os window.GetScreenWorkingArea config history KeyBinding.defaults
+                                openSettings closeWindow options
+    Application().Run(window, start) |> ignore
+
+[<EntryPoint>]
+[<System.STAThread>]
+let main args =
 #if DEBUG
-    run ()
+    run args
 #else
     VinylUI.Framework.setErrorHandler (logError false)
-    try run ()
+    try run args
     with e -> logError true e
 #endif
     0

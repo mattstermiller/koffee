@@ -63,12 +63,7 @@ module Nav =
             |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
                                      String.equalsIgnoreCase selectName i.Name)
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
-            |> Seq.ifEmpty (
-                let text =
-                    if model.Location = Path.Network then "Remote hosts that you visit will appear here"
-                    else "Empty folder"
-                [ { Item.Empty with Name = sprintf "<%s>" text; Path = model.Location } ]
-            )
+            |> Seq.ifEmpty (Item.EmptyFolder model.Location)
         { model with Items = items } |> select selectType
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
@@ -617,7 +612,7 @@ module Action =
             yield
                 { model with
                     Directory = model.Directory |> List.except [item]
-                    Items = model.Items |> List.except [item]
+                    Items = model.Items |> List.except [item] |> Seq.ifEmpty (Item.EmptyFolder model.Location)
                 }.WithCursor model.Cursor
                 |> performedAction action
     }
@@ -628,7 +623,7 @@ module Action =
             yield
                 { model with
                     Directory = model.Directory |> List.except [model.SelectedItem]
-                    Items = model.Items |> List.except [model.SelectedItem]
+                    Items = model.Items |> List.except [model.SelectedItem] |> Seq.ifEmpty (Item.EmptyFolder model.Location)
                     History = model.History.WithoutNetHost host
                     Status = Some <| MainStatus.removedNetworkHost host
                 }.WithCursor model.Cursor

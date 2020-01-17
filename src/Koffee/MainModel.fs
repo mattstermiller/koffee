@@ -58,6 +58,12 @@ with
           Modified = None; Size = None; IsHidden = false
         }
 
+    static member EmptyFolder path =
+        let text =
+            if path = Path.Network then "Remote hosts that you visit will appear here"
+            else "Empty folder"
+        [ { Item.Empty with Name = sprintf "<%s>" text; Path = path } ]
+
     static member Basic path name itemType =
         { Item.Empty with
             Path = path

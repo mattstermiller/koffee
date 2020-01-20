@@ -13,7 +13,7 @@
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <releaseNotes>https://cdn.jsdelivr.net/gh/mattstermiller/koffee@!version!/RELEASE_NOTES.md</releaseNotes>
     <projectSourceUrl>https://github.com/mattstermiller/koffee/tree/master/src</projectSourceUrl>
-    <packageSourceUrl>https://github.com/mattstermiller/koffee/tree/master/dist-config/chocolatey</packageSourceUrl>
+    <packageSourceUrl>https://github.com/mattstermiller/koffee/tree/master/dist-config/choco</packageSourceUrl>
     <tags>koffee file folder explorer vim hjkl</tags>
     <summary>!summary!</summary>
     <description>!description!</description>

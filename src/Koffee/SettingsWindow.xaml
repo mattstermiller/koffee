@@ -1,61 +1,81 @@
-﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Koffee Settings" Width="650" Height="760">
-    <Window.Resources>
-        <ControlTemplate x:Key="ValidationTemplate">
-            <Grid>
-                <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,5,0"
-                      Opacity="0.7" ToolTip="{Binding Path=/ErrorContent}">
-                    <Ellipse Width="14" Height="14" Fill="Red" />
-                    <TextBlock Foreground="White" FontWeight="Heavy" FontSize="8"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center">X</TextBlock>
-                </Grid>
-                <AdornedElementPlaceholder />
-            </Grid>
-        </ControlTemplate>
-    </Window.Resources>
-    <Grid Margin="10">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition/>
-            <ColumnDefinition/>
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-        <Label x:Name="labelStartPath" Content="Startup path:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top"/>
-        <RadioButton x:Name="StartPathPrevious" Content="Restore previous path" HorizontalAlignment="Left" Margin="83,5,0,0" VerticalAlignment="Top" GroupName="Start Path" RenderTransformOrigin="0.467,-0.188"/>
-        <RadioButton x:Name="StartPathDefault" Content="Default:" HorizontalAlignment="Left" Margin="83,3,0,0" VerticalAlignment="Top" GroupName="Start Path" Grid.Row="1"/>
-        <TextBox x:Name="DefaultPath" Height="24" Margin="145,0,10,0" Grid.Row="1" VerticalAlignment="Top" Validation.ErrorTemplate="{StaticResource ValidationTemplate}"/>
+﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Koffee Settings" Width="650" Height="760">
+  <Window.Resources>
+    <ControlTemplate x:Key="ValidationTemplate">
+      <Grid>
+        <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,5,0" Opacity="0.7"
+              ToolTip="{Binding Path=/ErrorContent}">
+          <Ellipse Width="14" Height="14" Fill="Red"/>
+          <TextBlock Foreground="White" FontWeight="Heavy" FontSize="8" TextAlignment="Center"
+                     HorizontalAlignment="Center" VerticalAlignment="Center">X</TextBlock>
+        </Grid>
+        <AdornedElementPlaceholder/>
+      </Grid>
+    </ControlTemplate>
+  </Window.Resources>
+  <Grid Margin="10">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition/>
+      <ColumnDefinition/>
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
 
-        <Label x:Name="labelTextEditor" Content="Text editor path:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Center" Grid.Row="2"/>
-        <TextBox x:Name="TextEditor" Height="24" Margin="119,1,10,1" VerticalAlignment="Center" Grid.Row="2"/>
+    <Label x:Name="labelStartPath" Content="Startup path:" Margin="0"
+           HorizontalAlignment="Left" VerticalAlignment="Top"/>
+    <RadioButton x:Name="StartPathPrevious" GroupName="Start Path" Content="Restore previous path" Margin="83,5,0,0"
+                 HorizontalAlignment="Left" VerticalAlignment="Top"/>
+    <RadioButton x:Name="StartPathDefault" GroupName="Start Path" Content="Default:" Margin="83,3,0,0"
+                 HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Row="1"/>
+    <TextBox x:Name="DefaultPath" Height="24" Margin="145,0,10,0" VerticalAlignment="Top" Grid.Row="1"
+             Validation.ErrorTemplate="{StaticResource ValidationTemplate}"/>
 
-        <Label x:Name="labelCommandlinePath" Content="Commandline path:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Center" Grid.Row="3"/>
-        <TextBox x:Name="CommandlinePath" Height="24" Margin="119,1,10,1" VerticalAlignment="Center" Grid.Row="3"/>
+    <Label x:Name="labelTextEditor" Content="Text editor path:" Margin="0"
+           HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Row="2"/>
+    <TextBox x:Name="TextEditor" Height="24" Margin="119,1,10,1" VerticalAlignment="Center" Grid.Row="2"/>
 
-        <Label x:Name="labelPathFormat" Content="Path format:" HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1"/>
-        <RadioButton x:Name="PathFormatWindows" Content="Windows" HorizontalAlignment="Left" Margin="82,5,0,0" VerticalAlignment="Top" GroupName="PathFormat" Grid.Column="1"/>
-        <RadioButton x:Name="PathFormatUnix" Content="Unix" HorizontalAlignment="Left" Margin="152,5,0,0" VerticalAlignment="Top" GroupName="PathFormat" Grid.Column="1"/>
+    <Label x:Name="labelCommandlinePath" Content="Commandline path:" Margin="0"
+           HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Row="3"/>
+    <TextBox x:Name="CommandlinePath" Height="24" Margin="119,1,10,1" VerticalAlignment="Center" Grid.Row="3"/>
 
-        <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show full path in title bar" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1" Margin="5,0,0,0"/>
-        <CheckBox x:Name="ShowHidden" Content="Show hidden files and folders" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="2" Margin="5,0,0,0"/>
-        <CheckBox x:Name="RefreshOnActivate" Content="Refresh window on focus" HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="3" Margin="5,5,0,5"/>
+    <Label x:Name="labelPathFormat" Content="Path format:" HorizontalAlignment="Left" VerticalAlignment="Top"
+           Grid.Column="1"/>
+    <RadioButton x:Name="PathFormatWindows" GroupName="PathFormat" Content="Windows" Margin="82,5,0,0"
+                 HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1"/>
+    <RadioButton x:Name="PathFormatUnix" GroupName="PathFormat" Content="Unix" Margin="152,5,0,0"
+                 HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1"/>
 
-        <Label x:Name="labelKeyBindings" Content="Key bindings:" HorizontalAlignment="Left" Margin="0" VerticalAlignment="Top" Grid.Row="4"/>
-        <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0" VerticalAlignment="Top" HorizontalAlignment="Right" Grid.Row="4" Grid.ColumnSpan="2"/>
+    <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show full path in title bar" Margin="5,0,0,0"
+              HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1"/>
+    <CheckBox x:Name="ShowHidden" Content="Show hidden files and folders" Margin="5,0,0,0"
+              HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="2"/>
+    <CheckBox x:Name="RefreshOnActivate" Content="Refresh window on focus" Margin="5,5,0,5"
+              HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="3"/>
 
-        <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="5" Grid.ColumnSpan="2">
-            <DataGrid.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
-                <Style TargetType="{x:Type DataGridCell}">
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                </Style>
-            </DataGrid.Resources>
-        </DataGrid>
-    </Grid>
+    <Label x:Name="labelKeyBindings" Content="Key bindings:" Margin="0"
+           HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Row="4"/>
+    <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0"
+           HorizontalAlignment="Right" VerticalAlignment="Top" Grid.Row="4" Grid.ColumnSpan="2"/>
+
+    <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True"
+              GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*"
+              AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="5" Grid.ColumnSpan="2">
+      <DataGrid.Resources>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
+        <Style TargetType="{x:Type DataGridCell}">
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        </Style>
+      </DataGrid.Resources>
+    </DataGrid>
+  </Grid>
 </Window>

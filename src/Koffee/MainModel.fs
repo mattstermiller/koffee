@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows.Input
@@ -394,102 +394,51 @@ type MainEvents =
     | WindowMaximizedChanged of bool
     | WindowActivated
 
-    member this.FriendlyName =
-        match this with
-        | CursorUp -> "Move Cursor Up"
-        | CursorDown -> "Move Cursor Down"
-        | CursorUpHalfPage -> "Move Cursor Up Half Page"
-        | CursorDownHalfPage -> "Move Cursor Down Half Page"
-        | CursorToFirst -> "Move Cursor to First Item"
-        | CursorToLast -> "Move Cursor to Last Item"
-        | StartInput (Find false) -> "Find Item Starting With..."
-        | StartInput (Find true) -> "Find Item Starting With... (Multi)"
-        | FindNext -> "Go To Next Find Match"
-        | StartInput Search -> "Search For Items"
-        | StartPrompt GoToBookmark -> "Go To Bookmark"
-        | StartPrompt SetBookmark -> "Set Bookmark"
-        | StartPrompt DeleteBookmark -> "Delete Bookmark"
-        | OpenPath _ -> "Open Entered Path"
-        | OpenSelected -> "Open Selected Item"
-        | OpenParent -> "Open Parent Folder"
-        | Back -> "Back in Location History"
-        | Forward -> "Forward in Location History"
-        | Refresh -> "Refresh Current Folder"
-        | StartInput CreateFile -> "Create File"
-        | StartInput CreateFolder -> "Create Folder"
-        | StartInput (Rename Begin) -> "Rename Item (Prepend)"
-        | StartInput (Rename EndName) -> "Rename Item (Append to Name)"
-        | StartInput (Rename End) -> "Rename Item (Append to Extension)"
-        | StartInput (Rename ReplaceName) -> "Rename Item (Replace Name)"
-        | StartInput (Rename ReplaceAll) -> "Rename Item (Replace Full Name)"
-        | StartConfirm Delete -> "Delete Permanently"
-        | SubmitInput -> "Submit Input for the Current Command"
-        | StartAction Move -> "Start Move Item"
-        | StartAction Copy -> "Start Copy Item"
-        | StartAction Shortcut -> "Start Create Shortcut to Item"
-        | ClearYank -> "Clear Yank Register"
-        | Put -> "Put Item to Move/Copy in Current Folder"
-        | ClipCopy -> "Copy to Clipboard"
-        | Recycle -> "Send to Recycle Bin"
-        | Undo -> "Undo Action"
-        | Redo -> "Redo Action"
-        | SortList field -> sprintf "Sort by %A" field
-        | ToggleHidden -> "Show/Hide Hidden Folders and Files"
-        | OpenSplitScreenWindow -> "Open New Window for Split Screen"
-        | OpenFileWith -> "Open File With..."
-        | OpenProperties -> "Open Properties"
-        | OpenWithTextEditor -> "Open Selected File With Text Editor"
-        | OpenExplorer -> "Open Windows Explorer at Current Location"
-        | OpenCommandLine -> "Open Windows Commandline at Current Location"
-        | OpenSettings -> "Open Help/Settings"
-        | Exit -> "Exit"
-        | _ -> ""
-
     static member Bindable = [
-        CursorUp
-        CursorDown
-        CursorUpHalfPage
-        CursorDownHalfPage
-        CursorToFirst
-        CursorToLast
-        StartInput (Find false)
-        StartInput (Find true)
-        FindNext
-        StartInput Search
-        StartPrompt GoToBookmark
-        StartPrompt SetBookmark
-        OpenSelected
-        OpenParent
-        Back
-        Forward
-        Refresh
-        StartInput CreateFile
-        StartInput CreateFolder
-        StartInput (Rename Begin)
-        StartInput (Rename EndName)
-        StartInput (Rename End)
-        StartInput (Rename ReplaceName)
-        StartInput (Rename ReplaceAll)
-        StartConfirm Delete
-        StartAction Move
-        StartAction Copy
-        StartAction Shortcut
-        ClearYank
-        Put
-        ClipCopy
-        Recycle
-        Undo
-        Redo
-        SortList Name
-        SortList Modified
-        SortList Size
-        ToggleHidden
-        OpenSplitScreenWindow
-        OpenFileWith
-        OpenProperties
-        OpenWithTextEditor
-        OpenExplorer
-        OpenCommandLine
-        OpenSettings
-        Exit
+        CursorUp, "Move Cursor Up"
+        CursorDown, "Move Cursor Down"
+        CursorUpHalfPage, "Move Cursor Up Half Page"
+        CursorDownHalfPage, "Move Cursor Down Half Page"
+        CursorToFirst, "Move Cursor to First Item"
+        CursorToLast, "Move Cursor to Last Item"
+        StartInput (Find false), "Find Item Starting With..."
+        StartInput (Find true), "Find Item Starting With... (Multi)"
+        FindNext, "Go To Next Find Match"
+        StartInput Search, "Search For Items"
+        StartPrompt GoToBookmark, "Go To Bookmark"
+        StartPrompt SetBookmark, "Set Bookmark"
+        OpenSelected, "Open Selected Item"
+        OpenParent, "Open Parent Folder"
+        Back, "Back in Location History"
+        Forward, "Forward in Location History"
+        Refresh, "Refresh Current Folder"
+        StartInput CreateFile, "Create File"
+        StartInput CreateFolder, "Create Folder"
+        StartInput (Rename Begin), "Rename Item (Prepend)"
+        StartInput (Rename EndName), "Rename Item (Append to Name)"
+        StartInput (Rename End), "Rename Item (Append to Extension)"
+        StartInput (Rename ReplaceName), "Rename Item (Replace Name)"
+        StartInput (Rename ReplaceAll), "Rename Item (Replace Full Name)"
+        StartConfirm Delete, "Delete Permanently"
+        StartAction Move, "Start Move Item"
+        StartAction Copy, "Start Copy Item"
+        StartAction Shortcut, "Start Create Shortcut to Item"
+        ClearYank, "Clear Yank Register"
+        Put, "Put Item to Move/Copy in Current Folder"
+        ClipCopy, "Copy to Clipboard"
+        Recycle, "Send to Recycle Bin"
+        Undo, "Undo Action"
+        Redo, "Redo Action"
+        SortList Name, "Sort by Name"
+        SortList Modified, "Sort by Modified"
+        SortList Size, "Sort by Size"
+        ToggleHidden, "Show/Hide Hidden Folders and Files"
+        OpenSplitScreenWindow, "Open New Window for Split Screen"
+        OpenFileWith, "Open File With..."
+        OpenProperties, "Open Properties"
+        OpenWithTextEditor, "Open Selected File With Text Editor"
+        OpenExplorer, "Open Windows Explorer at Current Location"
+        OpenCommandLine, "Open Windows Commandline at Current Location"
+        OpenSettings, "Open Help/Settings"
+        Exit, "Exit"
     ]

@@ -79,8 +79,8 @@ let private dispatcher evt =
     | PathFormatChanged value -> Sync <| updateConfig (fun c -> { c with PathFormat = value})
 
 let start (config: Config) view =
-    let keyBinding (evt: MainEvents) = {
-        EventName = evt.FriendlyName
+    let keyBinding (evt, name) = {
+        EventName = name
         BoundKeys =
             KeyBinding.defaults
             |> List.filter (snd >> ((=) evt))

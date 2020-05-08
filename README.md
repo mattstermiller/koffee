@@ -23,13 +23,12 @@ Go to the [releases page](https://github.com/mattstermiller/koffee/releases). Fr
 
 ### From Source
 You will need to have installed:
-- [Visual Studio or VS Build Tools](https://visualstudio.microsoft.com/downloads/)
-  - Make sure to select the components "F# compiler" and ".NET Framework 4.5.1 targeting pack"
-- [FAKE](https://fake.build/fake-gettingstarted.html)
+- [Visual Studio or VS Build Tools 2019](https://visualstudio.microsoft.com/downloads/)
+  - Make sure to select the components ".NET Core SDK", ".NET Framework 4.5.1 targeting pack" and "F# compiler"
 
 Steps:
 - Clone this repository
-- Open a terminal to the folder and run `fake build -t install`
+- Open a terminal to the folder and run `.\fake.cmd build -t install`
 
 ## Using Koffee
 First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the hotkeys, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.

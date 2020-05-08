@@ -1,7 +1,8 @@
 # Release Notes
 
 ### 0.6.0  Multi-select
-- Swaps key bindings for create file, create folder. `o` is now create folder.
+- Swaps key bindings for create file, create folder - `o` is now create folder
+- Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.
 
 ### 0.5.2  (2020-01-17)
 - #76 Fixes error when deleting the last item in a folder

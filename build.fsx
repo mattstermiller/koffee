@@ -4,9 +4,7 @@ nuget Fake.Core.ReleaseNotes
 nuget Fake.IO.FileSystem
 nuget Fake.IO.Zip
 nuget Fake.DotNet.AssemblyInfoFile
-nuget Fake.DotNet.Paket
-nuget Fake.DotNet.MSBuild
-nuget Fake.DotNet.Testing.NUnit
+nuget Fake.DotNet.Cli
 nuget Fake.Installer.InnoSetup
 nuget Fake.API.GitHub //"
 #load "./.fake/build.fsx/intellisense.fsx"
@@ -15,14 +13,12 @@ open Fake.Core
 open Fake.IO
 open Fake.IO.Globbing.Operators
 open Fake.DotNet
-open Fake.DotNet.Testing
 open Fake.Installer
 open Fake.Api
 open System.IO
 open System.Security.Cryptography
 
 let buildDir = "build/"
-let testDir = "test/"
 let distConfigDir = "dist-config/"
 let distFilesDir = "dist-files/"
 let distDir = "dist/"
@@ -39,11 +35,7 @@ let failIfNonZero ret =
     if ret <> 0 then failwith "Shell command failed."
 
 Target.create "clean" (fun _ ->
-    Shell.cleanDirs [
-        buildDir
-        testDir
-        distFilesDir
-    ]
+    Shell.cleanDirs [buildDir; distFilesDir]
 )
 
 Target.create "version" (fun _ ->
@@ -54,10 +46,6 @@ Target.create "version" (fun _ ->
     ]
 )
 
-Target.create "restore" (fun _ ->
-    Paket.restore (fun p -> { p with WorkingDir = "src/" })
-)
-
 let buildParams (p: MSBuildParams) =
     { p with
         RestorePackagesFlag = true
@@ -65,24 +53,11 @@ let buildParams (p: MSBuildParams) =
     }
 
 Target.create "build" (fun _ ->
-    !! "src/Koffee/*.fsproj"
-    |> MSBuild.runRelease buildParams buildDir "Build"
-    |> ignore
-)
-
-Target.create "buildtest" (fun _ ->
-    !! "src/Koffee.Tests/*.fsproj"
-    |> MSBuild.runDebug buildParams testDir "Build"
-    |> ignore
+    DotNet.build (fun a -> { a with Configuration = DotNet.Release; OutputPath = Some buildDir }) "src/Koffee"
 )
 
 Target.create "test" (fun _ ->
-    !! (testDir + "Koffee.Tests.dll")
-    |> NUnit3.run (fun p ->
-        { p with
-            ShadowCopy = false
-            ToolPath = "src/packages/NUnit.ConsoleRunner/tools/nunit3-console.exe"
-        })
+    DotNet.test (fun a -> { a with Configuration = DotNet.Release }) ""
 )
 
 Target.create "install" (fun _ ->
@@ -189,18 +164,11 @@ open Fake.Core.TargetOperators
 
 "clean"
     ==> "version"
-    ==> "restore"
     ==> "build"
-    ==> "package"
-    <=> "install"
-
-"restore"
-    ==> "buildtest"
     ==> "test"
     ==> "package"
-    <=> "install"
-
-"package"
     ==> "publish"
+"test"
+    ==> "install"
 
 Target.runOrDefault "build"

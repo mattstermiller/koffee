@@ -3,6 +3,8 @@ VinylUI
 FSharp.Configuration
 Acadian.FSharp
 CompareNETObjects
+Newtonsoft.Json
 NUnit
 FsUnit
-Newtonsoft.Json
+NUnit3TestAdapter
+Microsoft.NET.Test.Sdk

@@ -2,6 +2,8 @@ FSharp.Core
 FsXaml.Wpf
 VinylUI
 System.Reactive
+System.Management
+Microsoft.VisualBasic
 FSharp.Configuration
 Acadian.FSharp
 Newtonsoft.Json

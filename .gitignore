@@ -1,16 +1,29 @@
+# Visual Studio code
+.vscode/
+.ionide/
+
+# Visual Studio
+*.suo
+*.user
+*.sln.docstates
+.vs/
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Jetbrains IDE
+.idea/
+
 # FAKE
 .fake/
 
 # build output
+bin/
+obj/
 build/
 test/
 dist/
 dist-files/
-
-#NUNIT
-*.VisualState.xml
-TestResult.xml
-
-# vs code
-.vscode/
-.ionide/
+packages/

@@ -1,6 +1,6 @@
 source https://api.nuget.org/v3/index.json
-framework = net451
-redirects: on
+framework auto-detect
+storage: none
 
 nuget FSharp.Core ~> 4.5
 nuget FsXaml.Wpf
@@ -11,6 +11,8 @@ nuget System.Reactive.Windows.Threading ~> 3.1
 nuget System.Reactive.Linq ~> 3.1
 nuget System.Reactive.Core ~> 3.1
 nuget System.Reactive.Interfaces ~> 3.1
+nuget System.Management
+nuget Microsoft.VisualBasic
 nuget FSharp.Configuration
 nuget Acadian.FSharp ~> 1.2.1
 nuget Newtonsoft.Json
@@ -18,6 +20,11 @@ nuget Newtonsoft.Json
 nuget FsUnit ~> 2.3.2
 nuget CompareNETObjects content:none
 nuget NUnit
+nuget NUnit3TestAdapter
+nuget Microsoft.NET.Test.Sdk
 
-nuget NUnit.ConsoleRunner
-nuget Tools.InnoSetup
+group Tools
+    source https://api.nuget.org/v3/index.json
+    storage: on
+
+    nuget Tools.InnoSetup

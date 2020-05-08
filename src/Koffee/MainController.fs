@@ -372,14 +372,18 @@ module Action =
 
     let private setInputSelection cursorPos model =
         let fullLen = model.InputText.Length
-        let nameLen = lazy (Path.SplitName model.InputText |> fst |> String.length)
+        let nameLen =
+            if model.SelectedItem.Type = File then
+                Path.SplitName model.InputText |> fst |> String.length
+            else
+                fullLen
         { model with
             InputTextSelection =
                 match cursorPos with
                 | Begin -> (0, 0)
-                | EndName -> (nameLen.Value, 0)
+                | EndName -> (nameLen, 0)
                 | End -> (fullLen, 0)
-                | ReplaceName -> (0, nameLen.Value)
+                | ReplaceName -> (0, nameLen)
                 | ReplaceAll -> (0, fullLen)
         }
 

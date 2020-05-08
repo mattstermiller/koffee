@@ -269,8 +269,8 @@ let ``Undo rename item handles move error by returning error``() =
 
 // start rename selection tests
 
-let renameTextSelection cursorPosition fileName =
-    let item = createItem ("/c/path/" + fileName)
+let renameTextSelection cursorPosition itemType fileName =
+    let item = { createItem ("/c/path/" + fileName) with Type = itemType }
     let items = List.append oldItems [item]
     let model =
         { baseModel with
@@ -289,32 +289,38 @@ let renameTextSelection cursorPosition fileName =
 
 [<Test>]
 let ``StartInput for rename at beginning sets InputText and selection``() =
-    renameTextSelection Begin "three.txt.old" |> shouldEqual (0, 0)
+    renameTextSelection Begin File "three.txt.old" |> shouldEqual (0, 0)
 
 [<Test>]
 let ``StartInput for rename at end of name sets InputText and selection``() =
-    renameTextSelection EndName "three.txt.old" |> shouldEqual (9, 0)
+    renameTextSelection EndName File "three.txt.old" |> shouldEqual (9, 0)
+    renameTextSelection EndName Folder "three.txt.old" |> shouldEqual (13, 0)
 
 [<Test>]
 let ``StartInput for rename at end of full name sets InputText and selection``() =
-    renameTextSelection End "three.txt.old" |> shouldEqual (13, 0)
+    renameTextSelection End File "three.txt.old" |> shouldEqual (13, 0)
+    renameTextSelection End Folder "three.txt.old" |> shouldEqual (13, 0)
 
 [<Test>]
 let ``StartInput for rename replace name sets InputText and selection``() =
-    renameTextSelection ReplaceName "three.txt.old" |> shouldEqual (0, 9)
+    renameTextSelection ReplaceName File "three.txt.old" |> shouldEqual (0, 9)
+    renameTextSelection ReplaceName Folder "three.txt.old" |> shouldEqual (0, 13)
 
 [<Test>]
 let ``StartInput for rename replace name with no name sets InputText and selection``() =
-    renameTextSelection ReplaceName ".txt" |> shouldEqual (0, 0)
+    renameTextSelection ReplaceName File ".txt" |> shouldEqual (0, 0)
+    renameTextSelection ReplaceName Folder ".txt" |> shouldEqual (0, 4)
 
 [<Test>]
 let ``StartInput for rename replace all sets InputText and selection``() =
-    renameTextSelection ReplaceAll "three.txt.old" |> shouldEqual (0, 13)
+    renameTextSelection ReplaceAll File "three.txt.old" |> shouldEqual (0, 13)
+    renameTextSelection ReplaceAll Folder "three.txt.old" |> shouldEqual (0, 13)
 
 [<Test>]
 let ``StartInput for rename replace all with no extension sets InputText and selection``() =
-    renameTextSelection ReplaceAll "three" |> shouldEqual (0, 5)
+    renameTextSelection ReplaceAll File "three" |> shouldEqual (0, 5)
 
 [<Test>]
 let ``StartInput for rename replace all with just dot sets InputText and selection``() =
-    renameTextSelection ReplaceAll "three." |> shouldEqual (0, 6)
+    renameTextSelection ReplaceAll File "three." |> shouldEqual (0, 6)
+    renameTextSelection ReplaceAll Folder "three." |> shouldEqual (0, 6)

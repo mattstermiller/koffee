@@ -19,6 +19,7 @@ let defaultsAsString = [
     ("l", OpenSelected)
     ("<enter>", OpenSelected)
     ("<s-enter>", OpenFileWith)
+    ("<c-enter>", OpenFileAndExit)
     ("<a-enter>", OpenProperties)
     ("h", OpenParent)
     ("H", Back)

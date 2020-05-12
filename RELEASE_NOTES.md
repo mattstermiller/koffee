@@ -2,6 +2,7 @@
 
 ### 0.6.0  Multi-select
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
+- Adds "Open File and Exit" command
 - Swaps key bindings for create file, create folder - `o` is now create folder
 - Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.
 

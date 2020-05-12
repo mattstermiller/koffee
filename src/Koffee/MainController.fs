@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -116,7 +116,7 @@ module Nav =
         return model
     }
 
-    let openSelected fsReader (os: IOperatingSystem) (model: MainModel) =
+    let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) =
         let item = model.SelectedItem
         match item.Type with
         | Folder | Drive | NetHost | NetShare ->
@@ -146,6 +146,7 @@ module Nav =
                 | None ->
                     os.OpenFile item.Path |> openError
                     |> Result.map (fun () ->
+                        fnAfterOpen |> Option.iter (fun f -> f())
                         { model with Status = Some <| MainStatus.openFile item.Name }
                     )
             )
@@ -928,7 +929,7 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
             if multi then { model with InputText = ""  }
             else { model with InputMode = None }
         yield model
-        yield! Nav.openSelected fsReader os model
+        yield! Nav.openSelected fsReader os None model
     | Some (Input Search) ->
         let search =
             model.InputText
@@ -1062,7 +1063,10 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
         | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
         | OpenPath handler -> SyncResult (Nav.openInputPath fsReader handler)
-        | OpenSelected -> SyncResult (Nav.openSelected fsReader os)
+        | OpenSelected -> SyncResult (Nav.openSelected fsReader os None)
+        | OpenFileWith -> SyncResult (Action.openFileWith os)
+        | OpenFileAndExit -> SyncResult (Nav.openSelected fsReader os (Some closeWindow))
+        | OpenProperties -> SyncResult (Action.openProperties os)
         | OpenParent -> SyncResult (Nav.openParent fsReader)
         | Back -> SyncResult (Nav.back fsReader)
         | Forward -> SyncResult (Nav.forward fsReader)
@@ -1090,8 +1094,6 @@ let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings
         | SortList field -> Sync (Nav.sortList field)
         | ToggleHidden -> AsyncResult (Nav.toggleHidden fsReader)
         | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
-        | OpenFileWith -> SyncResult (Action.openFileWith os)
-        | OpenProperties -> SyncResult (Action.openProperties os)
         | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
         | OpenExplorer -> Sync (Action.openExplorer os)
         | OpenCommandLine -> SyncResult (Action.openCommandLine os)

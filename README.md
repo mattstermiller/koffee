@@ -103,6 +103,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Paste in any text editor or text input to insert the file or folder's path there.
 
 #### Other
+- Open the selected file and exit with `Ctrl + Enter`
 - Open the selected file or folder's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`

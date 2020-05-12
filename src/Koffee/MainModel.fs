@@ -379,6 +379,7 @@ type MainEvents =
     | ToggleHidden
     | OpenSplitScreenWindow
     | OpenFileWith
+    | OpenFileAndExit
     | OpenProperties
     | OpenWithTextEditor
     | OpenExplorer
@@ -408,6 +409,9 @@ type MainEvents =
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt SetBookmark, "Set Bookmark"
         OpenSelected, "Open Selected Item"
+        OpenFileWith, "Open File With..."
+        OpenFileAndExit, "Open File and Exit"
+        OpenProperties, "Open Properties"
         OpenParent, "Open Parent Folder"
         Back, "Back in Location History"
         Forward, "Forward in Location History"
@@ -434,8 +438,6 @@ type MainEvents =
         SortList Size, "Sort by Size"
         ToggleHidden, "Show/Hide Hidden Folders and Files"
         OpenSplitScreenWindow, "Open New Window for Split Screen"
-        OpenFileWith, "Open File With..."
-        OpenProperties, "Open Properties"
         OpenWithTextEditor, "Open Selected File With Text Editor"
         OpenExplorer, "Open Windows Explorer at Current Location"
         OpenCommandLine, "Open Windows Commandline at Current Location"

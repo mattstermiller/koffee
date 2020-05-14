@@ -1050,91 +1050,89 @@ let AsyncResult handler =
                 yield last.WithError e
     })
 
-let rec dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow subDirResults progress evt =
-    let dispatch =
-        dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow subDirResults progress
-    let handler =
-        match evt with
-        | KeyPress (chord, handler) -> Async (keyPress dispatch keyBindings chord handler.Handle)
-        | CursorUp -> Sync (fun m -> m.WithCursorRel -1)
-        | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel -m.HalfPageSize)
-        | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
-        | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
-        | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
-        | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
-        | OpenPath handler -> SyncResult (Nav.openInputPath fsReader handler)
-        | OpenSelected -> SyncResult (Nav.openSelected fsReader os None)
-        | OpenFileWith -> SyncResult (Action.openFileWith os)
-        | OpenFileAndExit -> SyncResult (Nav.openSelected fsReader os (Some closeWindow))
-        | OpenProperties -> SyncResult (Action.openProperties os)
-        | OpenParent -> SyncResult (Nav.openParent fsReader)
-        | Back -> SyncResult (Nav.back fsReader)
-        | Forward -> SyncResult (Nav.forward fsReader)
-        | Refresh -> AsyncResult (refreshOrResearch fsReader subDirResults progress)
-        | Undo -> AsyncResult (Action.undo fsReader fsWriter)
-        | Redo -> AsyncResult (Action.redo fsReader fsWriter)
-        | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
-        | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
-        | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
-        | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
-        | InputChanged -> Async (inputChanged fsReader subDirResults progress)
-        | InputBack -> Sync (inputHistory 1)
-        | InputForward -> Sync (inputHistory -1)
-        | InputDelete handler -> Sync (inputDelete handler.Handle)
-        | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
-        | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
-        | CancelInput -> Sync cancelInput
-        | AddProgress incr -> Sync (addProgress incr)
-        | FindNext -> Sync Search.findNext
-        | StartAction action -> Sync (Action.registerItem action)
-        | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
-        | Put -> AsyncResult (Action.put fsReader fsWriter false)
-        | ClipCopy -> SyncResult (Action.clipCopy os)
-        | Recycle -> AsyncResult (Action.recycle fsWriter)
-        | SortList field -> Sync (Nav.sortList field)
-        | ToggleHidden -> AsyncResult (Nav.toggleHidden fsReader)
-        | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
-        | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
-        | OpenExplorer -> Sync (Action.openExplorer os)
-        | OpenCommandLine -> SyncResult (Action.openCommandLine os)
-        | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings)
-        | Exit -> Sync (fun m -> closeWindow(); m)
-        | PathInputChanged -> Async (Nav.suggestPaths fsReader)
-        | ConfigFileChanged config -> Sync (fun m -> { m with Config = config })
-        | HistoryFileChanged history -> Sync (fun m -> { m with History = history })
-        | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })
-        | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
-        | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
-        | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
-        | WindowActivated -> AsyncResult (windowActivated fsReader subDirResults progress)
-    let isBusy model =
-        match model.Status with
-        | Some (Busy _) -> true
-        | _ -> false
-    match handler, evt with
-    | _, ConfigFileChanged _
-    | _, HistoryFileChanged _ -> handler
-    | Sync handler, _ ->
-        Sync (fun model ->
-            if not (isBusy model) then
-                handler model
-            else
-                model
-        )
-    | Async handler, _ ->
-        Async (fun model -> asyncSeq {
-            if not (isBusy model) then
-                yield! handler model
-        })
-
-let start fsReader fsWriter os getScreenBounds (config: ConfigFile) (history: HistoryFile) keyBindings openSettings
-          closeWindow startOptions view =
-    let model =
-        { MainModel.Default with Config = config.Value; History = history.Value }
-        |> initModel fsReader startOptions
+type Controller(fsReader, fsWriter, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
+                openSettings, closeWindow, startOptions) =
     let subDirResults = Event<_>()
     let progress = Event<_>()
-    let events = MainView.events config history subDirResults.Publish progress.Publish
-    let dispatch =
-        dispatcher fsReader fsWriter os getScreenBounds keyBindings openSettings closeWindow subDirResults progress
-    Framework.start (MainView.binder config history) events dispatch view model
+
+    let rec dispatcher evt =
+        let handler =
+            match evt with
+            | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
+            | CursorUp -> Sync (fun m -> m.WithCursorRel -1)
+            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel -m.HalfPageSize)
+            | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
+            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
+            | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
+            | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
+            | OpenPath handler -> SyncResult (Nav.openInputPath fsReader handler)
+            | OpenSelected -> SyncResult (Nav.openSelected fsReader os None)
+            | OpenFileWith -> SyncResult (Action.openFileWith os)
+            | OpenFileAndExit -> SyncResult (Nav.openSelected fsReader os (Some closeWindow))
+            | OpenProperties -> SyncResult (Action.openProperties os)
+            | OpenParent -> SyncResult (Nav.openParent fsReader)
+            | Back -> SyncResult (Nav.back fsReader)
+            | Forward -> SyncResult (Nav.forward fsReader)
+            | Refresh -> AsyncResult (refreshOrResearch fsReader subDirResults progress)
+            | Undo -> AsyncResult (Action.undo fsReader fsWriter)
+            | Redo -> AsyncResult (Action.redo fsReader fsWriter)
+            | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
+            | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
+            | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
+            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
+            | InputChanged -> Async (inputChanged fsReader subDirResults progress)
+            | InputBack -> Sync (inputHistory 1)
+            | InputForward -> Sync (inputHistory -1)
+            | InputDelete handler -> Sync (inputDelete handler.Handle)
+            | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
+            | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
+            | CancelInput -> Sync cancelInput
+            | AddProgress incr -> Sync (addProgress incr)
+            | FindNext -> Sync Search.findNext
+            | StartAction action -> Sync (Action.registerItem action)
+            | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
+            | Put -> AsyncResult (Action.put fsReader fsWriter false)
+            | ClipCopy -> SyncResult (Action.clipCopy os)
+            | Recycle -> AsyncResult (Action.recycle fsWriter)
+            | SortList field -> Sync (Nav.sortList field)
+            | ToggleHidden -> AsyncResult (Nav.toggleHidden fsReader)
+            | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
+            | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
+            | OpenExplorer -> Sync (Action.openExplorer os)
+            | OpenCommandLine -> SyncResult (Action.openCommandLine os)
+            | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings)
+            | Exit -> Sync (fun m -> closeWindow(); m)
+            | PathInputChanged -> Async (Nav.suggestPaths fsReader)
+            | ConfigFileChanged config -> Sync (fun m -> { m with Config = config })
+            | HistoryFileChanged history -> Sync (fun m -> { m with History = history })
+            | PageSizeChanged size -> Sync (fun m -> { m with PageSize = size })
+            | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
+            | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
+            | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
+            | WindowActivated -> AsyncResult (windowActivated fsReader subDirResults progress)
+        let isBusy model =
+            match model.Status with
+            | Some (Busy _) -> true
+            | _ -> false
+        match handler, evt with
+        | _, ConfigFileChanged _
+        | _, HistoryFileChanged _ -> handler
+        | Sync handler, _ ->
+            Sync (fun model ->
+                if not (isBusy model) then
+                    handler model
+                else
+                    model
+            )
+        | Async handler, _ ->
+            Async (fun model -> asyncSeq {
+                if not (isBusy model) then
+                    yield! handler model
+            })
+
+    member this.Start view =
+        let model =
+            { MainModel.Default with Config = config.Value; History = history.Value }
+            |> initModel fsReader startOptions
+        let events = MainView.events config history subDirResults.Publish progress.Publish
+        Framework.start (MainView.binder config history) events dispatcher view model

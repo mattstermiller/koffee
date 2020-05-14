@@ -4,6 +4,8 @@
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
 - Adds "Open File and Exit" command
 - Swaps key bindings for create file, create folder - `o` is now create folder
+- Changes Escape key in path box to always switch focus back to item grid and resets it to current location
+- Changes Tab key in path box to always move cursor to end
 - Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.
 
 ### 0.5.2  (2020-01-17)

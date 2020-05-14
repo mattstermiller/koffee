@@ -105,10 +105,8 @@ module MainView =
                 e.Handled <- true
             | Key.Tab ->
                 if paths.Visible then
-                    selectedPath |> Option.iter (fun path ->
-                        window.PathBox.Text <- path
-                        window.PathBox.Select(path.Length, 0)
-                    )
+                    selectedPath |> Option.iter window.PathBox.set_Text
+                window.PathBox.Select(window.PathBox.Text.Length, 0)
                 e.Handled <- true
             | Key.Enter ->
                 selectedPath |> Option.iter window.PathBox.set_Text
@@ -117,12 +115,6 @@ module MainView =
         window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
 
         // bind Tab key to switch focus
-        window.PathBox.PreviewKeyDown.Add (onKey Key.Escape (fun () ->
-            if window.PathBox.SelectionLength > 0 then
-                window.PathBox.Select(window.PathBox.SelectionStart + window.PathBox.SelectionLength, 0)
-            else
-                window.ItemGrid.Focus() |> ignore
-        ))
         window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus()
@@ -330,13 +322,14 @@ module MainView =
             let focusGrid () = window.ItemGrid.Focus() |> ignore
             match evt.Chord with
             | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (evt.HandlerWithEffect focusGrid))
+            | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
             | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
             | (modifier, _) when ignoreMods |> (not << List.contains modifier) -> Some keyPress
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
             | _ -> None
         )
         window.PathBox.TextChanged |> Obs.filter (fun _ -> window.PathBox.IsFocused)
-                                   |> Obs.mapTo PathInputChanged
+                                   |> Obs.mapTo LocationInputChanged
         window.SettingsButton.Click |> Obs.mapTo OpenSettings
 
         window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier

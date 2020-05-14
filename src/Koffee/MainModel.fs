@@ -286,7 +286,7 @@ type MainModel = {
 
     member this.PathFormat = this.Config.PathFormat
 
-    member this.LocationFormatted = this.Location.Format this.PathFormat
+    member this.LocationFormatted = this.Location.FormatFolder this.PathFormat
 
     member this.HalfPageSize = this.PageSize/2 - 1
 
@@ -386,7 +386,8 @@ type MainEvents =
     | OpenCommandLine
     | OpenSettings
     | Exit
-    | PathInputChanged
+    | LocationInputChanged
+    | ResetLocationInput
     | ConfigFileChanged of Config
     | HistoryFileChanged of History
     | PageSizeChanged of int

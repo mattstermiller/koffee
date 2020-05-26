@@ -25,17 +25,16 @@ module Format =
     let dateTime = formatDate FormatString.dateTime
 
     let fileSize size =
-        let format (num: int64) = num.ToString("N0")
+        let scaleNames = ["B";"KB";"MB";"GB"]
         let scale level = pown 1024L level
-        let scaleCutoff level = 10L * (scale level)
         let scaledStr size level =
-            let scaled = size / (scale level)
-            let levelName = "KB,MB,GB".Split(',').[level-1]
-            (format scaled) + " " + levelName
-        if size > scaleCutoff 3 then scaledStr size 3
-        else if size > scaleCutoff 2 then scaledStr size 2
-        else if size > scaleCutoff 1 then scaledStr size 1
-        else format size + " B"
+            let scaled = if level > 0 then size / (scale level) else size
+            let fmt = if scaled < 10L && level > 0 then "0.0" else "0"
+            (String.format fmt scaled) + " " + scaleNames.[level]
+        if size > scale 3 then scaledStr size 3
+        else if size > scale 2 then scaledStr size 2
+        else if size > scale 1 then scaledStr size 1
+        else scaledStr size 0
 
 module Observable =
     let throttle (seconds: float) (o: IObservable<_>) =

@@ -114,11 +114,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 There are more commands at your disposal. Open the Settings window with `?` for the full list of commands and their key bindings!
 
 ## Future Planned Features
-- Search sub-folders
-- Text content search
 - Select multiple items
 - Configurable hotkeys
-- Batch renames
 - Themes
 - And more... check out the [issues list](https://github.com/mattstermiller/koffee/issues) and please add your own ideas and contributions!
-

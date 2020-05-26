@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System.Text.RegularExpressions
+open Acadian.FSharp
 
 type StartOptions = {
     StartPath: string option
@@ -18,6 +19,7 @@ module ProgramOptions =
         | _ -> None
 
     let parseArgs (args: string list) =
+        let args = args |> List.map (String.trimChars [|'"'|])
         let rec parse args options =
             match args with
             | Path path :: rest when options.StartPath.IsNone ->

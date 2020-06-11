@@ -23,7 +23,7 @@ module ProgramOptions =
         let rec parse args options =
             match args with
             | Path path :: rest when options.StartPath.IsNone ->
-                parse rest { options with StartPath = Some path }
+                parse rest { options with StartPath = Some (path |> IOPath.GetFullPath) }
             | IntTuple "location" loc :: rest when options.StartLocation.IsNone ->
                 parse rest { options with StartLocation = Some loc }
             | IntTuple "size" loc :: rest when options.StartSize.IsNone ->

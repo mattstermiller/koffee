@@ -16,8 +16,10 @@
   </Window.Resources>
   <Grid Margin="10">
     <Grid.ColumnDefinitions>
-      <ColumnDefinition/>
-      <ColumnDefinition/>
+      <ColumnDefinition Width="Auto"/>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="20"/>
+      <ColumnDefinition Width="Auto"/>
     </Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
@@ -28,46 +30,44 @@
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
-    <Label x:Name="labelStartPath" Content="Startup path:" Margin="0"
-           HorizontalAlignment="Left" VerticalAlignment="Top"/>
-    <RadioButton x:Name="StartPathPrevious" GroupName="Start Path" Content="Restore previous path" Margin="83,5,0,0"
-                 HorizontalAlignment="Left" VerticalAlignment="Top"/>
-    <RadioButton x:Name="StartPathDefault" GroupName="Start Path" Content="Default:" Margin="83,3,0,0"
-                 HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Row="1"/>
-    <TextBox x:Name="DefaultPath" Height="24" Margin="145,0,10,0" VerticalAlignment="Top" Grid.Row="1"
-             Validation.ErrorTemplate="{StaticResource ValidationTemplate}"/>
+    <Label x:Name="labelStartPath" Content="Startup path:"/>
+    <RadioButton x:Name="StartPathPrevious" GroupName="Start Path" Content="Restore previous path"
+                 VerticalAlignment="Center" Grid.Column="1"/>
+    <DockPanel Grid.Column="1" Grid.Row="1">
+      <RadioButton x:Name="StartPathDefault" GroupName="Start Path" Content="Default:" VerticalAlignment="Center"
+                   DockPanel.Dock="Left"/>
+      <TextBox x:Name="DefaultPath" Margin="5,0,0,0" Height="24" VerticalAlignment="Center"
+               Validation.ErrorTemplate="{StaticResource ValidationTemplate}"/>
+    </DockPanel>
 
-    <Label x:Name="labelTextEditor" Content="Text editor path:" Margin="0"
-           HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Row="2"/>
-    <TextBox x:Name="TextEditor" Height="24" Margin="119,1,10,1" VerticalAlignment="Center" Grid.Row="2"/>
+    <Label x:Name="labelTextEditor" Content="Text editor path:" VerticalAlignment="Center" Grid.Row="2"/>
+    <TextBox x:Name="TextEditor" Height="24" VerticalAlignment="Center" Grid.Column="1" Grid.Row="2"/>
 
-    <Label x:Name="labelCommandlinePath" Content="Commandline path:" Margin="0"
-           HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Row="3"/>
-    <TextBox x:Name="CommandlinePath" Height="24" Margin="119,1,10,1" VerticalAlignment="Center" Grid.Row="3"/>
+    <Label x:Name="labelCommandlinePath" Content="Commandline path:" VerticalAlignment="Center" Grid.Row="3"/>
+    <TextBox x:Name="CommandlinePath" Height="24" VerticalAlignment="Center" Grid.Column="1" Grid.Row="3"/>
 
-    <Label x:Name="labelPathFormat" Content="Path format:" HorizontalAlignment="Left" VerticalAlignment="Top"
-           Grid.Column="1"/>
-    <RadioButton x:Name="PathFormatWindows" GroupName="PathFormat" Content="Windows" Margin="82,5,0,0"
-                 HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1"/>
-    <RadioButton x:Name="PathFormatUnix" GroupName="PathFormat" Content="Unix" Margin="152,5,0,0"
-                 HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Column="1"/>
+    <StackPanel Orientation="Horizontal" Grid.Column="3">
+      <Label x:Name="labelPathFormat" Content="Path format:" VerticalAlignment="Center"/>
+      <RadioButton x:Name="PathFormatWindows" Content="Windows" GroupName="PathFormat" VerticalAlignment="Center"/>
+      <RadioButton x:Name="PathFormatUnix" Content="Unix" GroupName="PathFormat" VerticalAlignment="Center"
+                   Margin="10,0,10,0"/>
+    </StackPanel>
 
-    <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show full path in title bar" Margin="5,0,0,0"
-              HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1"/>
-    <CheckBox x:Name="ShowHidden" Content="Show hidden files and folders" Margin="5,0,0,0"
-              HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="2"/>
-    <CheckBox x:Name="RefreshOnActivate" Content="Refresh window on focus" Margin="5,5,0,5"
-              HorizontalAlignment="Left" VerticalAlignment="Center" Grid.Column="1" Grid.Row="3"/>
+    <CheckBox x:Name="ShowFullPathInTitleBar" Content="Show full path in title bar" VerticalAlignment="Center"
+              Grid.Column="3" Grid.Row="1"/>
+    <CheckBox x:Name="ShowHidden" Content="Show hidden files and folders" VerticalAlignment="Center"
+              Grid.Column="3" Grid.Row="2"/>
+    <CheckBox x:Name="RefreshOnActivate" Content="Refresh window on focus" VerticalAlignment="Center"
+              Grid.Column="3" Grid.Row="3"/>
 
-    <Label x:Name="labelKeyBindings" Content="Key bindings:" Margin="0"
-           HorizontalAlignment="Left" VerticalAlignment="Top" Grid.Row="4"/>
-    <Label x:Name="labelKeyLegend" Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" Margin="0"
-           HorizontalAlignment="Right" VerticalAlignment="Top" Grid.Row="4" Grid.ColumnSpan="2"/>
+    <Grid Grid.Row="4" Grid.ColumnSpan="4">
+      <Label Content="Key bindings:"/>
+      <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
+    </Grid>
 
-    <DataGrid x:Name="KeyBindings" Margin="0" CanUserResizeRows="False" AreRowDetailsFrozen="True"
-              GridLinesVisibility="None" AlternatingRowBackground="#FFEAEAEA" FontSize="13"
-              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*"
-              AutoGenerateColumns="False" IsReadOnly="True" Grid.Row="5" Grid.ColumnSpan="2">
+    <DataGrid x:Name="KeyBindings" IsReadOnly="True" AreRowDetailsFrozen="True" CanUserResizeRows="False"
+              GridLinesVisibility="None" FontSize="13" AlternatingRowBackground="#FFEAEAEA" AutoGenerateColumns="False"
+              ColumnWidth="*" Grid.Row="5" Grid.ColumnSpan="4">
       <DataGrid.Resources>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>

@@ -38,6 +38,10 @@ type UIElement with
         with get () = this.Visibility = Visibility.Visible
         and set value = this.Visibility <- if value then Visibility.Visible else Visibility.Hidden
 
+    member this.Collapsed
+        with get () = this.Visibility = Visibility.Collapsed
+        and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
+
 type CheckBox with
     member this.Toggle () =
         this.IsChecked <- not (this.IsChecked.GetValueOrDefault()) |> Nullable

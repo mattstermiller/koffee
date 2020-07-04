@@ -116,5 +116,5 @@ There are more commands at your disposal. Open the Settings window with `?` for 
 ## Future Planned Features
 - Select multiple items
 - Configurable hotkeys
-- Themes
+- Theme selection and editor
 - And more... check out the [issues list](https://github.com/mattstermiller/koffee/issues) and please add your own ideas and contributions!

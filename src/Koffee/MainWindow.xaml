@@ -1,94 +1,109 @@
 ﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:my="clr-namespace:Koffee;assembly=Koffee"
-        Title="Koffee"
-        Width="800"
-        Height="800"
-        FontSize="15">
-    <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="AppStyles.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Window.Resources>
-    <DockPanel>
-        <!-- Path bar -->
-        <DockPanel DockPanel.Dock="Top">
-            <Button Name="SettingsButton" DockPanel.Dock="Right" Content="?" Width="30" Height="30"/>
-            <TextBox Name="PathBox" Text="/c/path"/>
-        </DockPanel>
-        <!-- Status bar -->
-        <DockPanel DockPanel.Dock="Bottom">
-            <Border DockPanel.Dock="Left" BorderThickness="0,0,2,0" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
-                <TextBlock Name="DirectoryStatus" Text="2 items, 100 KB" VerticalAlignment="Center" Margin="6,2,6,2"/>
-            </Border>
-            <Border Name="RegisterPanel" DockPanel.Dock="Right" Background="White" BorderThickness="4" BorderBrush="{DynamicResource FocusBrush}" Visibility="Hidden">
-                <TextBlock Name="RegisterText" Text="register" Height="20" Margin="6,2,6,2" VerticalAlignment="Center"/>
-            </Border>
-            <TextBlock Name="StatusText" Text="status" Height="20" Margin="6,2,6,2" VerticalAlignment="Center"/>
-        </DockPanel>
-        <!-- Search panel -->
-        <DockPanel DockPanel.Dock="Bottom" Name="SearchPanel" Background="{DynamicResource FocusBrush}" Visibility="Collapsed">
-            <!-- reserve same amount of vertical space as InputBox --> <TextBox Width="0" Margin="0,6,0,6"/>
-            <TextBlock Name="SearchStatus" Text="Search results for..." Foreground="White" VerticalAlignment="Center" Margin="6"/>
-        </DockPanel>
-        <!-- Input panel -->
-        <DockPanel DockPanel.Dock="Bottom" Name="InputPanel" Background="{DynamicResource FocusBrush}" Visibility="Collapsed">
-            <TextBlock Name="InputText" Text="Input:" Foreground="White" VerticalAlignment="Center" Margin="6,6,0,6"/>
-            <StackPanel Name="SearchOptions" DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                <CheckBox Name="SearchCaseSensitive" Content="Case-sensitive (Ctrl+i)" Foreground="White" Margin="0,0,8,0"/>
-                <CheckBox Name="SearchRegex" Content="Regex (Ctrl+r)" Foreground="White" Margin="0,0,8,0"/>
-                <CheckBox Name="SearchSubFolders" Content="Sub-Folders (Ctrl+s)" Foreground="White" Margin="0,0,8,0"/>
-            </StackPanel>
-            <TextBox Name="InputBox" TextWrapping="NoWrap" Margin="6"/>
-        </DockPanel>
-        <ProgressBar DockPanel.Dock="Bottom" Name="Progress" Maximum="1.0" Height="12"/>
-        <Grid>
-            <!-- Path suggestions -->
-            <ListBox Name="PathSuggestions" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1">
-                <ListBox.Resources>
-                    <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="White"/>
-                </ListBox.Resources>
-            </ListBox>
-            <!-- Item grid -->
-            <DataGrid Name="ItemGrid" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
-                <DataGrid.Resources>
-                    <Style TargetType="DataGrid">
-                        <Setter Property="AlternatingRowBackground" Value="#eaeaea"/>
-                    </Style>
-                    <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}"/>
-                    <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" StartPoint="0,0" EndPoint="0,1" GradientStops="{Binding GradientStops, Source={StaticResource FocusBrush}}" Opacity="0.3"/>
-                </DataGrid.Resources>
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Type}" Value="{x:Static my:ItemType.Folder}">
-                                <Setter Property="Foreground" Value="#7c450b"/>
-                                <Setter Property="FontWeight" Value="DemiBold"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsHidden}" Value="true">
-                                <Setter Property="Foreground" Value="DarkGray"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.RowStyle>
-            </DataGrid>
-            <!-- Bookmarks panel -->
-            <StackPanel Name="BookmarkPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Background="{DynamicResource HintBrush}" Visibility="Hidden">
-                <TextBlock Text="Bookmarks" Foreground="White" FontWeight="Bold" Margin="8,4,8,8"/>
-                <ItemsControl Name="Bookmarks">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                                <TextBlock Text="{Binding Item1}" Foreground="White" FontWeight="Bold" Width="20"/>
-                                <TextBlock Text="{Binding Item2}" Foreground="White"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </Grid>
+        Title="Koffee" Width="800" Height="800" FontSize="15">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="AppStyles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <DockPanel>
+    <!-- Path bar -->
+    <DockPanel DockPanel.Dock="Top">
+      <Button Name="SettingsButton" DockPanel.Dock="Right" Content="?" Width="25" Height="25"/>
+      <TextBox Name="PathBox" Text="/c/path"/>
     </DockPanel>
+    <!-- Status bar -->
+    <Border DockPanel.Dock="Bottom" BorderThickness="0,2,0,0">
+      <DockPanel>
+        <Border DockPanel.Dock="Left" BorderThickness="0,0,2,0">
+          <TextBlock Name="DirectoryStatus" Text="2 items, 100 KB" VerticalAlignment="Center" Margin="6,2,6,2"/>
+        </Border>
+        <Border Name="RegisterPanel" DockPanel.Dock="Right" BorderThickness="2,0,0,0" Visibility="Hidden">
+          <TextBlock Name="RegisterText" Text="register" Height="20" Margin="6,2,6,2" VerticalAlignment="Center"/>
+        </Border>
+        <TextBlock Name="StatusText" Text="status" Height="20" Margin="6,2,6,2" VerticalAlignment="Center"/>
+        <TextBlock Name="ErrorText" Text="error" Height="20" Margin="6,2,6,2" VerticalAlignment="Center"
+                   Foreground="{DynamicResource ErrorBrush}"/>
+      </DockPanel>
+    </Border>
+    <!-- Search panel -->
+    <DockPanel DockPanel.Dock="Bottom" Name="SearchPanel" Background="{DynamicResource PanelBrush}"
+               Visibility="Collapsed">
+      <!-- reserve same amount of vertical space as InputBox -->
+      <TextBox Width="0" Margin="0,6,0,6"/>
+      <TextBlock Name="SearchStatus" Text="Search results for..." VerticalAlignment="Center" Margin="6"
+                 Foreground="{DynamicResource PanelTextBrush}"/>
+    </DockPanel>
+    <!-- Input panel -->
+    <DockPanel DockPanel.Dock="Bottom" Name="InputPanel" Background="{DynamicResource PanelBrush}"
+               Visibility="Collapsed">
+      <TextBlock Name="InputText" Text="Input:" Foreground="{DynamicResource PanelTextBrush}" VerticalAlignment="Center"
+                 Margin="6,6,0,6"/>
+      <StackPanel Name="SearchOptions" DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal">
+        <CheckBox Name="SearchCaseSensitive" Content="Case-sensitive (Ctrl+i)" Margin="0,0,8,0"
+                  Foreground="{DynamicResource PanelTextBrush}"/>
+        <CheckBox Name="SearchRegex" Content="Regex (Ctrl+r)" Foreground="{DynamicResource PanelTextBrush}"
+                  Margin="0,0,8,0"/>
+        <CheckBox Name="SearchSubFolders" Content="Sub-Folders (Ctrl+s)" Foreground="{DynamicResource PanelTextBrush}"
+                  Margin="0,0,8,0"/>
+      </StackPanel>
+      <TextBox Name="InputBox" TextWrapping="NoWrap" Margin="6"/>
+    </DockPanel>
+    <ProgressBar DockPanel.Dock="Bottom" Name="Progress" Maximum="1.0" Height="12"/>
+    <Grid>
+      <!-- Path suggestions -->
+      <ListBox Name="PathSuggestions" HorizontalAlignment="Left" VerticalAlignment="Top" Panel.ZIndex="1"
+               Background="{DynamicResource PopupBrush}" Foreground="{DynamicResource PopupTextBrush}">
+        <ListBox.Resources>
+          <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                               StartPoint="0,0" EndPoint="0,1"
+                               GradientStops="{Binding GradientStops, Source={StaticResource HighlightBrush}}"/>
+          <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                           Color="{DynamicResource HighlightText}"/>
+        </ListBox.Resources>
+      </ListBox>
+      <!-- Item grid -->
+      <DataGrid Name="ItemGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" ColumnWidth="*" RowHeaderWidth="0"
+                HorizontalScrollBarVisibility="Hidden" BorderThickness="0">
+        <DataGrid.Resources>
+          <Style TargetType="{x:Type DataGridCell}">
+            <Setter Property="BorderThickness" Value="0"/>
+          </Style>
+        </DataGrid.Resources>
+        <DataGrid.RowStyle>
+          <Style TargetType="DataGridRow">
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding Type}" Value="{x:Static my:ItemType.Folder}">
+                <Setter Property="FontWeight" Value="DemiBold"/>
+              </DataTrigger>
+              <DataTrigger Binding="{Binding IsHidden}" Value="true">
+                <Setter Property="Foreground" Value="DarkGray"/>
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </DataGrid.RowStyle>
+      </DataGrid>
+      <!-- Bookmarks panel -->
+      <StackPanel Name="BookmarkPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Visibility="Hidden"
+                  Background="{DynamicResource PopupBrush}">
+        <TextBlock Text="Bookmarks" Margin="8,4,8,8" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+        <ItemsControl Name="Bookmarks">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+                <TextBlock Text="{Binding Item1}" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"
+                           Width="20"/>
+                <TextBlock Text="{Binding Item2}" Foreground="{DynamicResource PopupTextBrush}"/>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Grid>
+  </DockPanel>
 </Window>

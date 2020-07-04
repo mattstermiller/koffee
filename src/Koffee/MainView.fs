@@ -270,20 +270,24 @@ module MainView =
 
             // update UI for status
             Bind.modelMulti(<@ model.Status, model.KeyCombo @>).toFunc(fun (status, keyCombo) ->
-                window.StatusText.Text <- 
-                    if not (keyCombo |> List.isEmpty) then
-                        keyCombo
-                        |> Seq.map KeyBinding.keyDescription
-                        |> String.concat ""
-                        |> sprintf "Pressed %s, waiting for another key..."
+                let statusText, errorText =
+                    if keyCombo |> Seq.isNotEmpty then
+                        let msg =
+                            keyCombo
+                            |> Seq.map KeyBinding.keyDescription
+                            |> String.concat ""
+                            |> sprintf "Pressed %s, waiting for another key..."
+                        (msg, "")
                     else
                         match status with
-                        | Some (Message msg) | Some (ErrorMessage msg) | Some (Busy msg) -> msg
-                        | None -> ""
-                window.StatusText.Foreground <-
-                    match keyCombo, status with
-                    | [], Some (ErrorMessage _) -> Brushes.Red
-                    | _ -> SystemColors.WindowTextBrush
+                        | Some (Message msg)
+                        | Some (Busy msg) -> (msg, "")
+                        | Some (ErrorMessage msg) -> ("", msg)
+                        | None -> ("", "")
+                window.StatusText.Text <- statusText
+                window.StatusText.Collapsed <- statusText |> String.isEmpty
+                window.ErrorText.Text <- errorText
+                window.ErrorText.Collapsed <- errorText |> String.isEmpty
                 let isBusy =
                     match status with
                     | Some (Busy _) -> true

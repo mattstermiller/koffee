@@ -64,9 +64,34 @@ module MainView =
             inputType |> caseName
 
     let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
-        let keepSelectedInView () =
-            if window.ItemGrid.SelectedItem <> null then
-                window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
+        // path suggestions
+        window.PathBox.PreviewKeyDown.Add (fun e ->
+            let paths = window.PathSuggestions
+            let items = paths.Items.Count
+            let selectedPath = paths.SelectedItem |> unbox |> Option.ofString
+            match e.Key with
+            | Key.Up when paths.IsEnabled && items > 0 ->
+                paths.SelectedIndex <- if paths.SelectedIndex > 0 then paths.SelectedIndex - 1 else items - 1
+                e.Handled <- true
+            | Key.Down when paths.IsEnabled && items > 0 ->
+                paths.SelectedIndex <- if paths.SelectedIndex < items - 1 then paths.SelectedIndex + 1 else 0
+                e.Handled <- true
+            | Key.Tab ->
+                if paths.Visible then
+                    selectedPath |> Option.iter window.PathBox.set_Text
+                window.PathBox.Select(window.PathBox.Text.Length, 0)
+                e.Handled <- true
+            | Key.Enter ->
+                selectedPath |> Option.iter window.PathBox.set_Text
+            | _ -> ()
+        )
+        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
+
+        // scroll path to show the end when it overflows
+        window.PathBox.TextChanged.Add (fun _ ->
+            if not window.PathBox.IsFocused then
+                window.PathBox.ScrollToHorizontalOffset(window.PathBox.ActualWidth)
+        )
 
         // setup grid
         let mutable relativePathFormat = string
@@ -91,45 +116,18 @@ module MainView =
                 | None -> string
             window.ItemGrid.Columns.[2].Visibility <- if relInfo.IsSome then Visibility.Visible else Visibility.Collapsed
 
-        // path suggestions
-        window.PathBox.PreviewKeyDown.Add (fun e ->
-            let paths = window.PathSuggestions
-            let items = paths.Items.Count
-            let selectedPath = paths.SelectedItem |> unbox |> Option.ofString
-            match e.Key with
-            | Key.Up when paths.IsEnabled && items > 0 ->
-                paths.SelectedIndex <- if paths.SelectedIndex > 0 then paths.SelectedIndex - 1 else items - 1
-                e.Handled <- true
-            | Key.Down when paths.IsEnabled && items > 0 ->
-                paths.SelectedIndex <- if paths.SelectedIndex < items - 1 then paths.SelectedIndex + 1 else 0
-                e.Handled <- true
-            | Key.Tab ->
-                if paths.Visible then
-                    selectedPath |> Option.iter window.PathBox.set_Text
-                window.PathBox.Select(window.PathBox.Text.Length, 0)
-                e.Handled <- true
-            | Key.Enter ->
-                selectedPath |> Option.iter window.PathBox.set_Text
-            | _ -> ()
-        )
-        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
-
         // bind Tab key to switch focus
         window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus()
         ))
 
-        // scroll path to show the end when it overflows
-        window.PathBox.TextChanged.Add (fun _ ->
-            if not window.PathBox.IsFocused then
-                window.PathBox.ScrollToHorizontalOffset(window.PathBox.ActualWidth)
-        )
-
         // on selection change, keep selected item in view
-        window.ItemGrid.SelectedCellsChanged.Add (fun _ -> keepSelectedInView ())
-
-        window.ItemGrid.SizeChanged.Add (fun _ -> keepSelectedInView ())
+        let keepSelectedInView _ =
+            if window.ItemGrid.SelectedItem <> null then
+                window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
+        window.ItemGrid.SelectedCellsChanged.Add keepSelectedInView
+        window.ItemGrid.SizeChanged.Add keepSelectedInView
 
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.ItemGrid.Focus)
         window.InputBox.PreviewKeyDown.Add (fun e ->

@@ -129,6 +129,12 @@ module MainView =
         window.ItemGrid.SelectedCellsChanged.Add keepSelectedInView
         window.ItemGrid.SizeChanged.Add keepSelectedInView
 
+        // keep grid in focus when user clicks a cell to prevent focus issue
+        window.ItemGrid.SelectionChanged.Add (fun e ->
+            if FocusManager.GetFocusedElement(window) :? DataGridCell then
+                window.ItemGrid.Focus() |> ignore
+        )
+
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.ItemGrid.Focus)
         window.InputBox.PreviewKeyDown.Add (fun e ->
             if window.SearchOptions.IsVisible then

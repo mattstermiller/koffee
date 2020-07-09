@@ -2,6 +2,7 @@
 
 ### 0.6.0  Multi-select
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
+- #82 Fixes focus being lost after clicking grid item and opening folder
 - Changes UI to use new dark theme
 - Adds "Open File and Exit" command
 - Swaps key bindings for create file, create folder - `o` is now create folder

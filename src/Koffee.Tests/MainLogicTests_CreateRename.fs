@@ -4,13 +4,13 @@ open NUnit.Framework
 open FsUnitTyped
 
 let oldItems = [
-    createItem "/c/path/one"
-    createItem "/c/path/two"
+    createFolder "/c/path/one"
+    createFolder "/c/path/two"
 ]
 
 let newItems = [
-    createItem "/c/path/new one"
-    createItem "/c/path/new two"
+    createFolder "/c/path/new one"
+    createFolder "/c/path/new two"
 ]
 
 let testModel =
@@ -270,7 +270,7 @@ let ``Undo rename item handles move error by returning error``() =
 // start rename selection tests
 
 let renameTextSelection cursorPosition itemType fileName =
-    let item = { createItem ("/c/path/" + fileName) with Type = itemType }
+    let item = { createFolder ("/c/path/" + fileName) with Type = itemType }
     let items = List.append oldItems [item]
     let model =
         { baseModel with

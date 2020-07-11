@@ -4,24 +4,24 @@ open System
 open NUnit.Framework
 open FsUnitTyped
 
-let itemSameFolder = createItem "/c/path/file 2"
-let itemSameFolderWith ext = createItem ("/c/path/file 2" + ext)
-let itemDiffFolder = createItem "/c/other/file 2"
+let itemSameFolder = createFolder "/c/path/file 2"
+let itemSameFolderWith ext = createFolder ("/c/path/file 2" + ext)
+let itemDiffFolder = createFolder "/c/other/file 2"
 
 let oldItems = [
-    createItem "/c/path/file 1"
-    createItem "/c/path/file 3"
+    createFolder "/c/path/file 1"
+    createFolder "/c/path/file 3"
 ]
 
 let newItems = [
-    createItem "/c/path/file 1"
+    createFolder "/c/path/file 1"
     itemSameFolder
 ]
 
 let itemCopy num =
-    createItem ("/c/path/" + (MainLogic.Action.getCopyName "file 2" num))
+    createFolder ("/c/path/" + (MainLogic.Action.getCopyName "file 2" num))
 
-let modelPathItem = createItem "/c/path"
+let modelPathItem = createFolder "/c/path"
 
 let testModel =
     { baseModel.WithLocation modelPathItem.Path with

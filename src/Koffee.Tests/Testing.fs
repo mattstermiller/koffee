@@ -52,12 +52,12 @@ let seqResult handler (model: MainModel) =
 
 let createPath pathStr = (Path.Parse pathStr).Value
 
-let createItem pathStr =
+let createFolder pathStr =
     let path = createPath pathStr
     Item.Basic path path.Name Folder
 
 let baseModel =
-    let item = createItem "/c/path/default undo-redo"
+    let item = createFolder "/c/path/default undo-redo"
     { MainModel.Default with
         BackStack = [createPath "/c/back", 8]
         ForwardStack = [createPath "/c/fwd", 9]

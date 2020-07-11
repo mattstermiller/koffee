@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogicTests_OpenPath
+module Koffee.MainLogicTests_OpenPath
 
 open NUnit.Framework
 open FsUnitTyped
@@ -18,9 +18,9 @@ type TestCase = {
 let model =
     { baseModel with
         Items = [
-            createItem "/c/path/file 1"
-            createItem "/c/path/file 2"
-            createItem "/c/path/file 3"
+            createFolder "/c/path/file 1"
+            createFolder "/c/path/file 2"
+            createFolder "/c/path/file 3"
         ]
         Location = createPath "/c/path"
         Cursor = 2
@@ -28,8 +28,8 @@ let model =
     }
 
 let newItems = [
-    createItem "/c/newpath/new 1"
-    createItem "/c/newpath/new 2"
+    createFolder "/c/newpath/new 1"
+    createFolder "/c/newpath/new 2"
 ]
 
 let ex = System.UnauthorizedAccessException() :> exn

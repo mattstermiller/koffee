@@ -4,9 +4,9 @@ open NUnit.Framework
 open FsUnitTyped
 
 let oldItems = [
-    createItem "/c/path/one"
-    createItem "/c/path/two"
-    createItem "/c/path/three"
+    createFolder "/c/path/one"
+    createFolder "/c/path/two"
+    createFolder "/c/path/three"
 ]
 
 let newItems = [

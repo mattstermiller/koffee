@@ -9,16 +9,47 @@
             "type": "shell",
             "args": [
                 "build",
-                // Ask dotnet build to generate full paths for file names.
                 "/property:GenerateFullPaths=true",
-                // Do not generate summary otherwise it leads to duplicate errors in Problems panel
                 "/consoleloggerparameters:NoSummary"
             ],
-            "group": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "presentation": {
                 "reveal": "silent"
             },
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "test all",
+            "type": "shell",
+            "command": "dotnet",
+            "args": ["test"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "test by name",
+            "type": "shell",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "--logger='console;verbosity=detailed'",
+                "--filter='FullyQualifiedName~${input:testFilter}'"
+            ],
+            "group": "test",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testFilter",
+            "description": "Test Name Filter:",
+            "type": "promptString"
         }
     ]
 }

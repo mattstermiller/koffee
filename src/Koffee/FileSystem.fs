@@ -23,6 +23,10 @@ type IFileSystemWriter =
     abstract member Recycle: Path -> Result<unit, exn>
     abstract member Delete: Path -> Result<unit, exn>
 
+type IFileSystem =
+    inherit IFileSystemReader
+    inherit IFileSystemWriter
+
 type FileSystem() =
     let wpath (path: Path) = path.Format Windows
     let toPath s = (Path.Parse s).Value
@@ -94,6 +98,7 @@ type FileSystem() =
         | Ok None -> Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         | Error e -> Error e
 
+    interface IFileSystem
 
     interface IFileSystemReader with
         member this.GetItem path = this.GetItem path

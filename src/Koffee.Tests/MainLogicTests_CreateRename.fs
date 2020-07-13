@@ -38,7 +38,7 @@ let ``Create folder calls file sys create, openPath and sets status``() =
         Ok ()
     let createItem = newItems.[1]
 
-    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createItem.Name) testModel
+    let actual = seqResult (MainLogic.Action.create (FileSystemComp(fsReader, fsWriter)) Folder createItem.Name) testModel
 
     created |> shouldEqual (Some (createItem.Type, createItem.Path))
     let expectedAction = CreatedItem createItem
@@ -63,7 +63,7 @@ let ``Create folder returns error when item already exists at path`` existingHid
     let fsWriter = FakeFileSystemWriter()
     let createItem = newItems.[1]
 
-    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createItem.Name) testModel
+    let actual = seqResult (MainLogic.Action.create (FileSystemComp(fsReader, fsWriter)) Folder createItem.Name) testModel
 
     let expected =
         { testModel with
@@ -81,7 +81,7 @@ let ``Create folder handles error by returning error``() =
     fsWriter.Create <- fun _ _ -> Error ex
     let createItem = newItems.[1]
 
-    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createItem.Name) testModel
+    let actual = seqResult (MainLogic.Action.create (FileSystemComp(fsReader, fsWriter)) Folder createItem.Name) testModel
 
     let expected = testModel.WithError (ItemActionError ((CreatedItem createItem), testModel.PathFormat, ex))
     assertAreEqual expected actual
@@ -103,7 +103,7 @@ let ``Undo create empty item calls delete`` curPathDifferent =
     let location = if curPathDifferent then createPath "/c/other" else testModel.Location
     let model = testModel.WithLocation location
 
-    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdItem) model
+    let actual = seqResult (MainLogic.Action.undoCreate (FileSystemComp(fsReader, fsWriter)) createdItem) model
 
     deleted |> shouldEqual (Some createdItem.Path)
     let expected =
@@ -124,7 +124,7 @@ let ``Undo create non-empty item returns error``() =
     let fsWriter = FakeFileSystemWriter()
     let createdItem = oldItems.[1]
 
-    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdItem) testModel
+    let actual = seqResult (MainLogic.Action.undoCreate (FileSystemComp(fsReader, fsWriter)) createdItem) testModel
 
     let expected = testModel.WithError (CannotUndoNonEmptyCreated createdItem)
     assertAreEqual expected actual
@@ -137,7 +137,7 @@ let ``Undo create handles delete error by returning error`` () =
     fsWriter.Delete <- fun _ -> Error ex
     let createdItem = oldItems.[1]
 
-    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdItem) testModel
+    let actual = seqResult (MainLogic.Action.undoCreate (FileSystemComp(fsReader, fsWriter)) createdItem) testModel
 
     let expected = testModel.WithError (ItemActionError (DeletedItem (createdItem, true), testModel.PathFormat, ex))
     assertAreEqual expected actual
@@ -159,7 +159,7 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
         renamed <- Some (s, d)
         Ok ()
 
-    let actual = MainLogic.Action.rename fsReader fsWriter currentItem renamedItem.Name testModel
+    let actual = MainLogic.Action.rename (FileSystemComp(fsReader, fsWriter)) currentItem renamedItem.Name testModel
                  |> assertOk
 
     renamed |> shouldEqual (Some (currentItem.Path, renamedItem.Path))
@@ -183,7 +183,7 @@ let ``Rename to path with existing item returns error`` existingHidden =
     fsReader.GetItem <- fun p -> if p = renamedItem.Path then Ok (Some renamedItem) else Ok None
     let fsWriter = FakeFileSystemWriter()
 
-    let actual = MainLogic.Action.rename fsReader fsWriter currentItem renamedItem.Name testModel
+    let actual = MainLogic.Action.rename (FileSystemComp(fsReader, fsWriter)) currentItem renamedItem.Name testModel
 
     actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, renamedItem.Name, existingHidden)))
 
@@ -196,7 +196,7 @@ let ``Rename handles error by returning error``() =
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Move <- fun _ _ -> Error ex
 
-    let actual = MainLogic.Action.rename fsReader fsWriter currentItem renamedItem.Name testModel
+    let actual = MainLogic.Action.rename (FileSystemComp(fsReader, fsWriter)) currentItem renamedItem.Name testModel
 
     let expectedAction = RenamedItem (currentItem, renamedItem.Name)
     actual |> shouldEqual (Error (ItemActionError (expectedAction, testModel.PathFormat, ex)))
@@ -221,7 +221,7 @@ let ``Undo rename item names file back to original`` curPathDifferent diffCaseOn
     let location = if curPathDifferent then createPath "/c/other" else testModel.Location
     let model = testModel.WithLocation location
 
-    let actual = MainLogic.Action.undoRename fsReader fsWriter prevItem curItem.Name model
+    let actual = MainLogic.Action.undoRename (FileSystemComp(fsReader, fsWriter)) prevItem curItem.Name model
                  |> assertOk
 
     moved |> shouldEqual (Some (curItem.Path, prevItem.Path))
@@ -249,7 +249,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
     fsReader.GetItem <- fun p -> if p = prevItem.Path then Ok (Some prevItem) else Ok None
     let fsWriter = FakeFileSystemWriter()
 
-    let actual = MainLogic.Action.undoRename fsReader fsWriter prevItem curItem.Name testModel
+    let actual = MainLogic.Action.undoRename (FileSystemComp(fsReader, fsWriter)) prevItem curItem.Name testModel
 
     actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, prevItem.Name, existingHidden)))
 
@@ -262,7 +262,7 @@ let ``Undo rename item handles move error by returning error``() =
     let prevItem = newItems.[1]
     let curItem = oldItems.[1]
 
-    let actual = MainLogic.Action.undoRename fsReader fsWriter prevItem curItem.Name testModel
+    let actual = MainLogic.Action.undoRename (FileSystemComp(fsReader, fsWriter)) prevItem curItem.Name testModel
 
     let expectedAction = RenamedItem (curItem, prevItem.Name)
     actual |> shouldEqual (Error (ItemActionError (expectedAction, testModel.PathFormat, ex)))

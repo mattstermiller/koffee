@@ -66,7 +66,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     let item = Some (src.Path, src.Type, action)
     let model = testModel |> withReg item
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) false) model
 
     let expected =
         { (testModel |> withReg item) with
@@ -86,7 +86,7 @@ let ``Put handles missing register item`` () =
     let fsWriter = FakeFileSystemWriter()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) false) model
 
     let expected = model.WithError (YankRegisterItemMissing (src.Path.Format model.PathFormat))
     assertAreEqual expected actual
@@ -100,7 +100,7 @@ let ``Put handles error reading register item`` () =
     let fsWriter = FakeFileSystemWriter()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) false) model
 
     let expected = model.WithError (ActionError ("read yank register item", ex))
     assertAreEqual expected actual
@@ -122,7 +122,7 @@ let ``Put item handles file system errors`` action =
     let item = Some (src.Path, src.Type, action)
     let model = testModel |> withReg item
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) false) model
 
     let expectedAction = PutItem (action, src, dest.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
@@ -145,7 +145,7 @@ let ``Put item to move in different folder calls file sys move`` (overwrite: boo
         Ok ()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) overwrite) model
 
     moved |> shouldEqual [src.Path, dest.Path]
     let expectedAction = PutItem (Move, src, dest.Path)
@@ -169,7 +169,7 @@ let ``Put item to move in same folder returns error``() =
     let fsWriter = FakeFileSystemWriter()
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) false) model
 
     let expected = model.WithError CannotMoveToSameFolder
     assertAreEqual expected actual
@@ -195,7 +195,7 @@ let ``Undo move item moves it back`` curPathDifferent =
         else
             testModel
 
-    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevItem curItem.Path) model
+    let actual = seqResult (MainLogic.Action.undoMove (FileSystemComp(fsReader, fsWriter)) prevItem curItem.Path) model
 
     moved |> shouldEqual (Some (curItem.Path, prevItem.Path))
     let expected =
@@ -222,7 +222,7 @@ let ``Undo move item when previous path is occupied returns error``() =
     let fsWriter = FakeFileSystemWriter()
     let model = testModel.WithLocation (createPath "/c/other")
 
-    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevItem curItem.Path) model
+    let actual = seqResult (MainLogic.Action.undoMove (FileSystemComp(fsReader, fsWriter)) prevItem curItem.Path) model
 
     let expected = model.WithError (CannotUndoMoveToExisting prevItem)
     assertAreEqual expected actual
@@ -237,7 +237,7 @@ let ``Undo move item handles move error by returning error``() =
     fsWriter.Move <- fun _ _ -> Error ex
     let model = testModel.WithLocation (createPath "/c/other")
 
-    let actual = seqResult (MainLogic.Action.undoMove fsReader fsWriter prevItem curItem.Path) model
+    let actual = seqResult (MainLogic.Action.undoMove (FileSystemComp(fsReader, fsWriter)) prevItem curItem.Path) model
 
     let expectedAction = PutItem (Move, curItem, prevItem.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
@@ -260,7 +260,7 @@ let ``Put item to copy in different folder calls file sys copy`` (overwrite: boo
         Ok ()
     let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) overwrite) model
 
     copied |> shouldEqual [(src.Path, dest.Path)]
     let expectedAction = PutItem (Copy, src, dest.Path)
@@ -293,7 +293,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
         Ok ()
     let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter false) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) false) model
 
     let destName = MainLogic.Action.getCopyName src.Name existingCopies
     let destPath = model.Location.Join destName
@@ -332,7 +332,7 @@ let ``Undo copy item when copy has same timestamp deletes copy`` curPathDifferen
         else
             testModel
 
-    let actual = seqResult (MainLogic.Action.undoCopy fsReader fsWriter original copied.Path) model
+    let actual = seqResult (MainLogic.Action.undoCopy (FileSystemComp(fsReader, fsWriter)) original copied.Path) model
 
     deleted |> shouldEqual (Some copied.Path)
     let expected =
@@ -361,7 +361,7 @@ let ``Undo copy item when copy has different or no timestamp recycles copy`` has
         recycled <- Some p
         Ok ()
 
-    let actual = seqResult (MainLogic.Action.undoCopy fsReader fsWriter original copied.Path) testModel
+    let actual = seqResult (MainLogic.Action.undoCopy (FileSystemComp(fsReader, fsWriter)) original copied.Path) testModel
 
     recycled |> shouldEqual (Some copied.Path)
     let expected =
@@ -383,7 +383,7 @@ let ``Undo copy item handles errors by returning error and consuming action`` th
     fsWriter.Recycle <- fun _ -> Error ex
     fsWriter.Delete <- fun _ -> Error ex
 
-    let actual = seqResult (MainLogic.Action.undoCopy fsReader fsWriter original copied.Path) testModel
+    let actual = seqResult (MainLogic.Action.undoCopy (FileSystemComp(fsReader, fsWriter)) original copied.Path) testModel
 
     let action = DeletedItem (copied, false)
     let expected = testModel.WithError (ItemActionError (action, testModel.PathFormat, ex))
@@ -407,7 +407,7 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
         Ok ()
     let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
 
-    let actual = seqResult (MainLogic.Action.put fsReader fsWriter overwrite) model
+    let actual = seqResult (MainLogic.Action.put (FileSystemComp(fsReader, fsWriter)) overwrite) model
 
     created |> shouldEqual [(target.Path, shortcut.Path)]
     let expectedAction = PutItem (Shortcut, target, shortcut.Path)
@@ -441,7 +441,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
         else
             testModel
 
-    let actual = MainLogic.Action.undoShortcut fsReader fsWriter shortcut.Path model
+    let actual = MainLogic.Action.undoShortcut (FileSystemComp(fsReader, fsWriter)) shortcut.Path model
                  |> assertOk
 
     deleted |> shouldEqual (Some shortcut.Path)
@@ -465,7 +465,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
     let fsWriter = FakeFileSystemWriter()
     fsWriter.Delete <- fun _ -> if throwOnDelete then Error ex else Ok ()
 
-    let actual = MainLogic.Action.undoShortcut fsReader fsWriter shortcut.Path testModel
+    let actual = MainLogic.Action.undoShortcut (FileSystemComp(fsReader, fsWriter)) shortcut.Path testModel
 
     let action = DeletedItem (shortcut, false)
     let expected = Error (ItemActionError (action, testModel.PathFormat, ex))

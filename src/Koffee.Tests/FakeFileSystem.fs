@@ -33,3 +33,18 @@ type FakeFileSystemWriter() =
         member this.Copy fromPath toPath = this.Copy fromPath toPath
         member this.Recycle path = this.Recycle path
         member this.Delete path = this.Delete path
+
+type FileSystemComp(reader: IFileSystemReader, writer: IFileSystemWriter) =
+    interface IFileSystem with
+        member _.GetItem path = reader.GetItem path
+        member _.GetItems path = reader.GetItems path
+        member _.GetFolders path = reader.GetFolders path
+        member _.IsEmpty path = reader.IsEmpty path
+        member _.GetShortcutTarget path = reader.GetShortcutTarget path
+
+        member _.Create itemType path = writer.Create itemType path
+        member _.CreateShortcut target path = writer.CreateShortcut target path
+        member _.Move fromPath toPath = writer.Move fromPath toPath
+        member _.Copy fromPath toPath = writer.Copy fromPath toPath
+        member _.Recycle path = writer.Recycle path
+        member _.Delete path = writer.Delete path

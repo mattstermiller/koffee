@@ -76,7 +76,6 @@ module Nav =
                 |> Ok
             else
                 fsReader.GetItems path |> actionError "open path"
-        let directory = directory
         let history =
             let hist = model.History.WithPath path
             match path.NetHost with
@@ -640,6 +639,7 @@ module Action =
         match model.UndoStack with
         | action :: rest ->
             let model = { model with UndoStack = rest }
+            yield model
             let! model =
                 match action with
                 | CreatedItem item ->
@@ -669,6 +669,7 @@ module Action =
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
+            yield model
             let goToPath (itemPath: Path) =
                 let path = itemPath.Parent
                 if path <> model.Location then

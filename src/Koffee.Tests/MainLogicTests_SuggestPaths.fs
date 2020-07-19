@@ -5,12 +5,14 @@ open FsUnitTyped
 open Acadian.FSharp
 open FSharp.Control
 
-let folders = [
-    "/c/old projects/"
-    "/c/programs/"
-    "/c/Projects/"
-    "/c/temporary/"
+let fs = FakeFileSystem [
+    folder "old projects" []
+    folder "programs" []
+    folder "Projects" []
+    folder "temporary" []
 ]
+
+let folders = fs.ItemsIn "/c" |> List.map (fun i -> i.Path.FormatFolder Unix)
 
 let history = folders @ [
     "/c/users/me/my programs/"
@@ -57,52 +59,46 @@ let testCases () =
 
 [<TestCaseSource("testCases")>]
 let ``Path suggestions return expected results`` input expected =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetFolders <- fun path ->
-        if path = createPath "/c/" then Ok (folders |> List.map createFolder) else Ok []
     let model =
-        { baseModel with
+        { testModel with
             LocationInput = input
-            History = { baseModel.History with Paths = history |> List.map createPath }
+            History = { testModel.History with Paths = history |> List.map createPath }
         }
 
-    let actual = suggestPaths fsReader model
+    let actual = suggestPaths fs model
+
     actual.PathSuggestions |> shouldEqual (Ok expected)
 
 [<Test>]
 let ``Path suggestions return error`` () =
-    let err = exn ""
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetFolders <- fun path ->
-        if path = createPath "/c/" then Error err else Ok []
-    let model = { baseModel with LocationInput = "/c/" }
+    let ex = exn ""
+    let fs = FakeFileSystem []
+    fs.AddExn ex "/c"
+    let model = { testModel with LocationInput = "/c/" }
 
-    let actual = suggestPaths fsReader model
-    actual.PathSuggestions |> shouldEqual (Error err.Message)
+    let actual = suggestPaths fs model
+
+    actual.PathSuggestions |> shouldEqual (Error ex.Message)
 
 [<Test>]
 let ``Path suggestions cache folder listings`` () =
-    let mutable fsCalls = 0
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetFolders <- fun _ ->
-        fsCalls <- fsCalls + 1
-        Ok []
+    let fs = FakeFileSystem []
     let model =
-        { baseModel with
+        { testModel with
             LocationInput = "/c/"
             PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map createPath))
         }
 
-    let cacheHit = suggestPaths fsReader model
-    fsCalls |> shouldEqual 0
+    let cacheHit = suggestPaths fs model
+    fs.CallsToGetItems |> shouldEqual 0
     cacheHit |> shouldEqual { model with PathSuggestions = Ok folders }
 
     let missModel = { model with LocationInput = "/c/path/" }
-    let cacheMiss = suggestPaths fsReader missModel
-    fsCalls |> shouldEqual 1
-    let expected =
+    let cacheMiss = suggestPaths fs missModel
+    fs.CallsToGetItems |> shouldEqual 1
+    cacheMiss
+    |> shouldEqual
         { missModel with
             PathSuggestions = Ok []
             PathSuggestCache = Some (createPath "/c/path/", Ok [])
         }
-    cacheMiss |> shouldEqual expected

@@ -3,65 +3,56 @@
 open NUnit.Framework
 open FsUnitTyped
 
-let oldItems = [
-    createFolder "/c/path/one"
-    createFolder "/c/path/two"
-    createFolder "/c/path/three"
-]
-
-let newItems = [
-    oldItems.[0]
-    oldItems.[2]
-]
+let createFs () =
+    FakeFileSystem [
+        file "file"
+        file "other"
+    ]
 
 let testModel =
-    { baseModel.WithLocation (createPath "/c/path") with
-        Directory = oldItems
-        Items = oldItems
-        Cursor = 1
+    let items = [
+        createFile "/c/file"
+        createFile "/c/other"
+    ]
+    { testModel with
+        Directory = items
+        Items = items
     }
-
-let ex = System.UnauthorizedAccessException() :> exn
-
 
 [<TestCase(true)>]
 [<TestCase(false)>]
 let ``Delete calls correct file sys func and sets message`` permanent =
-    let fsWriter = FakeFileSystemWriter()
-    let mutable deleted = None
-    fsWriter.Delete <- fun p -> deleted <- Some p; Ok ()
-    let mutable recycled = None
-    fsWriter.Recycle <- fun p -> recycled <- Some p; Ok ()
-    let item = oldItems.[1]
+    let fs = createFs ()
+    let item = fs.Item "/c/file"
+    let model = testModel
 
-    let actual = seqResult (MainLogic.Action.delete fsWriter item permanent) testModel
+    let actual = seqResult (MainLogic.Action.delete fs item permanent) model
 
-    if permanent then
-        deleted |> shouldEqual (Some item.Path)
-        recycled |> shouldEqual None
-    else
-        deleted |> shouldEqual None
-        recycled |> shouldEqual (Some item.Path)
-    let expectedAction = DeletedItem (oldItems.[1], permanent)
+    let expectedItems = [createFile "/c/other"]
+    let expectedAction = DeletedItem (item, permanent)
     let expected =
-        { testModel with
-            Directory = newItems
-            Items = newItems
-            Cursor = 1
-            UndoStack = expectedAction :: testModel.UndoStack
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
+            UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
         }
     assertAreEqual expected actual
+    fs.ItemsShouldEqual [file "other"]
+    fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
 
 [<Test>]
 let ``Delete handles error by returning error``() =
-    let fsWriter = FakeFileSystemWriter()
-    fsWriter.Delete <- fun _ -> Error ex
-    let item = oldItems.[1]
+    let fs = createFs ()
+    let item = fs.Item "/c/file"
+    fs.AddExnPath ex item.Path
+    let model = testModel
+    let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.delete fsWriter item true) testModel
+    let actual = seqResult (MainLogic.Action.delete fs item true) model
 
-    let expectedAction = (DeletedItem (oldItems.[1], true))
-    let expected = testModel.WithError (ItemActionError (expectedAction, testModel.PathFormat, ex))
+    let expectedAction = (DeletedItem (item, true))
+    let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
     assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs

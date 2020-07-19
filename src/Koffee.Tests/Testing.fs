@@ -4,8 +4,10 @@ module Testing
 open System
 open FSharp.Control
 open NUnit.Framework
+open FsUnitTyped.TopLevelOperators
 open KellermanSoftware.CompareNetObjects
 open KellermanSoftware.CompareNetObjects.TypeComparers
+open Acadian.FSharp
 open Koffee
 
 type StructuralEqualityComparer() =
@@ -60,18 +62,67 @@ let seqResult handler (model: MainModel) =
         | Error e -> m.WithError e
     ) |> Async.RunSynchronously
 
-let createPath pathStr = (Path.Parse pathStr).Value
+let createPath pathStr =
+    match Path.Parse pathStr with
+    | Some p -> p
+    | None -> failwithf "Invalid path: %s" pathStr
+
+let createFile pathStr =
+    let path = createPath pathStr
+    Item.Basic path path.Name File
 
 let createFolder pathStr =
     let path = createPath pathStr
-    Item.Basic path path.Name Folder
+    let name = if path.Name |> String.isNotEmpty then path.Name else string path |> String.substring 0 1
+    Item.Basic path name Folder
 
-let baseModel =
-    let item = createFolder "/c/path/default undo-redo"
+let file name = TreeFile (name, id)
+let fileWith transform name = TreeFile (name, transform)
+let folder name items = TreeFolder (name, items)
+
+let size value (item: Item) = { item with Size = Some value }
+let modifiedOpt opt (item: Item) = { item with Modified = opt }
+let modified value item = modifiedOpt (Some value) item
+let hide value item = { item with IsHidden = value }
+
+let sortByPath items = 
+    items |> List.sortBy (fun i -> string i.Path)
+
+type FakeFileSystem with
+    member this.ItemsIn path =
+        createPath path |> this.ItemsIn
+
+    member this.Item path =
+        createPath path |> this.Item
+
+    member this.AddExn e path =
+        createPath path |> this.AddExnPath e
+
+    member this.ItemsShouldEqual items =
+        this.Items |> shouldEqual (items |> TreeItem.build |> sortByPath)
+
+let withLocation path (model: MainModel) = model.WithLocation (createPath path)
+let withBackIf condition (path, cursor) model =
+    if condition then
+        { model with BackStack = (path, cursor) :: model.BackStack; ForwardStack = [] }
+    else
+        model
+let pushUndo action model = { model with UndoStack = action :: model.UndoStack }
+let pushRedo action model = { model with RedoStack = action :: model.RedoStack }
+let popUndo model = { model with UndoStack = model.UndoStack.Tail }
+let popRedo model = { model with RedoStack = model.RedoStack.Tail }
+
+let testModel =
+    let items = [ createFile "/c/default item" ]
+    let undoRedo = createFile "/c/default-undo-redo"
     { MainModel.Default with
+        Directory = items
+        Items = items
         BackStack = [createPath "/c/back", 8]
         ForwardStack = [createPath "/c/fwd", 9]
-        UndoStack = [CreatedItem item]
-        RedoStack = [RenamedItem (item, "item")]
+        UndoStack = [CreatedItem undoRedo]
+        RedoStack = [RenamedItem (undoRedo, "item")]
         Config = { Config.Default with PathFormat = Unix }
-    }
+    } |> withLocation "/c"
+
+let ex = System.UnauthorizedAccessException() :> exn

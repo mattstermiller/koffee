@@ -8,7 +8,7 @@ let items names =
     names |> Seq.map toItem |> Seq.toList
 
 let testModel cursorStart =
-    { baseModel with
+    { testModel with
         Items = "alice,bob,charlie,crystal,apple,cherry".Split(',') |> items
         Cursor = cursorStart
     }

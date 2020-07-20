@@ -22,13 +22,23 @@ type StructuralEqualityComparer() =
         if parms.Object1 <> parms.Object2 then
             this.AddDifference parms
 
+type PathComparer() =
+    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
+
+    override this.IsTypeMatch(type1, type2) =
+        type1 = typeof<Path> && type2 = typeof<Path>
+
+    override this.CompareType parms =
+        if parms.Object1 <> parms.Object2 then
+            this.AddDifference parms
+
 let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
 
 let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     let comparer = CompareLogic() 
     comparer.Config.MaxDifferences <- 10
-    comparer.Config.CustomComparers.Add(StructuralEqualityComparer())
+    comparer.Config.CustomComparers.AddRange([StructuralEqualityComparer(); PathComparer()])
     let fields = Reflection.FSharpType.GetRecordFields(typeof<MainModel>) |> Seq.map (fun p -> p.Name)
     comparer.Config.MembersToInclude.AddRange(fields)
     comparerSetup comparer

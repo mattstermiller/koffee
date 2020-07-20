@@ -102,7 +102,7 @@ type Path private (path: string) =
 
     member this.FormatFolder fmt =
         let formatted = this.Format fmt
-        if path = root || path = net || path |> String.endsWith fmt.Separator then
+        if path = root || path = net || formatted |> String.endsWith fmt.Separator then
             formatted
         else
             formatted + fmt.Separator

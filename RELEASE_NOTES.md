@@ -9,6 +9,7 @@
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
 - #82 Fixes focus being lost after clicking grid item and opening folder
 - Fixes undo/redo actions that error not being removed, blocking all other undo/redo actions
+- Fixes double ending slash in unix drive path formatting
 - Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.
 
 ### 0.5.2  (2020-01-17)

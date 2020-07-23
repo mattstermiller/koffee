@@ -92,13 +92,12 @@
       <StackPanel Name="BookmarkPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Visibility="Hidden"
                   Background="{DynamicResource PopupBrush}">
         <TextBlock Text="Bookmarks" Margin="8,4,8,8" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
-        <ItemsControl Name="Bookmarks">
+        <ItemsControl Name="Bookmarks" Foreground="{DynamicResource PopupTextBrush}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"
-                           Width="20"/>
-                <TextBlock Text="{Binding Item2}" Foreground="{DynamicResource PopupTextBrush}"/>
+                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="20"/>
+                <TextBlock Text="{Binding Item2}"/>
               </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>

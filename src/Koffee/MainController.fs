@@ -419,41 +419,41 @@ module Action =
             return model
     }
 
-    let create (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) itemType name model = asyncSeqResult {
+    let create (fs: IFileSystem) itemType name model = asyncSeqResult {
         let createPath = model.Location.Join name
         let action = CreatedItem (Item.Basic createPath name itemType)
-        let! existing = fsReader.GetItem createPath |> itemActionError action model.PathFormat
+        let! existing = fs.GetItem createPath |> itemActionError action model.PathFormat
         match existing with
         | None ->
-            do! fsWriter.Create itemType createPath |> itemActionError action model.PathFormat
-            let! model = Nav.openPath fsReader model.Location (SelectName name) model
+            do! fs.Create itemType createPath |> itemActionError action model.PathFormat
+            let! model = Nav.openPath fs model.Location (SelectName name) model
             yield model |> performedAction (CreatedItem model.SelectedItem)
         | Some existing ->
-            yield! Nav.openPath fsReader model.Location (SelectName existing.Name) model
+            yield! Nav.openPath fs model.Location (SelectName existing.Name) model
             return CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
     }
 
-    let undoCreate (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item model = asyncSeqResult {
-        if fsReader.IsEmpty item.Path then
+    let undoCreate (fs: IFileSystem) item model = asyncSeqResult {
+        if fs.IsEmpty item.Path then
             yield { model with Status = Some <| MainStatus.undoingCreate item }
-            let! res = runAsync (fun () -> fsWriter.Delete item.Path)
+            let! res = runAsync (fun () -> fs.Delete item.Path)
             do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
             if model.Location = item.Path.Parent then
-                yield! Nav.refresh fsReader model
+                yield! Nav.refresh fs model
         else
             return CannotUndoNonEmptyCreated item
     }
 
-    let rename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item newName (model: MainModel) = result {
+    let rename (fs: IFileSystem) item newName (model: MainModel) = result {
         if item.Type.CanModify then
             let action = RenamedItem (item, newName)
             let newPath = item.Path.Parent.Join newName
             let! existing =
                 if String.equalsIgnoreCase item.Name newName then Ok None
-                else fsReader.GetItem newPath |> itemActionError action model.PathFormat
+                else fs.GetItem newPath |> itemActionError action model.PathFormat
             match existing with
             | None ->
-                do! fsWriter.Move item.Path newPath |> itemActionError action model.PathFormat
+                do! fs.Move item.Path newPath |> itemActionError action model.PathFormat
                 let newItem = { item with Name = newName; Path = newPath }
                 let substitute = List.map (fun i -> if i = item then newItem else i)
                 return
@@ -464,18 +464,18 @@ module Action =
         else return model
     }
 
-    let undoRename (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) oldItem currentName (model: MainModel) = result {
+    let undoRename (fs: IFileSystem) oldItem currentName (model: MainModel) = result {
         let parentPath = oldItem.Path.Parent
         let currentPath = parentPath.Join currentName
         let item = { oldItem with Name = currentName; Path = currentPath }
         let action = RenamedItem (item, oldItem.Name)
         let! existing =
             if String.equalsIgnoreCase oldItem.Name currentName then Ok None
-            else fsReader.GetItem oldItem.Path |> itemActionError action model.PathFormat
+            else fs.GetItem oldItem.Path |> itemActionError action model.PathFormat
         match existing with
         | None ->
-            do! fsWriter.Move currentPath oldItem.Path |> itemActionError action model.PathFormat
-            return! Nav.openPath fsReader parentPath (SelectName oldItem.Name) model
+            do! fs.Move currentPath oldItem.Path |> itemActionError action model.PathFormat
+            return! Nav.openPath fs parentPath (SelectName oldItem.Name) model
         | Some existingItem ->
             return! Error <| CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
     }
@@ -494,9 +494,9 @@ module Action =
         let number = if i = 0 then "" else sprintf " %i" (i+1)
         sprintf "%s (copy%s)%s" nameNoExt number ext
 
-    let putItem (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) overwrite item putAction model = asyncSeqResult {
+    let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
         let sameFolder = item.Path.Parent = model.Location
-        match! fsReader.GetItem model.Location |> actionError "put item" with
+        match! fs.GetItem model.Location |> actionError "put item" with
         | Some container when container.Type.CanCreateIn ->
             if putAction = Move && sameFolder then
                 return CannotMoveToSameFolder
@@ -505,7 +505,7 @@ module Action =
             match putAction with
             | Copy when sameFolder ->
                 let unused name =
-                    match fsReader.GetItem (model.Location.Join name) with
+                    match fs.GetItem (model.Location.Join name) with
                     | Ok None -> true
                     | _ -> false
                 Seq.init 99 (getCopyName item.Name)
@@ -519,14 +519,14 @@ module Action =
         let action = PutItem (putAction, item, newPath)
         let fileSysAction =
             match putAction with
-            | Move -> fsWriter.Move
-            | Copy -> fsWriter.Copy
-            | Shortcut -> fsWriter.CreateShortcut
-        let! existing = fsReader.GetItem newPath |> itemActionError action model.PathFormat
+            | Move -> fs.Move
+            | Copy -> fs.Copy
+            | Shortcut -> fs.CreateShortcut
+        let! existing = fs.GetItem newPath |> itemActionError action model.PathFormat
         match existing with
         | Some existing when not overwrite ->
             // refresh item list to make sure we can see the existing file
-            let! model = Nav.openPath fsReader model.Location (SelectName existing.Name) model
+            let! model = Nav.openPath fs model.Location (SelectName existing.Name) model
             yield
                 { model with
                     InputMode = Some (Confirm (Overwrite (putAction, item, existing)))
@@ -536,43 +536,43 @@ module Action =
             yield { model with Status = MainStatus.runningAction action model.PathFormat }
             let! res = runAsync (fun () -> fileSysAction item.Path newPath)
             do! res |> itemActionError action model.PathFormat
-            let! model = Nav.openPath fsReader model.Location (SelectName newName) model
+            let! model = Nav.openPath fs model.Location (SelectName newName) model
             yield model |> performedAction action
     }
 
-    let put (fsReader: IFileSystemReader) fsWriter overwrite (model: MainModel) = asyncSeqResult {
+    let put (fs: IFileSystem) overwrite (model: MainModel) = asyncSeqResult {
         match model.Config.YankRegister with
         | None -> ()
         | Some (path, _, putAction) ->
             if model.IsSearchingSubFolders then
                 return CannotPutHere
-            match! fsReader.GetItem path |> actionError "read yank register item" with
+            match! fs.GetItem path |> actionError "read yank register item" with
             | Some item ->
-                let! model = putItem fsReader fsWriter overwrite item putAction model
+                let! model = putItem fs overwrite item putAction model
                 if model.InputMode.IsNone then
                     yield { model with Config = { model.Config with YankRegister = None } }
             | None ->
                 return YankRegisterItemMissing (path.Format model.PathFormat)
     }
 
-    let undoMove (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item currentPath (model: MainModel) = asyncSeqResult {
+    let undoMove (fs: IFileSystem) item currentPath (model: MainModel) = asyncSeqResult {
         let from = { item with Path = currentPath; Name = currentPath.Name }
         let action = PutItem (Move, from, item.Path)
-        let! existing = fsReader.GetItem item.Path |> itemActionError action model.PathFormat
+        let! existing = fs.GetItem item.Path |> itemActionError action model.PathFormat
         match existing with
         | Some _ ->
             // TODO: prompt for overwrite here?
             return CannotUndoMoveToExisting item
         | None ->
             yield { model with Status = Some <| MainStatus.undoingMove item }
-            let! res = runAsync (fun () -> fsWriter.Move currentPath item.Path)
+            let! res = runAsync (fun () -> fs.Move currentPath item.Path)
             do! res |> itemActionError action model.PathFormat
-            yield! Nav.openPath fsReader item.Path.Parent (SelectName item.Name) model
+            yield! Nav.openPath fs item.Path.Parent (SelectName item.Name) model
     }
 
-    let undoCopy (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) item (currentPath: Path) (model: MainModel) = asyncSeqResult {
+    let undoCopy (fs: IFileSystem) item (currentPath: Path) (model: MainModel) = asyncSeqResult {
         let copyModified =
-            match fsReader.GetItem currentPath with
+            match fs.GetItem currentPath with
             | Ok (Some copy) -> copy.Modified
             | _ -> None
         let isDeletionPermanent =
@@ -580,19 +580,19 @@ module Action =
             | Some orig, Some copy when orig = copy -> true
             | _ -> false
         let action = DeletedItem ({ item with Path = currentPath }, isDeletionPermanent)
-        let fileSysFunc = if isDeletionPermanent then fsWriter.Delete else fsWriter.Recycle
+        let fileSysFunc = if isDeletionPermanent then fs.Delete else fs.Recycle
         yield { model with Status = Some <| MainStatus.undoingCopy item isDeletionPermanent }
         let! res = runAsync (fun () -> fileSysFunc currentPath)
         do! res |> itemActionError action model.PathFormat
         if model.Location = currentPath.Parent then
-            yield! Nav.refresh fsReader model
+            yield! Nav.refresh fs model
     }
 
-    let undoShortcut (fsReader: IFileSystemReader) (fsWriter: IFileSystemWriter) shortcutPath (model: MainModel) = result {
+    let undoShortcut (fs: IFileSystem) shortcutPath (model: MainModel) = result {
         let action = DeletedItem ({ Item.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
-        do! fsWriter.Delete shortcutPath |> itemActionError action model.PathFormat
+        do! fs.Delete shortcutPath |> itemActionError action model.PathFormat
         if model.Location = shortcutPath.Parent then
-            return! Nav.refresh fsReader model
+            return! Nav.refresh fs model
         else
             return model
     }
@@ -635,7 +635,7 @@ module Action =
             yield! delete fsWriter model.SelectedItem false model
     }
 
-    let undo fsReader fsWriter model = asyncSeqResult {
+    let undo fs model = asyncSeqResult {
         match model.UndoStack with
         | action :: rest ->
             let model = { model with UndoStack = rest }
@@ -643,16 +643,16 @@ module Action =
             let! model =
                 match action with
                 | CreatedItem item ->
-                    undoCreate fsReader fsWriter item model
+                    undoCreate fs item model
                 | RenamedItem (oldItem, curName) ->
-                    undoRename fsReader fsWriter oldItem curName model
+                    undoRename fs oldItem curName model
                     |> AsyncSeq.singleton
                 | PutItem (Move, item, newPath) ->
-                    undoMove fsReader fsWriter item newPath model
+                    undoMove fs item newPath model
                 | PutItem (Copy, item, newPath) ->
-                    undoCopy fsReader fsWriter item newPath model
+                    undoCopy fs item newPath model
                 | PutItem (Shortcut, item, newPath) ->
-                    undoShortcut fsReader fsWriter newPath model
+                    undoShortcut fs newPath model
                     |> AsyncSeq.singleton
                 | DeletedItem (item, permanent) ->
                     Error (CannotUndoDelete (permanent, item))
@@ -665,7 +665,7 @@ module Action =
         | [] -> return NoUndoActions
     }
 
-    let redo fsReader fsWriter model = asyncSeqResult {
+    let redo fs model = asyncSeqResult {
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
@@ -673,24 +673,24 @@ module Action =
             let goToPath (itemPath: Path) =
                 let path = itemPath.Parent
                 if path <> model.Location then
-                    Nav.openPath fsReader path SelectNone model
+                    Nav.openPath fs path SelectNone model
                 else Ok model
             let! model = asyncSeqResult {
                 match action with
                 | CreatedItem item ->
                     let! model = goToPath item.Path
-                    yield! create fsReader fsWriter item.Type item.Name model
+                    yield! create fs item.Type item.Name model
                 | RenamedItem (item, newName) ->
                     let! model = goToPath item.Path
-                    yield! rename fsReader fsWriter item newName model
+                    yield! rename fs item newName model
                 | PutItem (putAction, item, newPath) ->
                     let! model = goToPath newPath
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! putItem fsReader fsWriter false item putAction model
+                    yield! putItem fs false item putAction model
                 | DeletedItem (item, permanent) ->
                     let! model = goToPath item.Path
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! delete fsWriter item permanent model
+                    yield! delete fs item permanent model
             }
             yield
                 { model with
@@ -822,7 +822,7 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         yield! Nav.refresh fsReader model
 }
 
-let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
+let inputCharTyped fs cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         { model with
             Config = model.Config.WithBookmark char model.Location
@@ -841,7 +841,7 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
             match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! Nav.openPath fsReader path SelectNone model
+                yield! Nav.openPath fs path SelectNone model
             | None ->
                 yield { model with Status = Some <| MainStatus.noBookmark char }
         | SetBookmark ->
@@ -871,10 +871,10 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
         | 'y' ->
             match confirmType with
             | Overwrite (action, src, _) ->
-                let! model = Action.putItem fsReader fsWriter true src action model
+                let! model = Action.putItem fs true src action model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fsWriter model.SelectedItem true model
+                yield! Action.delete fs model.SelectedItem true model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
         | 'n' ->
@@ -882,7 +882,7 @@ let inputCharTyped fsReader fsWriter cancelInput char model = asyncSeqResult {
             match confirmType with
             | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
                 // if we were temporarily showing a hidden file, refresh
-                yield! Nav.refresh fsReader model
+                yield! Nav.refresh fs model
             | _ ->
                 yield model
         | _ -> ()
@@ -923,14 +923,14 @@ let inputDelete cancelInput model =
         { model with InputMode = Some (Prompt DeleteBookmark) }
     | _ -> model
 
-let submitInput fsReader fsWriter os model = asyncSeqResult {
+let submitInput fs os model = asyncSeqResult {
     match model.InputMode with
     | Some (Input (Find multi)) ->
         let model =
             if multi then { model with InputText = ""  }
             else { model with InputMode = None }
         yield model
-        yield! Nav.openSelected fsReader os None model
+        yield! Nav.openSelected fs os None model
     | Some (Input Search) ->
         let search =
             model.InputText
@@ -946,15 +946,15 @@ let submitInput fsReader fsWriter os model = asyncSeqResult {
     | Some (Input CreateFile) ->
         let model = { model with InputMode = None }
         yield model
-        yield! Action.create fsReader fsWriter File model.InputText model
+        yield! Action.create fs File model.InputText model
     | Some (Input CreateFolder) ->
         let model = { model with InputMode = None }
         yield model
-        yield! Action.create fsReader fsWriter Folder model.InputText model
+        yield! Action.create fs Folder model.InputText model
     | Some (Input (Rename _)) ->
         let model = { model with InputMode = None }
         yield model
-        yield! Action.rename fsReader fsWriter model.SelectedItem model.InputText model
+        yield! Action.rename fs model.SelectedItem model.InputText model
     | _ -> ()
 }
 
@@ -1051,7 +1051,7 @@ let AsyncResult handler =
                 yield last.WithError e
     })
 
-type Controller(fsReader, fsWriter, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
+type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
                 openSettings, closeWindow, startOptions) =
     let subDirResults = Event<_>()
     let progress = Event<_>()
@@ -1066,44 +1066,44 @@ type Controller(fsReader, fsWriter, os, getScreenBounds, config: ConfigFile, his
             | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
-            | OpenPath handler -> SyncResult (Nav.openInputPath fsReader handler)
-            | OpenSelected -> SyncResult (Nav.openSelected fsReader os None)
+            | OpenPath handler -> SyncResult (Nav.openInputPath fs handler)
+            | OpenSelected -> SyncResult (Nav.openSelected fs os None)
             | OpenFileWith -> SyncResult (Action.openFileWith os)
-            | OpenFileAndExit -> SyncResult (Nav.openSelected fsReader os (Some closeWindow))
+            | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
             | OpenProperties -> SyncResult (Action.openProperties os)
-            | OpenParent -> SyncResult (Nav.openParent fsReader)
-            | Back -> SyncResult (Nav.back fsReader)
-            | Forward -> SyncResult (Nav.forward fsReader)
-            | Refresh -> AsyncResult (refreshOrResearch fsReader subDirResults progress)
-            | Undo -> AsyncResult (Action.undo fsReader fsWriter)
-            | Redo -> AsyncResult (Action.redo fsReader fsWriter)
-            | StartPrompt promptType -> SyncResult (Action.startInput fsReader (Prompt promptType))
-            | StartConfirm confirmType -> SyncResult (Action.startInput fsReader (Confirm confirmType))
-            | StartInput inputType -> SyncResult (Action.startInput fsReader (Input inputType))
-            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fsReader fsWriter handler.Handle c)
-            | InputChanged -> Async (inputChanged fsReader subDirResults progress)
+            | OpenParent -> SyncResult (Nav.openParent fs)
+            | Back -> SyncResult (Nav.back fs)
+            | Forward -> SyncResult (Nav.forward fs)
+            | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
+            | Undo -> AsyncResult (Action.undo fs)
+            | Redo -> AsyncResult (Action.redo fs)
+            | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
+            | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
+            | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))
+            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs handler.Handle c)
+            | InputChanged -> Async (inputChanged fs subDirResults progress)
             | InputBack -> Sync (inputHistory 1)
             | InputForward -> Sync (inputHistory -1)
             | InputDelete handler -> Sync (inputDelete handler.Handle)
             | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
-            | SubmitInput -> AsyncResult (submitInput fsReader fsWriter os)
+            | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput
             | AddProgress incr -> Sync (addProgress incr)
             | FindNext -> Sync Search.findNext
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
-            | Put -> AsyncResult (Action.put fsReader fsWriter false)
+            | Put -> AsyncResult (Action.put fs false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
-            | Recycle -> AsyncResult (Action.recycle fsWriter)
+            | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
-            | ToggleHidden -> AsyncResult (Nav.toggleHidden fsReader)
+            | ToggleHidden -> AsyncResult (Nav.toggleHidden fs)
             | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
             | OpenExplorer -> Sync (Action.openExplorer os)
             | OpenCommandLine -> SyncResult (Action.openCommandLine os)
-            | OpenSettings -> SyncResult (Action.openSettings fsReader openSettings)
+            | OpenSettings -> SyncResult (Action.openSettings fs openSettings)
             | Exit -> Sync (fun m -> closeWindow(); m)
-            | LocationInputChanged -> Async (Nav.suggestPaths fsReader)
+            | LocationInputChanged -> Async (Nav.suggestPaths fs)
             | ResetLocationInput -> Sync (fun m -> { m with LocationInput = m.LocationFormatted })
             | ConfigFileChanged config -> Sync (fun m -> { m with Config = config })
             | HistoryFileChanged history -> Sync (fun m -> { m with History = history })
@@ -1111,7 +1111,7 @@ type Controller(fsReader, fsWriter, os, getScreenBounds, config: ConfigFile, his
             | WindowLocationChanged (l, t) -> Sync (windowLocationChanged (l, t))
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
-            | WindowActivated -> AsyncResult (windowActivated fsReader subDirResults progress)
+            | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
         let isBusy model =
             match model.Status with
             | Some (Busy _) -> true
@@ -1135,6 +1135,6 @@ type Controller(fsReader, fsWriter, os, getScreenBounds, config: ConfigFile, his
     member this.Start view =
         let model =
             { MainModel.Default with Config = config.Value; History = history.Value }
-            |> initModel fsReader startOptions
+            |> initModel fs startOptions
         let events = MainView.events config history subDirResults.Publish progress.Publish
         Framework.start (MainView.binder config history) events dispatcher view model

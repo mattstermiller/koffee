@@ -1,7 +1,6 @@
-﻿module Koffee.MainLogicTests_OpenPath
+module Koffee.MainLogicTests_OpenPath
 
 open NUnit.Framework
-open FsUnitTyped
 open Acadian.FSharp
 
 type PathCase =
@@ -16,48 +15,51 @@ type TestCase = {
 }
 
 let model =
-    { baseModel with
+    { testModel with
         Items = [
-            createItem "/c/path/file 1"
-            createItem "/c/path/file 2"
-            createItem "/c/path/file 3"
+            createFolder "/c/file 1"
+            createFolder "/c/file 2"
+            createFolder "/c/file 3"
         ]
-        Location = createPath "/c/path"
+        Location = createPath "/c"
         Cursor = 2
-        History = baseModel.History.WithPath (createPath "/c/path")
+        History = testModel.History.WithPath (createPath "/c")
     }
 
-let newItems = [
-    createItem "/c/newpath/new 1"
-    createItem "/c/newpath/new 2"
-]
-
-let ex = System.UnauthorizedAccessException() :> exn
-
 let test case =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItems <- fun _ ->
-        match case.GetPath with
-        | Same -> Ok model.Items
-        | Different -> Ok newItems
-        | Inaccessible -> Error ex
+    let fs = FakeFileSystem [
+        folder "different" [
+            file "diff1"
+            file "diff2"
+        ]
+        folder "inaccessible" []
+        file "file"
+        file "newfile"
+    ]
+    fs.AddExn ex "/c/inaccessible"
 
     let path =
         match case.GetPath with
-        | Same -> model.Location
-        | _ -> createPath "/c/newpath"
-    let res = MainLogic.Nav.openPath fsReader path case.Select model
+        | Same -> "/c"
+        | Different -> "/c/different"
+        | Inaccessible -> "/c/inaccessible"
+        |> createPath
+    let res = MainLogic.Nav.openPath fs path case.Select model
 
     let expected =
         match case.GetPath with
         | Same ->
+            let items = fs.ItemsIn "/c"
             Ok { model.WithLocation path with
+                    Directory = items
+                    Items = items
                     Cursor = case.ExpectedCursor |? model.Cursor
                }
         | Different ->
+            let items = fs.ItemsIn "/c/different"
             Ok { model.WithLocation path with
-                    Directory = newItems
-                    Items = newItems
+                    Directory = items
+                    Items = items
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []

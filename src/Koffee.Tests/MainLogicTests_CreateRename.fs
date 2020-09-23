@@ -3,143 +3,154 @@
 open NUnit.Framework
 open FsUnitTyped
 
-let oldItems = [
-    createItem "/c/path/one"
-    createItem "/c/path/two"
-]
-
-let newItems = [
-    createItem "/c/path/new one"
-    createItem "/c/path/new two"
-]
-
-let testModel =
-    { baseModel.WithLocation (createPath "/c/path") with
-        Directory = oldItems
-        Items = oldItems
-        Cursor = 0
-        InputText = ""
-        InputTextSelection = (1, 1)
-    }
-
-let ex = System.UnauthorizedAccessException() :> exn
-
 // create tests
 
 [<Test>]
-let ``Create folder calls file sys create, openPath and sets status``() =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> Ok None
-    fsReader.GetItems <- fun _ -> Ok newItems
-    let fsWriter = FakeFileSystemWriter()
-    let mutable created = None
-    fsWriter.Create <- fun itemType path ->
-        created <- Some (itemType, path)
-        Ok ()
-    let createItem = newItems.[1]
+let ``Create calls file sys create, openPath and sets status``() =
+    let fs = FakeFileSystem [
+        file "another"
+    ]
+    let createItem = createFile "/c/file"
+    let model = testModel
 
-    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createItem.Name) testModel
+    let actual = seqResult (MainLogic.Action.create fs File createItem.Name) model
 
-    created |> shouldEqual (Some (createItem.Type, createItem.Path))
     let expectedAction = CreatedItem createItem
+    let expectedItems = [
+        createFile "/c/another"
+        createItem
+    ]
     let expected =
-        { testModel with
-            Directory = newItems
-            Items = newItems
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
             Cursor = 1
-            UndoStack = expectedAction :: testModel.UndoStack
+            UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
         }
     assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        file "another"
+        file "file"
+    ]
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Create folder returns error when item already exists at path`` existingHidden =
-    let existing = { oldItems.[1] with IsHidden = existingHidden }
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> Ok <| Some existing
-    fsReader.GetItems <- fun _ -> Ok newItems
-    let fsWriter = FakeFileSystemWriter()
-    let createItem = newItems.[1]
+let ``Create returns error when item already exists at path`` existingHidden =
+    let fs = FakeFileSystem [
+        file "another"
+        fileWith (hide existingHidden) "file"
+    ]
+    let existing = fs.Item "/c/file"
+    let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createItem.Name) testModel
+    let actual = seqResult (MainLogic.Action.create fs Folder existing.Name) testModel
 
+    let expectedItems = [
+        createFile "/c/another"
+        existing
+    ]
     let expected =
         { testModel with
-            Directory = newItems
-            Items = newItems
-            Cursor = 0
-        }.WithError (CannotUseNameAlreadyExists ("create", Folder, createItem.Name, existingHidden))
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 1
+        }.WithError (CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
     assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
 
 [<Test>]
-let ``Create folder handles error by returning error``() =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> Ok None
-    let fsWriter = FakeFileSystemWriter()
-    fsWriter.Create <- fun _ _ -> Error ex
-    let createItem = newItems.[1]
+let ``Create handles error by returning error``() =
+    let fs = FakeFileSystem [
+        file "another"
+    ]
+    let createItem = createFile "/c/file"
+    fs.AddExnPath ex createItem.Path
+    let model = testModel
+    let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.create fsReader fsWriter Folder createItem.Name) testModel
+    let actual = seqResult (MainLogic.Action.create fs File createItem.Name) model
 
-    let expected = testModel.WithError (ItemActionError ((CreatedItem createItem), testModel.PathFormat, ex))
+    let expected = model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
     assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
 
 // undo create tests
 
+[<TestCase(false, false)>]
+[<TestCase(true, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, true)>]
+let ``Undo create empty item calls delete`` curPathDifferent isFolder =
+    let fs = FakeFileSystem [
+        file "another"
+        if isFolder then
+            folder "item" []
+        else
+            file "item"
+    ]
+    let createdItem = fs.Item "/c/item"
+    let action = CreatedItem createdItem
+    let location = if curPathDifferent then "/c/other" else "/c"
+    let model = testModel |> withLocation location |> pushUndo action
+
+    let actual = seqResult (MainLogic.Action.undo fs) model
+
+    let expectedItems =
+        if curPathDifferent then
+            model.Items
+        else
+            [ createFile "/c/another" ]
+    let expected =
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
+            UndoStack = model.UndoStack.Tail
+            RedoStack = action :: model.RedoStack
+            Status = Some (MainStatus.undoAction action model.PathFormat)
+        }
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        file "another"
+    ]
+    fs.RecycleBin |> shouldEqual []
+
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo create empty item calls delete`` curPathDifferent =
-    let fsReader = FakeFileSystemReader()
-    fsReader.IsEmpty <- fun _ -> true
-    fsReader.GetItems <- fun _ -> Ok newItems
-    let fsWriter = FakeFileSystemWriter()
-    let mutable deleted = None
-    fsWriter.Delete <- fun p ->
-        deleted <- Some p
-        Ok ()
-    let createdItem = oldItems.[1]
-    let location = if curPathDifferent then createPath "/c/other" else testModel.Location
-    let model = testModel.WithLocation location
-
-    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdItem) model
-
-    deleted |> shouldEqual (Some createdItem.Path)
-    let expected =
-        if curPathDifferent then
-            model
+let ``Undo create non-empty item returns error`` isFolder =
+    let fs = FakeFileSystem [
+        if isFolder then
+            folder "item" [
+                file "file"
+            ]
         else
-            { model with
-                Directory = newItems
-                Items = newItems
-                Cursor = 0
-            }
-    assertAreEqualWith expected actual (ignoreMembers ["Status"])
+            fileWith (size 1L) "item"
+    ]
+    let createdItem = fs.Item "/c/item"
+    let action = CreatedItem createdItem
+    let model = testModel |> pushUndo action
+    let expectedFs = fs.Items
 
-[<Test>]
-let ``Undo create non-empty item returns error``() =
-    let fsReader = FakeFileSystemReader()
-    fsReader.IsEmpty <- fun _ -> false
-    let fsWriter = FakeFileSystemWriter()
-    let createdItem = oldItems.[1]
+    let actual = seqResult (MainLogic.Action.undo fs) model
 
-    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdItem) testModel
-
-    let expected = testModel.WithError (CannotUndoNonEmptyCreated createdItem)
+    let expected = model.WithError (CannotUndoNonEmptyCreated createdItem) |> popUndo
     assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
 
 [<Test>]
 let ``Undo create handles delete error by returning error`` () =
-    let fsReader = FakeFileSystemReader()
-    fsReader.IsEmpty <- fun _ -> true
-    let fsWriter = FakeFileSystemWriter()
-    fsWriter.Delete <- fun _ -> Error ex
-    let createdItem = oldItems.[1]
+    let fs = FakeFileSystem [
+        file "file"
+    ]
+    let createdItem = fs.Item "/c/file"
+    fs.AddExnPath ex createdItem.Path
+    let action = CreatedItem createdItem
+    let model = testModel |> pushUndo action
 
-    let actual = seqResult (MainLogic.Action.undoCreate fsReader fsWriter createdItem) testModel
+    let actual = seqResult (MainLogic.Action.undo fs) model
 
-    let expected = testModel.WithError (ItemActionError (DeletedItem (createdItem, true), testModel.PathFormat, ex))
+    let expected = model.WithError (ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)) |> popUndo
     assertAreEqual expected actual
 
 // rename tests
@@ -147,59 +158,73 @@ let ``Undo create handles delete error by returning error`` () =
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
-    let currentItem = oldItems.[1]
-    let renamedItem = if diffCaseOnly then currentItem else newItems.[1]
-    let newItems = [oldItems.[0]; renamedItem]
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> if diffCaseOnly then Ok (Some currentItem) else Ok None
-    fsReader.GetItems <- fun _ -> Ok newItems
-    let fsWriter = FakeFileSystemWriter()
-    let mutable renamed = None
-    fsWriter.Move <- fun s d ->
-        renamed <- Some (s, d)
-        Ok ()
+    let fs = FakeFileSystem [
+        file "another"
+        file "file"
+    ]
+    let item = fs.Item "/c/file"
+    let renamed = createFile (if diffCaseOnly then "/c/File" else "/c/renamed")
+    // TODO #83: change rename to refresh when not searching, change this test to not set dir+items, add test for rename when searching
+    let items = fs.ItemsIn "/c"
+    let model = { testModel with Directory = items; Items = items }
 
-    let actual = MainLogic.Action.rename fsReader fsWriter currentItem renamedItem.Name testModel
+    let actual = MainLogic.Action.rename fs item renamed.Name model
                  |> assertOk
 
-    renamed |> shouldEqual (Some (currentItem.Path, renamedItem.Path))
-    let expectedAction = RenamedItem (currentItem, renamedItem.Name)
+    let expectedItems = [
+        createFile "/c/another"
+        renamed
+    ]
+    let expectedAction = RenamedItem (item, renamed.Name)
     let expected =
-        { testModel with
-            Directory = newItems
-            Items = newItems
-            UndoStack = expectedAction :: testModel.UndoStack
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
+            UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
         }
     assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        file "another"
+        if diffCaseOnly then
+            file "File"
+        else
+            file "renamed"
+    ]
 
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Rename to path with existing item returns error`` existingHidden =
-    let currentItem = oldItems.[1]
-    let renamedItem = { newItems.[1] with IsHidden = existingHidden }
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun p -> if p = renamedItem.Path then Ok (Some renamedItem) else Ok None
-    let fsWriter = FakeFileSystemWriter()
+    let newName = "renamed"
+    let fs = FakeFileSystem [
+        fileWith (hide existingHidden) newName
+        file "file"
+    ]
+    let item = fs.Item "/c/file"
+    let model = testModel
+    let expectedFs = fs.Items
 
-    let actual = MainLogic.Action.rename fsReader fsWriter currentItem renamedItem.Name testModel
+    let actual = MainLogic.Action.rename fs item newName model
 
-    actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, renamedItem.Name, existingHidden)))
+    actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", File, newName, existingHidden)))
+    fs.Items |> shouldEqual expectedFs
 
 [<Test>]
 let ``Rename handles error by returning error``() =
-    let currentItem = oldItems.[1]
-    let renamedItem = newItems.[1]
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> Ok None
-    let fsWriter = FakeFileSystemWriter()
-    fsWriter.Move <- fun _ _ -> Error ex
+    let fs = FakeFileSystem [
+        file "another"
+        file "file"
+    ]
+    let item = fs.Item "/c/file"
+    let newName = "renamed"
+    fs.AddExn ex ("/c/" + newName)
+    let model = testModel
 
-    let actual = MainLogic.Action.rename fsReader fsWriter currentItem renamedItem.Name testModel
+    let actual = MainLogic.Action.rename fs item newName model
 
-    let expectedAction = RenamedItem (currentItem, renamedItem.Name)
-    actual |> shouldEqual (Error (ItemActionError (expectedAction, testModel.PathFormat, ex)))
+    let expectedAction = RenamedItem (item, newName)
+    actual |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
 
 // undo rename tests
 
@@ -207,80 +232,93 @@ let ``Rename handles error by returning error``() =
 [<TestCase(true, false)>]
 [<TestCase(false, true)>]
 [<TestCase(true, true)>]
-let ``Undo rename item names file back to original`` curPathDifferent diffCaseOnly =
-    let prevItem = newItems.[1]
-    let curItem = if diffCaseOnly then prevItem else oldItems.[1]
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> if diffCaseOnly then Ok (Some curItem) else Ok None
-    fsReader.GetItems <- fun _ -> Ok newItems
-    let fsWriter = FakeFileSystemWriter()
-    let mutable moved = None
-    fsWriter.Move <- fun s d ->
-        moved <- Some (s, d)
-        Ok ()
-    let location = if curPathDifferent then createPath "/c/other" else testModel.Location
-    let model = testModel.WithLocation location
+let ``Undo rename item names item back to original`` curPathDifferent diffCaseOnly =
+    let currentName = if diffCaseOnly then "File" else "renamed"
+    let fs = FakeFileSystem [
+        file "another"
+        file currentName
+    ]
+    let previous = createFile "/c/file"
+    let current = fs.Item ("/c/" + currentName)
+    let location = if curPathDifferent then "/c/other" else "/c"
+    let action = RenamedItem (previous, current.Name)
+    let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = MainLogic.Action.undoRename fsReader fsWriter prevItem curItem.Name model
-                 |> assertOk
+    let actual = seqResult (MainLogic.Action.undo fs) model
 
-    moved |> shouldEqual (Some (curItem.Path, prevItem.Path))
+    let expectedItems = [
+        createFile "/c/another"
+        previous
+    ]
     let expected =
         { testModel with
-            Directory = newItems
-            Items = newItems
+            Directory = expectedItems
+            Items = expectedItems
             Cursor = 1
-        } |> (fun m ->
-            if curPathDifferent then
-                { m with
-                    BackStack = (location, 0) :: m.BackStack
-                    ForwardStack = []
-                }
-            else m
-        )
+            RedoStack = action :: model.RedoStack
+            Status = Some (MainStatus.undoAction action model.PathFormat)
+        } |> withBackIf curPathDifferent (model.Location, 0)
     assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        file "another"
+        file previous.Name
+    ]
 
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo rename to path with existing item returns error`` existingHidden =
-    let prevItem = { newItems.[1] with IsHidden = existingHidden }
-    let curItem = oldItems.[1]
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun p -> if p = prevItem.Path then Ok (Some prevItem) else Ok None
-    let fsWriter = FakeFileSystemWriter()
+    let fs = FakeFileSystem [
+        file "another"
+        fileWith (hide existingHidden) "file"
+        file "renamed"
+    ]
+    let previous = createFile "/c/file"
+    let current = fs.Item "/c/renamed"
+    let action = RenamedItem (previous, current.Name)
+    let model = testModel |> pushUndo action
+    let expectedFs = fs.Items
 
-    let actual = MainLogic.Action.undoRename fsReader fsWriter prevItem curItem.Name testModel
+    let actual = seqResult (MainLogic.Action.undo fs) model
 
-    actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", Folder, prevItem.Name, existingHidden)))
+    let expectedError = CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
+    let expected = model.WithError expectedError |> popUndo
+    assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
 
 [<Test>]
 let ``Undo rename item handles move error by returning error``() =
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> Ok None
-    let fsWriter = FakeFileSystemWriter()
-    fsWriter.Move <- fun _ _ -> Error ex
-    let prevItem = newItems.[1]
-    let curItem = oldItems.[1]
+    let fs = FakeFileSystem [
+        file "renamed"
+    ]
+    let previous = createFile "/c/file"
+    let current = fs.Item "/c/renamed"
+    fs.AddExnPath ex previous.Path
+    let action = RenamedItem (previous, current.Name)
+    let model = testModel |> pushUndo action
+    let expectedFs = fs.Items
 
-    let actual = MainLogic.Action.undoRename fsReader fsWriter prevItem curItem.Name testModel
+    let actual = seqResult (MainLogic.Action.undo fs) model
 
-    let expectedAction = RenamedItem (curItem, prevItem.Name)
-    actual |> shouldEqual (Error (ItemActionError (expectedAction, testModel.PathFormat, ex)))
+    let expectedError = ItemActionError (RenamedItem (current, previous.Name), model.PathFormat, ex)
+    let expected = model.WithError expectedError |> popUndo
+    assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
 
 // start rename selection tests
 
-let renameTextSelection cursorPosition itemType fileName =
-    let item = { createItem ("/c/path/" + fileName) with Type = itemType }
-    let items = List.append oldItems [item]
+let renameTextSelection inputPosition itemType fileName =
+    let item = { createFile ("/c/" + fileName) with Type = itemType }
+    let items = [ createFile "/c/another"; item ]
     let model =
-        { baseModel with
+        { testModel with
             Items = items
             Cursor = items.Length - 1
+            InputTextSelection = (1, 1)
         }
-    let inputMode = Input (Rename cursorPosition)
-    let fsReader = FakeFileSystemReader()
-    fsReader.GetItem <- fun _ -> Ok None
-    let actual = MainLogic.Action.startInput fsReader inputMode model
+    let inputMode = Input (Rename inputPosition)
+    let fs = FakeFileSystem []
+
+    let actual = MainLogic.Action.startInput fs inputMode model
                  |> assertOk
 
     actual.InputMode |> shouldEqual (Some inputMode)

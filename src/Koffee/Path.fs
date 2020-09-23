@@ -154,7 +154,7 @@ type Path private (path: string) =
         | :? Path as p -> this.Value |> String.equalsIgnoreCase p.Value
         | _ -> false
 
-    override this.GetHashCode() = this.Value.GetHashCode()
+    override this.GetHashCode() = this.Value.ToLower().GetHashCode()
 
     // for debugging
     override this.ToString() = this.Format Windows

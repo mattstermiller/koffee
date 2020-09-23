@@ -51,7 +51,7 @@ let run args =
     let openSettings config = Settings.View().ShowDialog(Settings.start config).Config
     let window = MainWindow()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
-    let controller = MainLogic.Controller(fileSys, fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
+    let controller = MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
                                           openSettings, closeWindow, options)
     Application().Run(window, controller.Start) |> ignore
 

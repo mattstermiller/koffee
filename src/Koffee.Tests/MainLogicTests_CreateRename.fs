@@ -160,11 +160,12 @@ let ``Undo create handles delete error by returning error`` () =
 let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let fs = FakeFileSystem [
         file "another"
-        file "file"
+        file "my file"
+        file "nacho file"
     ]
-    let item = fs.Item "/c/file"
-    let renamed = createFile (if diffCaseOnly then "/c/File" else "/c/renamed")
-    // TODO #83: change rename to refresh when not searching, change this test to not set dir+items, add test for rename when searching
+    let item = fs.Item "/c/my file"
+    let renamed = createFile (if diffCaseOnly then "/c/My File" else "/c/renamed")
+    // TODO #83: change rename to refresh when not searching, change this test to not set dir+items
     let items = fs.ItemsIn "/c"
     let model = { testModel with Directory = items; Items = items }
 
@@ -174,6 +175,7 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let expectedItems = [
         createFile "/c/another"
         renamed
+        createFile "/c/nacho file"
     ]
     let expectedAction = RenamedItem (item, renamed.Name)
     let expected =
@@ -187,11 +189,49 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
-        if diffCaseOnly then
-            file "File"
-        else
-            file "renamed"
+        file renamed.Name
+        file "nacho file"
     ]
+
+[<Test>]
+let ``Rename in search result calls file sys move, sets status`` () =
+    let fs = FakeFileSystem [
+        file "another"
+        file "file"
+        file "nacho file"
+    ]
+    let item = fs.Item "/c/file"
+    let renamed = createFile "/c/renamed"
+    let items = fs.ItemsIn "/c"
+    let model =
+        { testModel with
+            Directory = items
+            Items = items |> List.skip 1
+            Cursor = 1
+            CurrentSearch = Some ("file", false, false, false)
+        }
+
+    let actual = MainLogic.Action.rename fs item renamed.Name model
+                 |> assertOk
+
+    let expectedItems = [
+        createFile "/c/another"
+        createFile "/c/renamed"
+        createFile "/c/nacho file"
+    ]
+    let sort = List.sortBy (fun i -> i.Name)
+    fs.ItemsIn "/c" |> sort |> shouldEqual (sort expectedItems)
+    let expectedAction = RenamedItem (item, renamed.Name)
+    let expected =
+        { model with
+            Directory = expectedItems
+            Items = expectedItems |> List.skip 1
+            Cursor = 1
+            UndoStack = expectedAction :: model.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
+        }
+    assertAreEqual expected actual
 
 [<TestCase(false)>]
 [<TestCase(true)>]

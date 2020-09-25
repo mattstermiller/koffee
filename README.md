@@ -79,7 +79,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Tab` to fill in the path box with the selected suggestion and continue typing, or press `Enter` to open the selected suggestion.
 
 #### File & Folder Manipulation
-- **Create File or Folder**: Press `o` to create a folder or `O` to create a file. Type in the name of the new item and press `Enter`.
+- **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `Enter`.
 - **Rename**: There are several ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
     - Press `a` to start with the cursor at the end of the name, before the extension

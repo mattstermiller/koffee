@@ -230,7 +230,7 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
-    static member MaxPaths = 200
+    static member MaxPaths = 500
     static member MaxSearches = 50
 
     static member Default = {

@@ -4,11 +4,12 @@
 - Changes UI to use new dark theme
 - Adds "Open File and Exit" command
 - Swaps key bindings for create file, create folder - `o` is now create folder
-- Changes Escape key in path box to always switch focus back to item grid and resets it to current location
+- Changes Escape key in path box to always switch focus back to item grid and reset path box to current location
 - Changes Tab key in path box to always move cursor to end
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
 - #82 Fixes focus being lost after clicking grid item and opening folder
-- Fixes undo/redo actions that error not being removed, blocking all other undo/redo actions
+- #87 Fixes toggling hidden files not hiding selected item
+- Fixes undo/redo actions that throw error not being removed, blocking all other undo/redo actions
 - Fixes double ending slash in unix drive path formatting
 - Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.
 

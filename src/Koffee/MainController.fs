@@ -204,7 +204,12 @@ module Nav =
     let toggleHidden fsReader (model: MainModel) = asyncSeqResult {
         let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
         yield model
-        let! model = model |> openPath fsReader model.Location (SelectName model.SelectedItem.Name)
+        let select =
+            if not model.Config.ShowHidden && model.SelectedItem.IsHidden then
+                SelectNone
+            else
+                SelectName model.SelectedItem.Name
+        let! model = model |> openPath fsReader model.Location select
         yield { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
     }
 
@@ -400,7 +405,7 @@ module Action =
                     | Ok _ -> Error <| CannotPutHere
                     | Error e -> Error <| ActionError ("create item", e)
             | Input (Rename _)
-            | Confirm Delete -> Ok model.SelectedItem.Type.CanModify 
+            | Confirm Delete -> Ok model.SelectedItem.Type.CanModify
             | Prompt SetBookmark when model.IsSearchingSubFolders -> Ok false
             | _ -> Ok true
         if allowed then
@@ -795,7 +800,7 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
         | DefaultPath -> [config.DefaultPath] @ prevPath
     let paths = (startOptions.StartPath |> Option.toList) @ (configPaths |> List.map string)
     let rec openPath error (paths: string list) =
-        let withError (m: MainModel) = 
+        let withError (m: MainModel) =
             match error with
             | Some e -> m.WithError e
             | None -> m
@@ -852,7 +857,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                         InputMode = Some (Confirm (OverwriteBookmark (char, existingPath)))
                         InputText = ""
                     }
-            | None -> 
+            | None ->
                 yield withBookmark char model
         | DeleteBookmark ->
             match model.Config.GetBookmark char with

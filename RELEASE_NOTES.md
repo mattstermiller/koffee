@@ -8,6 +8,7 @@
 - Changes path history limit from 200 to 500
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
 - #82 Fixes focus being lost after clicking grid item and opening folder
+- #83 Fixes renaming an item to update its sort position
 - #87 Fixes toggling hidden files not hiding selected item
 - Fixes undo/redo actions that throw error not being removed, blocking all other undo/redo actions
 - Fixes double ending slash in unix drive path formatting

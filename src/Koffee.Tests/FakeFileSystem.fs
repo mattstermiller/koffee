@@ -48,7 +48,7 @@ type FakeFileSystem(treeItems) =
         | _ ->
             Ok ()
 
-    member this.Items = items |> List.sortBy (fun i -> string i.Path)
+    member this.Items = items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
 
     member this.ItemsIn path =
         items |> List.filter (fun i -> i.Path.Parent = path)

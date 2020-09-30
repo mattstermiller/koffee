@@ -167,7 +167,7 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let renamed = createFile (if diffCaseOnly then "/c/My File" else "/c/renamed")
     // TODO #83: change rename to refresh when not searching, change this test to not set dir+items
     let items = fs.ItemsIn "/c"
-    let model = { testModel with Directory = items; Items = items }
+    let model = { testModel with Directory = items; Items = items; Cursor = 1 }
 
     let actual = MainLogic.Action.rename fs item renamed.Name model
                  |> assertOk
@@ -181,7 +181,8 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     let expected =
         { model with
             Directory = expectedItems
-            Items = expectedItems
+            Items = expectedItems |> sortByPath
+            Cursor = if diffCaseOnly then 1 else 2
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
             Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat

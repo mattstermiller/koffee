@@ -38,7 +38,7 @@ let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
 
 let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
-    let comparer = CompareLogic() 
+    let comparer = CompareLogic()
     comparer.Config.MaxDifferences <- 10
     comparer.Config.CustomComparers.AddRange([StructuralEqualityComparer(); PathComparer()])
     let fields = Reflection.FSharpType.GetRecordFields(typeof<MainModel>) |> Seq.map (fun p -> p.Name)
@@ -85,8 +85,8 @@ let modifiedOpt opt (item: Item) = { item with Modified = opt }
 let modified value item = modifiedOpt (Some value) item
 let hide value item = { item with IsHidden = value }
 
-let sortByPath items = 
-    items |> List.sortBy (fun i -> string i.Path)
+let sortByPath items =
+    items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
 
 type FakeFileSystem with
     member this.ItemsIn path =

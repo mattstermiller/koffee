@@ -820,16 +820,21 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
     openPath None paths
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
-    if model.CurrentSearch.IsSome then
+    match model.CurrentSearch with
+    | Some currentSearch ->
         let! newModel = model |> Nav.openPath fsReader model.Location (SelectName model.SelectedItem.Name)
+        let input, case, regex, sub = currentSearch
         yield!
             { newModel with
-                CurrentSearch = model.CurrentSearch
+                InputText = input
+                SearchCaseSensitive = case
+                SearchRegex = regex
+                SearchSubFolders = sub
                 SearchHistoryIndex = model.SearchHistoryIndex
             }
             |> Search.search fsReader subDirResults progress
             |> AsyncSeq.map Ok
-    else
+    | None ->
         yield! Nav.refresh fsReader model
 }
 

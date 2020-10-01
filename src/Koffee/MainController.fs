@@ -462,7 +462,13 @@ module Action =
                 let newItem = { item with Name = newName; Path = newPath }
                 let substitute = List.map (fun i -> if i = item then newItem else i)
                 return
-                    { model with Directory = model.Directory |> substitute; Items = model.Items |> substitute }
+                    { model with Directory = model.Directory |> substitute }
+                    |> (
+                        if model.CurrentSearch.IsSome then
+                            fun m -> { m with Items = m.Items |> substitute }
+                        else
+                            Nav.listDirectory (SelectName newName)
+                    )
                     |> performedAction action
             | Some existingItem ->
                 return! Error <| CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)

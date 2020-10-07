@@ -51,6 +51,8 @@ with
     member this.Description =
         sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
 
+    member this.TypeName = this.Type.ToString()
+
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
     static member Empty =

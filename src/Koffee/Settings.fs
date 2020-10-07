@@ -23,7 +23,7 @@ type Events =
     | DefaultPathChanged
     | PathFormatChanged of PathFormat
 
-type View = FsXaml.XAML<"SettingsWindow.xaml">
+type View = KoffeeUI.SettingsWindow
 
 let private binder (view: View) model =
     view.KeyBindings.AddColumn(<@ fun k -> k.EventName @>, "Command", widthWeight = 3.0)

@@ -14,7 +14,6 @@
     <Compile Include="AssemblyInfo.fs" />
     <None Include="App.config" />
     <Content Include="paket.references" />
-    <Resource Include="AppStyles.xaml" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
     <Compile Include="UIHelpers.fs" />
@@ -31,8 +30,9 @@
     <Compile Include="MainView.fs" />
     <Compile Include="MainController.fs" />
     <Compile Include="Program.fs" />
-    <Resource Include="SettingsWindow.xaml" />
-    <Resource Include="MainWindow.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\KoffeeUI\KoffeeUI.csproj" />
   </ItemGroup>
   <!-- fsc.props and empty fsc path are workarounds to compile code using type providers on core sdk -->
   <Import Project="..\fsc.props" />

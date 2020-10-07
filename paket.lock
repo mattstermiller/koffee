@@ -13,7 +13,6 @@ NUGET
     FsUnit (2.3.2)
       FSharp.Core (>= 3.1.2.5)
       NUnit (3.5)
-    FsXaml.Wpf (3.1.6)
     Microsoft.CodeCoverage (16.6.1)
     Microsoft.NET.Test.Sdk (16.6.1)
       Microsoft.CodeCoverage (>= 16.6.1)

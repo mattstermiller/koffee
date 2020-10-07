@@ -35,7 +35,7 @@ let run args =
     let fileSys = FileSystem()
     let os = OperatingSystem()
     let openSettings config = Settings.View().ShowDialog(Settings.start config).Config
-    let window = MainWindow()
+    let window = KoffeeUI.MainWindow()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let controller = MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
                                           openSettings, closeWindow, options)

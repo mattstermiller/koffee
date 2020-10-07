@@ -3,7 +3,6 @@ framework auto-detect
 storage: none
 
 nuget FSharp.Core ~> 4.5
-nuget FsXaml.Wpf
 nuget VinylUI ~> 2.3
 nuget System.Reactive ~> 3.1
 nuget System.Reactive.PlatformServices ~> 3.1

@@ -11,10 +11,9 @@ open VinylUI
 open VinylUI.Wpf
 open Reflection
 open Acadian.FSharp
+open KoffeeUI
 
 module Obs = Observable
-
-type MainWindow = FsXaml.XAML<"MainWindow.xaml">
 
 module MainView =
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =

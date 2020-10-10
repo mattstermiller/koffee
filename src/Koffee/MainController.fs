@@ -394,6 +394,21 @@ module Action =
                 | ReplaceAll -> (0, fullLen)
         }
 
+    let rec private enumerateSubItems (fsReader: IFileSystemReader) (dest: Path) (items: Item seq) = asyncSeq {
+        for item in items do
+            match item.Type with
+            | Folder ->
+                let! itemsResult = runAsync (fun () -> fsReader.GetItems item.Path)
+                // TODO: when moving a folder to the same volume and the dest does not exist, it can be moved directly
+                match itemsResult with
+                | Ok [] -> yield Ok item
+                | Ok items -> yield! enumerateSubItems fsReader (dest.Join item.Name) items
+                | Error error -> yield Error (item, error)
+            | File ->
+                yield Ok item
+            | _ -> ()
+    }
+
     let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = result {
         let! allowed =
             match inputMode with
@@ -507,7 +522,7 @@ module Action =
         let number = if i = 0 then "" else sprintf " %i" (i+1)
         sprintf "%s (copy%s)%s" nameNoExt number ext
 
-    let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
+    let putItem (fs: IFileSystem) (progress: Event<_>) overwrite item putAction model = asyncSeqResult {
         let sameFolder = item.Path.Parent = model.Location
         match! fs.GetItem model.Location |> actionError "put item" with
         | Some container when container.Type.CanCreateIn ->
@@ -546,14 +561,40 @@ module Action =
                     InputText = ""
                 }
         | _ ->
-            yield { model with Status = MainStatus.runningAction action model.PathFormat }
-            let! res = runAsync (fun () -> fileSysAction item.Path newPath)
-            do! res |> itemActionError action model.PathFormat
-            let! model = Nav.openPath fs model.Location (SelectName newName) model
-            yield model |> performedAction action
+            yield { model with Status = MainStatus.runningAction action model.PathFormat; Progress = Some 0.0 }
+            let! enumerated =
+                match putAction with
+                | Shortcut -> async { return [item] |> List.map Ok }
+                | _ -> enumerateSubItems fs model.Location [item] |> AsyncSeq.toListAsync
+            let items, enumErrors = enumerated |> Result.partition
+            // TODO: create target folders that don't exist. Preserve security settings when moving?
+            let! results =
+                items
+                |> AsyncSeq.ofSeq
+                |> AsyncSeq.mapiAsync (fun i item -> runAsync (fun () ->
+                    // TODO: target paths need to be determined during enumeration
+                    let res = fileSysAction item.Path newPath |> Result.mapError (fun e -> (item, e))
+                    progress.Trigger (Some (float i / float items.Length))
+                    res
+                ))
+                |> AsyncSeq.toListAsync
+            let _, putErrors = results |> Result.partition
+            match enumErrors @ putErrors with
+            | [] ->
+                let! model = Nav.openPath fs model.Location (SelectName newName) model
+                yield model |> performedAction action
+            | [(_, error)] ->
+                yield! Error error |> itemActionError action model.PathFormat
+            | errorItems ->
+                // if partial success, refresh and select new item
+                if items.Length > 0 then
+                    match Nav.openPath fs model.Location (SelectName newName) model with
+                    | Ok model -> yield model
+                    | Error _ -> ()
+                return PutError (putAction, errorItems.Length, items.Length + enumErrors.Length)
     }
 
-    let put (fs: IFileSystem) overwrite (model: MainModel) = asyncSeqResult {
+    let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult {
         match model.Config.YankRegister with
         | None -> ()
         | Some (path, _, putAction) ->
@@ -561,7 +602,7 @@ module Action =
                 return CannotPutHere
             match! fs.GetItem path |> actionError "read yank register item" with
             | Some item ->
-                let! model = putItem fs overwrite item putAction model
+                let! model = putItem fs progress overwrite item putAction model
                 if model.InputMode.IsNone then
                     yield { model with Config = { model.Config with YankRegister = None } }
             | None ->
@@ -680,7 +721,7 @@ module Action =
 
     let undo = undoIter 1
 
-    let rec private redoIter iter fs model = asyncSeqResult {
+    let rec private redoIter iter fs progress model = asyncSeqResult {
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
@@ -701,7 +742,7 @@ module Action =
                 | PutItem (putAction, item, newPath) ->
                     let! model = goToPath newPath
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
-                    yield! putItem fs false item putAction model
+                    yield! putItem fs progress false item putAction model
                 | DeletedItem (item, permanent) ->
                     let! model = goToPath item.Path
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
@@ -709,7 +750,7 @@ module Action =
             }
             let model = { model with RedoStack = rest }
             if iter < model.RepeatCount then
-                yield! redoIter (iter + 1) fs model
+                yield! redoIter (iter + 1) fs progress model
             else
                 yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat model.RepeatCount }
         | [] -> return NoRedoActions
@@ -857,7 +898,7 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         yield! Nav.refresh fsReader model
 }
 
-let inputCharTyped fs cancelInput char model = asyncSeqResult {
+let inputCharTyped fs progress cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         { model with
             Config = model.Config.WithBookmark char model.Location
@@ -906,7 +947,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
         | 'y' ->
             match confirmType with
             | Overwrite (action, src, _) ->
-                let! model = Action.putItem fs true src action model
+                let! model = Action.putItem fs progress true src action model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
                 yield! Action.delete fs model.SelectedItem true model
@@ -1122,11 +1163,11 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ShowNavHistory -> Sync (fun m -> { m with IsNavHistoryVisible = not m.IsNavHistoryVisible })
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
             | Undo -> AsyncResult (Action.undo fs)
-            | Redo -> AsyncResult (Action.redo fs)
+            | Redo -> AsyncResult (Action.redo fs progress)
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))
-            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs handler.Handle c)
+            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs progress handler.Handle c)
             | InputChanged -> Async (inputChanged fs subDirResults progress)
             | InputBack -> Sync (inputHistory 1)
             | InputForward -> Sync (inputHistory -1)
@@ -1138,7 +1179,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | FindNext -> Sync Search.findNext
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
-            | Put -> AsyncResult (Action.put fs false)
+            | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)

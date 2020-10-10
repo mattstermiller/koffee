@@ -517,6 +517,7 @@ module MainStatus =
 type MainError =
     | ActionError of actionName: string * exn
     | ItemActionError of ItemAction * PathFormat * exn
+    | PutError of PutAction * errors: int * total: int
     | InvalidPath of string
     | ShortcutTargetMissing of string
     | YankRegisterItemMissing of string
@@ -551,6 +552,9 @@ type MainError =
                 | DeletedItem (item, false) -> sprintf "recycle %s" item.Description
                 | DeletedItem (item, true) -> sprintf "delete %s" item.Description
             (ActionError (actionName, e)).Message
+        | PutError (action, errors, total) ->
+            let action = action |> string |> String.toLower
+            sprintf "Could not %s %i of %i items" action errors total
         | InvalidPath path -> "Path format is invalid: " + path
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path

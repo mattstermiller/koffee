@@ -64,7 +64,7 @@ let ``Create adds item`` () =
     ]
 
 [<Test>]
-let ``Move moves item`` () =
+let ``Move file moves it`` () =
     let fs = createFs ()
     fs.Move (createPath "/c/readme.md") (createPath "/c/programs/docs.md") |> shouldEqual (Ok ())
     fs.ItemsShouldEqual [
@@ -74,6 +74,9 @@ let ``Move moves item`` () =
             file "notepad.exe"
         ]
     ]
+
+// let ``Move folder moves it`` () =
+// let ``Move folder where dest exists returns error`` () =
 
 [<Test>]
 let ``Create exn path does not create`` () =

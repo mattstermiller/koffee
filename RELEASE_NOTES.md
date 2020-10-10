@@ -6,6 +6,7 @@
 - Changes Escape key in path box to always switch focus back to item grid and reset path box to current location
 - Changes Tab key in path box to always move cursor to end
 - Changes path history limit from 200 to 500
+- Adds icons to Create File/Folder prompts
 - #80 Fixes the Append to Name and Replace Name renaming commands to no longer use extension logic on folders
 - #82 Fixes focus being lost after clicking grid item and opening folder
 - #83 Fixes renaming an item to update its sort position

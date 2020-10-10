@@ -61,7 +61,12 @@ module MainView =
         | Input (Find multi) ->
             sprintf "Find item starting with%s:" (if multi then " (multi)" else "")
         | Input inputType ->
-            inputType |> caseName
+            let symbol =
+                match inputType with
+                | CreateFile -> File.Symbol + " "
+                | CreateFolder -> Folder.Symbol + " "
+                | _ -> ""
+            symbol + (inputType |> caseName)
 
     let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
         // path suggestions
@@ -261,7 +266,7 @@ module MainView =
                 | Some _, Some (Input Search) ->
                     window.SearchPanel.Visibility <- Visibility.Collapsed
                 | Some (search, cs, re, sub), _ ->
-                    window.SearchStatus.Text <- 
+                    window.SearchStatus.Text <-
                         [   sprintf "Search results for \"%s\"" search
                             (if cs then "Case-sensitive" else "Not case-sensitive")
                             (if re then "Regular Expression" else "")

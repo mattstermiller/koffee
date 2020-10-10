@@ -472,8 +472,6 @@ type MainError =
     | ItemActionError of ItemAction * PathFormat * exn
     | InvalidPath of string
     | ShortcutTargetMissing of string
-    | InvalidSearchSlash
-    | InvalidSearchSwitch of char
     | YankRegisterItemMissing of string
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
@@ -508,8 +506,6 @@ type MainError =
             (ActionError (actionName, e)).Message
         | InvalidPath path -> "Path format is invalid: " + path
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
-        | InvalidSearchSlash -> "Invalid search: only one slash \"/\" may be used. Slash is used to delimit switches."
-        | InvalidSearchSwitch c -> sprintf "Invalid search switch \"%c\". Valid switches are: c, i" c
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
         | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->

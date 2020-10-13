@@ -120,6 +120,23 @@ let ``Parent returns expected value`` pathStr expected =
 let ``Format drive in Unix`` pathStr expected =
     (parseForTest pathStr).Format Unix |> shouldEqual expected
 
+[<Test>]
+let ``TypeConverter to string`` () =
+    let conv = System.ComponentModel.TypeDescriptor.GetConverter typeof<Path>
+    let pathString = @"C:\Sample"
+    parseForTest pathString
+    |> conv.ConvertToString
+    |> shouldEqual pathString
+    
+[<Test>]
+let ``TypeConverter from string`` () =
+    let conv = System.ComponentModel.TypeDescriptor.GetConverter typeof<Path>
+    let pathString = @"C:\Sample"
+    let expected = parseForTest pathString
+    conv.ConvertFromString pathString
+    :?> Path
+    |> shouldEqual expected
+
 [<TestCase(@"C:\Sample", @"C:\Sample", 0)>]
 [<TestCase(@"C:\Sample1", @"C:\Sample2", -1)>]
 [<TestCase(@"C:\Sample2", @"C:\Sample1", 1)>]

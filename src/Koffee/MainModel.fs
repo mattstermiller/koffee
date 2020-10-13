@@ -237,8 +237,15 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
-    member this.WithPathSort (path: Path) (sort: PathSort) =
-        this
+    static member private omitPathSortFromHistory sort =
+        sort.Sort = Name && not sort.Descending
+
+    member this.WithPathSort (path: Path) sort =
+        let key = path.Format Windows
+        if History.omitPathSortFromHistory sort then
+            { this with PathSort = this.PathSort.Remove key }
+        else
+            { this with PathSort = this.PathSort.Add(key, sort) }
 
     static member MaxPaths = 500
     static member MaxSearches = 50

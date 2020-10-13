@@ -167,7 +167,7 @@ type Path private (path: string) =
     // for debugging
     override this.ToString() = this.Format Windows
 
-// allows using Path as Map/dictionary key in Json.NET
+// allows using Path as the key of Map/dictionary in Json.NET
 and private PathToStringTypeConverter() =
     inherit TypeConverter()
     override _.CanConvertFrom (_, typ) = typ = typeof<string>

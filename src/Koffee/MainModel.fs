@@ -206,10 +206,17 @@ with
         Bookmarks = []
     }
 
+[<Struct>]
+type PathSort = {
+    Sort: SortField
+    Descending: bool
+}
+
 type History = {
     Paths: Path list
     Searches: (string * bool * bool) list
     NetHosts: string list
+    PathSort: Map<string, PathSort>
 }
 with
     static member private pushDistinct max list item =
@@ -237,6 +244,7 @@ with
         Paths = []
         Searches = []
         NetHosts = []
+        PathSort = Map.empty
     }
 
 type CancelToken() =

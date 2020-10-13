@@ -237,6 +237,9 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
+    member this.WithPathSort (path: Path) (sort: PathSort) =
+        this
+
     static member MaxPaths = 500
     static member MaxSearches = 50
 

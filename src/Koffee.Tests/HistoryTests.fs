@@ -4,20 +4,25 @@ open NUnit.Framework
 open FsUnitTyped
 open Newtonsoft.Json
 
+let parseForTest pathStr =
+    match Path.Parse pathStr with
+    | Some p -> p
+    | None -> failwithf "Test path string '%s' does not parse" pathStr
+
 [<Test>]
 let ``History can be serialized and deserialized`` () =
     let history =
         { History.Default with
             PathSort = Map.ofList [
-                (@"C:\Some\Path", {Sort = SortField.Name; Descending = true})
-                (@"C:\Some\Other\Path", {Sort = SortField.Modified; Descending = false})
-                (@"C:\Some\Third\Path", {Sort = SortField.Size; Descending = false})
+                (parseForTest @"C:\Some\Path", {Sort = SortField.Name; Descending = true})
+                (parseForTest @"C:\Some\Other\Path", {Sort = SortField.Modified; Descending = false})
+                (parseForTest @"C:\Some\Third\Path", {Sort = SortField.Size; Descending = false})
             ]
             NetHosts = [
                 "Some net host"
             ]
             Paths = [
-                (Path.Parse "C:\Some\Path").Value
+                parseForTest "C:\Some\Path"
             ]
             Searches = [
                 ("downloads", false, false)
@@ -32,8 +37,7 @@ let ``History can be serialized and deserialized`` () =
 [<Test>]
 let ``With new PathSort it adds it to the list`` () =
     // Arrange
-    let path = (Path.Parse "C:\Some\Path").Value
-    let pathKey = path.Format Windows
+    let path = parseForTest "C:\Some\Path"
     let sort = { Sort = SortField.Modified; Descending = true }
     let history = {
         History.Default with
@@ -45,25 +49,24 @@ let ``With new PathSort it adds it to the list`` () =
     let pathsInHistory = result.PathSort |> Map.toSeq |> Seq.map fst
 
     // Assert
-    pathsInHistory |> shouldContain pathKey
+    pathsInHistory |> shouldContain path
 
 [<Test>]
 let ``With same path in PathSort it overrides the existing`` () =
     // Arrange
-    let path = (Path.Parse "C:\Some\Path").Value
-    let pathKey = path.Format Windows
+    let path = parseForTest "C:\Some\Path"
     let sort = { Sort = SortField.Modified; Descending = true }
     let history = {
         History.Default with
             PathSort = Map.ofList [
-                (pathKey, sort)
+                (path, sort)
             ]
     }
     let newSort = { Sort = SortField.Size; Descending = true }
 
     // Act
     let result = history.WithPathSort path newSort
-    let resultSort = result.PathSort.[pathKey]
+    let resultSort = result.PathSort.[path]
 
     // Assert
     resultSort |> shouldEqual newSort
@@ -72,8 +75,7 @@ let ``With same path in PathSort it overrides the existing`` () =
 [<Test>]
 let ``With ascending name sort it omits it`` () =
     // Arrange
-    let path = (Path.Parse "C:\Some\Path").Value
-    let pathKey = path.Format Windows
+    let path = parseForTest "C:\Some\Path"
     let sort = { Sort = SortField.Name; Descending = false }
     let history = History.Default
 
@@ -82,18 +84,17 @@ let ``With ascending name sort it omits it`` () =
     let pathsInHistory = result.PathSort |> Map.toSeq |> Seq.map fst
 
     // Assert
-    pathsInHistory |> shouldNotContain pathKey
+    pathsInHistory |> shouldNotContain path
 
 [<Test>]
 let ``With ascending name sort it removes the existing`` () =
     // Arrange
-    let path = (Path.Parse "C:\Some\Path").Value
-    let pathKey = path.Format Windows
+    let path = parseForTest "C:\Some\Path"
     let sort = { Sort = SortField.Modified; Descending = true }
     let history = {
         History.Default with
             PathSort = Map.ofList [
-                (pathKey, sort)
+                (path, sort)
             ]
     }
     let newSort = { Sort = SortField.Name; Descending = false }
@@ -103,5 +104,5 @@ let ``With ascending name sort it removes the existing`` () =
     let pathsInHistory = result.PathSort |> Map.toSeq |> Seq.map fst
 
     // Assert
-    pathsInHistory |> shouldNotContain pathKey
+    pathsInHistory |> shouldNotContain path
 

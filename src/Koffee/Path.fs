@@ -149,6 +149,12 @@ type Path private (path: string) =
     member this.IsNetHost =
         this.IsNetPath && path.Length > 2 && not (path.Substring(2).Contains(@"\"))
 
+    interface IComparable with
+        member this.CompareTo other =
+            match other with
+            | :? Path as p -> this.Value.CompareTo p.Value
+            | _ -> 0
+
     override this.Equals other =
         match other with
         | :? Path as p -> this.Value |> String.equalsIgnoreCase p.Value

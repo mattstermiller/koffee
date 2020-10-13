@@ -216,7 +216,7 @@ type History = {
     Paths: Path list
     Searches: (string * bool * bool) list
     NetHosts: string list
-    PathSort: Map<string, PathSort>
+    PathSort: Map<Path, PathSort>
 }
 with
     static member private pushDistinct max list item =
@@ -240,12 +240,11 @@ with
     static member private omitPathSortFromHistory sort =
         sort.Sort = Name && not sort.Descending
 
-    member this.WithPathSort (path: Path) sort =
-        let key = path.Format Windows
+    member this.WithPathSort path sort =
         if History.omitPathSortFromHistory sort then
-            { this with PathSort = this.PathSort.Remove key }
+            { this with PathSort = this.PathSort.Remove path }
         else
-            { this with PathSort = this.PathSort.Add(key, sort) }
+            { this with PathSort = this.PathSort.Add(path, sort) }
 
     static member MaxPaths = 500
     static member MaxSearches = 50

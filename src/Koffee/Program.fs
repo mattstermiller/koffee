@@ -7,19 +7,6 @@ open ProgramOptions
 open Acadian.FSharp
 open Koffee
 
-/// if json config file does not exist, try to load and convert old yaml file
-let loadOldConfig () =
-    if not <| File.Exists(ConfigFile.FilePath) then
-        let getPathType (path: Path) =
-            let wpath = path.Format Windows
-            try
-                if FileInfo(wpath).Exists then Some File
-                else if DirectoryInfo(wpath).Exists then Some Folder
-                else None
-            with _ -> None
-        ConfigYaml.LoadAndConvert getPathType
-    else None
-
 let logError isCrash (e: exn) =
     let typ = if isCrash then "crash" else "error"
     let timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
@@ -43,9 +30,8 @@ let run args =
     let dir = Path.KoffeeData.Format Windows
     if not (Directory.Exists dir) then
         Directory.CreateDirectory dir |> ignore
-    let defaultConfig, defaultHistory = loadOldConfig () |? (Config.Default, History.Default)
-    use config = new ConfigFile(defaultConfig)
-    use history = new HistoryFile(defaultHistory)
+    use config = new ConfigFile(Config.Default)
+    use history = new HistoryFile(History.Default)
     let fileSys = FileSystem()
     let os = OperatingSystem()
     let openSettings config = Settings.View().ShowDialog(Settings.start config).Config

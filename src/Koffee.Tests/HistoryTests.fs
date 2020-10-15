@@ -9,6 +9,9 @@ let parseForTest pathStr =
     | Some p -> p
     | None -> failwithf "Test path string '%s' does not parse" pathStr
 
+let seqSortPathsInHistory history =
+    history.PathSort |> Map.toSeq |> Seq.map fst
+
 [<Test>]
 let ``History can be serialized and deserialized`` () =
     let history =
@@ -46,9 +49,9 @@ let ``With new PathSort it adds it to the list`` () =
 
     // Act
     let result = history.WithPathSort path sort
-    let pathsInHistory = result.PathSort |> Map.toSeq |> Seq.map fst
 
     // Assert
+    let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldContain path
 
 [<Test>]
@@ -58,17 +61,15 @@ let ``With same path in PathSort it overrides the existing`` () =
     let sort = { Sort = SortField.Modified; Descending = true }
     let history = {
         History.Default with
-            PathSort = Map.ofList [
-                (path, sort)
-            ]
+            PathSort = Map.empty |> Map.add path sort
     }
     let newSort = { Sort = SortField.Size; Descending = true }
 
     // Act
     let result = history.WithPathSort path newSort
-    let resultSort = result.PathSort.[path]
 
     // Assert
+    let resultSort = result.PathSort.[path]
     resultSort |> shouldEqual newSort
     resultSort |> shouldNotEqual sort
 
@@ -81,9 +82,9 @@ let ``With default sort it omits it`` () =
 
     // Act
     let result = history.WithPathSort path sort
-    let pathsInHistory = result.PathSort |> Map.toSeq |> Seq.map fst
 
     // Assert
+    let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldNotContain path
 
 [<Test>]
@@ -93,16 +94,40 @@ let ``With default sort it removes the existing`` () =
     let sort = { PathSort.Default with Descending = not PathSort.Default.Descending }
     let history = {
         History.Default with
-            PathSort = Map.ofList [
-                (path, sort)
-            ]
+            PathSort = Map.empty |> Map.add path sort
     }
     let newSort = PathSort.Default
 
     // Act
     let result = history.WithPathSort path newSort
-    let pathsInHistory = result.PathSort |> Map.toSeq |> Seq.map fst
 
     // Assert
+    let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldNotContain path
+
+let ``Get stored sort from find`` () =
+    // Arrange
+    let path = parseForTest "C:\Some\Path"
+    let sort = { PathSort.Default with Descending = not PathSort.Default.Descending }
+    let history = {
+        History.Default with
+            PathSort = Map.empty |> Map.add path sort
+    }
+
+    // Act
+    let result = history.FindSortOrDefault path
+
+    // Assert
+    result |> shouldNotEqual PathSort.Default
+
+let ``Get default sort when none stored`` () =
+    // Arrange
+    let path = parseForTest "C:\Some\Path"
+    let history = History.Default
+
+    // Act
+    let result = history.FindSortOrDefault path
+
+    // Assert
+    result |> shouldEqual PathSort.Default
 

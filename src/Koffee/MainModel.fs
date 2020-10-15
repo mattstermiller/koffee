@@ -214,6 +214,13 @@ type PathSort = {
 with
     static member Default = { Sort = Name; Descending = false }
 
+    static member ofTuple (sort, descending) = {
+        Sort = sort
+        Descending = descending
+    }
+
+    static member toTuple sort = (sort.Sort, sort.Descending)
+
 type History = {
     Paths: Path list
     Searches: (string * bool * bool) list
@@ -247,6 +254,11 @@ with
             { this with PathSort = this.PathSort.Remove path }
         else
             { this with PathSort = this.PathSort.Add(path, sort) }
+
+    member this.FindSortOrDefault path =
+        match this.PathSort.TryFind path with
+        | Some sort -> sort
+        | None -> PathSort.Default
 
     static member MaxPaths = 500
     static member MaxSearches = 50

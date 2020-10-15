@@ -205,6 +205,7 @@ module Nav =
             Sort = Some (field, desc)
             Items = model.Items |> SortField.SortByTypeThen (field, desc)
             Status = Some <| MainStatus.sort field desc
+            History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
         } |> select selectType
 
     let toggleHidden fsReader (model: MainModel) = asyncSeqResult {

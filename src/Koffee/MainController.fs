@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -43,6 +43,22 @@ let clearSearchProps model =
         Progress = None
     }
 
+let private itemsInDirOrNetHost (fsReader: IFileSystemReader) path history =
+    if path = Path.Network then
+        history.NetHosts
+        |> List.map (sprintf @"\\%s")
+        |> List.choose Path.Parse
+        |> List.map (fun path -> Item.Basic path path.Name NetHost)
+        |> Ok
+    else
+        fsReader.GetItems path |> actionError "open path"
+
+let private historyWithPathAndItsNetHost (history: History) path =
+    let hist = history.WithPath path
+    match path.NetHost with
+    | Some host -> hist.WithNetHost host
+    | None -> hist
+
 module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
@@ -67,20 +83,8 @@ module Nav =
         { model with Items = items } |> select selectType
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-        let! directory =
-            if path = Path.Network then
-                model.History.NetHosts
-                |> List.map (sprintf @"\\%s")
-                |> List.choose Path.Parse
-                |> List.map (fun path -> Item.Basic path path.Name NetHost)
-                |> Ok
-            else
-                fsReader.GetItems path |> actionError "open path"
-        let history =
-            let hist = model.History.WithPath path
-            match path.NetHost with
-            | Some host -> hist.WithNetHost host
-            | None -> hist
+        let! directory = itemsInDirOrNetHost fsReader path model.History
+        let history = historyWithPathAndItsNetHost model.History path
         return
             { model.WithLocation path with
                 Directory = directory

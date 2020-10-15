@@ -59,6 +59,15 @@ let private historyWithPathAndItsNetHost (history: History) path =
     | Some host -> hist.WithNetHost host
     | None -> hist
 
+let private withBackStackedLocation model path =
+    if path <> model.Location then
+        { model.WithLocation path with
+            BackStack = (model.Location, model.Cursor) :: model.BackStack
+            ForwardStack = []
+            Cursor = 0
+        }
+    else model
+
 module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
@@ -86,20 +95,12 @@ module Nav =
         let! directory = itemsInDirOrNetHost fsReader path model.History
         let history = historyWithPathAndItsNetHost model.History path
         return
-            { model.WithLocation path with
+            { withBackStackedLocation model path with
                 Directory = directory
                 History = history
                 Status = None
             } |> clearSearchProps
-              |> (fun m ->
-                if path <> model.Location then
-                    { m with
-                        BackStack = (model.Location, model.Cursor) :: model.BackStack
-                        ForwardStack = []
-                        Cursor = 0
-                    }
-                else m
-            ) |> listDirectory select
+              |> listDirectory select
     }
 
     let openUserPath (fsReader: IFileSystemReader) pathStr model =

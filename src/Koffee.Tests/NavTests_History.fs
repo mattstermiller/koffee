@@ -22,9 +22,8 @@ let ``Sorting changes stored sort`` () =
     let model =
         { MainModel.Default with 
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
-            Location = location
             History = historyWithPathSort location originalPathSort
-        }
+        }.WithLocation location
 
     // Act
     let resultModel = Nav.sortList Name model
@@ -42,9 +41,8 @@ let ``Sorting on different folder leaves stored sort unchanged`` () =
     let model =
         { MainModel.Default with 
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
-            Location = modelLocation
             History = historyWithPathSort pathSortLocation originalPathSort
-        }
+        }.WithLocation modelLocation
 
     // Act
     let resultModel = Nav.sortList Name model
@@ -62,9 +60,8 @@ let ``Toggling sort into default removes it from history`` () =
     let model =
         { MainModel.Default with 
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
-            Location = location
             History = historyWithPathSort location originalPathSort
-        }
+        }.WithLocation location
 
     // Act
     let resultModel = Nav.sortList PathSort.Default.Sort model
@@ -97,9 +94,8 @@ let ``Use stored sort on path change`` () =
     let model =
         { MainModel.Default with 
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
-            Location = location
             History = historyWithPathSort storedLocation storedPathSort
-        }
+        }.WithLocation location
     let fs = createFs()
 
     // Act
@@ -119,9 +115,8 @@ let ``Use default sort on path change when no stored sort`` () =
     let model =
         { MainModel.Default with 
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
-            Location = location
             History = History.Default
-        }
+        }.WithLocation location
     let fs = createFs()
 
     // Act

@@ -1,4 +1,4 @@
-﻿module Koffee.PathTests
+module Koffee.PathTests
 
 open NUnit.Framework
 open FsUnitTyped
@@ -144,20 +144,20 @@ let testComparability aPath bPath expected =
     bComp.CompareTo aComp |> shouldEqual -expected
 
 [<TestCase(@"C:\Sample", @"C:\Sample", 0)>]
-[<TestCase(@"C:\Sample1", @"C:\Sample2", -1)>]
 [<TestCase(@"C:\Sample2", @"C:\Sample1", 1)>]
+[<TestCase(@"C:\SAMPLE", @"C:\sample", 0)>]
 let ``Compare Windows paths`` aPath bPath expected =
     testComparability aPath bPath expected
 
 [<TestCase(@"/c/Sample", @"/c/Sample", 0)>]
-[<TestCase(@"/c/Sample1", @"/c/Sample2", -1)>]
 [<TestCase(@"/c/Sample2", @"/c/Sample1", 1)>]
+[<TestCase(@"/c/SAMPLE", @"/c/sample", 0)>]
 let ``Compare Unix paths`` aPath bPath expected =
     testComparability aPath bPath expected
 
 [<TestCase(@"C:/Sample", @"/c/Sample", 0)>]
-[<TestCase(@"C:/Sample1", @"/c/Sample2", -1)>]
 [<TestCase(@"C:/Sample2", @"/c/Sample1", 1)>]
+[<TestCase(@"C:/SAMPLE", @"/c/sample", 0)>]
 let ``Compare Windows and Unix paths`` aPath bPath expected =
     testComparability aPath bPath expected
 

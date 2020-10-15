@@ -1,4 +1,4 @@
-﻿module Koffee.HistoryTests
+module Koffee.HistoryTests
 
 open NUnit.Framework
 open FsUnitTyped
@@ -73,10 +73,10 @@ let ``With same path in PathSort it overrides the existing`` () =
     resultSort |> shouldNotEqual sort
 
 [<Test>]
-let ``With ascending name sort it omits it`` () =
+let ``With default sort it omits it`` () =
     // Arrange
     let path = parseForTest "C:\Some\Path"
-    let sort = { Sort = SortField.Name; Descending = false }
+    let sort = PathSort.Default
     let history = History.Default
 
     // Act
@@ -87,17 +87,17 @@ let ``With ascending name sort it omits it`` () =
     pathsInHistory |> shouldNotContain path
 
 [<Test>]
-let ``With ascending name sort it removes the existing`` () =
+let ``With default sort it removes the existing`` () =
     // Arrange
     let path = parseForTest "C:\Some\Path"
-    let sort = { Sort = SortField.Modified; Descending = true }
+    let sort = { PathSort.Default with Descending = not PathSort.Default.Descending }
     let history = {
         History.Default with
             PathSort = Map.ofList [
                 (path, sort)
             ]
     }
-    let newSort = { Sort = SortField.Name; Descending = false }
+    let newSort = PathSort.Default
 
     // Act
     let result = history.WithPathSort path newSort

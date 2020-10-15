@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows.Input
@@ -211,6 +211,8 @@ type PathSort = {
     Sort: SortField
     Descending: bool
 }
+with
+    static member Default = { Sort = Name; Descending = false }
 
 type History = {
     Paths: Path list
@@ -238,7 +240,7 @@ with
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
     static member private omitPathSortFromHistory sort =
-        sort.Sort = Name && not sort.Descending
+        sort = PathSort.Default
 
     member this.WithPathSort path sort =
         if History.omitPathSortFromHistory sort then

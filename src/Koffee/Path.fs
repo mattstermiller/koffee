@@ -165,7 +165,7 @@ type Path private (path: string) =
         | :? Path as p -> this.Normalized |> String.equalsIgnoreCase p.Normalized
         | _ -> false
 
-    override this.GetHashCode() = this.Normalized.GetHashCode()
+    override this.GetHashCode() = this.Normalized.ToLower().GetHashCode()
 
     // for debugging
     override this.ToString() = this.Format Windows

@@ -4,11 +4,6 @@ open FsUnitTyped
 open Koffee.MainLogic
 open NUnit.Framework
 
-let newPath pathStr =
-    match Path.Parse pathStr with
-    | Some p -> p
-    | None -> failwithf "Test path string '%s' does not parse" pathStr
-
 let historyWithPathSort location sort =
     { History.Default with 
         PathSort = Map.empty |> Map.add location sort
@@ -17,7 +12,7 @@ let historyWithPathSort location sort =
 [<Test>]
 let ``Sorting changes stored sort`` () =
     // Arrange
-    let location = newPath "C:/Sample"
+    let location = createPath "C:/Sample"
     let originalPathSort = { Sort = Modified; Descending = true }
     let model =
         { MainModel.Default with 
@@ -35,8 +30,8 @@ let ``Sorting changes stored sort`` () =
 [<Test>]
 let ``Sorting on different folder leaves stored sort unchanged`` () =
     // Arrange
-    let modelLocation = newPath "C:/Sample2"
-    let pathSortLocation = newPath "C:/Sample1"
+    let modelLocation = createPath "C:/Sample2"
+    let pathSortLocation = createPath "C:/Sample1"
     let originalPathSort = { Sort = Modified; Descending = true }
     let model =
         { MainModel.Default with 
@@ -55,7 +50,7 @@ let ``Sorting on different folder leaves stored sort unchanged`` () =
 let ``Toggling sort into default removes it from history`` () =
     // Arrange
     let expected = None
-    let location = newPath "C:/Sample"
+    let location = createPath "C:/Sample"
     let originalPathSort = { PathSort.Default with Descending = not PathSort.Default.Descending }
     let model =
         { MainModel.Default with 
@@ -86,9 +81,9 @@ let expectOk onError = function
 [<Test>]
 let ``Use stored sort on path change`` () =
     // Arrange
-    let location = newPath "/c/"
+    let location = createPath "/c/"
     let originalPathSort = PathSort.Default
-    let storedLocation = newPath "/c/programs"
+    let storedLocation = createPath "/c/programs"
     let storedPathSort = { Sort = Modified; Descending = true }
     let expected = (storedPathSort.Sort, storedPathSort.Descending)
     let model =
@@ -109,8 +104,8 @@ let ``Use stored sort on path change`` () =
 let ``Use default sort on path change when no stored sort`` () =
     // Arrange
     let expected = (PathSort.Default.Sort, PathSort.Default.Descending)
-    let location = newPath "/c/"
-    let newLocation = newPath "/c/programs"
+    let location = createPath "/c/"
+    let newLocation = createPath "/c/programs"
     let originalPathSort = PathSort.Default
     let model =
         { MainModel.Default with 

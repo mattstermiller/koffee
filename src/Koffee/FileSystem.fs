@@ -192,7 +192,7 @@ type FileSystem() =
             let rec moveDir sameVolume source dest =
                 if not sameVolume || Directory.Exists dest then
                     // if dest directory exists, merge contents
-                    let moveItem moveFunc sourceItem =
+                    let moveItem moveFunc (sourceItem: string) =
                         let destPath = Path.Combine(dest, Path.GetFileName(sourceItem))
                         moveFunc sourceItem destPath
                     Directory.EnumerateFiles(source) |> Seq.iter (moveItem moveFile)
@@ -209,7 +209,7 @@ type FileSystem() =
             else
                 return! tryResult <| fun () ->
                     if itemType = Folder then
-                        let getVolume p = p |> Path.GetPathRoot |> String.trimEnd [|'\\'|]
+                        let getVolume (p: string) = p |> Path.GetPathRoot |> String.trimEnd [|'\\'|]
                         let sameVolume = String.equalsIgnoreCase (getVolume source) (getVolume dest)
                         moveDir sameVolume source dest
                     else

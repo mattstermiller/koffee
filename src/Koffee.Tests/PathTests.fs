@@ -74,7 +74,7 @@ let ``Parse returns path for valid network paths`` input =
 [<TestCase(@"~\", "")>]
 [<TestCase(@"~\test", @"\test")>]
 let ``Parse substitutes tilde for user directory`` input expectedSuffix =
-    let expectedPath = Path.UserDirectory + expectedSuffix 
+    let expectedPath = Path.UserDirectory + expectedSuffix
     input |> Path.Parse |> shouldParseTo expectedPath
 
 [<TestCase("c")>]
@@ -85,7 +85,6 @@ let ``Parse substitutes tilde for user directory`` input expectedSuffix =
 [<TestCase("/c:/test")>]
 [<TestCase("/c/file?")>]
 [<TestCase("/c/file*")>]
-[<TestCase("/c/file<")>]
 [<TestCase(@"\\")>]
 [<TestCase("//")>]
 [<TestCase(@"\\serv er")>]

@@ -3,21 +3,20 @@ framework auto-detect
 storage: none
 
 nuget FSharp.Core ~> 4.5
-nuget VinylUI ~> 2.3
-nuget System.Reactive ~> 3.1
-nuget System.Reactive.PlatformServices ~> 3.1
-nuget System.Reactive.Windows.Threading ~> 3.1
-nuget System.Reactive.Linq ~> 3.1
-nuget System.Reactive.Core ~> 3.1
-nuget System.Reactive.Interfaces ~> 3.1
+nuget VinylUI ~> 3.0
+nuget System.Reactive ~> 4.4
+nuget System.Reactive.PlatformServices ~> 4.4
+nuget System.Reactive.Windows.Threading ~> 4.4
+nuget System.Reactive.Linq ~> 4.4
+nuget System.Reactive.Core ~> 4.4
+nuget System.Reactive.Interfaces ~> 4.4
 nuget System.Management
 nuget Microsoft.VisualBasic
-nuget Acadian.FSharp ~> 1.2.1
+nuget Acadian.FSharp ~> 1.2.6
 nuget Newtonsoft.Json
 
-nuget FsUnit ~> 2.3.2
+nuget FsUnit ~> 4.0
 nuget CompareNETObjects content:none
-nuget NUnit
 nuget NUnit3TestAdapter
 nuget Microsoft.NET.Test.Sdk
 

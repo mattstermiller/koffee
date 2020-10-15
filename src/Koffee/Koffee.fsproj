@@ -2,9 +2,8 @@
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net451</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
     <Win32Resource>.\resources\koffee.res</Win32Resource>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <WarningsAsErrors>25,20</WarningsAsErrors>

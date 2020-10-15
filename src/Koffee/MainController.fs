@@ -99,6 +99,7 @@ module Nav =
                 Directory = directory
                 History = history
                 Status = None
+                Sort = Some (history.FindSortOrDefault path |> PathSort.toTuple)
             } |> clearSearchProps
               |> listDirectory select
     }

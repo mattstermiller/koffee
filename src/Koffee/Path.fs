@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.ComponentModel
@@ -154,12 +154,12 @@ type Path private (path: string) =
     interface IComparable with
         member this.CompareTo other =
             match other with
-            | :? Path as p -> this.Value.CompareTo p.Value
+            | :? Path as p -> (this.Format Windows).CompareTo (p.Format Windows)
             | _ -> 0
 
     override this.Equals other =
         match other with
-        | :? Path as p -> this.Value |> String.equalsIgnoreCase p.Value
+        | :? Path as p -> this.Format Windows |> String.equalsIgnoreCase (p.Format Windows)
         | _ -> false
 
     override this.GetHashCode() = this.Value.ToLower().GetHashCode()

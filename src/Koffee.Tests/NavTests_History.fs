@@ -15,7 +15,7 @@ let historyWithPathSort location sort =
     }
 
 [<Test>]
-let ``Sorting changes folders history`` () =
+let ``Sorting changes stored sort`` () =
     // Arrange
     let location = newPath "C:/Sample"
     let originalPathSort = { Sort = Modified; Descending = true }
@@ -34,7 +34,7 @@ let ``Sorting changes folders history`` () =
     resultSort |> shouldNotEqual (Some originalPathSort)
 
 [<Test>]
-let ``Sorting on different folder leaves it unchanged`` () =
+let ``Sorting on different folder leaves stored sort unchanged`` () =
     // Arrange
     let modelLocation = newPath "C:/Sample2"
     let pathSortLocation = newPath "C:/Sample1"

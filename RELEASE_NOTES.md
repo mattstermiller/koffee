@@ -3,6 +3,7 @@
 ### 0.6.0  Multi-select (WIP)
 - Changes UI to use new dark theme
 - Adds "Open File and Exit" command
+- #92 Adds per-folder storage of sort settings (Thanks @jilleJr)
 - Changes Escape key in path box to always switch focus back to item grid and reset path box to current location
 - Changes Tab key in path box to always move cursor to end
 - Changes path history limit from 200 to 500

@@ -18,6 +18,7 @@
     <Compile Include="PathTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />
     <Compile Include="ConfigTests.fs" />
+    <Compile Include="HistoryTests.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
     <Compile Include="MainLogicTests_OpenPath.fs" />
     <Compile Include="MainLogicTests_SuggestPaths.fs" />
@@ -26,6 +27,7 @@
     <Compile Include="MainLogicTests_CreateRename.fs" />
     <Compile Include="MainLogicTests_Delete.fs" />
     <Compile Include="MainLogicTests_MoveCopy.fs" />
+    <Compile Include="NavTests_History.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Koffee\Koffee.fsproj" />

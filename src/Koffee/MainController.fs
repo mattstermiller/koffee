@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -43,6 +43,16 @@ let clearSearchProps model =
         Progress = None
     }
 
+let private itemsInDirOrNetHost (fsReader: IFileSystemReader) path history =
+    if path = Path.Network then
+        history.NetHosts
+        |> List.map (sprintf @"\\%s")
+        |> List.choose Path.Parse
+        |> List.map (fun path -> Item.Basic path path.Name NetHost)
+        |> Ok
+    else
+        fsReader.GetItems path |> actionError "open path"
+
 module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
@@ -67,35 +77,16 @@ module Nav =
         { model with Items = items } |> select selectType
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-        let! directory =
-            if path = Path.Network then
-                model.History.NetHosts
-                |> List.map (sprintf @"\\%s")
-                |> List.choose Path.Parse
-                |> List.map (fun path -> Item.Basic path path.Name NetHost)
-                |> Ok
-            else
-                fsReader.GetItems path |> actionError "open path"
-        let history =
-            let hist = model.History.WithPath path
-            match path.NetHost with
-            | Some host -> hist.WithNetHost host
-            | None -> hist
+        let! directory = itemsInDirOrNetHost fsReader path model.History
         return
-            { model.WithLocation path with
+            { model.WithBackStackedLocation path with
                 Directory = directory
-                History = history
+                History = model.History.WithPathAndNetHost path
                 Status = None
+                Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
+                Cursor = 0
             } |> clearSearchProps
-              |> (fun m ->
-                if path <> model.Location then
-                    { m with
-                        BackStack = (model.Location, model.Cursor) :: model.BackStack
-                        ForwardStack = []
-                        Cursor = 0
-                    }
-                else m
-            ) |> listDirectory select
+              |> listDirectory select
     }
 
     let openUserPath (fsReader: IFileSystemReader) pathStr model =
@@ -199,6 +190,7 @@ module Nav =
             Sort = Some (field, desc)
             Items = model.Items |> SortField.SortByTypeThen (field, desc)
             Status = Some <| MainStatus.sort field desc
+            History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
         } |> select selectType
 
     let toggleHidden fsReader (model: MainModel) = asyncSeqResult {

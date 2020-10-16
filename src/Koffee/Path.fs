@@ -1,6 +1,7 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
+open System.ComponentModel
 open System.Text.RegularExpressions
 open Acadian.FSharp
 
@@ -15,6 +16,7 @@ type PathFormat =
         | Windows -> @"\"
         | Unix -> "/"
 
+[<TypeConverter(typeof<PathToStringTypeConverter>)>]
 type Path private (path: string) =
     static let root = ""
     static let rootWindows = "Drives"
@@ -149,6 +151,13 @@ type Path private (path: string) =
     member this.IsNetHost =
         this.IsNetPath && path.Length > 2 && not (path.Substring(2).Contains(@"\"))
 
+    // needed to use Path as Map key
+    interface IComparable with
+        member this.CompareTo other =
+            match other with
+            | :? Path as p -> String.Compare(this.Value, p.Value, ignoreCase=true)
+            | _ -> 0
+
     override this.Equals other =
         match other with
         | :? Path as p -> this.Value |> String.equalsIgnoreCase p.Value
@@ -158,3 +167,20 @@ type Path private (path: string) =
 
     // for debugging
     override this.ToString() = this.Format Windows
+
+// allows using Path as the key of Map/dictionary in Json.NET
+and private PathToStringTypeConverter() =
+    inherit TypeConverter()
+    override _.CanConvertFrom (_, typ) = typ = typeof<string>
+    override _.CanConvertTo (_, typ) = typ = typeof<string>
+
+    override _.ConvertTo(context, culture, value, destinationType) =
+        if destinationType = typeof<string> then
+            (value :?> Path).Format Windows |> box
+        else
+            base.ConvertTo(context, culture, value, destinationType)
+
+    override _.ConvertFrom(context, culture, value) =
+        match value with
+        | :? string as stringValue -> stringValue |> Path.Parse |> Option.get |> box
+        | _ -> base.ConvertFrom(context, culture, value)

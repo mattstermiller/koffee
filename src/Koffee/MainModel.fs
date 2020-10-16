@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows.Input
@@ -206,10 +206,26 @@ with
         Bookmarks = []
     }
 
+[<Struct>]
+type PathSort = {
+    Sort: SortField
+    Descending: bool
+}
+with
+    static member Default = { Sort = Name; Descending = false }
+
+    static member ofTuple (sort, descending) = {
+        Sort = sort
+        Descending = descending
+    }
+
+    static member toTuple sort = (sort.Sort, sort.Descending)
+
 type History = {
     Paths: Path list
     Searches: (string * bool * bool) list
     NetHosts: string list
+    PathSort: Map<Path, PathSort>
 }
 with
     static member private pushDistinct max list item =
@@ -230,6 +246,27 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
+    member this.WithPathAndNetHost path =
+        let hist = this.WithPath path
+        match path.NetHost with
+        | Some host -> hist.WithNetHost host
+        | None -> hist
+
+
+    static member private omitPathSortFromHistory sort =
+        sort = PathSort.Default
+
+    member this.WithPathSort path sort =
+        if History.omitPathSortFromHistory sort then
+            { this with PathSort = this.PathSort.Remove path }
+        else
+            { this with PathSort = this.PathSort.Add(path, sort) }
+
+    member this.FindSortOrDefault path =
+        match this.PathSort.TryFind path with
+        | Some sort -> sort
+        | None -> PathSort.Default
+
     static member MaxPaths = 500
     static member MaxSearches = 50
 
@@ -237,6 +274,7 @@ with
         Paths = []
         Searches = []
         NetHosts = []
+        PathSort = Map.empty
     }
 
 type CancelToken() =
@@ -305,6 +343,14 @@ type MainModel = {
         { this with Cursor = index |> this.ClampCursor }
 
     member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
+
+    member this.WithBackStackedLocation path =
+        if path <> this.Location then
+            { this.WithLocation path with
+                BackStack = (this.Location, this.Cursor) :: this.BackStack
+                ForwardStack = []
+            }
+        else this
 
     static member Default = {
         Location = Path.Root

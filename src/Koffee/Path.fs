@@ -85,8 +85,6 @@ type Path private (path: string) =
 
     member private this.Value = path
 
-    member private this.Normalized = this.Format Windows
-
     member this.Format fmt =
         match fmt with
         | Windows ->
@@ -157,15 +155,15 @@ type Path private (path: string) =
     interface IComparable with
         member this.CompareTo other =
             match other with
-            | :? Path as p -> String.Compare(this.Normalized, p.Normalized, true)
+            | :? Path as p -> String.Compare(this.Value, p.Value, ignoreCase=true)
             | _ -> 0
 
     override this.Equals other =
         match other with
-        | :? Path as p -> this.Normalized |> String.equalsIgnoreCase p.Normalized
+        | :? Path as p -> this.Value |> String.equalsIgnoreCase p.Value
         | _ -> false
 
-    override this.GetHashCode() = this.Normalized.ToLower().GetHashCode()
+    override this.GetHashCode() = this.Value.ToLower().GetHashCode()
 
     // for debugging
     override this.ToString() = this.Format Windows

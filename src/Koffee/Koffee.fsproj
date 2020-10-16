@@ -8,6 +8,7 @@
     <Win32Resource>.\resources\koffee.res</Win32Resource>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <WarningsAsErrors>25,20</WarningsAsErrors>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />

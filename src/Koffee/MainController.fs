@@ -53,12 +53,6 @@ let private itemsInDirOrNetHost (fsReader: IFileSystemReader) path history =
     else
         fsReader.GetItems path |> actionError "open path"
 
-let private historyWithPathAndItsNetHost (history: History) path =
-    let hist = history.WithPath path
-    match path.NetHost with
-    | Some host -> hist.WithNetHost host
-    | None -> hist
-
 let private withBackStackedLocation model path =
     if path <> model.Location then
         { model.WithLocation path with

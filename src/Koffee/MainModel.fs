@@ -246,6 +246,13 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
+    member this.WithPathAndNetHost path =
+        let hist = this.WithPath path
+        match path.NetHost with
+        | Some host -> hist.WithNetHost host
+        | None -> hist
+
+
     static member private omitPathSortFromHistory sort =
         sort = PathSort.Default
 

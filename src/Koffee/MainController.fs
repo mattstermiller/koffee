@@ -53,15 +53,6 @@ let private itemsInDirOrNetHost (fsReader: IFileSystemReader) path history =
     else
         fsReader.GetItems path |> actionError "open path"
 
-let private withBackStackedLocation model path =
-    if path <> model.Location then
-        { model.WithLocation path with
-            BackStack = (model.Location, model.Cursor) :: model.BackStack
-            ForwardStack = []
-            Cursor = 0
-        }
-    else model
-
 module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
@@ -87,13 +78,12 @@ module Nav =
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
         let! directory = itemsInDirOrNetHost fsReader path model.History
-        let history = historyWithPathAndItsNetHost model.History path
         return
-            { withBackStackedLocation model path with
+            { model.WithBackStackedLocation path with
                 Directory = directory
-                History = history
+                History = model.History.WithPathAndNetHost path
                 Status = None
-                Sort = Some (history.FindSortOrDefault path |> PathSort.toTuple)
+                Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
             } |> clearSearchProps
               |> listDirectory select
     }

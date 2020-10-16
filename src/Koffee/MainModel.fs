@@ -344,6 +344,15 @@ type MainModel = {
 
     member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
 
+    member this.WithBackStackedLocation path =
+        if path <> this.Location then
+            { this.WithLocation path with
+                BackStack = (this.Location, this.Cursor) :: this.BackStack
+                ForwardStack = []
+                Cursor = 0
+            }
+        else this
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows

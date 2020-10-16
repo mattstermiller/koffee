@@ -137,27 +137,11 @@ let ``TypeConverter from string`` () =
     :?> Path
     |> shouldEqual expected
 
-let testComparability aPath bPath expected =
+[<TestCase(@"C:\Sample", @"C:\Sample", 0)>]
+[<TestCase(@"C:\SAMPLE", @"C:\sample", 0)>]
+[<TestCase(@"C:\Sample2", @"C:\Sample1", 1)>]
+let ``Compare Windows paths`` aPath bPath expected =
     let aComp = parseForTest aPath :> IComparable
     let bComp = parseForTest bPath :> IComparable
     aComp.CompareTo bComp |> shouldEqual expected
     bComp.CompareTo aComp |> shouldEqual -expected
-
-[<TestCase(@"C:\Sample", @"C:\Sample", 0)>]
-[<TestCase(@"C:\Sample2", @"C:\Sample1", 1)>]
-[<TestCase(@"C:\SAMPLE", @"C:\sample", 0)>]
-let ``Compare Windows paths`` aPath bPath expected =
-    testComparability aPath bPath expected
-
-[<TestCase(@"/c/Sample", @"/c/Sample", 0)>]
-[<TestCase(@"/c/Sample2", @"/c/Sample1", 1)>]
-[<TestCase(@"/c/SAMPLE", @"/c/sample", 0)>]
-let ``Compare Unix paths`` aPath bPath expected =
-    testComparability aPath bPath expected
-
-[<TestCase(@"C:/Sample", @"/c/Sample", 0)>]
-[<TestCase(@"C:/Sample2", @"/c/Sample1", 1)>]
-[<TestCase(@"C:/SAMPLE", @"/c/sample", 0)>]
-let ``Compare Windows and Unix paths`` aPath bPath expected =
-    testComparability aPath bPath expected
-

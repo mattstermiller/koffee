@@ -74,10 +74,6 @@ let createFs () =
         file "readme.md"
     ]
 
-let expectOk onError = function
-    | Error _ -> failwith onError
-    | Ok result -> result
-
 [<Test>]
 let ``Use stored sort on path change`` () =
     // Arrange
@@ -97,7 +93,7 @@ let ``Use stored sort on path change`` () =
     let result = Nav.openPath fs storedLocation SelectNone model
 
     // Assert
-    let resultModel = expectOk "Failed to open path" result
+    let resultModel = assertOk result
     resultModel.Sort |> shouldEqual (Some expected)
 
 [<Test>]
@@ -118,6 +114,6 @@ let ``Use default sort on path change when no stored sort`` () =
     let result = Nav.openPath fs newLocation SelectNone model
 
     // Assert
-    let resultModel = expectOk "Failed to open path" result
+    let resultModel = assertOk result
     resultModel.Sort |> shouldEqual (Some expected)
 

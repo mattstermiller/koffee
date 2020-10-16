@@ -28,8 +28,8 @@ module Format =
         let scaleNames = ["B";"KB";"MB";"GB"]
         let scale level = pown 1024L level
         let scaledStr size level =
-            let scaled = if level > 0 then size / (scale level) else size
-            let fmt = if scaled < 10L && level > 0 then "0.0" else "0"
+            let scaled = if level > 0 then decimal size / decimal (scale level) else decimal size
+            let fmt = if scaled < 10.0m && level > 0 then "0.0" else "0"
             (String.format fmt scaled) + " " + scaleNames.[level]
         if size > scale 3 then scaledStr size 3
         else if size > scale 2 then scaledStr size 2

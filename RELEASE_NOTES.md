@@ -12,6 +12,7 @@
 - #83 Fixes renaming an item to update its sort position
 - #87 Fixes toggling hidden files not hiding selected item
 - #88 Fixes refreshing search results
+- Fixes file size decimal place always showing 0
 - Fixes undo/redo actions that throw error not being removed, blocking all other undo/redo actions
 - Fixes double ending slash in unix drive path formatting
 - Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.

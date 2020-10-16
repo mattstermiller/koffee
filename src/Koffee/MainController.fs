@@ -84,6 +84,7 @@ module Nav =
                 History = model.History.WithPathAndNetHost path
                 Status = None
                 Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
+                Cursor = 0
             } |> clearSearchProps
               |> listDirectory select
     }

@@ -349,7 +349,6 @@ type MainModel = {
             { this.WithLocation path with
                 BackStack = (this.Location, this.Cursor) :: this.BackStack
                 ForwardStack = []
-                Cursor = 0
             }
         else this
 

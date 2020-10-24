@@ -43,3 +43,15 @@ let ``Leaves unknown vars alone`` input =
     // Assert
     result |> shouldEqual input
 
+[<Test>]
+let ``Replaces environment variable %var% in string`` () =
+    // Arrange
+    let input = "Some %envvar% value"
+    let expected = "Some REPLACED value"
+    System.Environment.SetEnvironmentVariable("envvar", "REPLACED")
+
+    // Act
+    let result = Format.subEnvVars input
+
+    // Assert
+    result |> shouldEqual expected

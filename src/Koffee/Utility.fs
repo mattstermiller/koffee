@@ -1,4 +1,4 @@
-﻿[<AutoOpen>]
+[<AutoOpen>]
 module Utility
 
 open System
@@ -35,6 +35,28 @@ module Format =
         else if size > scale 2 then scaledStr size 2
         else if size > scale 1 then scaledStr size 1
         else scaledStr size 0
+
+    type ISubstitutionProvider =
+        abstract member getSubstitution : key:string -> string option
+
+    type EnvSubstitutionProvider() =
+        static member instance = new EnvSubstitutionProvider()
+
+        interface ISubstitutionProvider with
+            member _.getSubstitution key =
+                Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
+                |> Option.ofObj
+        
+    /// Substitutes variables in string with percent syntax.
+    /// Example input: "Hello %target%!"
+    /// Outputs: "Hello world!"
+    /// Where the "target" maps to "world"
+    let subVars (subs: ISubstitutionProvider) str =
+        str
+
+    /// Wrapper of subVars that uses EnvSubstitutionProvider
+    let subEnvVars str =
+        subVars EnvSubstitutionProvider.instance str
 
 module Observable =
     let throttle (seconds: float) (o: IObservable<_>) =

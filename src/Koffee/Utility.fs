@@ -54,16 +54,14 @@ module Format =
     /// Outputs: "Hello world!"
     /// Where the "target" maps to "world"
     let subVars (subs: ISubstitutionProvider) str =
-        let containsSub (str: string) =
+        let mayContainSubstitution (str: string) =
             str.IndexOf '%' <> -1
 
         let matchEval (m: Match) =
-            let value = subs.getSubstitution m.Groups.[1].Value
-            match value with
-            | Some sub -> sub
-            | None -> m.Value
+            subs.getSubstitution m.Groups.[1].Value
+            |> Option.defaultValue m.Value
 
-        if containsSub str then
+        if mayContainSubstitution str then
             subRegex.Replace(str, matchEval)
         else
             str

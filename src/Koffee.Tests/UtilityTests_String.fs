@@ -7,7 +7,7 @@ type FakeEnvVarProvider() =
     interface Format.ISubstitutionProvider with
         member _.getSubstitution key =
             match key with
-            | "var" -> Some "RELACED"
+            | "var" -> Some "REPLACED"
             | _ -> None
 
 let fakeEnvVarProvider = new FakeEnvVarProvider()

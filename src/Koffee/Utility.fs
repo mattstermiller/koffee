@@ -46,13 +46,27 @@ module Format =
             member _.getSubstitution key =
                 Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
                 |> Option.ofObj
-        
+
+    let private subRegex = new Regex(@"%([^%]+)%", RegexOptions.Compiled)
+
     /// Substitutes variables in string with percent syntax.
     /// Example input: "Hello %target%!"
     /// Outputs: "Hello world!"
     /// Where the "target" maps to "world"
     let subVars (subs: ISubstitutionProvider) str =
-        str
+        let containsSub (str: string) =
+            str.IndexOf '%' <> -1
+
+        let matchEval (m: Match) =
+            let value = subs.getSubstitution m.Groups.[1].Value
+            match value with
+            | Some sub -> sub
+            | None -> m.Value
+
+        if containsSub str then
+            subRegex.Replace(str, matchEval)
+        else
+            str
 
     /// Wrapper of subVars that uses EnvSubstitutionProvider
     let subEnvVars str =

@@ -1,4 +1,4 @@
-module Koffee.UtilityTests_String
+module Koffee.UtilityTests_Format
 
 open NUnit.Framework
 open FsUnitTyped

@@ -44,7 +44,7 @@ let ``Leaves unknown vars alone`` input =
     result |> shouldEqual input
 
 [<Test>]
-let ``Replaces environment variable %var% in string`` () =
+let ``Replaces %envvar% in string`` () =
     // Arrange
     let input = "Some %envvar% value"
     let expected = "Some REPLACED value"

@@ -9,12 +9,12 @@ let private subRegex = new Regex(@"%([^%]*)%", RegexOptions.Compiled)
 /// Example input: "Hello %target%!"
 /// Outputs: "Hello world!"
 /// (where "target" variable is set to "world")
-let subEnvVars (subs: IOperatingSystem) str =
+let subEnvVars (os: IOperatingSystem) str =
     let mayContainSubstitution (str: string) =
         str.IndexOf '%' <> -1
 
     let matchEval (m: Match) =
-        subs.GetEnvironmentVariable m.Groups.[1].Value
+        os.GetEnvironmentVariable m.Groups.[1].Value
         |> Option.defaultValue m.Value
 
     if mayContainSubstitution str then

@@ -28,7 +28,7 @@
     <Compile Include="MainLogicTests_Delete.fs" />
     <Compile Include="MainLogicTests_MoveCopy.fs" />
     <Compile Include="NavTests_History.fs" />
-    <Compile Include="EnvUtilityTests.fs" />
+    <Compile Include="OsUtilityTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Koffee\Koffee.fsproj" />

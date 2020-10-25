@@ -1,4 +1,4 @@
-module Koffee.EnvUtility
+module Koffee.OsUtility
 
 open System.Text.RegularExpressions
 

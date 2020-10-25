@@ -1,4 +1,4 @@
-module Koffee.EnvUtilityTests
+module Koffee.OsUtilityTests
 
 open NUnit.Framework
 open FsUnitTyped

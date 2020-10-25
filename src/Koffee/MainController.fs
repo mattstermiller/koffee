@@ -101,7 +101,7 @@ module Nav =
         | None -> Error <| InvalidPath pathStr
 
     let openInputPath fsReader os (evtHandler: EvtHandler) model = result {
-        let pathStr = EnvUtility.subEnvVars os model.LocationInput
+        let pathStr = OsUtility.subEnvVars os model.LocationInput
         let! model = openUserPath fsReader pathStr model
         evtHandler.Handle ()
         return model

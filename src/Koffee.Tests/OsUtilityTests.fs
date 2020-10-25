@@ -12,7 +12,7 @@ type FakeEnvVarsOperatingSystem() =
             | _ -> None
 
 let fakeEnvVarsOperatingSystem = new FakeEnvVarsOperatingSystem()
-let subFakeVars = EnvUtility.subEnvVars fakeEnvVarsOperatingSystem
+let subFakeVars = OsUtility.subEnvVars fakeEnvVarsOperatingSystem
 
 [<TestCase("Some %var% value", "Some REPLACED value")>]
 [<TestCase("Some %var%var% value", "Some REPLACEDvar% value")>]
@@ -57,7 +57,7 @@ let ``Replaces %envvar% in string`` () =
     System.Environment.SetEnvironmentVariable("envvar", "REPLACED")
 
     // Act
-    let result = EnvUtility.subEnvVars os input
+    let result = OsUtility.subEnvVars os input
 
     // Assert
     result |> shouldEqual expected

@@ -26,6 +26,7 @@
     <Compile Include="KeyBinding.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="OperatingSystem.fs" />
+    <Compile Include="EnvUtility.fs" />
     <Compile Include="FileSystem.fs" />
     <Compile Include="ProgramOptions.fs" />
     <Compile Include="MainView.fs" />

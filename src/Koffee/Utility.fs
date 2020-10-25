@@ -36,40 +36,6 @@ module Format =
         else if size > scale 1 then scaledStr size 1
         else scaledStr size 0
 
-    type ISubstitutionProvider =
-        abstract member getSubstitution : key:string -> string option
-
-    type EnvSubstitutionProvider() =
-        static member instance = new EnvSubstitutionProvider()
-
-        interface ISubstitutionProvider with
-            member _.getSubstitution key =
-                Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
-                |> Option.ofObj
-
-    let private subRegex = new Regex(@"%([^%]*)%", RegexOptions.Compiled)
-
-    /// Substitutes %variables% in string using given ISubstitutionProvider.
-    /// Example input: "Hello %target%!"
-    /// Outputs: "Hello world!"
-    /// Where the "target" maps to "world"
-    let subVars (subs: ISubstitutionProvider) str =
-        let mayContainSubstitution (str: string) =
-            str.IndexOf '%' <> -1
-
-        let matchEval (m: Match) =
-            subs.getSubstitution m.Groups.[1].Value
-            |> Option.defaultValue m.Value
-
-        if mayContainSubstitution str then
-            subRegex.Replace(str, matchEval)
-        else
-            str
-
-    /// Wrapper of subVars that uses EnvSubstitutionProvider
-    let subEnvVars str =
-        subVars EnvSubstitutionProvider.instance str
-
 module Observable =
     let throttle (seconds: float) (o: IObservable<_>) =
         o.Throttle(TimeSpan.FromSeconds(seconds))

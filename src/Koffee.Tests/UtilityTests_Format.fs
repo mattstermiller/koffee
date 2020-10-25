@@ -3,14 +3,14 @@ module Koffee.UtilityTests_Format
 open NUnit.Framework
 open FsUnitTyped
 
-type FakeEnvVarProvider() =
+type FakeSubstitutionProvider() =
     interface Format.ISubstitutionProvider with
         member _.getSubstitution key =
             match key with
             | "var" -> Some "REPLACED"
             | _ -> None
 
-let fakeEnvVarProvider = new FakeEnvVarProvider()
+let fakeEnvVarProvider = new FakeSubstitutionProvider()
 let subFakeVars = Format.subVars fakeEnvVarProvider
 
 [<Test>]

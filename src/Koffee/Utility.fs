@@ -49,7 +49,7 @@ module Format =
 
     let private subRegex = new Regex(@"%([^%]*)%", RegexOptions.Compiled)
 
-    /// Substitutes variables in string with percent syntax.
+    /// Substitutes %variables% in string using given ISubstitutionProvider.
     /// Example input: "Hello %target%!"
     /// Outputs: "Hello world!"
     /// Where the "target" maps to "world"

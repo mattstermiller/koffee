@@ -3,22 +3,24 @@ module Koffee.UtilityTests_Format
 open NUnit.Framework
 open FsUnitTyped
 
-type FakeSubstitutionProvider() =
+type FakeEnvVarProvider() =
     interface Format.ISubstitutionProvider with
         member _.getSubstitution key =
             match key with
             | "var" -> Some "REPLACED"
             | _ -> None
 
-let fakeEnvVarProvider = new FakeSubstitutionProvider()
+let fakeEnvVarProvider = new FakeEnvVarProvider()
 let subFakeVars = Format.subVars fakeEnvVarProvider
 
-[<Test>]
-let ``Replaces %var% in string`` () =
-    // Arrange
-    let input = "Some %var% value"
-    let expected = "Some REPLACED value"
-
+[<TestCase("Some %var% value", "Some REPLACED value")>]
+[<TestCase("Some %var%var% value", "Some REPLACEDvar% value")>]
+[<TestCase("Some %var%% value", "Some REPLACED% value")>]
+[<TestCase("Two %var%%var% values", "Two REPLACEDREPLACED values")>]
+[<TestCase("Some %var%", "Some REPLACED")>]
+[<TestCase("%var% value", "REPLACED value")>]
+[<TestCase("%var%", "REPLACED")>]
+let ``Replaces %var% in string`` input expected =
     // Act
     let result = subFakeVars input
 
@@ -27,7 +29,8 @@ let ``Replaces %var% in string`` () =
 
 [<TestCase("Some %var value")>]
 [<TestCase("Some var% value")>]
-let ``Leaves unfinished alone`` input =
+[<TestCase("Some value")>]
+let ``Leaves non-%var%'s alone`` input =
     // Act
     let result = subFakeVars input
 
@@ -36,6 +39,7 @@ let ``Leaves unfinished alone`` input =
 
 [<TestCase("Some %unknown% value")>]
 [<TestCase("Some %var2% value")>]
+[<TestCase("Some %%var% value")>]
 let ``Leaves unknown vars alone`` input =
     // Act
     let result = subFakeVars input

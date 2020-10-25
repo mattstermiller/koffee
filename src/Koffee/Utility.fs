@@ -47,7 +47,7 @@ module Format =
                 Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
                 |> Option.ofObj
 
-    let private subRegex = new Regex(@"%([^%]+)%", RegexOptions.Compiled)
+    let private subRegex = new Regex(@"%([^%]*)%", RegexOptions.Compiled)
 
     /// Substitutes variables in string with percent syntax.
     /// Example input: "Hello %target%!"

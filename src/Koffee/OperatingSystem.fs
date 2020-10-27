@@ -1,11 +1,11 @@
-﻿namespace Koffee
+namespace Koffee
 
+open System
 open System.Diagnostics
 open System.Windows.Forms
 open Acadian.FSharp
 
 module OsInterop =
-    open System
     open System.Runtime.InteropServices
 
     // Open With dialog: http://www.pinvoke.net/default.aspx/shell32/SHOpenWithDialog.html
@@ -93,6 +93,7 @@ type IOperatingSystem =
     abstract member OpenExplorer: Item -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member CopyToClipboard: Path -> Result<unit, exn>
+    abstract member GetEnvironmentVariable: string -> string option
 
 type OperatingSystem() =
     let wpath (path: Path) = path.Format Windows
@@ -132,8 +133,11 @@ type OperatingSystem() =
                 data.SetText(path)
                 Clipboard.SetDataObject(data, true)
 
+        member this.GetEnvironmentVariable key =
+            Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
+            |> Option.ofObj
+
 module LinkFile =
-    open System
     open System.Text
     open System.Runtime.InteropServices
     open System.Runtime.InteropServices.ComTypes

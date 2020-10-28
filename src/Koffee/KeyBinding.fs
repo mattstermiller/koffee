@@ -1,4 +1,4 @@
-﻿module Koffee.KeyBinding
+module Koffee.KeyBinding
 
 open System.Windows.Input
 
@@ -24,6 +24,7 @@ let defaultsAsString = [
     ("h", OpenParent)
     ("H", Back)
     ("L", Forward)
+    ("gh", StartPrompt ShowHistory)
     ("r", Refresh)
     ("<f5>", Refresh)
     ("u", Undo)

@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -227,8 +227,8 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchRegex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchSubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.BackStack, model.ForwardStack @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, backStack, forwardStack) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -241,7 +241,20 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarkPanel.Visible <- true
+                            window.HistoryPanel.Visible <- false
+                        | Prompt ShowHistory ->
+                            let history = [
+                                ("-3", "/some/path")
+                                ("-2", "/some/path/2")
+                                ("-1", "/some/path")
+                                ("-", "/some")
+                                ("+1", "/some/path")
+                            ]
+                            window.History.ItemsSource <- history
+                            window.BookmarkPanel.Visible <- false
+                            window.HistoryPanel.Visible <- true
                         | _ ->
+                            window.BookmarkPanel.Visible <- false
                             window.BookmarkPanel.Visible <- false
                         window.SearchOptions.Visibility <-
                             match inputMode with

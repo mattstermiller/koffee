@@ -872,6 +872,8 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                     }
             | None ->
                 yield { model with Status = Some <| MainStatus.noBookmark char }
+        | ShowHistory ->
+            ()
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }

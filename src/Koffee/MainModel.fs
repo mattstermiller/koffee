@@ -106,6 +106,7 @@ type PromptType =
     | GoToBookmark
     | SetBookmark
     | DeleteBookmark
+    | ShowHistory
 
 type ConfirmType =
     | Overwrite of PutAction * src: Item * dest: Item
@@ -455,6 +456,7 @@ type MainEvents =
         StartInput Search, "Search For Items"
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt SetBookmark, "Set Bookmark"
+        StartPrompt ShowHistory, "Show History"
         OpenSelected, "Open Selected Item"
         OpenFileWith, "Open File With..."
         OpenFileAndExit, "Open File and Exit"

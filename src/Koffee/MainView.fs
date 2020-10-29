@@ -255,7 +255,7 @@ module MainView =
                             window.HistoryPanel.Visible <- true
                         | _ ->
                             window.BookmarkPanel.Visible <- false
-                            window.BookmarkPanel.Visible <- false
+                            window.HistoryPanel.Visible <- false
                         window.SearchOptions.Visibility <-
                             match inputMode with
                             | Input Search -> Visibility.Visible

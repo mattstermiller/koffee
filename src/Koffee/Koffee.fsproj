@@ -29,6 +29,7 @@
     <Compile Include="FileSystem.fs" />
     <Compile Include="ProgramOptions.fs" />
     <Compile Include="MainView.fs" />
+    <Compile Include="Prompts.fs" />
     <Compile Include="MainController.fs" />
     <Compile Include="Program.fs" />
     <Resource Include="SettingsWindow.xaml" />

@@ -422,7 +422,6 @@ type MainModel = {
     SaveWindowSettings: bool
     Config: Config
     History: History
-    PromptDispatcher: ((MainEvents -> EventHandler<MainModel>) -> MainEvents -> EventHandler<MainModel>) option
 } with
     member private this.ClampCursor index =
          index |> max 0 |> min (this.Items.Length - 1)
@@ -460,9 +459,6 @@ type MainModel = {
             }
         else this
 
-    member this.WithoutPrompt () =
-        { this with PromptDispatcher = None }
-
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
@@ -496,5 +492,4 @@ type MainModel = {
         SaveWindowSettings = true
         Config = Config.Default
         History = History.Default
-        PromptDispatcher = None
     }

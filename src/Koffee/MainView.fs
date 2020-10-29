@@ -227,8 +227,8 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchRegex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchSubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.BackStack, model.ForwardStack @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, backStack, forwardStack) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.Location, model.BackStack, model.ForwardStack @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, location, backStack, forwardStack) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -243,14 +243,35 @@ module MainView =
                             window.BookmarkPanel.Visible <- true
                             window.HistoryPanel.Visible <- false
                         | Prompt ShowHistory ->
-                            let history = [
-                                ("-3", "/some/path")
-                                ("-2", "/some/path/2")
-                                ("-1", "/some/path")
-                                ("-", "/some")
-                                ("+1", "/some/path")
-                            ]
-                            window.History.ItemsSource <- history
+                            let formatIndex char i =
+                                sprintf "%i%c" (i + 1) char
+
+                            let formatPath (p: Path) =
+                                p.Format pathFormat
+
+                            let formatStack char stack =
+                                stack
+                                |> Seq.mapi (fun i (path, _) -> (formatIndex char i, formatPath path))
+
+                            match (forwardStack, backStack) with
+                            | ([], []) ->
+                                window.HistoryError.Visibility <- Visibility.Visible
+                                window.HistoryError.Text <- "Nothing in history"
+
+                                window.HistoryForward.Visibility <- Visibility.Collapsed
+                                window.HistoryBack.Visibility <- Visibility.Collapsed
+                                window.HistoryCurrent.Visibility <- Visibility.Collapsed
+                            | _ -> 
+                                window.HistoryForward.ItemsSource <- Seq.truncate 4 forwardStack |> formatStack 'L'
+                                window.HistoryBack.ItemsSource <- Seq.truncate 9 backStack |> formatStack 'H' |> Seq.rev
+                                window.HistoryCurrentPath.Text <- location.Format pathFormat
+
+                                window.HistoryForward.Visibility <- Visibility.Visible
+                                window.HistoryBack.Visibility <- Visibility.Visible
+                                window.HistoryCurrent.Visibility <- Visibility.Visible
+
+                                window.HistoryError.Visibility <- Visibility.Collapsed
+
                             window.BookmarkPanel.Visible <- false
                             window.HistoryPanel.Visible <- true
                         | _ ->
@@ -261,7 +282,9 @@ module MainView =
                             | Input Search -> Visibility.Visible
                             | _ -> Visibility.Collapsed
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
-                        if not window.InputPanel.Visible then
+                        if inputMode = Prompt ShowHistory then
+                            window.InputPanel.Visibility <- Visibility.Collapsed
+                        elif not window.InputPanel.Visible then
                             window.InputPanel.Visible <- true
                             window.InputBox.Select(selectStart, selectLen)
                             window.InputBox.Focus() |> ignore

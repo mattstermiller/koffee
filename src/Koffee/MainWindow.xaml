@@ -103,19 +103,37 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
-      <StackPanel Name="HistoryPanel" HorizontalAlignment="Center" VerticalAlignment="Bottom" Visibility="Hidden"
-                  Background="{DynamicResource PopupBrush}">
-        <TextBlock Text="History (H=previous, L=next)" Margin="8,4,8,8" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
-        <ItemsControl Name="History" Foreground="{DynamicResource PopupTextBrush}">
+      <StackPanel Name="HistoryPanel" VerticalAlignment="Bottom" Visibility="Collapsed"
+                  Background="{DynamicResource PopupBrush}" Margin="32,0">
+        <TextBlock Text="History" Margin="8,4,8,8" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+        <ItemsControl Name="HistoryBack" Foreground="{DynamicResource PopupTextBrush}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="20" TextAlignment="Center"/>
+                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="30"/>
                 <TextBlock Text="{Binding Item2}"/>
               </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <ItemsControl Name="HistoryCurrent" Foreground="{DynamicResource PopupTextBrush}">
+          <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+            <TextBlock Text="-" FontWeight="Bold" Width="20" TextAlignment="Center"/>
+            <TextBlock Text="(current)" Margin="0,0,8,0" Foreground="{DynamicResource PanelTextBrush}" FontStyle="Italic"/>
+            <TextBlock Name="HistoryCurrentPath" Text="/some/path"/>
+          </StackPanel>
+        </ItemsControl>
+        <ItemsControl Name="HistoryForward" Foreground="{DynamicResource PopupTextBrush}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="30"/>
+                <TextBlock Text="{Binding Item2}"/>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Name="HistoryError" Text="Nothing in history" Margin="8,0,8,6" Foreground="{DynamicResource PopupTextBrush}"/>
       </StackPanel>
     </Grid>
   </DockPanel>

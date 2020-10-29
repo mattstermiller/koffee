@@ -3,6 +3,7 @@ namespace Koffee
 open System
 open System.Windows.Input
 open Acadian.FSharp
+open VinylUI
 
 type ItemType =
     | File
@@ -283,111 +284,6 @@ type CancelToken() =
     member this.IsCancelled = cancelled
     member this.Cancel () = cancelled <- true
 
-type MainModel = {
-    Location: Path
-    LocationInput: string
-    PathSuggestions: Result<string list, string>
-    PathSuggestCache: (Path * Result<Path list, string>) option
-    Status: StatusType option
-    Directory: Item list
-    Items: Item list
-    Sort: (SortField * bool) option
-    Cursor: int
-    PageSize: int
-    KeyCombo: KeyCombo
-    InputMode: InputMode option
-    InputText: string
-    InputTextSelection: int * int
-    LastFind: string option
-    SearchCaseSensitive: bool
-    SearchRegex: bool
-    SearchSubFolders: bool
-    CurrentSearch: (string * bool * bool * bool) option
-    SubDirectories: Item list option
-    SubDirectoryCancel: CancelToken
-    SearchHistoryIndex: int
-    Progress: float option
-    BackStack: (Path * int) list
-    ForwardStack: (Path * int) list
-    UndoStack: ItemAction list
-    RedoStack: ItemAction list
-    WindowLocation: int * int
-    WindowSize: int * int
-    SaveWindowSettings: bool
-    Config: Config
-    History: History
-} with
-    member private this.ClampCursor index =
-         index |> max 0 |> min (this.Items.Length - 1)
-
-    member this.SelectedItem =
-        this.Items.[this.Cursor |> this.ClampCursor]
-
-    member this.PathFormat = this.Config.PathFormat
-
-    member this.LocationFormatted = this.Location.FormatFolder this.PathFormat
-
-    member this.HalfPageSize = this.PageSize/2 - 1
-
-    member this.IsSearchingSubFolders = this.CurrentSearch |> Option.exists (fun (_, _, _, sub) -> sub)
-
-    member this.TitleLocation =
-        if this.Config.Window.ShowFullPathInTitle then
-            this.LocationFormatted
-        else
-            this.Location.Name |> String.ifEmpty this.LocationFormatted
-
-    member this.WithLocation path =
-        { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
-
-    member this.WithCursor index =
-        { this with Cursor = index |> this.ClampCursor }
-
-    member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
-
-    member this.WithBackStackedLocation path =
-        if path <> this.Location then
-            { this.WithLocation path with
-                BackStack = (this.Location, this.Cursor) :: this.BackStack
-                ForwardStack = []
-            }
-        else this
-
-    static member Default = {
-        Location = Path.Root
-        LocationInput = Path.Root.Format Windows
-        PathSuggestions = Ok []
-        PathSuggestCache = None
-        Status = None
-        Directory = []
-        Items = [ Item.Empty ]
-        Sort = Some (Name, false)
-        Cursor = 0
-        PageSize = 30
-        KeyCombo = []
-        InputMode = None
-        InputText = ""
-        InputTextSelection = 0, 0
-        LastFind = None
-        SearchCaseSensitive = false
-        SearchRegex = false
-        CurrentSearch = None
-        SearchSubFolders = false
-        SubDirectories = None
-        SubDirectoryCancel = CancelToken()
-        SearchHistoryIndex = -1
-        Progress = None
-        BackStack = []
-        ForwardStack = []
-        UndoStack = []
-        RedoStack = []
-        WindowLocation = 0, 0
-        WindowSize = 800, 800
-        SaveWindowSettings = true
-        Config = Config.Default
-        History = History.Default
-    }
-
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
     | CursorUp
@@ -493,3 +389,112 @@ type MainEvents =
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"
     ]
+type MainModel = {
+    Location: Path
+    LocationInput: string
+    PathSuggestions: Result<string list, string>
+    PathSuggestCache: (Path * Result<Path list, string>) option
+    Status: StatusType option
+    Directory: Item list
+    Items: Item list
+    Sort: (SortField * bool) option
+    Cursor: int
+    PageSize: int
+    KeyCombo: KeyCombo
+    InputMode: InputMode option
+    InputText: string
+    InputTextSelection: int * int
+    LastFind: string option
+    SearchCaseSensitive: bool
+    SearchRegex: bool
+    SearchSubFolders: bool
+    CurrentSearch: (string * bool * bool * bool) option
+    SubDirectories: Item list option
+    SubDirectoryCancel: CancelToken
+    SearchHistoryIndex: int
+    Progress: float option
+    BackStack: (Path * int) list
+    ForwardStack: (Path * int) list
+    UndoStack: ItemAction list
+    RedoStack: ItemAction list
+    WindowLocation: int * int
+    WindowSize: int * int
+    SaveWindowSettings: bool
+    Config: Config
+    History: History
+    PromptDispatcher: ((MainEvents -> EventHandler<MainModel>) -> MainEvents -> EventHandler<MainModel>) option
+} with
+    member private this.ClampCursor index =
+         index |> max 0 |> min (this.Items.Length - 1)
+
+    member this.SelectedItem =
+        this.Items.[this.Cursor |> this.ClampCursor]
+
+    member this.PathFormat = this.Config.PathFormat
+
+    member this.LocationFormatted = this.Location.FormatFolder this.PathFormat
+
+    member this.HalfPageSize = this.PageSize/2 - 1
+
+    member this.IsSearchingSubFolders = this.CurrentSearch |> Option.exists (fun (_, _, _, sub) -> sub)
+
+    member this.TitleLocation =
+        if this.Config.Window.ShowFullPathInTitle then
+            this.LocationFormatted
+        else
+            this.Location.Name |> String.ifEmpty this.LocationFormatted
+
+    member this.WithLocation path =
+        { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
+
+    member this.WithCursor index =
+        { this with Cursor = index |> this.ClampCursor }
+
+    member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
+
+    member this.WithBackStackedLocation path =
+        if path <> this.Location then
+            { this.WithLocation path with
+                BackStack = (this.Location, this.Cursor) :: this.BackStack
+                ForwardStack = []
+            }
+        else this
+
+    member this.WithoutPrompt () =
+        { this with PromptDispatcher = None }
+
+    static member Default = {
+        Location = Path.Root
+        LocationInput = Path.Root.Format Windows
+        PathSuggestions = Ok []
+        PathSuggestCache = None
+        Status = None
+        Directory = []
+        Items = [ Item.Empty ]
+        Sort = Some (Name, false)
+        Cursor = 0
+        PageSize = 30
+        KeyCombo = []
+        InputMode = None
+        InputText = ""
+        InputTextSelection = 0, 0
+        LastFind = None
+        SearchCaseSensitive = false
+        SearchRegex = false
+        CurrentSearch = None
+        SearchSubFolders = false
+        SubDirectories = None
+        SubDirectoryCancel = CancelToken()
+        SearchHistoryIndex = -1
+        Progress = None
+        BackStack = []
+        ForwardStack = []
+        UndoStack = []
+        RedoStack = []
+        WindowLocation = 0, 0
+        WindowSize = 800, 800
+        SaveWindowSettings = true
+        Config = Config.Default
+        History = History.Default
+        PromptDispatcher = None
+    }

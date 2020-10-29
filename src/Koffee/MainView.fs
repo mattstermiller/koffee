@@ -289,9 +289,10 @@ module MainView =
                             window.InputBox.Select(selectStart, selectLen)
                             window.InputBox.Focus() |> ignore
                     | None ->
-                        if window.InputPanel.Visible then
+                        if window.InputPanel.Visible || window.HistoryPanel.Visible then
                             window.InputPanel.Visibility <- Visibility.Collapsed
                             window.BookmarkPanel.Visible <- false
+                            window.HistoryPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->

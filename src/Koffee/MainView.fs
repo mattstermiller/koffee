@@ -246,15 +246,10 @@ module MainView =
                             window.BookmarkPanel.Visible <- true
                             window.HistoryPanel.Visible <- false
                         | Prompt ShowHistory ->
-                            let formatIndex str i =
-                                sprintf "%i%s" (i + 1) str
-
-                            let formatPath (p: Path) =
-                                p.Format pathFormat
-
-                            let formatStack str stack =
+                            let formatStack str (stack: seq<Path * int>) =
                                 stack
-                                |> Seq.mapi (fun i (path, _) -> (formatIndex str i, formatPath path))
+                                |> Seq.mapi (fun i (path, _) ->
+                                    (sprintf "%i%s" (i+1) str, path.Format pathFormat))
 
                             let isEmpty = forwardStack = [] && backStack = []
 

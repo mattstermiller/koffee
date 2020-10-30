@@ -3,7 +3,6 @@ namespace Koffee
 open System
 open System.Windows.Input
 open Acadian.FSharp
-open VinylUI
 
 type ItemType =
     | File

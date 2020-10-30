@@ -159,6 +159,9 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
+        let backKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Back) |> fst
+        let forwardKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Forward) |> fst
+
         // history save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
         (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
@@ -243,15 +246,15 @@ module MainView =
                             window.BookmarkPanel.Visible <- true
                             window.HistoryPanel.Visible <- false
                         | Prompt ShowHistory ->
-                            let formatIndex char i =
-                                sprintf "%i%c" (i + 1) char
+                            let formatIndex str i =
+                                sprintf "%i%s" (i + 1) str
 
                             let formatPath (p: Path) =
                                 p.Format pathFormat
 
-                            let formatStack char stack =
+                            let formatStack str stack =
                                 stack
-                                |> Seq.mapi (fun i (path, _) -> (formatIndex char i, formatPath path))
+                                |> Seq.mapi (fun i (path, _) -> (formatIndex str i, formatPath path))
 
                             let isEmpty = forwardStack = [] && backStack = []
                             let collapsedIfEmpty = if isEmpty then Visibility.Collapsed else Visibility.Visible
@@ -266,8 +269,8 @@ module MainView =
                             if isEmpty then
                                 window.HistoryError.Text <- "Nothing in history"
                             else
-                                window.HistoryForward.ItemsSource <- Seq.truncate 4 forwardStack |> formatStack 'L'
-                                window.HistoryBack.ItemsSource <- Seq.truncate 9 backStack |> formatStack 'H' |> Seq.rev
+                                window.HistoryForward.ItemsSource <- Seq.truncate 4 forwardStack |> formatStack forwardKeyBinding
+                                window.HistoryBack.ItemsSource <- Seq.truncate 9 backStack |> formatStack backKeyBinding |> Seq.rev
                                 window.HistoryCurrentPath.Text <- location.Format pathFormat
 
                             window.BookmarkPanel.Visible <- false

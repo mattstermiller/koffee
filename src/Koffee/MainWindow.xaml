@@ -110,7 +110,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="30"/>
+                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right"/>
                 <TextBlock Text="{Binding Item2}"/>
               </StackPanel>
             </DataTemplate>
@@ -118,16 +118,15 @@
         </ItemsControl>
         <ItemsControl Name="HistoryCurrent" Foreground="{DynamicResource PopupTextBrush}">
           <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-            <TextBlock Text="-" FontWeight="Bold" Width="20" TextAlignment="Center"/>
-            <TextBlock Text="(current)" Margin="0,0,8,0" Foreground="{DynamicResource PanelTextBrush}" FontStyle="Italic"/>
-            <TextBlock Name="HistoryCurrentPath" Text="/some/path"/>
+            <TextBlock Text="(current)" Width="55" Margin="0,0,4,0" Foreground="{DynamicResource PanelTextBrush}" FontStyle="Italic"/>
+            <TextBlock Name="HistoryCurrentPath" Text="/some/path" Foreground="{DynamicResource PanelTextBrush}"/>
           </StackPanel>
         </ItemsControl>
         <ItemsControl Name="HistoryForward" Foreground="{DynamicResource PopupTextBrush}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="30"/>
+                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right" />
                 <TextBlock Text="{Binding Item2}"/>
               </StackPanel>
             </DataTemplate>

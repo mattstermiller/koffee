@@ -253,24 +253,22 @@ module MainView =
                                 stack
                                 |> Seq.mapi (fun i (path, _) -> (formatIndex char i, formatPath path))
 
-                            match (forwardStack, backStack) with
-                            | ([], []) ->
-                                window.HistoryError.Visibility <- Visibility.Visible
-                                window.HistoryError.Text <- "Nothing in history"
+                            let isEmpty = forwardStack = [] && backStack = []
+                            let collapsedIfEmpty = if isEmpty then Visibility.Collapsed else Visibility.Visible
+                            let visibleIfEmpty = if isEmpty then Visibility.Visible else Visibility.Collapsed
 
-                                window.HistoryForward.Visibility <- Visibility.Collapsed
-                                window.HistoryBack.Visibility <- Visibility.Collapsed
-                                window.HistoryCurrent.Visibility <- Visibility.Collapsed
-                            | _ -> 
+                            window.HistoryError.Visibility <- visibleIfEmpty
+
+                            window.HistoryForward.Visibility <- collapsedIfEmpty
+                            window.HistoryBack.Visibility <- collapsedIfEmpty
+                            window.HistoryCurrent.Visibility <- collapsedIfEmpty
+
+                            if isEmpty then
+                                window.HistoryError.Text <- "Nothing in history"
+                            else
                                 window.HistoryForward.ItemsSource <- Seq.truncate 4 forwardStack |> formatStack 'L'
                                 window.HistoryBack.ItemsSource <- Seq.truncate 9 backStack |> formatStack 'H' |> Seq.rev
                                 window.HistoryCurrentPath.Text <- location.Format pathFormat
-
-                                window.HistoryForward.Visibility <- Visibility.Visible
-                                window.HistoryBack.Visibility <- Visibility.Visible
-                                window.HistoryCurrent.Visibility <- Visibility.Visible
-
-                                window.HistoryError.Visibility <- Visibility.Collapsed
 
                             window.BookmarkPanel.Visible <- false
                             window.HistoryPanel.Visible <- true

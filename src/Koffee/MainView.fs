@@ -257,14 +257,11 @@ module MainView =
                                 |> Seq.mapi (fun i (path, _) -> (formatIndex str i, formatPath path))
 
                             let isEmpty = forwardStack = [] && backStack = []
-                            let collapsedIfEmpty = if isEmpty then Visibility.Collapsed else Visibility.Visible
-                            let visibleIfEmpty = if isEmpty then Visibility.Visible else Visibility.Collapsed
 
-                            window.HistoryError.Visibility <- visibleIfEmpty
-
-                            window.HistoryForward.Visibility <- collapsedIfEmpty
-                            window.HistoryBack.Visibility <- collapsedIfEmpty
-                            window.HistoryCurrent.Visibility <- collapsedIfEmpty
+                            window.HistoryError.Collapsed <- not isEmpty
+                            window.HistoryForward.Collapsed <- isEmpty
+                            window.HistoryBack.Collapsed <- isEmpty
+                            window.HistoryCurrent.Collapsed <- isEmpty
 
                             if isEmpty then
                                 window.HistoryError.Text <- "Nothing in history"

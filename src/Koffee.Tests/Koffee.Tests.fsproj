@@ -12,6 +12,7 @@
     <Content Include="paket.references" />
     <Compile Include="FakeFileSystem.fs" />
     <Compile Include="Testing.fs" />
+    <Compile Include="UtilityTests_Math.fs" />
     <Compile Include="FakeFileSystemTests.fs" />
     <Compile Include="RectTests.fs" />
     <Compile Include="KeyComboParserTests.fs" />

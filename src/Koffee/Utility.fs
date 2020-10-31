@@ -18,6 +18,23 @@ module FormatString =
     let time = "HH:mm:ss"
     let dateTime = sprintf "%s  %s" date time
 
+module Math =
+    let parseDigit char =
+        if char >= '0' && char <= '9' then
+            Ok (int char - int '0')
+        else
+            Error "Invalid digit"
+
+    /// Appends a digit character to a number (base 10)
+    ///
+    /// Example: appendDigit '5' 23 = 235
+    let appendDigit char num = result {
+        if num = 0 then
+            return! Error "Cannot append to zero"
+        let! d = parseDigit char
+        return num * 10 + d * sign num
+    }
+
 module Format =
     let private formatDate (format: string) (dt: System.DateTime) = dt.ToString(format)
     let date = formatDate FormatString.date

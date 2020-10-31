@@ -432,8 +432,8 @@ type MainEvents =
     | Put
     | ClipCopy
     | Recycle
-    | Undo
-    | Redo
+    | Undo of KeyComboCount
+    | Redo of KeyComboCount
     | SortList of SortField
     | ToggleHidden
     | OpenSplitScreenWindow
@@ -491,8 +491,8 @@ type MainEvents =
         Put, "Put Item to Move/Copy in Current Folder"
         ClipCopy, "Copy to Clipboard"
         Recycle, "Send to Recycle Bin"
-        Undo, "Undo Action"
-        Redo, "Redo Action"
+        Undo None, "Undo Action"
+        Redo None, "Redo Action"
         SortList Name, "Sort by Name"
         SortList Modified, "Sort by Modified"
         SortList Size, "Sort by Size"
@@ -511,4 +511,6 @@ type MainEvents =
         | CursorDown _ -> CursorDown keyComboCount
         | CursorUpHalfPage _ -> CursorUpHalfPage keyComboCount
         | CursorDownHalfPage _ -> CursorDownHalfPage keyComboCount
+        | Undo _ -> Undo keyComboCount
+        | Redo _ -> Redo keyComboCount
         | evt -> evt

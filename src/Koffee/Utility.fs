@@ -76,6 +76,16 @@ type AsyncSeqResultBuilder() =
 
 let asyncSeqResult = AsyncSeqResultBuilder()
 
+module AsyncSeq =
+    let repeatResult times (seqBuilder: 'a -> AsyncSeq<Result<'a,'b>>) initial = asyncSeq {
+        let mutable state = initial
+        for _ in [1..times] do
+            yield! (seqBuilder(state)
+                    |> AsyncSeq.map (function
+                        | Ok newState -> state <- newState; Ok newState
+                        | res -> res))
+    }
+
 module Order =
     let by f s = Enumerable.OrderBy(s, (fun x -> f x))
     let byDesc f s = Enumerable.OrderByDescending(s, (fun x -> f x))

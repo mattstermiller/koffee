@@ -360,6 +360,7 @@ type MainModel = {
 
     member this.AppendKeyComboCount digit =
         match this.KeyComboCount with
+        | None when digit = 0 -> this
         | Some count -> { this with KeyComboCount = Some (count * 10 + digit) }
         | None -> { this with KeyComboCount = Some digit }
 

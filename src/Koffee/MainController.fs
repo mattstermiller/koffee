@@ -244,12 +244,6 @@ module Nav =
             yield { model with PathSuggestions = Ok [] }
     }
 
-    let MoveWithKeyComboCount move (model: MainModel) =
-        if model.KeyComboCount > 1 then
-            model.WithCursorRel (move * model.KeyComboCount)
-        else
-            model.WithCursorRel move
-
 module Search =
     let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
@@ -979,7 +973,7 @@ let cancelInput model =
         | Some (Input Search) -> Search.clearSearch
         | _ -> id
 
-let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
+let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handleKey model = asyncSeq {
     let (|DigitKey|_|) (key: Key) =
         if key >= Key.D0 && key <= Key.D9 then
             Some (int key - int Key.D0)
@@ -999,13 +993,13 @@ let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
                     { model with Status = None } |> Search.clearSearch
             (None, model)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
-            (None, { model with KeyComboCount = model.KeyComboCount * 10 + digit })
+            (None, model.AppendKeyComboCount digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                (Some newEvent, model.WithoutKeyCombo())
+                (Some (newEvent.WithKeyComboCount model.KeyComboCount), model.WithoutKeyCombo())
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, { model with KeyCombo = keyCombo })
@@ -1080,14 +1074,19 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
     let subDirResults = Event<_>()
     let progress = Event<_>()
 
+    let mulKeyComboCount keyComboCount value =
+        match keyComboCount with
+        | Some count -> value * count
+        | None -> value
+
     let rec dispatcher evt =
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp -> Sync (Nav.MoveWithKeyComboCount -1)
-            | CursorUpHalfPage -> Sync (fun m -> Nav.MoveWithKeyComboCount -m.HalfPageSize m)
-            | CursorDown -> Sync (Nav.MoveWithKeyComboCount 1)
-            | CursorDownHalfPage -> Sync (fun m -> Nav.MoveWithKeyComboCount m.HalfPageSize m)
+            | CursorUp count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count -1))
+            | CursorUpHalfPage count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count -m.HalfPageSize))
+            | CursorDown count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count 1))
+            | CursorDownHalfPage count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count m.HalfPageSize))
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath handler -> SyncResult (Nav.openInputPath fs os handler)

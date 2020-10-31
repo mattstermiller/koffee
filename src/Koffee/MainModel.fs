@@ -282,6 +282,8 @@ type CancelToken() =
     member this.IsCancelled = cancelled
     member this.Cancel () = cancelled <- true
 
+type KeyComboCount = int option
+
 type MainModel = {
     Location: Path
     LocationInput: string
@@ -294,7 +296,7 @@ type MainModel = {
     Cursor: int
     PageSize: int
     KeyCombo: KeyCombo
-    KeyComboCount: int
+    KeyComboCount: KeyComboCount
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
@@ -354,7 +356,12 @@ type MainModel = {
         else this
 
     member this.WithoutKeyCombo () =
-        { this with KeyCombo = []; KeyComboCount = 0 }
+        { this with KeyCombo = []; KeyComboCount = None }
+
+    member this.AppendKeyComboCount digit =
+        match this.KeyComboCount with
+        | Some count -> { this with KeyComboCount = Some (count * 10 + digit) }
+        | None -> { this with KeyComboCount = Some digit }
 
     static member Default = {
         Location = Path.Root
@@ -368,7 +375,7 @@ type MainModel = {
         Cursor = 0
         PageSize = 30
         KeyCombo = []
-        KeyComboCount = 0
+        KeyComboCount = None
         InputMode = None
         InputText = ""
         InputTextSelection = 0, 0
@@ -394,10 +401,10 @@ type MainModel = {
 
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
-    | CursorUp
-    | CursorDown
-    | CursorUpHalfPage
-    | CursorDownHalfPage
+    | CursorUp of KeyComboCount
+    | CursorDown of KeyComboCount
+    | CursorUpHalfPage of KeyComboCount
+    | CursorDownHalfPage of KeyComboCount
     | CursorToFirst
     | CursorToLast
     | OpenPath of EvtHandler
@@ -448,10 +455,10 @@ type MainEvents =
     | WindowActivated
 
     static member Bindable = [
-        CursorUp, "Move Cursor Up"
-        CursorDown, "Move Cursor Down"
-        CursorUpHalfPage, "Move Cursor Up Half Page"
-        CursorDownHalfPage, "Move Cursor Down Half Page"
+        CursorUp None, "Move Cursor Up"
+        CursorDown None, "Move Cursor Down"
+        CursorUpHalfPage None, "Move Cursor Up Half Page"
+        CursorDownHalfPage None, "Move Cursor Down Half Page"
         CursorToFirst, "Move Cursor to First Item"
         CursorToLast, "Move Cursor to Last Item"
         StartInput (Find false), "Find Item Starting With..."
@@ -496,3 +503,11 @@ type MainEvents =
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"
     ]
+
+    member this.WithKeyComboCount keyComboCount =
+        match this with
+        | CursorUp _ -> CursorUp keyComboCount
+        | CursorDown _ -> CursorDown keyComboCount
+        | CursorUpHalfPage _ -> CursorUpHalfPage keyComboCount
+        | CursorDownHalfPage _ -> CursorDownHalfPage keyComboCount
+        | evt -> evt

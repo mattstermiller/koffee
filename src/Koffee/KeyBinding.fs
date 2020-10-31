@@ -1,4 +1,4 @@
-﻿module Koffee.KeyBinding
+module Koffee.KeyBinding
 
 open System.Windows.Input
 
@@ -8,12 +8,12 @@ let private parseKey keyStr =
     | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
 
 let defaultsAsString = [
-    ("k", CursorUp)
-    ("j", CursorDown)
-    ("<c-k>", CursorUpHalfPage)
-    ("<c-u>", CursorUpHalfPage)
-    ("<c-j>", CursorDownHalfPage)
-    ("<c-d>", CursorDownHalfPage)
+    ("k", CursorUp None)
+    ("j", CursorDown None)
+    ("<c-k>", CursorUpHalfPage None)
+    ("<c-u>", CursorUpHalfPage None)
+    ("<c-j>", CursorDownHalfPage None)
+    ("<c-d>", CursorDownHalfPage None)
     ("gg", CursorToFirst)
     ("G", CursorToLast)
     ("l", OpenSelected)

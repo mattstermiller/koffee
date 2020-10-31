@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -278,7 +278,8 @@ module MainView =
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo @>).toFunc(fun (status, keyCombo) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.KeyComboCount @>)
+                .toFunc(fun (status, keyCombo, keyComboCount) ->
                 let statusText, errorText =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
@@ -287,6 +288,8 @@ module MainView =
                             |> String.concat ""
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
+                    elif keyComboCount.IsSome then
+                        (sprintf "%i" keyComboCount.Value, "")
                     else
                         match status with
                         | Some (Message msg)

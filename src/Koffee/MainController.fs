@@ -244,6 +244,12 @@ module Nav =
             yield { model with PathSuggestions = Ok [] }
     }
 
+    let MoveWithKeyComboCount move (model: MainModel) =
+        if model.KeyComboCount > 1 then
+            model.WithCursorRel (move * model.KeyComboCount)
+        else
+            model.WithCursorRel move
+
 module Search =
     let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
@@ -1078,10 +1084,10 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp -> Sync (fun m -> m.WithCursorRel -1)
-            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel -m.HalfPageSize)
-            | CursorDown -> Sync (fun m -> m.WithCursorRel 1)
-            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel m.HalfPageSize)
+            | CursorUp -> Sync (Nav.MoveWithKeyComboCount -1)
+            | CursorUpHalfPage -> Sync (fun m -> Nav.MoveWithKeyComboCount -m.HalfPageSize m)
+            | CursorDown -> Sync (Nav.MoveWithKeyComboCount 1)
+            | CursorDownHalfPage -> Sync (fun m -> Nav.MoveWithKeyComboCount m.HalfPageSize m)
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath handler -> SyncResult (Nav.openInputPath fs os handler)

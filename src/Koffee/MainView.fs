@@ -416,7 +416,9 @@ module MainView =
 
 module MainStatus =
     // navigation
-    let find prefix = Message <| "Find item starting with: " + prefix
+    let find prefix = function
+        | Some nth -> Message <| sprintf "Find item nr %i starting with: %s" nth prefix
+        | None -> Message <| sprintf "Find item starting with: %s" prefix
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

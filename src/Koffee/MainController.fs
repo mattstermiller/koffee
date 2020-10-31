@@ -245,7 +245,7 @@ module Nav =
     }
 
 module Search =
-    let private moveCursorTo next reverse predicate model =
+    let private moveCursorTo next reverse nth predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
         let indexed = model.Items |> List.indexed
         let items =
@@ -256,6 +256,7 @@ module Search =
         let cursor =
             items
             |> List.filter (snd >> predicate)
+            |> List.skip (nth - 1)
             |> List.tryHead
             |> Option.map fst
         match cursor with
@@ -264,13 +265,14 @@ module Search =
 
     let find prefix model =
         { model with LastFind = Some prefix }
-        |> moveCursorTo false false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
+        |> moveCursorTo false false 1 (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
 
-    let findNext model =
+    let findNext nth model =
+        let nthOr1 = Option.defaultValue 1 nth
         match model.LastFind with
         | Some prefix ->
-            { model with Status = Some <| MainStatus.find prefix }
-            |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
+            { model with Status = Some <| MainStatus.find prefix nth }
+            |> moveCursorTo true false nthOr1 (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
     let private getFilter model =
@@ -841,7 +843,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
     | Some (Input (Find _)) ->
         if char = ';' then // TODO: read key binding?
             cancelInput ()
-            yield Search.findNext model
+            yield Search.findNext None model
     | Some (Prompt mode) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -1112,7 +1114,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput
             | AddProgress incr -> Sync (addProgress incr)
-            | FindNext -> Sync Search.findNext
+            | FindNext count -> Sync <| Search.findNext count
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs false)

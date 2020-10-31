@@ -426,7 +426,7 @@ type MainEvents =
     | AddProgress of float option
     | SubmitInput
     | CancelInput
-    | FindNext
+    | FindNext of KeyComboCount
     | StartAction of PutAction
     | ClearYank
     | Put
@@ -464,7 +464,7 @@ type MainEvents =
         CursorToLast, "Move Cursor to Last Item"
         StartInput (Find false), "Find Item Starting With..."
         StartInput (Find true), "Find Item Starting With... (Multi)"
-        FindNext, "Go To Next Find Match"
+        FindNext None, "Go To Next Find Match"
         StartInput Search, "Search For Items"
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt SetBookmark, "Set Bookmark"
@@ -513,4 +513,5 @@ type MainEvents =
         | CursorDownHalfPage _ -> CursorDownHalfPage keyComboCount
         | Undo _ -> Undo keyComboCount
         | Redo _ -> Redo keyComboCount
+        | FindNext _ -> FindNext keyComboCount
         | evt -> evt

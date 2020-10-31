@@ -39,7 +39,7 @@ let defaultsAsString = [
     ("C", StartInput (Rename ReplaceAll))
     ("f", StartInput (Find false))
     ("F", StartInput (Find true))
-    (";", FindNext)
+    (";", FindNext None)
     ("/", StartInput Search)
     ("'", StartPrompt GoToBookmark)
     ("m", StartPrompt SetBookmark)

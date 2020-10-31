@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogicTests_FindSearch
+module Koffee.MainLogicTests_FindSearch
 
 open NUnit.Framework
 open FsUnitTyped
@@ -16,25 +16,26 @@ let testModel cursorStart =
 let assertEqualExceptCursor expected actual =
     assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "Items"; "InputText"])
 
-let doFind next prefix cursorStart =
+let doFind next nth prefix cursorStart =
     let model = { testModel cursorStart with LastFind = Some prefix }
 
     let actual =
         if next then
-            MainLogic.Search.findNext model
+            MainLogic.Search.findNext nth model
         else
             MainLogic.Search.find prefix model
 
     let expected =
         { model with
             LastFind = Some prefix
-            Status = if next then Some <| MainStatus.find prefix else None
+            Status = if next then Some (MainStatus.find prefix nth) else None
         }
     assertEqualExceptCursor expected actual
     actual.Cursor
 
-let find = doFind false
-let findNext = doFind true
+let find = doFind false None
+let findNext = doFind true None
+let findNextNth nth prefix cursorStart = doFind true (Some nth) prefix cursorStart
 
 [<Test>]
 let ``Find that matches nothing should not change the cursor``() =
@@ -67,3 +68,9 @@ let ``Find next that matches the current and next item should set the cursor to 
 [<Test>]
 let ``Find next that matches a item wrapping around should set the cursor to the that index``() =
     findNext "b" 2 |> shouldEqual 1
+
+[<TestCase(1, 2)>]
+[<TestCase(2, 3)>]
+[<TestCase(3, 5)>]
+let ``Find next nth that matches`` nth expected =
+    findNextNth nth "c" 1 |> shouldEqual expected

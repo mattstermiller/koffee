@@ -987,7 +987,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             let model =
                 if model.InputMode.IsSome then
                     { model with InputMode = None }
-                else if not model.KeyCombo.IsEmpty then
+                else if not model.KeyCombo.IsEmpty || model.KeyComboCount.IsSome then
                     model.WithoutKeyCombo()
                 else
                     { model with Status = None } |> Search.clearSearch

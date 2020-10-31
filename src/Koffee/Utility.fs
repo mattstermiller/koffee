@@ -119,3 +119,9 @@ module Rect =
           Top = top
           Width = width
           Height = height }
+
+module List =
+    let skipSafe num seq =
+        List.indexed seq
+        |> List.skipWhile (fun (i, _) -> i < num)
+        |> List.map snd

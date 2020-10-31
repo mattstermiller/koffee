@@ -411,8 +411,8 @@ type MainEvents =
     | OpenPath of EvtHandler
     | OpenSelected
     | OpenParent
-    | Back
-    | Forward
+    | Back of KeyComboCount
+    | Forward of KeyComboCount
     | Refresh
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
@@ -473,8 +473,8 @@ type MainEvents =
         OpenFileAndExit, "Open File and Exit"
         OpenProperties, "Open Properties"
         OpenParent, "Open Parent Folder"
-        Back, "Back in Location History"
-        Forward, "Forward in Location History"
+        Back None, "Back in Location History"
+        Forward None, "Forward in Location History"
         Refresh, "Refresh Current Folder"
         StartInput CreateFile, "Create File"
         StartInput CreateFolder, "Create Folder"
@@ -514,4 +514,6 @@ type MainEvents =
         | Undo _ -> Undo keyComboCount
         | Redo _ -> Redo keyComboCount
         | FindNext _ -> FindNext keyComboCount
+        | Back _ -> Back keyComboCount
+        | Forward _ -> Forward keyComboCount
         | evt -> evt

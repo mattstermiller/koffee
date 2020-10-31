@@ -160,10 +160,11 @@ module Nav =
             else newModel
         )
 
-    let back fsReader model = result {
-        match model.BackStack with
+    let back nth fsReader model = result {
+        let skip = (Option.defaultValue 1 nth) - 1
+        match model.BackStack |> List.skipSafe skip with
         | (path, cursor) :: backTail ->
-            let newForwardStack = (model.Location, model.Cursor) :: model.ForwardStack
+            let newForwardStack = (List.truncate skip model.BackStack |> List.rev) @ ((model.Location, model.Cursor) :: model.ForwardStack)
             let! model = openPath fsReader path (SelectIndex cursor) model
             return
                 { model with
@@ -173,11 +174,17 @@ module Nav =
         | [] -> return model
     }
 
-    let forward fsReader model = result {
-        match model.ForwardStack with
+    let forward nth fsReader model = result {
+        let skip = (Option.defaultValue 1 nth) - 1
+        match model.ForwardStack |> List.skipSafe skip with
         | (path, cursor) :: forwardTail ->
+            let newBackStack = (List.truncate skip model.ForwardStack |> List.rev) @ ((model.Location, model.Cursor) :: model.BackStack)
             let! model = openPath fsReader path (SelectIndex cursor) model
-            return { model with ForwardStack = forwardTail }
+            return
+                { model with 
+                    BackStack = newBackStack
+                    ForwardStack = forwardTail
+                }
         | [] -> return model
     }
 
@@ -1097,8 +1104,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
             | OpenProperties -> SyncResult (Action.openProperties os)
             | OpenParent -> SyncResult (Nav.openParent fs)
-            | Back -> SyncResult (Nav.back fs)
-            | Forward -> SyncResult (Nav.forward fs)
+            | Back count -> SyncResult (Nav.back count fs)
+            | Forward count -> SyncResult (Nav.forward count fs)
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
             | Undo count -> AsyncResult (AsyncSeq.repeatResult (Option.defaultValue 1 count) (Action.undo fs))
             | Redo count -> AsyncResult (AsyncSeq.repeatResult (Option.defaultValue 1 count) (Action.redo fs))

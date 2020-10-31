@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogicTests_BackForward
+module Koffee.MainLogicTests_BackForward
 
 open NUnit.Framework
 open FsUnitTyped
@@ -33,8 +33,10 @@ let history handler backStack forwardStack =
       ForwardStack = actual.ForwardStack |> List.map pathStr
     }
 
-let back = history MainLogic.Nav.back
-let forward = history MainLogic.Nav.forward
+let back = history <| MainLogic.Nav.back None
+let forward = history <| MainLogic.Nav.forward None
+let backNth nth backStack forwardStack = history (MainLogic.Nav.back <| Some nth) backStack forwardStack
+let forwardNth nth backStack forwardStack = history (MainLogic.Nav.forward <| Some nth) backStack forwardStack
 
 [<Test>]
 let ``Back without history does nothing``() =
@@ -83,3 +85,19 @@ let ``Forward with more history changes path and stacks``() =
                      Cursor = 4
                      BackStack = ["path", 1; "back", 2; "back2", 3]
                      ForwardStack = ["fwd2", 5] }
+
+[<Test>]
+let ``Back 3 with simple history changes path and stacks``() =
+    backNth 3 ["back1", 2; "back2", 3; "back", 4] ["fwd", 5]
+    |> shouldEqual { Path = "back"
+                     Cursor = 4
+                     BackStack = []
+                     ForwardStack = ["back2", 3; "back1", 2; "path", 1; "fwd", 5] }
+
+[<Test>]
+let ``Forward 3 with simple history changes path and stacks``() =
+    forwardNth 3 ["back", 2] ["fwd1", 3; "fwd2", 4; "fwd", 5]
+    |> shouldEqual { Path = "fwd"
+                     Cursor = 5
+                     BackStack = ["fwd2", 4; "fwd1", 3; "path", 1; "back", 2]
+                     ForwardStack = [] }

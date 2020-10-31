@@ -294,6 +294,7 @@ type MainModel = {
     Cursor: int
     PageSize: int
     KeyCombo: KeyCombo
+    KeyComboCount: int
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
@@ -352,6 +353,9 @@ type MainModel = {
             }
         else this
 
+    member this.WithoutKeyCombo () =
+        { this with KeyCombo = []; KeyComboCount = 0 }
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
@@ -364,6 +368,7 @@ type MainModel = {
         Cursor = 0
         PageSize = 30
         KeyCombo = []
+        KeyComboCount = 0
         InputMode = None
         InputText = ""
         InputTextSelection = 0, 0

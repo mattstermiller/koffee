@@ -974,28 +974,37 @@ let cancelInput model =
         | _ -> id
 
 let keyPress dispatcher keyBindings chord handleKey model = asyncSeq {
+    let (|DigitKey|_|) (key: Key) =
+        if key >= Key.D0 && key <= Key.D9 then
+            Some (int key - int Key.D0)
+        else
+            None
+
     let event, model =
-        if chord = (ModifierKeys.None, Key.Escape) then
+        match chord with
+        | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
             let model =
                 if model.InputMode.IsSome then
                     { model with InputMode = None }
                 else if not model.KeyCombo.IsEmpty then
-                    { model with KeyCombo = [] }
+                    model.WithoutKeyCombo()
                 else
                     { model with Status = None } |> Search.clearSearch
             (None, model)
-        else
+        | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
+            (None, { model with KeyComboCount = model.KeyComboCount * 10 + digit })
+        | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                (Some newEvent, { model with KeyCombo = [] })
+                (Some newEvent, model.WithoutKeyCombo())
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, { model with KeyCombo = keyCombo })
             | KeyBinding.NoMatch ->
-                (None, { model with KeyCombo = [] })
+                (None, model.WithoutKeyCombo())
     match event with
     | Some e ->
         match dispatcher e with

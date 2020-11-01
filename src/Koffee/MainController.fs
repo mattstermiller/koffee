@@ -164,14 +164,11 @@ module Nav =
         if model.BackStack = [] then
             return model
         else
-            let splitAt =
-                model.KeyComboCount
-                |> Option.defaultValue 1
-                |> min model.BackStack.Length
-
             let (newToFwd, backStackAndLocation) =
                 (model.Location, model.Cursor) :: model.BackStack
-                |> List.splitAt splitAt
+                |> List.splitAt (model.KeyComboCount
+                    |> Option.defaultValue 1
+                    |> min model.BackStack.Length)
 
             let (path, cursor) = List.head backStackAndLocation
             let newForwardStack = (List.rev newToFwd) @ model.ForwardStack
@@ -188,14 +185,11 @@ module Nav =
         if model.ForwardStack = [] then
             return model
         else
-            let splitAt =
-                model.KeyComboCount
-                |> Option.defaultValue 1
-                |> min model.ForwardStack.Length
-
             let (newToBack, fwdStackAndLocation) =
                 (model.Location, model.Cursor) :: model.ForwardStack
-                |> List.splitAt splitAt
+                |> List.splitAt (model.KeyComboCount
+                    |> Option.defaultValue 1
+                    |> min model.ForwardStack.Length)
 
             let (path, cursor) = List.head fwdStackAndLocation
             let newBackStack = (List.rev newToBack) @ model.BackStack

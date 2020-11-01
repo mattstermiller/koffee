@@ -10,12 +10,13 @@ type TestResult = {
     ForwardStack: (string * int) list
 }
 
-let history handler backStack forwardStack =
+let history handler keyComboCount backStack forwardStack =
     let model =
         { testModel with
             BackStack = backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             ForwardStack = forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             Cursor = 1
+            KeyComboCount = keyComboCount
         } |> withLocation "/c/path"
     let items = List.init 6 (sprintf "file%i" >> file)
     let fs = FakeFileSystem [
@@ -33,10 +34,10 @@ let history handler backStack forwardStack =
       ForwardStack = actual.ForwardStack |> List.map pathStr
     }
 
-let back = history <| MainLogic.Nav.back None
-let forward = history <| MainLogic.Nav.forward None
-let backNth nth backStack forwardStack = history (MainLogic.Nav.back <| Some nth) backStack forwardStack
-let forwardNth nth backStack forwardStack = history (MainLogic.Nav.forward <| Some nth) backStack forwardStack
+let back = history MainLogic.Nav.back None
+let forward = history MainLogic.Nav.forward None
+let backCount count = history MainLogic.Nav.back <| Some count
+let forwardCount count = history MainLogic.Nav.forward <| Some count
 
 [<Test>]
 let ``Back without history does nothing``() =
@@ -88,7 +89,7 @@ let ``Forward with more history changes path and stacks``() =
 
 [<Test>]
 let ``Back 3 with simple history changes path and stacks``() =
-    backNth 3 ["back1", 2; "back2", 3; "back", 4] ["fwd", 5]
+    backCount 3 ["back1", 2; "back2", 3; "back", 4] ["fwd", 5]
     |> shouldEqual { Path = "back"
                      Cursor = 4
                      BackStack = []
@@ -96,7 +97,7 @@ let ``Back 3 with simple history changes path and stacks``() =
 
 [<Test>]
 let ``Forward 3 with simple history changes path and stacks``() =
-    forwardNth 3 ["back", 2] ["fwd1", 3; "fwd2", 4; "fwd", 5]
+    forwardCount 3 ["back", 2] ["fwd1", 3; "fwd2", 4; "fwd", 5]
     |> shouldEqual { Path = "fwd"
                      Cursor = 5
                      BackStack = ["fwd2", 4; "fwd1", 3; "path", 1; "back", 2]

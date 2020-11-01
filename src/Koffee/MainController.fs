@@ -989,40 +989,44 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
         else
             None
 
-    let event, model =
+    let event, modelAlteration =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
-            let model =
-                if model.InputMode.IsSome then
-                    { model with InputMode = None }
-                else if not model.KeyCombo.IsEmpty || model.KeyComboCount.IsSome then
-                    model.WithoutKeyCombo()
+            let modelAlteration m =
+                if m.InputMode.IsSome then
+                    { m with InputMode = None }
+                else if not m.KeyCombo.IsEmpty || m.KeyComboCount.IsSome then
+                    m.WithoutKeyCombo()
                 else
-                    { model with Status = None } |> Search.clearSearch
-            (None, model)
+                    { m with Status = None } |> Search.clearSearch
+            (None, modelAlteration)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
-            (None, model.AppendKeyComboCount digit)
+            (None, (fun m -> m.AppendKeyComboCount digit))
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                (Some (newEvent.WithKeyComboCount model.KeyComboCount), model.WithoutKeyCombo())
+                (Some newEvent, (fun m -> m.WithoutKeyCombo()))
             | KeyBinding.PartialMatch ->
                 handleKey ()
-                (None, { model with KeyCombo = keyCombo })
+                (None, (fun m -> { m with KeyCombo = keyCombo }))
             | KeyBinding.NoMatch ->
-                (None, model.WithoutKeyCombo())
+                (None, (fun m -> m.WithoutKeyCombo()))
     match event with
     | Some e ->
         match dispatcher e with
         | Sync handler ->
-            yield handler model
+            let newModel = handler model
+            yield modelAlteration newModel
         | Async handler ->
-            yield! handler model
+            // TODO: Find a way to do this without mutable variable
+            let mutable last = model
+            yield! handler model |> AsyncSeq.map (fun m -> last <- m; m)
+            yield modelAlteration last
     | None ->
-        yield model
+        yield modelAlteration model
 }
 
 let addProgress incr model =
@@ -1088,6 +1092,9 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         | Some count -> value * count
         | None -> value
 
+    let repeatByKeyComboCount f m =
+        AsyncSeq.repeatResult (Option.defaultValue 1 m.KeyComboCount) f m
+
     let rec dispatcher evt =
         let handler =
             match evt with
@@ -1107,8 +1114,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Back count -> SyncResult (Nav.back count fs)
             | Forward count -> SyncResult (Nav.forward count fs)
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
-            | Undo count -> AsyncResult (AsyncSeq.repeatResult (Option.defaultValue 1 count) (Action.undo fs))
-            | Redo count -> AsyncResult (AsyncSeq.repeatResult (Option.defaultValue 1 count) (Action.redo fs))
+            | Undo -> AsyncResult (repeatByKeyComboCount <| Action.undo fs)
+            | Redo -> AsyncResult (repeatByKeyComboCount <| Action.redo fs)
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))

@@ -673,7 +673,7 @@ module Action =
             yield
                 { model with
                     RedoStack = action :: model.RedoStack
-                    Status = Some <| MainStatus.undoAction action model.PathFormat
+                    Status = Some <| MainStatus.undoAction action model.PathFormat model.KeyComboCount
                 }
         | [] -> return NoUndoActions
     }
@@ -708,7 +708,7 @@ module Action =
             yield
                 { model with
                     RedoStack = rest
-                    Status = Some <| MainStatus.redoAction action model.PathFormat
+                    Status = Some <| MainStatus.redoAction action model.PathFormat model.KeyComboCount
                 }
         | [] -> return NoRedoActions
     }

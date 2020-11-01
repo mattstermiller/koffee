@@ -417,8 +417,8 @@ module MainView =
 module MainStatus =
     // navigation
     let find prefix = function
-        | Some count -> Message <| sprintf "Find item nr %i starting with: %s" count prefix
-        | None -> Message <| sprintf "Find item starting with: %s" prefix
+        | Some 1 | None -> Message <| sprintf "Find item starting with: %s" prefix
+        | Some count -> Message <| sprintf "Find every %i items starting with: %s" count prefix
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path
@@ -465,14 +465,16 @@ module MainStatus =
     let undoingCopy (item: Item) isDeletionPermanent =
         let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
         Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
-    let undoAction action pathFormat =
-        Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
+    let undoAction action pathFormat = function
+        | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
+        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i actions undone. Last: %s" count)
 
     let redoingAction action pathFormat =
         runningActionMessage action pathFormat
             |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    let redoAction action pathFormat =
-        Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
+    let redoAction action pathFormat = function
+        | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
+        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i actions redone. Last: %s" count)
 
 
 type MainError =

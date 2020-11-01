@@ -160,8 +160,8 @@ module Nav =
             else newModel
         )
 
-    let back nth fsReader model = result {
-        let skip = (Option.defaultValue 1 nth) - 1
+    let back fsReader model = result {
+        let skip = (Option.defaultValue 1 model.KeyComboCount) - 1
         match model.BackStack |> List.skipSafe skip with
         | (path, cursor) :: backTail ->
             let newForwardStack = (List.truncate skip model.BackStack |> List.rev) @ ((model.Location, model.Cursor) :: model.ForwardStack)
@@ -174,8 +174,8 @@ module Nav =
         | [] -> return model
     }
 
-    let forward nth fsReader model = result {
-        let skip = (Option.defaultValue 1 nth) - 1
+    let forward fsReader model = result {
+        let skip = (Option.defaultValue 1 model.KeyComboCount) - 1
         match model.ForwardStack |> List.skipSafe skip with
         | (path, cursor) :: forwardTail ->
             let newBackStack = (List.truncate skip model.ForwardStack |> List.rev) @ ((model.Location, model.Cursor) :: model.BackStack)
@@ -274,11 +274,11 @@ module Search =
         { model with LastFind = Some prefix }
         |> moveCursorTo false false 1 (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
 
-    let findNext nth model =
-        let nthOr1 = Option.defaultValue 1 nth
+    let findNext model =
+        let nthOr1 = Option.defaultValue 1 model.KeyComboCount
         match model.LastFind with
         | Some prefix ->
-            { model with Status = Some <| MainStatus.find prefix nth }
+            { model with Status = Some <| MainStatus.find prefix model.KeyComboCount }
             |> moveCursorTo true false nthOr1 (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
@@ -850,7 +850,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
     | Some (Input (Find _)) ->
         if char = ';' then // TODO: read key binding?
             cancelInput ()
-            yield Search.findNext None model
+            yield Search.findNext model
     | Some (Prompt mode) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -1087,8 +1087,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
     let subDirResults = Event<_>()
     let progress = Event<_>()
 
-    let mulKeyComboCount keyComboCount value =
-        match keyComboCount with
+    let mulKeyComboCount m value =
+        match m.KeyComboCount with
         | Some count -> value * count
         | None -> value
 
@@ -1099,10 +1099,10 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count -1))
-            | CursorUpHalfPage count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count -m.HalfPageSize))
-            | CursorDown count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count 1))
-            | CursorDownHalfPage count -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount count m.HalfPageSize))
+            | CursorUp -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m -1))
+            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m -m.HalfPageSize))
+            | CursorDown -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m 1))
+            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m m.HalfPageSize))
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath handler -> SyncResult (Nav.openInputPath fs os handler)
@@ -1111,8 +1111,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
             | OpenProperties -> SyncResult (Action.openProperties os)
             | OpenParent -> SyncResult (Nav.openParent fs)
-            | Back count -> SyncResult (Nav.back count fs)
-            | Forward count -> SyncResult (Nav.forward count fs)
+            | Back -> SyncResult (Nav.back fs)
+            | Forward -> SyncResult (Nav.forward fs)
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
             | Undo -> AsyncResult (repeatByKeyComboCount <| Action.undo fs)
             | Redo -> AsyncResult (repeatByKeyComboCount <| Action.redo fs)
@@ -1128,7 +1128,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput
             | AddProgress incr -> Sync (addProgress incr)
-            | FindNext count -> Sync <| Search.findNext count
+            | FindNext -> Sync Search.findNext
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs false)

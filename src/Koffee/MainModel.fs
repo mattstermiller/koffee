@@ -402,17 +402,17 @@ type MainModel = {
 
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
-    | CursorUp of KeyComboCount
-    | CursorDown of KeyComboCount
-    | CursorUpHalfPage of KeyComboCount
-    | CursorDownHalfPage of KeyComboCount
+    | CursorUp
+    | CursorDown
+    | CursorUpHalfPage
+    | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
     | OpenPath of EvtHandler
     | OpenSelected
     | OpenParent
-    | Back of KeyComboCount
-    | Forward of KeyComboCount
+    | Back
+    | Forward
     | Refresh
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
@@ -426,7 +426,7 @@ type MainEvents =
     | AddProgress of float option
     | SubmitInput
     | CancelInput
-    | FindNext of KeyComboCount
+    | FindNext
     | StartAction of PutAction
     | ClearYank
     | Put
@@ -456,15 +456,15 @@ type MainEvents =
     | WindowActivated
 
     static member Bindable = [
-        CursorUp None, "Move Cursor Up"
-        CursorDown None, "Move Cursor Down"
-        CursorUpHalfPage None, "Move Cursor Up Half Page"
-        CursorDownHalfPage None, "Move Cursor Down Half Page"
+        CursorUp, "Move Cursor Up"
+        CursorDown, "Move Cursor Down"
+        CursorUpHalfPage, "Move Cursor Up Half Page"
+        CursorDownHalfPage, "Move Cursor Down Half Page"
         CursorToFirst, "Move Cursor to First Item"
         CursorToLast, "Move Cursor to Last Item"
         StartInput (Find false), "Find Item Starting With..."
         StartInput (Find true), "Find Item Starting With... (Multi)"
-        FindNext None, "Go To Next Find Match"
+        FindNext, "Go To Next Find Match"
         StartInput Search, "Search For Items"
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt SetBookmark, "Set Bookmark"
@@ -473,8 +473,8 @@ type MainEvents =
         OpenFileAndExit, "Open File and Exit"
         OpenProperties, "Open Properties"
         OpenParent, "Open Parent Folder"
-        Back None, "Back in Location History"
-        Forward None, "Forward in Location History"
+        Back, "Back in Location History"
+        Forward, "Forward in Location History"
         Refresh, "Refresh Current Folder"
         StartInput CreateFile, "Create File"
         StartInput CreateFolder, "Create Folder"
@@ -504,14 +504,3 @@ type MainEvents =
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"
     ]
-
-    member this.WithKeyComboCount keyComboCount =
-        match this with
-        | CursorUp _ -> CursorUp keyComboCount
-        | CursorDown _ -> CursorDown keyComboCount
-        | CursorUpHalfPage _ -> CursorUpHalfPage keyComboCount
-        | CursorDownHalfPage _ -> CursorDownHalfPage keyComboCount
-        | FindNext _ -> FindNext keyComboCount
-        | Back _ -> Back keyComboCount
-        | Forward _ -> Forward keyComboCount
-        | evt -> evt

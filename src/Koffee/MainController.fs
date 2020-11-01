@@ -1035,10 +1035,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             let newModel = handler model
             yield modelAlteration newModel
         | Async handler ->
-            // TODO: Find a way to do this without mutable variable
-            let mutable last = model
-            yield! handler model |> AsyncSeq.map (fun m -> last <- m; m)
-            yield modelAlteration last
+            yield! handler model |> AsyncSeq.map modelAlteration
     | None ->
         yield modelAlteration model
 }

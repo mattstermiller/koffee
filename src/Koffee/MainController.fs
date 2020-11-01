@@ -161,31 +161,51 @@ module Nav =
         )
 
     let back fsReader model = result {
-        let skip = (Option.defaultValue 1 model.KeyComboCount) - 1
-        match model.BackStack |> List.skipSafe skip with
-        | (path, cursor) :: backTail ->
-            let newForwardStack = (List.truncate skip model.BackStack |> List.rev) @ ((model.Location, model.Cursor) :: model.ForwardStack)
+        if model.BackStack = [] then
+            return model
+        else
+            let splitAt =
+                model.KeyComboCount
+                |> Option.defaultValue 1
+                |> min model.BackStack.Length
+
+            let (newToFwd, backStackAndLocation) =
+                (model.Location, model.Cursor) :: model.BackStack
+                |> List.splitAt splitAt
+
+            let (path, cursor) = List.head backStackAndLocation
+            let newForwardStack = (List.rev newToFwd) @ model.ForwardStack
             let! model = openPath fsReader path (SelectIndex cursor) model
+
             return
                 { model with
-                    BackStack = backTail
                     ForwardStack = newForwardStack
+                    BackStack = List.tail backStackAndLocation
                 }
-        | [] -> return model
     }
 
     let forward fsReader model = result {
-        let skip = (Option.defaultValue 1 model.KeyComboCount) - 1
-        match model.ForwardStack |> List.skipSafe skip with
-        | (path, cursor) :: forwardTail ->
-            let newBackStack = (List.truncate skip model.ForwardStack |> List.rev) @ ((model.Location, model.Cursor) :: model.BackStack)
+        if model.ForwardStack = [] then
+            return model
+        else
+            let splitAt =
+                model.KeyComboCount
+                |> Option.defaultValue 1
+                |> min model.ForwardStack.Length
+
+            let (newToBack, fwdStackAndLocation) =
+                (model.Location, model.Cursor) :: model.ForwardStack
+                |> List.splitAt splitAt
+
+            let (path, cursor) = List.head fwdStackAndLocation
+            let newBackStack = (List.rev newToBack) @ model.BackStack
             let! model = openPath fsReader path (SelectIndex cursor) model
+
             return
-                { model with 
+                { model with
+                    ForwardStack = List.tail fwdStackAndLocation
                     BackStack = newBackStack
-                    ForwardStack = forwardTail
                 }
-        | [] -> return model
     }
 
     let sortList field model =

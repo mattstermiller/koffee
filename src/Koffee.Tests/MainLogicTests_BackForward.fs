@@ -88,17 +88,33 @@ let ``Forward with more history changes path and stacks``() =
                      ForwardStack = ["fwd2", 5] }
 
 [<Test>]
-let ``Back 3 with simple history changes path and stacks``() =
-    backCount 3 ["back1", 2; "back2", 3; "back", 4] ["fwd", 5]
+let ``Back 3 will move 3 times``() =
+    backCount 3 ["back1", 2; "back2", 3; "back", 4; "back4", 5] ["fwd", 6]
     |> shouldEqual { Path = "back"
                      Cursor = 4
-                     BackStack = []
-                     ForwardStack = ["back2", 3; "back1", 2; "path", 1; "fwd", 5] }
+                     BackStack = ["back4", 5]
+                     ForwardStack = ["back2", 3; "back1", 2; "path", 1; "fwd", 6] }
 
 [<Test>]
-let ``Forward 3 with simple history changes path and stacks``() =
-    forwardCount 3 ["back", 2] ["fwd1", 3; "fwd2", 4; "fwd", 5]
+let ``Back 3 as overkill will not throw``() =
+    backCount 3 ["back", 2] []
+    |> shouldEqual { Path = "back"
+                     Cursor = 2
+                     BackStack = []
+                     ForwardStack = ["path", 1] }
+
+[<Test>]
+let ``Forward 3 will move 3 times``() =
+    forwardCount 3 ["back", 2] ["fwd1", 3; "fwd2", 4; "fwd", 5; "fwd4", 6]
     |> shouldEqual { Path = "fwd"
                      Cursor = 5
                      BackStack = ["fwd2", 4; "fwd1", 3; "path", 1; "back", 2]
+                     ForwardStack = ["fwd4", 6] }
+
+[<Test>]
+let ``Forward 3 as too far will not throw``() =
+    forwardCount 3 [] ["fwd", 2]
+    |> shouldEqual { Path = "fwd"
+                     Cursor = 2
+                     BackStack = ["path", 1]
                      ForwardStack = [] }

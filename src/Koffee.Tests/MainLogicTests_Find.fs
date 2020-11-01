@@ -16,11 +16,11 @@ let testModel cursorStart =
 let assertEqualExceptCursor expected actual =
     assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "Items"; "InputText"])
 
-let doFind next count prefix cursorStart =
+let doFind next nth prefix cursorStart =
     let model =
         { testModel cursorStart with
             LastFind = Some prefix
-            KeyComboCount = count
+            KeyComboCount = nth
         }
 
     let actual =
@@ -32,7 +32,7 @@ let doFind next count prefix cursorStart =
     let expected =
         { model with
             LastFind = Some prefix
-            Status = if next then Some (MainStatus.find prefix count) else None
+            Status = if next then Some (MainStatus.find prefix nth) else None
         }
     assertEqualExceptCursor expected actual
     actual.Cursor

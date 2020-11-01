@@ -55,11 +55,6 @@ let assertOk res =
     | Ok a -> a
     | Error e -> failwithf "%A" e
 
-let assertError res =
-    match res with
-    | Ok a -> failwithf "Unexpected result: %A" a
-    | Error e -> e
-
 let seqResult handler (model: MainModel) =
     (model, handler model) ||> AsyncSeq.fold (fun m res ->
         match res with

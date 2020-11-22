@@ -51,14 +51,14 @@ let test case =
         | Same ->
             let items = fs.ItemsIn "/c"
             Ok { model.WithLocation path with
-                    Directory = items
+                    Directory = items |> sortByPath
                     Items = items
                     Cursor = case.ExpectedCursor |? model.Cursor
                }
         | Different ->
             let items = fs.ItemsIn "/c/different"
             Ok { model.WithLocation path with
-                    Directory = items
+                    Directory = items |> sortByPath
                     Items = items
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack

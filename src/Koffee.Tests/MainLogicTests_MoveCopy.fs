@@ -193,7 +193,7 @@ let ``Undo move item moves it back`` curPathDifferent =
         }
         |> withLocation "/c"
         |> withBackIf curPathDifferent (model.Location, 0)
-    assertAreEqual expected actual 
+    assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "dest" []
         folder "other" []
@@ -420,24 +420,20 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
     ]
     fs.RecycleBin |> shouldEqual []
 
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Undo create shortcut handles errors by returning error and consuming action`` throwOnDelete =
+[<Test>]
+let ``Undo create shortcut handles errors by returning error and consuming action`` () =
     let fs = FakeFileSystem [
         file "file.lnk"
     ]
     let shortcut = fs.Item "/c/file.lnk"
-    if throwOnDelete then
-        fs.AddExnPath ex shortcut.Path
-    fs.AddExn ex "/c"
+    fs.AddExnPath ex shortcut.Path
     let model = testModel
 
     let actual = MainLogic.Action.undoShortcut fs shortcut.Path model
 
-    let action = DeletedItem (shortcut, false)
+    let action = DeletedItem (shortcut, true)
     let expected = Error (ItemActionError (action, model.PathFormat, ex))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        if throwOnDelete then
-            file "file.lnk"
+        file "file.lnk"
     ]

@@ -34,6 +34,12 @@ type PathComparer() =
         if parms.Object1 <> parms.Object2 then
             this.AddDifference parms
 
+let getNonFieldNames<'a> () =
+    let t = typeof<'a>
+    let props = t.GetProperties() |> Array.map (fun p -> p.Name)
+    let fields = Reflection.FSharpType.GetRecordFields(typeof<'a>) |> Array.map (fun p -> p.Name)
+    props |> Array.except fields
+
 let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
 
@@ -41,8 +47,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     let comparer = CompareLogic()
     comparer.Config.MaxDifferences <- 10
     comparer.Config.CustomComparers.AddRange([StructuralEqualityComparer(); PathComparer()])
-    let fields = Reflection.FSharpType.GetRecordFields(typeof<MainModel>) |> Seq.map (fun p -> p.Name)
-    comparer.Config.MembersToInclude.AddRange(fields)
+    comparer.Config.MembersToIgnore.AddRange((getNonFieldNames<MainModel>() |> Seq.toList) @ ["History"])
     comparerSetup comparer
     let result = comparer.Compare(expected, actual)
     Assert.IsTrue(result.AreEqual, result.DifferencesString)

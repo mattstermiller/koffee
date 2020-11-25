@@ -70,20 +70,22 @@ let test case =
 
     assertAreEqual expected res
 
-[<Test>]
-let ``Opening a valid path updates model correctly``() =
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Opening a valid path updates model correctly`` setCursor =
     test { GetPath = Different
-           Select = (SelectIndex 1)
-           ExpectedCursor = Some 1 }
+           Select = if setCursor then SelectIndex 1 else SelectNone
+           ExpectedCursor = Some (if setCursor then 1 else 0) }
 
-[<Test>]
-let ``Opening same path does not modify navigation history``() =
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Opening same path does not modify navigation history`` setCursor =
     test { GetPath = Same
-           Select = (SelectIndex 1)
-           ExpectedCursor = Some 1 }
+           Select = if setCursor then SelectIndex 1 else SelectNone
+           ExpectedCursor = if setCursor then Some 1 else None }
 
 [<Test>]
 let ``Opening a path that throws on GetItems sets error status only``() =
     test { GetPath = Inaccessible
-           Select = (SelectIndex 1)
+           Select = SelectIndex 1
            ExpectedCursor = None }

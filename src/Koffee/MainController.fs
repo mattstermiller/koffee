@@ -43,16 +43,6 @@ let clearSearchProps model =
         Progress = None
     }
 
-let private itemsInDirOrNetHost (fsReader: IFileSystemReader) path history =
-    if path = Path.Network then
-        history.NetHosts
-        |> List.map (sprintf @"\\%s")
-        |> List.choose Path.Parse
-        |> List.map (fun path -> Item.Basic path path.Name NetHost)
-        |> Ok
-    else
-        fsReader.GetItems path |> actionError "open path"
-
 module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
@@ -77,16 +67,25 @@ module Nav =
         { model with Items = items } |> select selectType
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-        let! directory = itemsInDirOrNetHost fsReader path model.History
+        let! directory =
+            if path = Path.Network then
+                model.History.NetHosts
+                |> List.map (sprintf @"\\%s")
+                |> List.choose Path.Parse
+                |> List.map (fun path -> Item.Basic path path.Name NetHost)
+                |> Ok
+            else
+                fsReader.GetItems path |> actionError "open path"
         return
-            { model.WithBackStackedLocation path with
+            { model.WithPushedLocation path with
                 Directory = directory
                 History = model.History.WithPathAndNetHost path
                 Status = None
                 Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
                 Cursor = 0
-            } |> clearSearchProps
-              |> listDirectory select
+            }
+            |> clearSearchProps
+            |> listDirectory select
     }
 
     let openUserPath (fsReader: IFileSystemReader) pathStr model =

@@ -344,7 +344,7 @@ type MainModel = {
 
     member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
 
-    member this.WithBackStackedLocation path =
+    member this.WithPushedLocation path =
         if path <> this.Location then
             { this.WithLocation path with
                 BackStack = (this.Location, this.Cursor) :: this.BackStack

@@ -289,10 +289,8 @@ module MainView =
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
                     elif keyComboCount.IsSome then
-                        if keyComboCount.Value = 1 then
-                            (sprintf "Repeat command %i time..." keyComboCount.Value, "")
-                        else
-                            (sprintf "Repeat command %i times..." keyComboCount.Value, "")
+                        let plural = if keyComboCount.Value = 1 then "s" else ""
+                        (sprintf "Repeat command %i time%s..." keyComboCount.Value plural, "")
                     else
                         match status with
                         | Some (Message msg)

@@ -160,47 +160,40 @@ module Nav =
             else newModel
         )
 
-    let rec shiftStacks current fromStack toStack n =
+    let rec private shiftStacks current n fromStack toStack =
         match fromStack with
         | newCurrent :: fromStack when n > 0 ->
-            shiftStacks newCurrent fromStack (current :: toStack) (n-1)
+            shiftStacks newCurrent (n-1) fromStack (current :: toStack)
         | _ ->
             (current, fromStack, toStack)
+
+    let private openShiftedHistoryPath fsReader model stacksGetter stacksSetter = result {
+        let repeatCount = model.RepeatCount |? 1
+
+        let (path, cursor), fromStack, toStack =
+            shiftStacks (model.Location, model.Cursor) repeatCount <|| stacksGetter model
+
+        let! model = openPath fsReader path (SelectIndex cursor) model
+
+        return stacksSetter model fromStack toStack
+    }
 
     let back fsReader model = result {
         if model.BackStack = [] then
             return model
         else
-            let repeatCount = model.RepeatCount |? 1
-
-            let (path, cursor), back, forward =
-                shiftStacks (model.Location, model.Cursor) model.BackStack model.ForwardStack repeatCount
-
-            let! model = openPath fsReader path (SelectIndex cursor) model
-
-            return
-                { model with
-                    ForwardStack = forward
-                    BackStack = back
-                }
+            return! openShiftedHistoryPath fsReader model
+                (fun m -> m.BackStack, m.ForwardStack) 
+                (fun m bs fs -> { m with BackStack = bs; ForwardStack = fs })
     }
 
     let forward fsReader model = result {
         if model.ForwardStack = [] then
             return model
         else
-            let repeatCount = model.RepeatCount |? 1
-
-            let (path, cursor), forward, back =
-                shiftStacks (model.Location, model.Cursor) model.ForwardStack model.BackStack repeatCount
-
-            let! model = openPath fsReader path (SelectIndex cursor) model
-
-            return
-                { model with
-                    ForwardStack = forward
-                    BackStack = back
-                }
+            return! openShiftedHistoryPath fsReader model
+                (fun m -> m.ForwardStack, m.BackStack) 
+                (fun m fs bs -> { m with ForwardStack = fs; BackStack = bs })
     }
 
     let sortList field model =

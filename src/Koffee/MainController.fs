@@ -160,23 +160,28 @@ module Nav =
             else newModel
         )
 
+    let rec shiftStacks current fromStack toStack n =
+        match fromStack with
+        | newCurrent :: fromStack when n > 0 ->
+            shiftStacks newCurrent fromStack (current :: toStack) (n-1)
+        | _ ->
+            (current, fromStack, toStack)
+
     let back fsReader model = result {
         if model.BackStack = [] then
             return model
         else
-            let (newToFwd, backStackAndLocation) =
-                (model.Location, model.Cursor) :: model.BackStack
-                |> List.splitAt (model.RepeatCount |? 1
-                    |> min model.BackStack.Length)
+            let repeatCount = model.RepeatCount |? 1
 
-            let (path, cursor) = List.head backStackAndLocation
-            let newForwardStack = (List.rev newToFwd) @ model.ForwardStack
+            let (path, cursor), back, forward =
+                shiftStacks (model.Location, model.Cursor) model.BackStack model.ForwardStack repeatCount
+
             let! model = openPath fsReader path (SelectIndex cursor) model
 
             return
                 { model with
-                    ForwardStack = newForwardStack
-                    BackStack = List.tail backStackAndLocation
+                    ForwardStack = forward
+                    BackStack = back
                 }
     }
 
@@ -184,19 +189,17 @@ module Nav =
         if model.ForwardStack = [] then
             return model
         else
-            let (newToBack, fwdStackAndLocation) =
-                (model.Location, model.Cursor) :: model.ForwardStack
-                |> List.splitAt (model.RepeatCount |? 1
-                    |> min model.ForwardStack.Length)
+            let repeatCount = model.RepeatCount |? 1
 
-            let (path, cursor) = List.head fwdStackAndLocation
-            let newBackStack = (List.rev newToBack) @ model.BackStack
+            let (path, cursor), forward, back =
+                shiftStacks (model.Location, model.Cursor) model.ForwardStack model.BackStack repeatCount
+
             let! model = openPath fsReader path (SelectIndex cursor) model
 
             return
                 { model with
-                    ForwardStack = List.tail fwdStackAndLocation
-                    BackStack = newBackStack
+                    ForwardStack = forward
+                    BackStack = back
                 }
     }
 

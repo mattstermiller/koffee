@@ -289,7 +289,7 @@ module MainView =
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
                     elif repeatCount.IsSome then
-                        let plural = if repeatCount.Value = 1 then "s" else ""
+                        let plural = if repeatCount.Value <> 1 then "s" else ""
                         (sprintf "Repeat command %i time%s..." repeatCount.Value plural, "")
                     else
                         match status with

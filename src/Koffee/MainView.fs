@@ -414,7 +414,8 @@ module MainView =
 
 module MainStatus =
     // navigation
-    let find prefix = function
+    let find prefix repeatCount =
+        match repeatCount with
         | Some 1 | None -> Message <| sprintf "Find item starting with: %s" prefix
         | Some count -> Message <| sprintf "Find every %i items starting with: %s" count prefix
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
@@ -463,14 +464,16 @@ module MainStatus =
     let undoingCopy (item: Item) isDeletionPermanent =
         let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
         Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
-    let undoAction action pathFormat = function
+    let undoAction action pathFormat repeatCount =
+        match repeatCount with
         | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
         | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i actions undone. Last: %s" count)
 
     let redoingAction action pathFormat =
         runningActionMessage action pathFormat
             |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    let redoAction action pathFormat = function
+    let redoAction action pathFormat repeatCount =
+        match repeatCount with
         | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
         | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i actions redone. Last: %s" count)
 

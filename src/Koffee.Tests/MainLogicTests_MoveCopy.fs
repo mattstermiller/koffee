@@ -189,7 +189,7 @@ let ``Undo move item moves it back`` curPathDifferent =
             Cursor = 3
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: testModel.RedoStack
-            Status = Some (MainStatus.undoAction action testModel.PathFormat testModel.RepeatCount)
+            Status = Some (MainStatus.undoAction action testModel.PathFormat testModel.RepeatCount 1)
         }
         |> withLocation "/c"
         |> withBackIf curPathDifferent (model.Location, 0)
@@ -314,7 +314,7 @@ let ``Undo copy item deletes when it has the same timestamp, recycles otherwise`
             Items = if curPathDifferent then model.Items else expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
-            Status = Some (MainStatus.undoAction action model.PathFormat model.RepeatCount)
+            Status = Some (MainStatus.undoAction action model.PathFormat model.RepeatCount 1)
         }
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

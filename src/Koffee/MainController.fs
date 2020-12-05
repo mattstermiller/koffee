@@ -655,7 +655,7 @@ module Action =
             yield! delete fsWriter model.SelectedItem false model
     }
 
-    let undo fs model = asyncSeqResult {
+    let rec private undoStack fs model count iter = asyncSeqResult {
         match model.UndoStack with
         | action :: rest ->
             let model = { model with UndoStack = rest }
@@ -677,15 +677,20 @@ module Action =
                 | DeletedItem (item, permanent) ->
                     Error (CannotUndoDelete (permanent, item))
                     |> AsyncSeq.singleton
-            yield
+            let model =
                 { model with
                     RedoStack = action :: model.RedoStack
-                    Status = Some <| MainStatus.undoAction action model.PathFormat model.RepeatCount
+                    Status = Some <| MainStatus.undoAction action model.PathFormat (Some count) iter
                 }
+            yield model
+            if iter < count then
+                yield! undoStack fs model count (iter + 1)
         | [] -> return NoUndoActions
     }
 
-    let redo fs model = asyncSeqResult {
+    let undo fs model = undoStack fs model (model.RepeatCount |? 1) 1
+
+    let rec private redoStack fs model count iter = asyncSeqResult {
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
@@ -712,13 +717,18 @@ module Action =
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
                     yield! delete fs item permanent model
             }
-            yield
+            let model =
                 { model with
                     RedoStack = rest
-                    Status = Some <| MainStatus.redoAction action model.PathFormat model.RepeatCount
+                    Status = Some <| MainStatus.redoAction action model.PathFormat (Some count) iter
                 }
+            yield model
+            if iter < count then
+                yield! redoStack fs model count (iter + 1)
         | [] -> return NoRedoActions
     }
+
+    let redo fs model = redoStack fs model (model.RepeatCount |? 1) 1
 
     let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
         let mapFst f t = (fst t |> f, snd t)
@@ -1112,8 +1122,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Back -> SyncResult (Nav.back fs)
             | Forward -> SyncResult (Nav.forward fs)
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
-            | Undo -> AsyncResult (repeatByRepeatCount <| Action.undo fs)
-            | Redo -> AsyncResult (repeatByRepeatCount <| Action.redo fs)
+            | Undo -> AsyncResult (Action.undo fs)
+            | Redo -> AsyncResult (Action.redo fs)
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))

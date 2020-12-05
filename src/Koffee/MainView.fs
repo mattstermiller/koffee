@@ -464,18 +464,18 @@ module MainStatus =
     let undoingCopy (item: Item) isDeletionPermanent =
         let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
         Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
-    let undoAction action pathFormat repeatCount =
+    let undoAction action pathFormat repeatCount repeatIteration =
         match repeatCount with
         | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
-        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i actions undone. Last: %s" count)
+        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i/%i actions undone. Last: %s" repeatIteration count)
 
     let redoingAction action pathFormat =
         runningActionMessage action pathFormat
             |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    let redoAction action pathFormat repeatCount =
+    let redoAction action pathFormat repeatCount repeatIteration =
         match repeatCount with
         | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
-        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i actions redone. Last: %s" count)
+        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i/%i actions redone. Last: %s" repeatIteration count)
 
 
 type MainError =

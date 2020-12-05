@@ -994,12 +994,6 @@ let cancelInput model =
         | _ -> id
 
 let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handleKey model = asyncSeq {
-    let (|DigitKey|_|) (key: Key) =
-        if key >= Key.D0 && key <= Key.D9 then
-            Some (int key - int Key.D0)
-        else
-            None
-
     let event, modelAlteration =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->

@@ -108,7 +108,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
             Items = expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
-            Status = Some (MainStatus.undoAction action model.PathFormat model.KeyComboCount)
+            Status = Some (MainStatus.undoAction action model.PathFormat model.RepeatCount)
         }
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -297,7 +297,7 @@ let ``Undo rename item names item back to original`` curPathDifferent diffCaseOn
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
-            Status = Some (MainStatus.undoAction action model.PathFormat model.KeyComboCount)
+            Status = Some (MainStatus.undoAction action model.PathFormat model.RepeatCount)
         } |> withBackIf curPathDifferent (model.Location, 0)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

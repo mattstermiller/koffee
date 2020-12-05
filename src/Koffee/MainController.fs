@@ -166,7 +166,7 @@ module Nav =
         else
             let (newToFwd, backStackAndLocation) =
                 (model.Location, model.Cursor) :: model.BackStack
-                |> List.splitAt (model.KeyComboCount |? 1
+                |> List.splitAt (model.RepeatCount |? 1
                     |> min model.BackStack.Length)
 
             let (path, cursor) = List.head backStackAndLocation
@@ -186,7 +186,7 @@ module Nav =
         else
             let (newToBack, fwdStackAndLocation) =
                 (model.Location, model.Cursor) :: model.ForwardStack
-                |> List.splitAt (model.KeyComboCount |? 1
+                |> List.splitAt (model.RepeatCount |? 1
                     |> min model.ForwardStack.Length)
 
             let (path, cursor) = List.head fwdStackAndLocation
@@ -275,7 +275,7 @@ module Search =
         let cursor =
             items
             |> List.filter (snd >> predicate)
-            |> List.skip ((model.KeyComboCount |? 1) - 1)
+            |> List.skip ((model.RepeatCount |? 1) - 1)
             |> List.tryHead
             |> Option.map fst
         match cursor with
@@ -289,7 +289,7 @@ module Search =
     let findNext model =
         match model.LastFind with
         | Some prefix ->
-            { model with Status = Some <| MainStatus.find prefix model.KeyComboCount }
+            { model with Status = Some <| MainStatus.find prefix model.RepeatCount }
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
@@ -684,7 +684,7 @@ module Action =
             yield
                 { model with
                     RedoStack = action :: model.RedoStack
-                    Status = Some <| MainStatus.undoAction action model.PathFormat model.KeyComboCount
+                    Status = Some <| MainStatus.undoAction action model.PathFormat model.RepeatCount
                 }
         | [] -> return NoUndoActions
     }
@@ -719,7 +719,7 @@ module Action =
             yield
                 { model with
                     RedoStack = rest
-                    Status = Some <| MainStatus.redoAction action model.PathFormat model.KeyComboCount
+                    Status = Some <| MainStatus.redoAction action model.PathFormat model.RepeatCount
                 }
         | [] -> return NoRedoActions
     }
@@ -1007,13 +1007,13 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             let modelAlteration m =
                 if m.InputMode.IsSome then
                     { m with InputMode = None }
-                else if not m.KeyCombo.IsEmpty || m.KeyComboCount.IsSome then
+                else if not m.KeyCombo.IsEmpty || m.RepeatCount.IsSome then
                     m.WithoutKeyCombo()
                 else
                     { m with Status = None } |> Search.clearSearch
             (None, modelAlteration)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
-            (None, (fun m -> m.AppendKeyComboCount digit))
+            (None, (fun m -> m.AppendRepeatDigit digit))
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
@@ -1095,22 +1095,22 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
     let subDirResults = Event<_>()
     let progress = Event<_>()
 
-    let mulKeyComboCount m value =
-        match m.KeyComboCount with
+    let mulRepeatCount m value =
+        match m.RepeatCount with
         | Some count -> value * count
         | None -> value
 
-    let repeatByKeyComboCount f m =
-        AsyncSeq.repeatResult (m.KeyComboCount |? 1) f m
+    let repeatByRepeatCount f m =
+        AsyncSeq.repeatResult (m.RepeatCount |? 1) f m
 
     let rec dispatcher evt =
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m -1))
-            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m -m.HalfPageSize))
-            | CursorDown -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m 1))
-            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (mulKeyComboCount m m.HalfPageSize))
+            | CursorUp -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m -1))
+            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m -m.HalfPageSize))
+            | CursorDown -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m 1))
+            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m m.HalfPageSize))
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath handler -> SyncResult (Nav.openInputPath fs os handler)
@@ -1122,8 +1122,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Back -> SyncResult (Nav.back fs)
             | Forward -> SyncResult (Nav.forward fs)
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
-            | Undo -> AsyncResult (repeatByKeyComboCount <| Action.undo fs)
-            | Redo -> AsyncResult (repeatByKeyComboCount <| Action.redo fs)
+            | Undo -> AsyncResult (repeatByRepeatCount <| Action.undo fs)
+            | Redo -> AsyncResult (repeatByRepeatCount <| Action.redo fs)
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))

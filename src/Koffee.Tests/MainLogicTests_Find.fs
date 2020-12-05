@@ -20,7 +20,7 @@ let doFind next nth prefix cursorStart =
     let model =
         { testModel cursorStart with
             LastFind = Some prefix
-            KeyComboCount = nth
+            RepeatCount = nth
         }
 
     let actual =

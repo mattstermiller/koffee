@@ -10,13 +10,13 @@ type TestResult = {
     ForwardStack: (string * int) list
 }
 
-let history handler keyComboCount backStack forwardStack =
+let history handler repeatCount backStack forwardStack =
     let model =
         { testModel with
             BackStack = backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             ForwardStack = forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             Cursor = 1
-            KeyComboCount = keyComboCount
+            RepeatCount = repeatCount
         } |> withLocation "/c/path"
     let items = List.init 6 (sprintf "file%i" >> file)
     let fs = FakeFileSystem [

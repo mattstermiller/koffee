@@ -278,8 +278,8 @@ module MainView =
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.KeyComboCount @>)
-                .toFunc(fun (status, keyCombo, keyComboCount) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCount @>)
+                .toFunc(fun (status, keyCombo, repeatCount) ->
                 let statusText, errorText =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
@@ -288,9 +288,9 @@ module MainView =
                             |> String.concat ""
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
-                    elif keyComboCount.IsSome then
-                        let plural = if keyComboCount.Value = 1 then "s" else ""
-                        (sprintf "Repeat command %i time%s..." keyComboCount.Value plural, "")
+                    elif repeatCount.IsSome then
+                        let plural = if repeatCount.Value = 1 then "s" else ""
+                        (sprintf "Repeat command %i time%s..." repeatCount.Value plural, "")
                     else
                         match status with
                         | Some (Message msg)

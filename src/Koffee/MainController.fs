@@ -166,8 +166,7 @@ module Nav =
         else
             let (newToFwd, backStackAndLocation) =
                 (model.Location, model.Cursor) :: model.BackStack
-                |> List.splitAt (model.KeyComboCount
-                    |> Option.defaultValue 1
+                |> List.splitAt (model.KeyComboCount |? 1
                     |> min model.BackStack.Length)
 
             let (path, cursor) = List.head backStackAndLocation
@@ -187,8 +186,7 @@ module Nav =
         else
             let (newToBack, fwdStackAndLocation) =
                 (model.Location, model.Cursor) :: model.ForwardStack
-                |> List.splitAt (model.KeyComboCount
-                    |> Option.defaultValue 1
+                |> List.splitAt (model.KeyComboCount |? 1
                     |> min model.ForwardStack.Length)
 
             let (path, cursor) = List.head fwdStackAndLocation
@@ -266,7 +264,7 @@ module Nav =
     }
 
 module Search =
-    let private moveCursorTo next reverse nth predicate model =
+    let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
         let indexed = model.Items |> List.indexed
         let items =
@@ -277,7 +275,7 @@ module Search =
         let cursor =
             items
             |> List.filter (snd >> predicate)
-            |> List.skip (nth - 1)
+            |> List.skip ((model.KeyComboCount |? 1) - 1)
             |> List.tryHead
             |> Option.map fst
         match cursor with
@@ -286,14 +284,13 @@ module Search =
 
     let find prefix model =
         { model with LastFind = Some prefix }
-        |> moveCursorTo false false 1 (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
+        |> moveCursorTo false false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
 
     let findNext model =
-        let nthOr1 = Option.defaultValue 1 model.KeyComboCount
         match model.LastFind with
         | Some prefix ->
             { model with Status = Some <| MainStatus.find prefix model.KeyComboCount }
-            |> moveCursorTo true false nthOr1 (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
+            |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
     let private getFilter model =
@@ -1104,7 +1101,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         | None -> value
 
     let repeatByKeyComboCount f m =
-        AsyncSeq.repeatResult (Option.defaultValue 1 m.KeyComboCount) f m
+        AsyncSeq.repeatResult (m.KeyComboCount |? 1) f m
 
     let rec dispatcher evt =
         let handler =

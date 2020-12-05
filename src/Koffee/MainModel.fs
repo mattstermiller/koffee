@@ -282,8 +282,6 @@ type CancelToken() =
     member this.IsCancelled = cancelled
     member this.Cancel () = cancelled <- true
 
-type KeyComboCount = int option
-
 type MainModel = {
     Location: Path
     LocationInput: string
@@ -296,7 +294,7 @@ type MainModel = {
     Cursor: int
     PageSize: int
     KeyCombo: KeyCombo
-    KeyComboCount: KeyComboCount
+    KeyComboCount: int option
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int

@@ -1100,9 +1100,6 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         | Some count -> value * count
         | None -> value
 
-    let repeatByRepeatCount f m =
-        AsyncSeq.repeatResult (m.RepeatCount |? 1) f m
-
     let rec dispatcher evt =
         let handler =
             match evt with

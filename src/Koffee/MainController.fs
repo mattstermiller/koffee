@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -813,9 +813,10 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.CurrentSearch with
     | Some currentSearch ->
-        let! newModel = model |> Nav.openPath fsReader model.Location (SelectName model.SelectedItem.Name)
+        let selectType = SelectName model.SelectedItem.Name
+        let! newModel = model |> Nav.openPath fsReader model.Location selectType
         let input, case, regex, sub = currentSearch
-        yield!
+        let searchModels =
             { newModel with
                 InputText = input
                 SearchCaseSensitive = case
@@ -825,6 +826,18 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
             }
             |> Search.search fsReader subDirResults progress
             |> AsyncSeq.map Ok
+            |> AsyncSeq.cache
+        yield! searchModels
+        // when done searching, re-sort
+        match! searchModels |> AsyncSeq.tryLast with
+        | Some (Ok newModel) ->
+            let items = newModel.Items |> (newModel.Sort |> Option.map SortField.SortByTypeThen |? id)
+            yield!
+                { newModel with Items = items }
+                |> Nav.select selectType
+                |> Ok
+        | Some error -> yield! error
+        | None -> ()
     | None ->
         yield! Nav.refresh fsReader model
 }

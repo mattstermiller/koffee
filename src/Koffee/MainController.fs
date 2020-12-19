@@ -413,17 +413,21 @@ module Action =
             | Prompt SetBookmark when model.IsSearchingSubFolders -> Ok false
             | _ -> Ok true
         if allowed then
-            let model = { model with InputMode = Some inputMode }
-            match inputMode with
-            | Input Search ->
-                let input, sub = model.CurrentSearch |> Option.map (fun (s, _, _, sub) -> (s, sub)) |? ("", false)
-                return { model with InputText = input; SearchSubFolders = sub }
-                       |> setInputSelection End
-            | Input (Rename pos) ->
-                return { model with InputText = model.SelectedItem.Name }
-                       |> setInputSelection pos
-            | _ ->
-                return { model with InputText = "" }
+            if model.InputMode = Some inputMode then
+                return { model with InputMode = None }
+            else
+                let model = { model with InputMode = Some inputMode }
+
+                match inputMode with
+                | Input Search ->
+                    let input, sub = model.CurrentSearch |> Option.map (fun (s, _, _, sub) -> (s, sub)) |? ("", false)
+                    return { model with InputText = input; SearchSubFolders = sub }
+                           |> setInputSelection End
+                | Input (Rename pos) ->
+                    return { model with InputText = model.SelectedItem.Name }
+                           |> setInputSelection pos
+                | _ ->
+                    return { model with InputText = "" }
         else
             return model
     }
@@ -901,6 +905,8 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                     }
             | None ->
                 yield { model with Status = Some <| MainStatus.noBookmark char }
+        // ShowHistory doesn't have an input field, so this will never trigger
+        | ShowHistory -> ()
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }

@@ -108,6 +108,7 @@ type PromptType =
     | GoToBookmark
     | SetBookmark
     | DeleteBookmark
+    | ShowHistory
 
 type ConfirmType =
     | Overwrite of PutAction * src: Item * dest: Item
@@ -476,6 +477,7 @@ type MainEvents =
         OpenParent, "Open Parent Folder"
         Back, "Back in Location History"
         Forward, "Forward in Location History"
+        StartPrompt ShowHistory, "Show History"
         Refresh, "Refresh Current Folder"
         StartInput CreateFile, "Create File"
         StartInput CreateFolder, "Create Folder"

@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -159,6 +159,9 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
+        let backKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Back) |> fst
+        let forwardKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Forward) |> fst
+
         // history save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
         (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
@@ -227,8 +230,8 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchRegex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchSubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.Location, model.BackStack, model.ForwardStack @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, location, backStack, forwardStack) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -241,21 +244,48 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarkPanel.Visible <- true
+                            window.HistoryPanel.Visible <- false
+                        | Prompt ShowHistory ->
+                            let formatStack str (stack: seq<Path * int>) =
+                                stack
+                                |> Seq.mapi (fun i (path, _) ->
+                                    (sprintf "%i%s" (i+1) str, path.Format pathFormat))
+
+                            let isEmpty = forwardStack = [] && backStack = []
+
+                            window.HistoryError.Collapsed <- not isEmpty
+                            window.HistoryForward.Collapsed <- isEmpty
+                            window.HistoryBack.Collapsed <- isEmpty
+                            window.HistoryCurrent.Collapsed <- isEmpty
+
+                            if isEmpty then
+                                window.HistoryError.Text <- "Nothing in history"
+                            else
+                                window.HistoryForward.ItemsSource <- Seq.truncate 4 forwardStack |> formatStack forwardKeyBinding
+                                window.HistoryBack.ItemsSource <- Seq.truncate 9 backStack |> formatStack backKeyBinding |> Seq.rev
+                                window.HistoryCurrentPath.Text <- location.Format pathFormat
+
+                            window.BookmarkPanel.Visible <- false
+                            window.HistoryPanel.Visible <- true
                         | _ ->
                             window.BookmarkPanel.Visible <- false
+                            window.HistoryPanel.Visible <- false
                         window.SearchOptions.Visibility <-
                             match inputMode with
                             | Input Search -> Visibility.Visible
                             | _ -> Visibility.Collapsed
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
-                        if not window.InputPanel.Visible then
+                        if inputMode = Prompt ShowHistory then
+                            window.InputPanel.Visibility <- Visibility.Collapsed
+                        elif not window.InputPanel.Visible then
                             window.InputPanel.Visible <- true
                             window.InputBox.Select(selectStart, selectLen)
                             window.InputBox.Focus() |> ignore
                     | None ->
-                        if window.InputPanel.Visible then
+                        if window.InputPanel.Visible || window.HistoryPanel.Visible then
                             window.InputPanel.Visibility <- Visibility.Collapsed
                             window.BookmarkPanel.Visible <- false
+                            window.HistoryPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->

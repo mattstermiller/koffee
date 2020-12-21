@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -165,33 +165,26 @@ module Nav =
         | _ ->
             (current, fromStack, toStack)
 
-    let private openShiftedHistoryPath fsReader model stacksGetter stacksSetter = result {
-        let repeatCount = model.RepeatCount |? 1
-
-        let (path, cursor), fromStack, toStack =
-            shiftStacks (model.Location, model.Cursor) repeatCount <|| stacksGetter model
-
-        let! model = openPath fsReader path (SelectIndex cursor) model
-
-        return stacksSetter model fromStack toStack
-    }
-
     let back fsReader model = result {
         if model.BackStack = [] then
             return model
         else
-            return! openShiftedHistoryPath fsReader model
-                (fun m -> m.BackStack, m.ForwardStack) 
-                (fun m bs fs -> { m with BackStack = bs; ForwardStack = fs })
+            let repeatCount = model.RepeatCount |? 1
+            let (path, cursor), fromStack, toStack =
+                shiftStacks (model.Location, model.Cursor) repeatCount model.BackStack model.ForwardStack
+            let! model = openPath fsReader path (SelectIndex cursor) model
+            return { model with BackStack = fromStack; ForwardStack = toStack }
     }
 
     let forward fsReader model = result {
         if model.ForwardStack = [] then
             return model
         else
-            return! openShiftedHistoryPath fsReader model
-                (fun m -> m.ForwardStack, m.BackStack) 
-                (fun m fs bs -> { m with ForwardStack = fs; BackStack = bs })
+            let repeatCount = model.RepeatCount |? 1
+            let (path, cursor), fromStack, toStack =
+                shiftStacks (model.Location, model.Cursor) repeatCount model.ForwardStack model.BackStack
+            let! model = openPath fsReader path (SelectIndex cursor) model
+            return { model with BackStack = toStack; ForwardStack = fromStack }
     }
 
     let sortList field model =

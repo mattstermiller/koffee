@@ -148,7 +148,11 @@ module Nav =
             else
                 openPath fsReader model.SelectedItem.Path.Parent (SelectName model.SelectedItem.Name) model
         else
-            openPath fsReader model.Location.Parent (SelectName model.Location.Name) model
+            let rec getParent n (path: Path) =
+                if n < 1 || path = Path.Root then path
+                else getParent (n-1) path.Parent
+            let path = getParent (model.RepeatCount |? 1) model.Location
+            openPath fsReader path (SelectName model.Location.Name) model
 
     let refresh fsReader (model: MainModel) =
         openPath fsReader model.Location SelectNone model

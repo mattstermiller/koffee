@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogicTests_MoveCopy
+module Koffee.MainLogicTests_MoveCopy
 
 open System
 open NUnit.Framework
@@ -189,7 +189,7 @@ let ``Undo move item moves it back`` curPathDifferent =
             Cursor = 3
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: testModel.RedoStack
-            Status = Some (MainStatus.undoAction action testModel.PathFormat)
+            Status = Some (MainStatus.undoAction action testModel.PathFormat 1)
         }
         |> withLocation "/c"
         |> withBackIf curPathDifferent (model.Location, 0)
@@ -314,7 +314,7 @@ let ``Undo copy item deletes when it has the same timestamp, recycles otherwise`
             Items = if curPathDifferent then model.Items else expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
-            Status = Some (MainStatus.undoAction action model.PathFormat)
+            Status = Some (MainStatus.undoAction action model.PathFormat 1)
         }
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

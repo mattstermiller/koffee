@@ -1,4 +1,4 @@
-﻿module Koffee.KeyBinding
+module Koffee.KeyBinding
 
 open System.Windows.Input
 

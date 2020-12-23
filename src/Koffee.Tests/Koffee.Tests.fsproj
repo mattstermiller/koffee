@@ -19,6 +19,7 @@
     <Compile Include="ProgramOptionsTests.fs" />
     <Compile Include="ConfigTests.fs" />
     <Compile Include="HistoryTests.fs" />
+    <Compile Include="MainModelTests.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
     <Compile Include="MainLogicTests_OpenPath.fs" />
     <Compile Include="MainLogicTests_SuggestPaths.fs" />

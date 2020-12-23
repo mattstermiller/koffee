@@ -296,6 +296,7 @@ type MainModel = {
     Cursor: int
     PageSize: int
     KeyCombo: KeyCombo
+    RepeatCount: int option
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
@@ -355,6 +356,15 @@ type MainModel = {
             }
         else this
 
+    member this.WithoutKeyCombo () =
+        { this with KeyCombo = []; RepeatCount = None }
+
+    member this.AppendRepeatDigit digit =
+        match this.RepeatCount with
+        | None when digit = 0 -> this
+        | Some count -> { this with RepeatCount = Some (count * 10 + digit) }
+        | None -> { this with RepeatCount = Some digit }
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
@@ -367,6 +377,7 @@ type MainModel = {
         Cursor = 0
         PageSize = 30
         KeyCombo = []
+        RepeatCount = None
         InputMode = None
         InputText = ""
         InputTextSelection = 0, 0

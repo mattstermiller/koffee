@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System.Windows.Input
 

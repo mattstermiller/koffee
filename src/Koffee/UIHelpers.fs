@@ -1,4 +1,4 @@
-﻿[<AutoOpen>]
+[<AutoOpen>]
 module UIHelpers
 
 open System
@@ -19,6 +19,12 @@ let onKeyCombo mods key action (evt: KeyEventArgs) =
     if Keyboard.Modifiers = mods && evt.Key = key then
         evt.Handled <- true
         action() |> ignore
+
+let (|DigitKey|_|) (key: Key) =
+    if key >= Key.D0 && key <= Key.D9 then
+        Some (int key - int Key.D0)
+    else
+        None
 
 type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
     member this.Handle () =

@@ -278,7 +278,8 @@ module MainView =
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo @>).toFunc(fun (status, keyCombo) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCount @>)
+                .toFunc(fun (status, keyCombo, repeatCount) ->
                 let statusText, errorText =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
@@ -287,6 +288,9 @@ module MainView =
                             |> String.concat ""
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
+                    elif repeatCount.IsSome then
+                        let plural = if repeatCount.Value <> 1 then "s" else ""
+                        (sprintf "Repeat command %i time%s..." repeatCount.Value plural, "")
                     else
                         match status with
                         | Some (Message msg)
@@ -410,7 +414,10 @@ module MainView =
 
 module MainStatus =
     // navigation
-    let find prefix = Message <| "Find item starting with: " + prefix
+    let find prefix repeatCount =
+        match repeatCount with
+        | Some 1 | None -> Message <| sprintf "Find item starting with: %s" prefix
+        | Some count -> Message <| sprintf "Find every %i items starting with: %s" count prefix
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path
@@ -457,14 +464,24 @@ module MainStatus =
     let undoingCopy (item: Item) isDeletionPermanent =
         let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
         Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
-    let undoAction action pathFormat =
-        Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
+    let undoAction action pathFormat repeatCount =
+        let prefix =
+            if repeatCount = 1 then
+                "Action undone: "
+            else
+                sprintf "%i actions undone. Last: " repeatCount
+        Message (prefix + actionCompleteMessage action pathFormat)
 
     let redoingAction action pathFormat =
         runningActionMessage action pathFormat
             |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    let redoAction action pathFormat =
-        Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
+    let redoAction action pathFormat repeatCount =
+        let prefix =
+            if repeatCount = 1 then
+                "Action redone: "
+            else
+                sprintf "%i actions redone. Last: " repeatCount
+        Message (prefix + actionCompleteMessage action pathFormat)
 
 
 type MainError =

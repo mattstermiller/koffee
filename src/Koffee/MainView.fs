@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -464,18 +464,24 @@ module MainStatus =
     let undoingCopy (item: Item) isDeletionPermanent =
         let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
         Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
-    let undoAction action pathFormat repeatCount repeatIteration =
-        match repeatCount with
-        | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action undone: %s")
-        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i/%i actions undone. Last: %s" repeatIteration count)
+    let undoAction action pathFormat repeatCount =
+        let prefix =
+            if repeatCount = 1 then
+                "Action undone: "
+            else
+                sprintf "%i actions undone. Last: " repeatCount
+        Message (prefix + actionCompleteMessage action pathFormat)
 
     let redoingAction action pathFormat =
         runningActionMessage action pathFormat
             |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    let redoAction action pathFormat repeatCount repeatIteration =
-        match repeatCount with
-        | Some 1 | None -> Message <| (actionCompleteMessage action pathFormat |> sprintf "Action redone: %s")
-        | Some count -> Message <| (actionCompleteMessage action pathFormat |> sprintf "%i/%i actions redone. Last: %s" repeatIteration count)
+    let redoAction action pathFormat repeatCount =
+        let prefix =
+            if repeatCount = 1 then
+                "Action redone: "
+            else
+                sprintf "%i actions redone. Last: " repeatCount
+        Message (prefix + actionCompleteMessage action pathFormat)
 
 
 type MainError =

@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open System.Threading.Tasks
@@ -653,7 +653,7 @@ module Action =
             yield! delete fsWriter model.SelectedItem false model
     }
 
-    let rec private undoStack fs model count iter = asyncSeqResult {
+    let rec private undoIter fs model count iter = asyncSeqResult {
         match model.UndoStack with
         | action :: rest ->
             let model = { model with UndoStack = rest }
@@ -675,20 +675,17 @@ module Action =
                 | DeletedItem (item, permanent) ->
                     Error (CannotUndoDelete (permanent, item))
                     |> AsyncSeq.singleton
-            let model =
-                { model with
-                    RedoStack = action :: model.RedoStack
-                    Status = Some <| MainStatus.undoAction action model.PathFormat (Some count) iter
-                }
-            yield model
+            let model = { model with RedoStack = action :: model.RedoStack }
             if iter < count then
-                yield! undoStack fs model count (iter + 1)
+                yield! undoIter fs model count (iter + 1)
+            else
+                yield { model with Status = Some <| MainStatus.undoAction action model.PathFormat count }
         | [] -> return NoUndoActions
     }
 
-    let undo fs model = undoStack fs model (model.RepeatCount |? 1) 1
+    let undo fs model = undoIter fs model (model.RepeatCount |? 1) 1
 
-    let rec private redoStack fs model count iter = asyncSeqResult {
+    let rec private redoIter fs model count iter = asyncSeqResult {
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
@@ -715,18 +712,15 @@ module Action =
                     yield { model with Status = MainStatus.redoingAction action model.PathFormat }
                     yield! delete fs item permanent model
             }
-            let model =
-                { model with
-                    RedoStack = rest
-                    Status = Some <| MainStatus.redoAction action model.PathFormat (Some count) iter
-                }
-            yield model
+            let model = { model with RedoStack = rest }
             if iter < count then
-                yield! redoStack fs model count (iter + 1)
+                yield! redoIter fs model count (iter + 1)
+            else
+                yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat count }
         | [] -> return NoRedoActions
     }
 
-    let redo fs model = redoStack fs model (model.RepeatCount |? 1) 1
+    let redo fs model = redoIter fs model (model.RepeatCount |? 1) 1
 
     let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
         let mapFst f t = (fst t |> f, snd t)

@@ -1002,18 +1002,18 @@ let cancelInput model =
         | _ -> id
 
 let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handleKey model = asyncSeq {
-    let event, modelAlteration =
+    let event, modelFunc =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
-            let modelAlteration m =
+            let modelFunc m =
                 if m.InputMode.IsSome then
                     { m with InputMode = None }
                 else if not m.KeyCombo.IsEmpty || m.RepeatCount.IsSome then
                     m.WithoutKeyCombo()
                 else
                     { m with Status = None } |> Search.clearSearch
-            (None, modelAlteration)
+            (None, modelFunc)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
             (None, (fun m -> m.AppendRepeatDigit digit))
         | _ ->
@@ -1031,12 +1031,11 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
     | Some e ->
         match dispatcher e with
         | Sync handler ->
-            let newModel = handler model
-            yield modelAlteration newModel
+            yield handler model |> modelFunc
         | Async handler ->
-            yield! handler model |> AsyncSeq.map modelAlteration
+            yield! handler model |> AsyncSeq.map modelFunc
     | None ->
-        yield modelAlteration model
+        yield modelFunc model
 }
 
 let addProgress incr model =

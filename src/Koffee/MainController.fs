@@ -413,21 +413,17 @@ module Action =
             | Prompt SetBookmark when model.IsSearchingSubFolders -> Ok false
             | _ -> Ok true
         if allowed then
-            if model.InputMode = Some inputMode then
-                return { model with InputMode = None }
-            else
-                let model = { model with InputMode = Some inputMode }
-
-                match inputMode with
-                | Input Search ->
-                    let input, sub = model.CurrentSearch |> Option.map (fun (s, _, _, sub) -> (s, sub)) |? ("", false)
-                    return { model with InputText = input; SearchSubFolders = sub }
-                           |> setInputSelection End
-                | Input (Rename pos) ->
-                    return { model with InputText = model.SelectedItem.Name }
-                           |> setInputSelection pos
-                | _ ->
-                    return { model with InputText = "" }
+            let model = { model with InputMode = Some inputMode }
+            match inputMode with
+            | Input Search ->
+                let input, sub = model.CurrentSearch |> Option.map (fun (s, _, _, sub) -> (s, sub)) |? ("", false)
+                return { model with InputText = input; SearchSubFolders = sub }
+                       |> setInputSelection End
+            | Input (Rename pos) ->
+                return { model with InputText = model.SelectedItem.Name }
+                       |> setInputSelection pos
+            | _ ->
+                return { model with InputText = "" }
         else
             return model
     }
@@ -905,8 +901,6 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                     }
             | None ->
                 yield { model with Status = Some <| MainStatus.noBookmark char }
-        // ShowHistory doesn't have an input field, so this will never trigger
-        | ShowHistory -> ()
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -1017,6 +1011,8 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                     { m with InputMode = None }
                 else if not m.KeyCombo.IsEmpty || m.RepeatCount.IsSome then
                     m.WithoutKeyCombo()
+                else if m.IsNavHistoryVisible then
+                    { m with IsNavHistoryVisible = false }
                 else
                     { m with Status = None } |> Search.clearSearch
             (None, modelFunc)
@@ -1027,7 +1023,12 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                (Some newEvent, (fun m -> m.WithoutKeyCombo()))
+                let modelFunc (m: MainModel) =
+                    { m.WithoutKeyCombo() with
+                        // hide nav history if input prompt is opened
+                        IsNavHistoryVisible = m.IsNavHistoryVisible && m.InputMode.IsNone
+                    }
+                (Some newEvent, modelFunc)
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
@@ -1125,6 +1126,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | OpenParent -> SyncResult (Nav.openParent fs)
             | Back -> SyncResult (Nav.back fs)
             | Forward -> SyncResult (Nav.forward fs)
+            | ShowNavHistory -> Sync (fun m -> { m with IsNavHistoryVisible = not m.IsNavHistoryVisible })
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
             | Undo -> AsyncResult (Action.undo fs)
             | Redo -> AsyncResult (Action.redo fs)

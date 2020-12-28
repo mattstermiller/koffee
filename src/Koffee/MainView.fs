@@ -159,6 +159,9 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
+        let backKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Back) |> fst
+        let forwardKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Forward) |> fst
+
         // history save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
         (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
@@ -261,6 +264,33 @@ module MainView =
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
                 window.InputBox.Select(selectStart, selectLen)
             )
+            Bind.modelMulti(<@ model.IsNavHistoryVisible, model.Location, model.BackStack, model.ForwardStack, model.PathFormat @>)
+                .toFunc(fun (isLocHistoryVisible, location, backStack, forwardStack, pathFormat) ->
+                    window.NavHistoryPanel.Visible <- isLocHistoryVisible
+                    if isLocHistoryVisible then
+                        let maxForwardItems = 4
+                        let maxBackItems = 9
+
+                        let formatStack key (stack: seq<Path * int>) =
+                            stack |> Seq.mapi (fun i (path, _) ->
+                                let repeat = if i > 0 then i + 1 |> string else ""
+                                (repeat + key, path.Format pathFormat)
+                            )
+
+                        let isEmpty = forwardStack = [] && backStack = []
+
+                        window.NavHistoryError.Collapsed <- not isEmpty
+                        window.NavHistoryForward.Collapsed <- isEmpty
+                        window.NavHistoryBack.Collapsed <- isEmpty
+                        window.NavHistoryCurrent.Collapsed <- isEmpty
+
+                        if not isEmpty then
+                            window.NavHistoryForward.ItemsSource <-
+                                List.truncate maxForwardItems forwardStack |> formatStack forwardKeyBinding
+                            window.NavHistoryBack.ItemsSource <-
+                                List.truncate maxBackItems backStack |> formatStack backKeyBinding |> Seq.rev
+                            window.NavHistoryCurrentPath.Text <- location.Format pathFormat
+                )
             Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function
                 | None, _
                 | Some _, Some (Input Search) ->

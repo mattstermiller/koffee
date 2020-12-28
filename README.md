@@ -42,8 +42,9 @@ _A capital letter indicates that the letter key is combined with Shift._
 - `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
-- `Tab` switches between the main view and the path box
-- `?` opens the Settings window, which displays the hotkeys for all commands.
+- `Tab` to switch between the main view and the path box
+- `?` to open the Settings window, which displays the hotkeys for all commands.
+- `Esc` to cancel actions, searches, path input, etc.
 - `Ctrl + w` to exit
 
 #### Advanced Navigation
@@ -103,7 +104,8 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Paste in any text editor or text input to insert the file or folder's path there.
 
 #### Other
-- Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `5H` will go back 5 times.
+- Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `4H` will go back 4 times.
+- Display navigation history for Back/Forward with `gh`
 - Open the selected file and exit with `Ctrl + Enter`
 - Open the selected file or folder's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`

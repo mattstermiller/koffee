@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows.Input
@@ -311,6 +311,7 @@ type MainModel = {
     Progress: float option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
+    IsNavHistoryVisible: bool
     UndoStack: ItemAction list
     RedoStack: ItemAction list
     WindowLocation: int * int
@@ -392,6 +393,7 @@ type MainModel = {
         Progress = None
         BackStack = []
         ForwardStack = []
+        IsNavHistoryVisible = false
         UndoStack = []
         RedoStack = []
         WindowLocation = 0, 0
@@ -414,6 +416,7 @@ type MainEvents =
     | OpenParent
     | Back
     | Forward
+    | ShowNavHistory
     | Refresh
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
@@ -474,8 +477,9 @@ type MainEvents =
         OpenFileAndExit, "Open File and Exit"
         OpenProperties, "Open Properties"
         OpenParent, "Open Parent Folder"
-        Back, "Back in Location History"
-        Forward, "Forward in Location History"
+        Back, "Back in Navigation History"
+        Forward, "Forward in Navigation History"
+        ShowNavHistory, "Show Navigation History"
         Refresh, "Refresh Current Folder"
         StartInput CreateFile, "Create File"
         StartInput CreateFolder, "Create Folder"

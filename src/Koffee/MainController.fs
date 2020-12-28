@@ -1011,6 +1011,8 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                     { m with InputMode = None }
                 else if not m.KeyCombo.IsEmpty || m.RepeatCount.IsSome then
                     m.WithoutKeyCombo()
+                else if m.IsNavHistoryVisible then
+                    { m with IsNavHistoryVisible = false }
                 else
                     { m with Status = None } |> Search.clearSearch
             (None, modelFunc)
@@ -1021,7 +1023,12 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                (Some newEvent, (fun m -> m.WithoutKeyCombo()))
+                let modelFunc (m: MainModel) =
+                    { m.WithoutKeyCombo() with
+                        // hide nav history if input prompt is opened
+                        IsNavHistoryVisible = m.IsNavHistoryVisible && m.InputMode.IsNone
+                    }
+                (Some newEvent, modelFunc)
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
@@ -1119,6 +1126,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | OpenParent -> SyncResult (Nav.openParent fs)
             | Back -> SyncResult (Nav.back fs)
             | Forward -> SyncResult (Nav.forward fs)
+            | ShowNavHistory -> Sync (fun m -> { m with IsNavHistoryVisible = not m.IsNavHistoryVisible })
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
             | Undo -> AsyncResult (Action.undo fs)
             | Redo -> AsyncResult (Action.redo fs)

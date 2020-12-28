@@ -2,7 +2,7 @@ module Koffee.KeyBinding
 
 open System.Windows.Input
 
-let private parseKey keyStr = 
+let private parseKey keyStr =
     match KeyComboParser.Parse keyStr with
     | Some keys -> keys
     | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
@@ -24,6 +24,7 @@ let defaultsAsString = [
     ("h", OpenParent)
     ("H", Back)
     ("L", Forward)
+    ("gh", ShowNavHistory)
     ("r", Refresh)
     ("<f5>", Refresh)
     ("u", Undo)

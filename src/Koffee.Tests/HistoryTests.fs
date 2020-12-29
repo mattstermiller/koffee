@@ -20,7 +20,7 @@ let ``History can be serialized and deserialized`` () =
                 "Some net host"
             ]
             Paths = [
-                createPath "C:\Some\Path"
+                createPath @"C:\Some\Path"
             ]
             Searches = [
                 ("downloads", false, false)
@@ -34,25 +34,21 @@ let ``History can be serialized and deserialized`` () =
 
 [<Test>]
 let ``With new PathSort it adds it to the list`` () =
-    // Arrange
-    let path = createPath "C:\Some\Path"
+    let path = createPath @"C:\Some\Path"
     let sort = { Sort = SortField.Modified; Descending = true }
     let history = {
         History.Default with
             PathSort = Map.empty
     }
 
-    // Act
     let result = history.WithPathSort path sort
 
-    // Assert
     let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldContain path
 
 [<Test>]
 let ``With same path in PathSort it overrides the existing`` () =
-    // Arrange
-    let path = createPath "C:\Some\Path"
+    let path = createPath @"C:\Some\Path"
     let sort = { Sort = SortField.Modified; Descending = true }
     let history = {
         History.Default with
@@ -60,32 +56,26 @@ let ``With same path in PathSort it overrides the existing`` () =
     }
     let newSort = { Sort = SortField.Size; Descending = true }
 
-    // Act
     let result = history.WithPathSort path newSort
 
-    // Assert
     let resultSort = result.PathSort.[path]
     resultSort |> shouldEqual newSort
     resultSort |> shouldNotEqual sort
 
 [<Test>]
 let ``With default sort it omits it`` () =
-    // Arrange
-    let path = createPath "C:\Some\Path"
+    let path = createPath @"C:\Some\Path"
     let sort = PathSort.Default
     let history = History.Default
 
-    // Act
     let result = history.WithPathSort path sort
 
-    // Assert
     let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldNotContain path
 
 [<Test>]
 let ``With default sort it removes the existing`` () =
-    // Arrange
-    let path = createPath "C:\Some\Path"
+    let path = createPath @"C:\Some\Path"
     let sort = { PathSort.Default with Descending = not PathSort.Default.Descending }
     let history = {
         History.Default with
@@ -93,36 +83,27 @@ let ``With default sort it removes the existing`` () =
     }
     let newSort = PathSort.Default
 
-    // Act
     let result = history.WithPathSort path newSort
 
-    // Assert
     let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldNotContain path
 
 let ``Get stored sort from find`` () =
-    // Arrange
-    let path = createPath "C:\Some\Path"
+    let path = createPath @"C:\Some\Path"
     let sort = { PathSort.Default with Descending = not PathSort.Default.Descending }
     let history = {
         History.Default with
             PathSort = Map.empty |> Map.add path sort
     }
 
-    // Act
     let result = history.FindSortOrDefault path
 
-    // Assert
     result |> shouldNotEqual PathSort.Default
 
 let ``Get default sort when none stored`` () =
-    // Arrange
-    let path = createPath "C:\Some\Path"
+    let path = createPath @"C:\Some\Path"
     let history = History.Default
 
-    // Act
     let result = history.FindSortOrDefault path
 
-    // Assert
     result |> shouldEqual PathSort.Default
-

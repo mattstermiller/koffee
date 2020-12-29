@@ -296,7 +296,7 @@ type MainModel = {
     Cursor: int
     PageSize: int
     KeyCombo: KeyCombo
-    RepeatCount: int option
+    RepeatCommand: int option
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
@@ -358,13 +358,15 @@ type MainModel = {
         else this
 
     member this.WithoutKeyCombo () =
-        { this with KeyCombo = []; RepeatCount = None }
+        { this with KeyCombo = []; RepeatCommand = None }
 
     member this.AppendRepeatDigit digit =
-        match this.RepeatCount with
+        match this.RepeatCommand with
         | None when digit = 0 -> this
-        | Some count -> { this with RepeatCount = Some (count * 10 + digit) }
-        | None -> { this with RepeatCount = Some digit }
+        | Some count -> { this with RepeatCommand = Some (count * 10 + digit) }
+        | None -> { this with RepeatCommand = Some digit }
+
+    member this.RepeatCount = this.RepeatCommand |? 1
 
     static member Default = {
         Location = Path.Root
@@ -378,7 +380,7 @@ type MainModel = {
         Cursor = 0
         PageSize = 30
         KeyCombo = []
-        RepeatCount = None
+        RepeatCommand = None
         InputMode = None
         InputText = ""
         InputTextSelection = 0, 0

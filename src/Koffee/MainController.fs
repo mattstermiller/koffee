@@ -151,7 +151,7 @@ module Nav =
             let rec getParent n (path: Path) =
                 if n < 1 || path = Path.Root then path
                 else getParent (n-1) path.Parent
-            let path = getParent (model.RepeatCount |? 1) model.Location
+            let path = getParent model.RepeatCount model.Location
             openPath fsReader path (SelectName model.Location.Name) model
 
     let refresh fsReader (model: MainModel) =
@@ -173,9 +173,8 @@ module Nav =
         if model.BackStack = [] then
             return model
         else
-            let repeatCount = model.RepeatCount |? 1
             let (path, cursor), fromStack, toStack =
-                shiftStacks (model.Location, model.Cursor) repeatCount model.BackStack model.ForwardStack
+                shiftStacks (model.Location, model.Cursor) model.RepeatCount model.BackStack model.ForwardStack
             let! model = openPath fsReader path (SelectIndex cursor) model
             return { model with BackStack = fromStack; ForwardStack = toStack }
     }
@@ -184,9 +183,8 @@ module Nav =
         if model.ForwardStack = [] then
             return model
         else
-            let repeatCount = model.RepeatCount |? 1
             let (path, cursor), fromStack, toStack =
-                shiftStacks (model.Location, model.Cursor) repeatCount model.ForwardStack model.BackStack
+                shiftStacks (model.Location, model.Cursor) model.RepeatCount model.ForwardStack model.BackStack
             let! model = openPath fsReader path (SelectIndex cursor) model
             return { model with BackStack = toStack; ForwardStack = fromStack }
     }
@@ -266,7 +264,7 @@ module Search =
         let cursor =
             items
             |> List.filter (snd >> predicate)
-            |> List.skip ((model.RepeatCount |? 1) - 1)
+            |> List.skip (model.RepeatCount - 1)
             |> List.tryHead
             |> Option.map fst
         match cursor with
@@ -673,11 +671,10 @@ module Action =
                     Error (CannotUndoDelete (permanent, item))
                     |> AsyncSeq.singleton
             let model = { model with RedoStack = action :: model.RedoStack }
-            let repeat = model.RepeatCount |? 1
-            if iter < repeat then
+            if iter < model.RepeatCount then
                 yield! undoIter (iter + 1) fs model
             else
-                yield { model with Status = Some <| MainStatus.undoAction action model.PathFormat repeat }
+                yield { model with Status = Some <| MainStatus.undoAction action model.PathFormat model.RepeatCount }
         | [] -> return NoUndoActions
     }
 
@@ -711,11 +708,10 @@ module Action =
                     yield! delete fs item permanent model
             }
             let model = { model with RedoStack = rest }
-            let repeat = model.RepeatCount |? 1
-            if iter < repeat then
+            if iter < model.RepeatCount then
                 yield! redoIter (iter + 1) fs model
             else
-                yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat repeat }
+                yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat model.RepeatCount }
         | [] -> return NoRedoActions
     }
 
@@ -1011,7 +1007,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             let modelFunc m =
                 if m.InputMode.IsSome then
                     { m with InputMode = None }
-                else if not m.KeyCombo.IsEmpty || m.RepeatCount.IsSome then
+                else if not m.KeyCombo.IsEmpty || m.RepeatCommand.IsSome then
                     m.WithoutKeyCombo()
                 else if m.IsNavHistoryVisible then
                     { m with IsNavHistoryVisible = false }
@@ -1105,19 +1101,14 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
     let subDirResults = Event<_>()
     let progress = Event<_>()
 
-    let mulRepeatCount m value =
-        match m.RepeatCount with
-        | Some count -> value * count
-        | None -> value
-
     let rec dispatcher evt =
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m -1))
-            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m -m.HalfPageSize))
-            | CursorDown -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m 1))
-            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (mulRepeatCount m m.HalfPageSize))
+            | CursorUp -> Sync (fun m -> m.WithCursorRel (-1 * m.RepeatCount))
+            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (-m.HalfPageSize * m.RepeatCount))
+            | CursorDown -> Sync (fun m -> m.WithCursorRel (1 * m.RepeatCount))
+            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (m.HalfPageSize * m.RepeatCount))
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath handler -> SyncResult (Nav.openInputPath fs os handler)

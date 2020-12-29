@@ -10,13 +10,13 @@ type TestResult = {
     ForwardStack: (string * int) list
 }
 
-let history handler repeatCount backStack forwardStack =
+let history handler count backStack forwardStack =
     let model =
         { testModel with
             BackStack = backStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             ForwardStack = forwardStack |> List.map (fun (p, c) -> (createPath ("/c/" + p), c))
             Cursor = 1
-            RepeatCount = repeatCount
+            RepeatCommand = count
         } |> withLocation "/c/path"
     let items = List.init 6 (sprintf "file%i" >> file)
     let fs = FakeFileSystem [
@@ -36,8 +36,8 @@ let history handler repeatCount backStack forwardStack =
 
 let back = history MainLogic.Nav.back None
 let forward = history MainLogic.Nav.forward None
-let backCount count = history MainLogic.Nav.back <| Some count
-let forwardCount count = history MainLogic.Nav.forward <| Some count
+let backCount count = history MainLogic.Nav.back (Some count)
+let forwardCount count = history MainLogic.Nav.forward (Some count)
 
 [<Test>]
 let ``Back without history does nothing``() =

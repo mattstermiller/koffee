@@ -2,6 +2,7 @@ module Koffee.MainLogicTests_FindSearch
 
 open NUnit.Framework
 open FsUnitTyped
+open Acadian.FSharp
 
 let items names =
     let toItem name = Item.Basic Path.Root name Folder
@@ -16,11 +17,11 @@ let testModel cursorStart =
 let assertEqualExceptCursor expected actual =
     assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "Items"; "InputText"])
 
-let doFind next nth prefix cursorStart =
+let doFind next repeat prefix cursorStart =
     let model =
         { testModel cursorStart with
             LastFind = Some prefix
-            RepeatCount = nth
+            RepeatCommand = repeat
         }
 
     let actual =
@@ -32,14 +33,14 @@ let doFind next nth prefix cursorStart =
     let expected =
         { model with
             LastFind = Some prefix
-            Status = if next then Some (MainStatus.find prefix nth) else None
+            Status = if next then Some (MainStatus.find prefix (repeat |? 1)) else None
         }
     assertEqualExceptCursor expected actual
     actual.Cursor
 
 let find = doFind false None
 let findNext = doFind true None
-let findNextNth count = doFind true <| Some count
+let findNextNth count = doFind true (Some count)
 
 [<Test>]
 let ``Find that matches nothing should not change the cursor``() =

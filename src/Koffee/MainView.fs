@@ -307,8 +307,8 @@ module MainView =
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCount @>)
-                .toFunc(fun (status, keyCombo, repeatCount) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)
+                .toFunc(fun (status, keyCombo, repeatCommand) ->
                 let statusText, errorText =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
@@ -317,9 +317,9 @@ module MainView =
                             |> String.concat ""
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
-                    elif repeatCount.IsSome then
-                        let plural = if repeatCount.Value <> 1 then "s" else ""
-                        (sprintf "Repeat command %i time%s..." repeatCount.Value plural, "")
+                    elif repeatCommand.IsSome then
+                        let plural = if repeatCommand.Value <> 1 then "s" else ""
+                        (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
                     else
                         match status with
                         | Some (Message msg)
@@ -444,9 +444,10 @@ module MainView =
 module MainStatus =
     // navigation
     let find prefix repeatCount =
-        match repeatCount with
-        | Some 1 | None -> Message <| sprintf "Find item starting with: %s" prefix
-        | Some count -> Message <| sprintf "Find every %i items starting with: %s" count prefix
+        if repeatCount = 1 then
+            Message <| sprintf "Find item starting with: %s" prefix
+        else
+            Message <| sprintf "Find every %i items starting with: %s" repeatCount prefix
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path

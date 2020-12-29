@@ -650,7 +650,7 @@ module Action =
             yield! delete fsWriter model.SelectedItem false model
     }
 
-    let rec private undoIter fs model count iter = asyncSeqResult {
+    let rec private undoIter iter fs model = asyncSeqResult {
         match model.UndoStack with
         | action :: rest ->
             let model = { model with UndoStack = rest }
@@ -673,16 +673,17 @@ module Action =
                     Error (CannotUndoDelete (permanent, item))
                     |> AsyncSeq.singleton
             let model = { model with RedoStack = action :: model.RedoStack }
-            if iter < count then
-                yield! undoIter fs model count (iter + 1)
+            let repeat = model.RepeatCount |? 1
+            if iter < repeat then
+                yield! undoIter (iter + 1) fs model
             else
-                yield { model with Status = Some <| MainStatus.undoAction action model.PathFormat count }
+                yield { model with Status = Some <| MainStatus.undoAction action model.PathFormat repeat }
         | [] -> return NoUndoActions
     }
 
-    let undo fs model = undoIter fs model (model.RepeatCount |? 1) 1
+    let undo = undoIter 1
 
-    let rec private redoIter fs model count iter = asyncSeqResult {
+    let rec private redoIter iter fs model = asyncSeqResult {
         match model.RedoStack with
         | action :: rest ->
             let model = { model with RedoStack = rest }
@@ -710,14 +711,15 @@ module Action =
                     yield! delete fs item permanent model
             }
             let model = { model with RedoStack = rest }
-            if iter < count then
-                yield! redoIter fs model count (iter + 1)
+            let repeat = model.RepeatCount |? 1
+            if iter < repeat then
+                yield! redoIter (iter + 1) fs model
             else
-                yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat count }
+                yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat repeat }
         | [] -> return NoRedoActions
     }
 
-    let redo fs model = redoIter fs model (model.RepeatCount |? 1) 1
+    let redo = redoIter 1
 
     let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
         let mapFst f t = (fst t |> f, snd t)

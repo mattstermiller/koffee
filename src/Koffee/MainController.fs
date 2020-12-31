@@ -939,9 +939,9 @@ let inputHistory offset model =
     match model.InputMode with
     | Some (Input Search) ->
         let index = model.SearchHistoryIndex + offset |> max -1 |> min (model.History.Searches.Length-1)
-        let input, case, regex =
+        let input, case, regex, subFolders =
             if index < 0 then
-                ("", model.SearchCaseSensitive, model.SearchRegex)
+                ("", model.SearchCaseSensitive, model.SearchRegex, model.SearchSubFolders)
             else
                 model.History.Searches.[index]
         { model with
@@ -949,6 +949,7 @@ let inputHistory offset model =
             InputTextSelection = (input.Length, 0)
             SearchCaseSensitive = case
             SearchRegex = regex
+            SearchSubFolders = subFolders
             SearchHistoryIndex = index
         }
     | _ -> model
@@ -972,7 +973,7 @@ let submitInput fs os model = asyncSeqResult {
         let search =
             model.InputText
             |> Option.ofString
-            |> Option.map (fun i -> (i, model.SearchCaseSensitive, model.SearchRegex))
+            |> Option.map (fun i -> (i, model.SearchCaseSensitive, model.SearchRegex, model.SearchSubFolders))
         yield
             { model with
                 InputMode = None

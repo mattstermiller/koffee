@@ -7,6 +7,7 @@
 - #63 Adds per-folder storage of sort settings (Thanks @jilleJr)
 - #94 Adds support for environment variable substitution in path box (Thanks @jilleJr)
 - #99 Adds repeat count for cursor movement, Parent Folder, Back, Forward, Undo, Redo, Find Next (Thanks @jilleJr)
+- Changes Search history to also remember Sub-Folders setting
 - Changes Escape key in path box to always switch focus back to item grid and reset path box to current location
 - Changes Tab key in path box to always move cursor to end
 - Changes path history limit from 200 to 500

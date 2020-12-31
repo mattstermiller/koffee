@@ -225,7 +225,7 @@ with
 
 type History = {
     Paths: Path list
-    Searches: (string * bool * bool) list
+    Searches: (string * bool * bool * bool) list
     NetHosts: string list
     PathSort: Map<Path, PathSort>
 }

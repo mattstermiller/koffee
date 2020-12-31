@@ -118,7 +118,7 @@ module MainView =
                 match relInfo with
                 | Some (path, fmt) -> (fun p -> p.FormatRelativeFolder fmt path)
                 | None -> string
-            window.ItemGrid.Columns.[2].Visibility <- if relInfo.IsSome then Visibility.Visible else Visibility.Collapsed
+            window.ItemGrid.Columns.[2].Collapsed <- relInfo.IsNone
 
         // bind Tab key to switch focus
         window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
@@ -245,10 +245,7 @@ module MainView =
                             window.BookmarkPanel.Visible <- true
                         | _ ->
                             window.BookmarkPanel.Visible <- false
-                        window.SearchOptions.Visibility <-
-                            match inputMode with
-                            | Input Search -> Visibility.Visible
-                            | _ -> Visibility.Collapsed
+                        window.SearchOptions.Collapsed <- inputMode <> Input Search
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
                         if not window.InputPanel.Visible then
                             window.InputPanel.Visible <- true
@@ -256,7 +253,7 @@ module MainView =
                             window.InputBox.Focus() |> ignore
                     | None ->
                         if window.InputPanel.Visible then
-                            window.InputPanel.Visibility <- Visibility.Collapsed
+                            window.InputPanel.Collapsed <- true
                             window.BookmarkPanel.Visible <- false
                             window.ItemGrid.Focus() |> ignore
                 )
@@ -293,7 +290,7 @@ module MainView =
             Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function
                 | None, _
                 | Some _, Some (Input Search) ->
-                    window.SearchPanel.Visibility <- Visibility.Collapsed
+                    window.SearchPanel.Collapsed <- true
                 | Some (search, cs, re, sub), _ ->
                     window.SearchStatus.Text <-
                         [   sprintf "Search results for \"%s\"" search
@@ -343,7 +340,7 @@ module MainView =
             )
             Bind.model(<@ model.Progress @>).toFunc(fun progress ->
                 window.Progress.Value <- progress |? 0.0
-                window.Progress.Visibility <- if progress.IsSome then Visibility.Visible else Visibility.Collapsed
+                window.Progress.Collapsed <- progress.IsNone
             )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->

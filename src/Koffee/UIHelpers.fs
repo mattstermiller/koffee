@@ -48,6 +48,11 @@ type UIElement with
         with get () = this.Visibility = Visibility.Collapsed
         and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
 
+type DataGridColumn with
+    member this.Collapsed
+        with get () = this.Visibility = Visibility.Collapsed
+        and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
+
 type CheckBox with
     member this.Toggle () =
         this.IsChecked <- not (this.IsChecked.GetValueOrDefault()) |> Nullable
@@ -76,7 +81,7 @@ type DataGrid with
 
         let binding = Binding(propName)
         conversion |> Option.iter (fun convert ->
-            binding.Converter <- 
+            binding.Converter <-
                 { new IValueConverter with
                     member this.Convert(value, _, _, _) = value |> unbox<'v> |> convert |> box
                     member this.ConvertBack(value, _, _, _) = value
@@ -89,7 +94,7 @@ type DataGrid with
 
 type Window with
     member this.GetScreen () =
-        Forms.Screen.FromHandle(Interop.WindowInteropHelper(this).Handle) 
+        Forms.Screen.FromHandle(Interop.WindowInteropHelper(this).Handle)
 
     member this.GetScreenWorkingArea () =
         let area = this.GetScreen().WorkingArea

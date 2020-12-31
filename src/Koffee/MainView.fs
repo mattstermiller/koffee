@@ -290,12 +290,12 @@ module MainView =
                 | None, _
                 | Some _, Some (Input Search) ->
                     window.SearchPanel.Collapsed <- true
-                | Some (search, cs, re, sub), _ ->
+                | Some search, _ ->
                     window.SearchStatus.Text <-
-                        [   sprintf "Search results for \"%s\"" search
-                            (if cs then "Case-sensitive" else "Not case-sensitive")
-                            (if re then "Regular Expression" else "")
-                            (if sub then "Sub-Folders" else "")
+                        [   sprintf "Search results for \"%s\"" search.Terms
+                            (if search.CaseSensitive then "Case-sensitive" else "Not case-sensitive")
+                            (if search.Regex then "Regular Expression" else "")
+                            (if search.SubFolders then "Sub-Folders" else "")
                         ] |> List.filter String.isNotEmpty |> String.concat ", "
                     window.SearchPanel.Visible <- true
             )

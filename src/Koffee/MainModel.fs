@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows.Input
@@ -223,9 +223,23 @@ with
 
     static member toTuple sort = (sort.Sort, sort.Descending)
 
+type Search = {
+    Terms: string
+    CaseSensitive: bool
+    Regex: bool
+    SubFolders: bool
+}
+with
+    static member Default = {
+        Terms = ""
+        CaseSensitive = false
+        Regex = false
+        SubFolders = false
+    }
+
 type History = {
     Paths: Path list
-    Searches: (string * bool * bool * bool) list
+    Searches: Search list
     NetHosts: string list
     PathSort: Map<Path, PathSort>
 }
@@ -304,7 +318,7 @@ type MainModel = {
     SearchCaseSensitive: bool
     SearchRegex: bool
     SearchSubFolders: bool
-    CurrentSearch: (string * bool * bool * bool) option
+    CurrentSearch: Search option
     SubDirectories: Item list option
     SubDirectoryCancel: CancelToken
     SearchHistoryIndex: int
@@ -332,7 +346,7 @@ type MainModel = {
 
     member this.HalfPageSize = this.PageSize/2 - 1
 
-    member this.IsSearchingSubFolders = this.CurrentSearch |> Option.exists (fun (_, _, _, sub) -> sub)
+    member this.IsSearchingSubFolders = this.CurrentSearch |> Option.exists (fun s -> s.SubFolders)
 
     member this.TitleLocation =
         if this.Config.Window.ShowFullPathInTitle then
@@ -387,8 +401,8 @@ type MainModel = {
         LastFind = None
         SearchCaseSensitive = false
         SearchRegex = false
-        CurrentSearch = None
         SearchSubFolders = false
+        CurrentSearch = None
         SubDirectories = None
         SubDirectoryCancel = CancelToken()
         SearchHistoryIndex = -1

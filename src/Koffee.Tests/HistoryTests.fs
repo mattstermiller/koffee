@@ -23,8 +23,18 @@ let ``History can be serialized and deserialized`` () =
                 createPath @"C:\Some\Path"
             ]
             Searches = [
-                ("downloads", false, false, false)
-                ("images", false, false, false)
+                {
+                    Terms = "downloads"
+                    CaseSensitive = false
+                    Regex = false
+                    SubFolders = false
+                }
+                {
+                    Terms = "images"
+                    CaseSensitive = true
+                    Regex = true
+                    SubFolders = true
+                }
             ]
         }
     let converters = FSharpJsonConverters.getAll ()

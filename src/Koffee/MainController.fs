@@ -317,8 +317,12 @@ module Search =
     }
 
     let search fsReader subDirResults progress (model: MainModel) = asyncSeq {
-        let current = Some (model.InputText, model.SearchCaseSensitive, model.SearchRegex,
-                            model.SearchSubFolders)
+        let current = Some {
+            Terms = model.InputText
+            CaseSensitive = model.SearchCaseSensitive
+            Regex = model.SearchRegex
+            SubFolders = model.SearchSubFolders
+        }
         let model = { model with CurrentSearch = current }
         match model.InputText |> String.isNotEmpty, getFilter model with
         | true, Some filter ->
@@ -414,8 +418,8 @@ module Action =
             let model = { model with InputMode = Some inputMode }
             match inputMode with
             | Input Search ->
-                let input, sub = model.CurrentSearch |> Option.map (fun (s, _, _, sub) -> (s, sub)) |? ("", false)
-                return { model with InputText = input; SearchSubFolders = sub }
+                let input = model.CurrentSearch |> Option.map (fun s -> s.Terms) |? ""
+                return { model with InputText = input }
                        |> setInputSelection End
             | Input (Rename pos) ->
                 return { model with InputText = model.SelectedItem.Name }
@@ -827,16 +831,15 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.CurrentSearch with
-    | Some currentSearch ->
+    | Some search ->
         let selectType = SelectName model.SelectedItem.Name
         let! newModel = model |> Nav.openPath fsReader model.Location selectType
-        let input, case, regex, sub = currentSearch
         let searchModels =
             { newModel with
-                InputText = input
-                SearchCaseSensitive = case
-                SearchRegex = regex
-                SearchSubFolders = sub
+                InputText = search.Terms
+                SearchCaseSensitive = search.CaseSensitive
+                SearchRegex = search.Regex
+                SearchSubFolders = search.SubFolders
                 SearchHistoryIndex = model.SearchHistoryIndex
             }
             |> Search.search fsReader subDirResults progress
@@ -943,7 +946,8 @@ let inputHistory offset model =
             if index < 0 then
                 ("", model.SearchCaseSensitive, model.SearchRegex, model.SearchSubFolders)
             else
-                model.History.Searches.[index]
+                let s = model.History.Searches.[index]
+                (s.Terms, s.CaseSensitive, s.Regex, s.SubFolders)
         { model with
             InputText = input
             InputTextSelection = (input.Length, 0)
@@ -973,7 +977,12 @@ let submitInput fs os model = asyncSeqResult {
         let search =
             model.InputText
             |> Option.ofString
-            |> Option.map (fun i -> (i, model.SearchCaseSensitive, model.SearchRegex, model.SearchSubFolders))
+            |> Option.map (fun i -> {
+                Terms = i
+                CaseSensitive = model.SearchCaseSensitive
+                Regex = model.SearchRegex
+                SubFolders = model.SearchSubFolders
+            })
         yield
             { model with
                 InputMode = None

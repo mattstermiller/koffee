@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -158,9 +158,6 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
-        let backKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Back) |> fst
-        let forwardKeyBinding = KeyBinding.defaultsAsString |> List.find (snd >> (=) Forward) |> fst
-
         // history save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
         (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
@@ -282,9 +279,11 @@ module MainView =
 
                         if not isEmpty then
                             window.NavHistoryForward.ItemsSource <-
-                                List.truncate maxForwardItems forwardStack |> formatStack forwardKeyBinding
+                                List.truncate maxForwardItems forwardStack
+                                |> formatStack (KeyBinding.getKeysString Forward)
                             window.NavHistoryBack.ItemsSource <-
-                                List.truncate maxBackItems backStack |> formatStack backKeyBinding |> Seq.rev
+                                List.truncate maxBackItems backStack
+                                |> formatStack (KeyBinding.getKeysString Back) |> Seq.rev
                             window.NavHistoryCurrentPath.Text <- location.Format pathFormat
                 )
             Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function

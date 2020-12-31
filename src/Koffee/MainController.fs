@@ -865,9 +865,11 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
         }
     match model.InputMode with
     | Some (Input (Find _)) ->
-        if char = ';' then // TODO: read key binding?
+        match KeyBinding.getKeysString FindNext |> Seq.toList with
+        | [nextKey] when char = nextKey ->
             cancelInput ()
             yield Search.findNext model
+        | _ -> ()
     | Some (Prompt mode) ->
         cancelInput ()
         let model = { model with InputMode = None }

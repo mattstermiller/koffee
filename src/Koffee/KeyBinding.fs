@@ -69,6 +69,8 @@ let defaults =
     defaultsAsString
     |> List.map (fun (keyStr, evt) -> (parseKey keyStr, evt))
 
+let getKeysString evt = defaultsAsString |> List.find (snd >> (=) evt) |> fst
+
 type KeyBindMatch<'a> =
     | Match of 'a
     | PartialMatch

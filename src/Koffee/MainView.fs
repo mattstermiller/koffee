@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -223,9 +223,9 @@ module MainView =
 
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
-            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchCaseSensitive @>, ((=) (Nullable true)), Nullable)
-            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchRegex @>, ((=) (Nullable true)), Nullable)
-            Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchSubFolders @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
+            Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
             Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
                 .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
                     match inputMode with
@@ -286,7 +286,7 @@ module MainView =
                                 |> formatStack (KeyBinding.getKeysString Back) |> Seq.rev
                             window.NavHistoryCurrentPath.Text <- location.Format pathFormat
                 )
-            Bind.modelMulti(<@ model.CurrentSearch, model.InputMode @>).toFunc(function
+            Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
                 | None, _
                 | Some _, Some (Input Search) ->
                     window.SearchPanel.Collapsed <- true

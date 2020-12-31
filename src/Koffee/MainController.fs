@@ -37,7 +37,7 @@ let private filterByTerms sort caseSensitive search proj items =
 let clearSearchProps model =
     model.SubDirectoryCancel.Cancel()
     { model with
-        CurrentSearch = None
+        SearchCurrent = None
         SearchHistoryIndex = -1
         SubDirectories = None
         Progress = None
@@ -142,7 +142,7 @@ module Nav =
         | Empty -> Ok model
 
     let openParent fsReader (model: MainModel) =
-        if model.CurrentSearch.IsSome then
+        if model.SearchCurrent.IsSome then
             if model.SelectedItem.Type = Empty then
                 Ok (model |> clearSearchProps |> listDirectory SelectNone)
             else
@@ -286,14 +286,14 @@ module Search =
         model.InputText
         |> Option.ofString
         |> Option.bind (fun input ->
-            if model.SearchRegex then
-                let options = if model.SearchCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
+            if model.SearchInput.Regex then
+                let options = if model.SearchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
                 try
                     let re = Regex(input, options)
                     Some (List.filter (fun item -> re.IsMatch item.Name))
                 with :? System.ArgumentException -> None
             else
-                Some (filterByTerms false model.SearchCaseSensitive input (fun item -> item.Name))
+                Some (filterByTerms false model.SearchInput.CaseSensitive input (fun item -> item.Name))
         )
 
     let private enumerateSubDirs (fsReader: IFileSystemReader) (subDirResults: Event<_>) (progress: Event<_>)
@@ -317,13 +317,7 @@ module Search =
     }
 
     let search fsReader subDirResults progress (model: MainModel) = asyncSeq {
-        let current = Some {
-            Terms = model.InputText
-            CaseSensitive = model.SearchCaseSensitive
-            Regex = model.SearchRegex
-            SubFolders = model.SearchSubFolders
-        }
-        let model = { model with CurrentSearch = current }
+        let model = { model with SearchCurrent = Some { model.SearchInput with Terms = model.InputText } }
         match model.InputText |> String.isNotEmpty, getFilter model with
         | true, Some filter ->
             let withItems items model =
@@ -333,7 +327,7 @@ module Search =
                     Cursor = 0
                 } |> Nav.select (SelectName model.SelectedItem.Name)
             let items = model.Directory |> filter
-            if model.SearchSubFolders then
+            if model.SearchInput.SubFolders then
                 match model.SubDirectories with
                 | None ->
                     let cancelToken = CancelToken()
@@ -418,7 +412,7 @@ module Action =
             let model = { model with InputMode = Some inputMode }
             match inputMode with
             | Input Search ->
-                let input = model.CurrentSearch |> Option.map (fun s -> s.Terms) |? ""
+                let input = model.SearchCurrent |> Option.map (fun s -> s.Terms) |? ""
                 return { model with InputText = input }
                        |> setInputSelection End
             | Input (Rename pos) ->
@@ -470,7 +464,7 @@ module Action =
                 return
                     { model with Directory = model.Directory |> substitute }
                     |> (
-                        if model.CurrentSearch.IsSome then
+                        if model.SearchCurrent.IsSome then
                             fun m -> { m with Items = m.Items |> substitute }
                         else
                             Nav.listDirectory (SelectName newName)
@@ -830,16 +824,14 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
     openPath None paths
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
-    match model.CurrentSearch with
+    match model.SearchCurrent with
     | Some search ->
         let selectType = SelectName model.SelectedItem.Name
         let! newModel = model |> Nav.openPath fsReader model.Location selectType
         let searchModels =
             { newModel with
                 InputText = search.Terms
-                SearchCaseSensitive = search.CaseSensitive
-                SearchRegex = search.Regex
-                SearchSubFolders = search.SubFolders
+                SearchInput = search
                 SearchHistoryIndex = model.SearchHistoryIndex
             }
             |> Search.search fsReader subDirResults progress
@@ -942,18 +934,15 @@ let inputHistory offset model =
     match model.InputMode with
     | Some (Input Search) ->
         let index = model.SearchHistoryIndex + offset |> max -1 |> min (model.History.Searches.Length-1)
-        let input, case, regex, subFolders =
+        let search =
             if index < 0 then
-                ("", model.SearchCaseSensitive, model.SearchRegex, model.SearchSubFolders)
+                { model.SearchInput with Terms = "" }
             else
-                let s = model.History.Searches.[index]
-                (s.Terms, s.CaseSensitive, s.Regex, s.SubFolders)
+                model.History.Searches.[index]
         { model with
-            InputText = input
-            InputTextSelection = (input.Length, 0)
-            SearchCaseSensitive = case
-            SearchRegex = regex
-            SearchSubFolders = subFolders
+            InputText = search.Terms
+            InputTextSelection = (search.Terms.Length, 0)
+            SearchInput = search
             SearchHistoryIndex = index
         }
     | _ -> model
@@ -974,19 +963,11 @@ let submitInput fs os model = asyncSeqResult {
         yield model
         yield! Nav.openSelected fs os None model
     | Some (Input Search) ->
-        let search =
-            model.InputText
-            |> Option.ofString
-            |> Option.map (fun i -> {
-                Terms = i
-                CaseSensitive = model.SearchCaseSensitive
-                Regex = model.SearchRegex
-                SubFolders = model.SearchSubFolders
-            })
+        let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
         yield
             { model with
                 InputMode = None
-                CurrentSearch = if search.IsNone then None else model.CurrentSearch
+                SearchCurrent = if search.IsNone then None else model.SearchCurrent
                 SearchHistoryIndex = 0
                 History = search |> Option.map model.History.WithSearch |? model.History
             }

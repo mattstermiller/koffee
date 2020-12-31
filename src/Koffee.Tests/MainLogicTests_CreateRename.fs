@@ -209,7 +209,7 @@ let ``Rename in search result calls file sys move, sets status`` () =
             Directory = items
             Items = items |> List.skip 1
             Cursor = 1
-            CurrentSearch = Some { Search.Default with Terms = "file" }
+            SearchCurrent = Some { Search.Default with Terms = "file" }
         }
 
     let actual = MainLogic.Action.rename fs item renamed.Name model

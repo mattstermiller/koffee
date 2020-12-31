@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows.Input
@@ -315,10 +315,8 @@ type MainModel = {
     InputText: string
     InputTextSelection: int * int
     LastFind: string option
-    SearchCaseSensitive: bool
-    SearchRegex: bool
-    SearchSubFolders: bool
-    CurrentSearch: Search option
+    SearchInput: Search
+    SearchCurrent: Search option
     SubDirectories: Item list option
     SubDirectoryCancel: CancelToken
     SearchHistoryIndex: int
@@ -346,7 +344,7 @@ type MainModel = {
 
     member this.HalfPageSize = this.PageSize/2 - 1
 
-    member this.IsSearchingSubFolders = this.CurrentSearch |> Option.exists (fun s -> s.SubFolders)
+    member this.IsSearchingSubFolders = this.SearchCurrent |> Option.exists (fun s -> s.SubFolders)
 
     member this.TitleLocation =
         if this.Config.Window.ShowFullPathInTitle then
@@ -399,10 +397,8 @@ type MainModel = {
         InputText = ""
         InputTextSelection = 0, 0
         LastFind = None
-        SearchCaseSensitive = false
-        SearchRegex = false
-        SearchSubFolders = false
-        CurrentSearch = None
+        SearchInput = Search.Default
+        SearchCurrent = None
         SubDirectories = None
         SubDirectoryCancel = CancelToken()
         SearchHistoryIndex = -1

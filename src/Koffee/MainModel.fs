@@ -419,7 +419,7 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
-    | OpenPath of EvtHandler
+    | OpenPath of string * EvtHandler
     | OpenSelected
     | OpenParent
     | Back

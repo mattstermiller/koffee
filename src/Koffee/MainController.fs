@@ -98,8 +98,8 @@ module Nav =
             | Error e -> Error <| ActionError ("open path", e)
         | None -> Error <| InvalidPath pathStr
 
-    let openInputPath fsReader os (evtHandler: EvtHandler) model = result {
-        let pathStr = OsUtility.subEnvVars os model.LocationInput
+    let openInputPath fsReader os pathStr (evtHandler: EvtHandler) model = result {
+        let pathStr = OsUtility.subEnvVars os pathStr
         let! model = openUserPath fsReader pathStr model
         evtHandler.Handle ()
         return model
@@ -1114,7 +1114,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (m.HalfPageSize * m.RepeatCount))
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
-            | OpenPath handler -> SyncResult (Nav.openInputPath fs os handler)
+            | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
             | OpenSelected -> SyncResult (Nav.openSelected fs os None)
             | OpenFileWith -> SyncResult (Action.openFileWith os)
             | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))

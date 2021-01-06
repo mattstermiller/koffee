@@ -203,12 +203,6 @@ module Nav =
             History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
         } |> select selectType
 
-    let toggleHidden fsReader (model: MainModel) = asyncSeqResult {
-        let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
-        yield model
-        yield! refresh fsReader { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
-    }
-
     let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
         let getSuggestions search (paths: Path list) =
             paths
@@ -864,6 +858,12 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         yield! Nav.refresh fsReader model
 }
 
+let toggleHidden fsReader subDirResults progress (model: MainModel) = asyncSeqResult {
+    let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
+    yield model
+    yield! refreshOrResearch fsReader subDirResults progress { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
+}
+
 let inputCharTyped fs cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         { model with
@@ -1148,7 +1148,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
-            | ToggleHidden -> AsyncResult (Nav.toggleHidden fs)
+            | ToggleHidden -> AsyncResult (toggleHidden fs subDirResults progress)
             | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
             | OpenExplorer -> Sync (Action.openExplorer os)

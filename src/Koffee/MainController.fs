@@ -379,10 +379,15 @@ module Search =
             Items = items
         }
 
-    let clearSearch model =
+    let clearSearch (model: MainModel) =
+        let select =
+            if model.SelectedItem.Path.Parent = model.Location then
+                SelectName model.SelectedItem.Name
+            else
+                SelectIndex 0
         model
         |> clearSearchProps
-        |> Nav.listDirectory (SelectName model.SelectedItem.Name)
+        |> Nav.listDirectory select
 
 module Action =
     let private performedAction action model =

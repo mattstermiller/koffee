@@ -155,7 +155,12 @@ module Nav =
             openPath fsReader path (SelectName model.Location.Name) model
 
     let refresh fsReader (model: MainModel) =
-        openPath fsReader model.Location SelectNone model
+        let select =
+            if not model.Config.ShowHidden && model.SelectedItem.IsHidden then
+                SelectNone
+            else
+                SelectName model.SelectedItem.Name
+        openPath fsReader model.Location select model
         |> Result.map (fun newModel ->
             if model.Status.IsSome then
                 { newModel with Status = model.Status }
@@ -205,13 +210,7 @@ module Nav =
     let toggleHidden fsReader (model: MainModel) = asyncSeqResult {
         let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
         yield model
-        let select =
-            if not model.Config.ShowHidden && model.SelectedItem.IsHidden then
-                SelectNone
-            else
-                SelectName model.SelectedItem.Name
-        let! model = model |> openPath fsReader model.Location select
-        yield { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
+        yield! refresh fsReader { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
     }
 
     let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {

@@ -292,18 +292,24 @@ module Search =
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
-    let private getFilter model =
-        model.InputText
+    let private getFilter showHidden searchInput =
+        searchInput.Terms
         |> Option.ofString
         |> Option.bind (fun input ->
-            if model.SearchInput.Regex then
-                let options = if model.SearchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
+            if searchInput.Regex then
+                let options = if searchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
                 try
                     let re = Regex(input, options)
                     Some (List.filter (fun item -> re.IsMatch item.Name))
                 with :? System.ArgumentException -> None
             else
-                Some (filterByTerms false model.SearchInput.CaseSensitive input (fun item -> item.Name))
+                Some (filterByTerms false searchInput.CaseSensitive input (fun item -> item.Name))
+        )
+        |> Option.map (fun filter ->
+            if not showHidden then
+                List.filter (fun i -> not i.IsHidden) >> filter
+            else
+                filter
         )
 
     let private enumerateSubDirs (fsReader: IFileSystemReader) (subDirResults: Event<_>) (progress: Event<_>)
@@ -327,8 +333,9 @@ module Search =
     }
 
     let search fsReader subDirResults progress (model: MainModel) = asyncSeq {
-        let model = { model with SearchCurrent = Some { model.SearchInput with Terms = model.InputText } }
-        match model.InputText |> String.isNotEmpty, getFilter model with
+        let input = { model.SearchInput with Terms = model.InputText }
+        let model = { model with SearchCurrent = Some input }
+        match model.InputText |> String.isNotEmpty, getFilter model.Config.ShowHidden input with
         | true, Some filter ->
             let withItems items model =
                 let noResults = [ { Item.Empty with Name = "<No Search Results>"; Path = model.Location } ]
@@ -361,7 +368,7 @@ module Search =
     }
 
     let addSubDirResults newItems model =
-        let filter = getFilter model |? cnst []
+        let filter = model.SearchCurrent |> Option.bind (getFilter model.Config.ShowHidden) |? cnst []
         let items =
             match filter newItems, model.Items with
             | [], _ -> model.Items

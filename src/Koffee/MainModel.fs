@@ -268,12 +268,8 @@ with
         | Some host -> hist.WithNetHost host
         | None -> hist
 
-
-    static member private omitPathSortFromHistory sort =
-        sort = PathSort.Default
-
     member this.WithPathSort path sort =
-        if History.omitPathSortFromHistory sort then
+        if sort = PathSort.Default then
             { this with PathSort = this.PathSort.Remove path }
         else
             { this with PathSort = this.PathSort.Add(path, sort) }
@@ -423,13 +419,14 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
-    | OpenPath of EvtHandler
+    | OpenPath of string * EvtHandler
     | OpenSelected
     | OpenParent
     | Back
     | Forward
     | ShowNavHistory
     | Refresh
+    | DeletePathSuggestion of Path
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
     | StartInput of InputType

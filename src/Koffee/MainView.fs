@@ -85,8 +85,6 @@ module MainView =
                     selectedPath |> Option.iter window.PathBox.set_Text
                 window.PathBox.Select(window.PathBox.Text.Length, 0)
                 e.Handled <- true
-            | Key.Enter ->
-                selectedPath |> Option.iter window.PathBox.set_Text
             | _ -> ()
         )
         window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
@@ -362,11 +360,17 @@ module MainView =
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
             let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
             let focusGrid () = window.ItemGrid.Focus() |> ignore
+            let selectedPath = window.PathSuggestions.SelectedItem |> unbox |> Option.ofString
+            let path = selectedPath |? window.PathBox.Text
             match evt.Chord with
-            | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (evt.HandlerWithEffect focusGrid))
+            | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (path, evt.HandlerWithEffect focusGrid))
             | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
+            | (ModifierKeys.None, Key.Delete) ->
+                selectedPath
+                |> Option.bind Path.Parse
+                |> Option.map (tee (fun _ -> evt.Handled <- true) >> DeletePathSuggestion)
             | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
-            | (modifier, _) when ignoreMods |> (not << List.contains modifier) -> Some keyPress
+            | (modifier, _) when not (ignoreMods |> List.contains modifier) -> Some keyPress
             | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
             | _ -> None
         )

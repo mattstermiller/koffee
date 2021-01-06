@@ -47,21 +47,22 @@ module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
             match selectType with
+            | SelectNone -> model.Cursor
             | SelectIndex index -> index
             | SelectName name ->
                 model.Items |> List.tryFindIndex (fun i -> String.equalsIgnoreCase i.Name name) |? model.Cursor
-            | SelectNone -> model.Cursor
+            | SelectItem (item, _) ->
+                model.Items |> List.tryFindIndex (fun i -> i.Path = item.Path) |? model.Cursor
         )
 
     let listDirectory selectType model =
-        let selectName =
+        let selectHiddenItem =
             match selectType with
-            | SelectName name -> name
-            | _ -> ""
+            | SelectItem (item, true) -> Some item
+            | _ -> None
         let items =
             model.Directory
-            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
-                                     String.equalsIgnoreCase selectName i.Name)
+            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = selectHiddenItem)
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
             |> Seq.ifEmpty (Item.EmptyFolder model.Location)
         { model with Items = items } |> select selectType
@@ -92,7 +93,7 @@ module Nav =
         | Some path ->
             match fsReader.GetItem path with
             | Ok (Some item) when item.Type = File ->
-                openPath fsReader path.Parent (SelectName item.Name) model
+                openPath fsReader path.Parent (SelectItem (item, true)) model
             | Ok _ ->
                 openPath fsReader path SelectNone model
             | Error e -> Error <| ActionError ("open path", e)
@@ -146,7 +147,7 @@ module Nav =
             if model.SelectedItem.Type = Empty then
                 Ok (model |> clearSearchProps |> listDirectory SelectNone)
             else
-                openPath fsReader model.SelectedItem.Path.Parent (SelectName model.SelectedItem.Name) model
+                openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false)) model
         else
             let rec getParent n (path: Path) =
                 if n < 1 || path = Path.Root then path
@@ -155,12 +156,7 @@ module Nav =
             openPath fsReader path (SelectName model.Location.Name) model
 
     let refresh fsReader (model: MainModel) =
-        let select =
-            if not model.Config.ShowHidden && model.SelectedItem.IsHidden then
-                SelectNone
-            else
-                SelectName model.SelectedItem.Name
-        openPath fsReader model.Location select model
+        openPath fsReader model.Location (SelectItem (model.SelectedItem, false)) model
         |> Result.map (fun newModel ->
             if model.Status.IsSome then
                 { newModel with Status = model.Status }
@@ -199,7 +195,7 @@ module Nav =
             match model.Sort with
             | Some (f, desc) when f = field -> not desc
             | _ -> field = Modified
-        let selectType = if model.Cursor = 0 then SelectNone else SelectName model.SelectedItem.Name
+        let selectType = if model.Cursor = 0 then SelectNone else SelectItem (model.SelectedItem, false)
         { model with
             Sort = Some (field, desc)
             Items = model.Items |> SortField.SortByTypeThen (field, desc)
@@ -341,7 +337,7 @@ module Search =
                 { model with
                     Items = items |> Seq.ifEmpty noResults
                     Cursor = 0
-                } |> Nav.select (SelectName model.SelectedItem.Name)
+                } |> Nav.select (SelectItem (model.SelectedItem, false))
             let items = model.Directory |> filter
             if model.SearchInput.SubFolders then
                 match model.SubDirectories with
@@ -363,7 +359,7 @@ module Search =
         | true, None ->
             yield model
         | false, _ ->
-            yield model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
+            yield model |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
     }
 
     let addSubDirResults newItems model =
@@ -379,14 +375,9 @@ module Search =
         }
 
     let clearSearch (model: MainModel) =
-        let select =
-            if model.SelectedItem.Path.Parent = model.Location then
-                SelectName model.SelectedItem.Name
-            else
-                SelectIndex 0
         model
         |> clearSearchProps
-        |> Nav.listDirectory select
+        |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
 
 module Action =
     let private performedAction action model =
@@ -455,7 +446,7 @@ module Action =
             let! model = Nav.openPath fs model.Location (SelectName name) model
             yield model |> performedAction (CreatedItem model.SelectedItem)
         | Some existing ->
-            yield! Nav.openPath fs model.Location (SelectName existing.Name) model
+            yield! Nav.openPath fs model.Location (SelectItem (existing, true)) model
             return CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
     }
 
@@ -558,7 +549,7 @@ module Action =
         match existing with
         | Some existing when not overwrite ->
             // refresh item list to make sure we can see the existing file
-            let! model = Nav.openPath fs model.Location (SelectName existing.Name) model
+            let! model = Nav.openPath fs model.Location (SelectItem (existing, true)) model
             yield
                 { model with
                     InputMode = Some (Confirm (Overwrite (putAction, item, existing)))
@@ -847,7 +838,7 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.SearchCurrent with
     | Some search ->
-        let selectType = SelectName model.SelectedItem.Name
+        let selectType = SelectItem (model.SelectedItem, false)
         let! newModel = model |> Nav.openPath fsReader model.Location selectType
         let searchModels =
             { newModel with

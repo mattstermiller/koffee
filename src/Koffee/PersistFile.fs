@@ -135,6 +135,11 @@ type ConfigFile(defaultValue) =
     inherit PersistFile<Config>(ConfigFile.FilePath, defaultValue)
     static member FilePath = Path.KoffeeData.Join("config.json").Format Windows
 
-type HistoryFile(defaultValue) =
+type HistoryFile(defaultValue) as this =
     inherit PersistFile<History>(HistoryFile.FilePath, defaultValue)
+
+    do
+        // filter out corrupt search entries loaded from previous version formats
+        this.Value <- { this.Value with Searches = this.Value.Searches |> List.filter (fun s -> s.Terms <> null) }
+
     static member FilePath = Path.KoffeeData.Join("history.json").Format Windows

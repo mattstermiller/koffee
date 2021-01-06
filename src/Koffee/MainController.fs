@@ -47,21 +47,22 @@ module Nav =
     let select selectType (model: MainModel) =
         model.WithCursor (
             match selectType with
+            | SelectNone -> model.Cursor
             | SelectIndex index -> index
             | SelectName name ->
                 model.Items |> List.tryFindIndex (fun i -> String.equalsIgnoreCase i.Name name) |? model.Cursor
-            | SelectNone -> model.Cursor
+            | SelectItem (item, _) ->
+                model.Items |> List.tryFindIndex (fun i -> i.Path = item.Path) |? model.Cursor
         )
 
     let listDirectory selectType model =
-        let selectName =
+        let selectHiddenItem =
             match selectType with
-            | SelectName name -> name
-            | _ -> ""
+            | SelectItem (item, true) -> Some item
+            | _ -> None
         let items =
             model.Directory
-            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden ||
-                                     String.equalsIgnoreCase selectName i.Name)
+            |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = selectHiddenItem)
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
             |> Seq.ifEmpty (Item.EmptyFolder model.Location)
         { model with Items = items } |> select selectType
@@ -92,7 +93,7 @@ module Nav =
         | Some path ->
             match fsReader.GetItem path with
             | Ok (Some item) when item.Type = File ->
-                openPath fsReader path.Parent (SelectName item.Name) model
+                openPath fsReader path.Parent (SelectItem (item, true)) model
             | Ok _ ->
                 openPath fsReader path SelectNone model
             | Error e -> Error <| ActionError ("open path", e)
@@ -146,7 +147,7 @@ module Nav =
             if model.SelectedItem.Type = Empty then
                 Ok (model |> clearSearchProps |> listDirectory SelectNone)
             else
-                openPath fsReader model.SelectedItem.Path.Parent (SelectName model.SelectedItem.Name) model
+                openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false)) model
         else
             let rec getParent n (path: Path) =
                 if n < 1 || path = Path.Root then path
@@ -155,7 +156,7 @@ module Nav =
             openPath fsReader path (SelectName model.Location.Name) model
 
     let refresh fsReader (model: MainModel) =
-        openPath fsReader model.Location SelectNone model
+        openPath fsReader model.Location (SelectItem (model.SelectedItem, false)) model
         |> Result.map (fun newModel ->
             if model.Status.IsSome then
                 { newModel with Status = model.Status }
@@ -194,25 +195,13 @@ module Nav =
             match model.Sort with
             | Some (f, desc) when f = field -> not desc
             | _ -> field = Modified
-        let selectType = if model.Cursor = 0 then SelectNone else SelectName model.SelectedItem.Name
+        let selectType = if model.Cursor = 0 then SelectNone else SelectItem (model.SelectedItem, false)
         { model with
             Sort = Some (field, desc)
             Items = model.Items |> SortField.SortByTypeThen (field, desc)
             Status = Some <| MainStatus.sort field desc
             History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
         } |> select selectType
-
-    let toggleHidden fsReader (model: MainModel) = asyncSeqResult {
-        let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
-        yield model
-        let select =
-            if not model.Config.ShowHidden && model.SelectedItem.IsHidden then
-                SelectNone
-            else
-                SelectName model.SelectedItem.Name
-        let! model = model |> openPath fsReader model.Location select
-        yield { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
-    }
 
     let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
         let getSuggestions search (paths: Path list) =
@@ -292,18 +281,24 @@ module Search =
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
-    let private getFilter model =
-        model.InputText
+    let private getFilter showHidden searchInput =
+        searchInput.Terms
         |> Option.ofString
         |> Option.bind (fun input ->
-            if model.SearchInput.Regex then
-                let options = if model.SearchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
+            if searchInput.Regex then
+                let options = if searchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
                 try
                     let re = Regex(input, options)
                     Some (List.filter (fun item -> re.IsMatch item.Name))
                 with :? System.ArgumentException -> None
             else
-                Some (filterByTerms false model.SearchInput.CaseSensitive input (fun item -> item.Name))
+                Some (filterByTerms false searchInput.CaseSensitive input (fun item -> item.Name))
+        )
+        |> Option.map (fun filter ->
+            if not showHidden then
+                List.filter (fun i -> not i.IsHidden) >> filter
+            else
+                filter
         )
 
     let private enumerateSubDirs (fsReader: IFileSystemReader) (subDirResults: Event<_>) (progress: Event<_>)
@@ -327,15 +322,16 @@ module Search =
     }
 
     let search fsReader subDirResults progress (model: MainModel) = asyncSeq {
-        let model = { model with SearchCurrent = Some { model.SearchInput with Terms = model.InputText } }
-        match model.InputText |> String.isNotEmpty, getFilter model with
+        let input = { model.SearchInput with Terms = model.InputText }
+        let model = { model with SearchCurrent = Some input }
+        match model.InputText |> String.isNotEmpty, getFilter model.Config.ShowHidden input with
         | true, Some filter ->
             let withItems items model =
                 let noResults = [ { Item.Empty with Name = "<No Search Results>"; Path = model.Location } ]
                 { model with
                     Items = items |> Seq.ifEmpty noResults
                     Cursor = 0
-                } |> Nav.select (SelectName model.SelectedItem.Name)
+                } |> Nav.select (SelectItem (model.SelectedItem, false))
             let items = model.Directory |> filter
             if model.SearchInput.SubFolders then
                 match model.SubDirectories with
@@ -357,11 +353,11 @@ module Search =
         | true, None ->
             yield model
         | false, _ ->
-            yield model |> Nav.listDirectory (SelectName model.SelectedItem.Name)
+            yield model |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
     }
 
     let addSubDirResults newItems model =
-        let filter = getFilter model |? cnst []
+        let filter = model.SearchCurrent |> Option.bind (getFilter model.Config.ShowHidden) |? cnst []
         let items =
             match filter newItems, model.Items with
             | [], _ -> model.Items
@@ -372,10 +368,10 @@ module Search =
             Items = items
         }
 
-    let clearSearch model =
+    let clearSearch (model: MainModel) =
         model
         |> clearSearchProps
-        |> Nav.listDirectory (SelectName model.SelectedItem.Name)
+        |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
 
 module Action =
     let private performedAction action model =
@@ -444,7 +440,7 @@ module Action =
             let! model = Nav.openPath fs model.Location (SelectName name) model
             yield model |> performedAction (CreatedItem model.SelectedItem)
         | Some existing ->
-            yield! Nav.openPath fs model.Location (SelectName existing.Name) model
+            yield! Nav.openPath fs model.Location (SelectItem (existing, true)) model
             return CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
     }
 
@@ -547,7 +543,7 @@ module Action =
         match existing with
         | Some existing when not overwrite ->
             // refresh item list to make sure we can see the existing file
-            let! model = Nav.openPath fs model.Location (SelectName existing.Name) model
+            let! model = Nav.openPath fs model.Location (SelectItem (existing, true)) model
             yield
                 { model with
                     InputMode = Some (Confirm (Overwrite (putAction, item, existing)))
@@ -836,7 +832,7 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.SearchCurrent with
     | Some search ->
-        let selectType = SelectName model.SelectedItem.Name
+        let selectType = SelectItem (model.SelectedItem, false)
         let! newModel = model |> Nav.openPath fsReader model.Location selectType
         let searchModels =
             { newModel with
@@ -860,6 +856,12 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         | None -> ()
     | None ->
         yield! Nav.refresh fsReader model
+}
+
+let toggleHidden fsReader subDirResults progress (model: MainModel) = asyncSeqResult {
+    let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
+    yield model
+    yield! refreshOrResearch fsReader subDirResults progress { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
 }
 
 let inputCharTyped fs cancelInput char model = asyncSeqResult {
@@ -1146,7 +1148,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
-            | ToggleHidden -> AsyncResult (Nav.toggleHidden fs)
+            | ToggleHidden -> AsyncResult (toggleHidden fs subDirResults progress)
             | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
             | OpenExplorer -> Sync (Action.openExplorer os)

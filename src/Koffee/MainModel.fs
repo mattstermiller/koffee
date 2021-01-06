@@ -136,6 +136,7 @@ type SelectType =
     | SelectNone
     | SelectIndex of int
     | SelectName of string
+    | SelectItem of Item * showHidden: bool
 
 type StatusType =
     | Message of string

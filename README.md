@@ -78,6 +78,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - When a path is in the path box, everything after the last slash is used to search the folder before the last slash. For example, typing "C:\Windows\sy 32" would suggest "C:\Windows\System32".
     - When suggestions are shown, use the up and down arrow keys to select a suggestion. When there is only one suggestion, it is selected automatically.
     - Press `Tab` to fill in the path box with the selected suggestion and continue typing, or press `Enter` to open the selected suggestion.
+    - When suggestions from history are shown, pressing `Delete` will remove it from the list and history.
 
 #### File & Folder Manipulation
 - **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `Enter`.

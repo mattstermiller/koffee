@@ -1,12 +1,13 @@
 # Release Notes
 
-### 0.6.0  Multi-select (WIP)
+### 0.6.0  Dark Theme and History Display (WIP)
 - Changes UI to use new dark theme
 - Adds "Open File and Exit" command
 - #20 Adds display of navigation history for Back/Forward (Thanks @jilleJr)
 - #63 Adds per-folder storage of sort settings (Thanks @jilleJr)
 - #94 Adds support for environment variable substitution in path box (Thanks @jilleJr)
 - #99 Adds repeat count for cursor movement, Parent Folder, Back, Forward, Undo, Redo, Find Next (Thanks @jilleJr)
+- #81 Adds ability to remove a path from path history suggestions
 - Changes Search history to also remember Sub-Folders setting
 - Changes Escape key in path box to always switch focus back to item grid and reset path box to current location
 - Changes Tab key in path box to always move cursor to end

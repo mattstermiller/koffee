@@ -252,6 +252,16 @@ module Nav =
             yield { model with PathSuggestions = Ok [] }
     }
 
+    let deletePathSuggestion (path: Path) (model: MainModel) =
+        // if location input does not contain a slash, the suggestions are from history
+        if not (model.LocationInput |> String.contains "/" || model.LocationInput |> String.contains @"\") then
+            let pathStr = path.FormatFolder model.PathFormat
+            { model with
+                History = { model.History with Paths = model.History.Paths |> List.filter ((<>) path) }
+                PathSuggestions = model.PathSuggestions |> Result.map (List.filter ((<>) pathStr))
+            }
+        else model
+
 module Search =
     let private moveCursorTo next reverse predicate model =
         let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
@@ -1114,6 +1124,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Forward -> SyncResult (Nav.forward fs)
             | ShowNavHistory -> Sync (fun m -> { m with IsNavHistoryVisible = not m.IsNavHistoryVisible })
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
+            | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
             | Undo -> AsyncResult (Action.undo fs)
             | Redo -> AsyncResult (Action.redo fs)
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))

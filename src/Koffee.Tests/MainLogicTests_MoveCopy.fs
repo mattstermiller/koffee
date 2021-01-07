@@ -285,7 +285,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
 [<TestCase(true, true)>]
 [<TestCase(true, false)>]
 [<TestCase(true, null)>]
-let ``Undo copy item deletes when it has the same timestamp, recycles otherwise`` curPathDifferent (sameTimestamp: bool Nullable) =
+let ``Undo copy item deletes when it has the same timestamp or recycles otherwise`` curPathDifferent (sameTimestamp: bool Nullable) =
     let time = DateTime(2000, 1, 1)
     let sameTimestamp = sameTimestamp |> Option.ofNullable
     let copyTime = sameTimestamp |> Option.map (fun same -> if same then time else time.AddDays(1.0))

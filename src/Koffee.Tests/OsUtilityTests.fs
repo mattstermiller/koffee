@@ -21,14 +21,14 @@ let subFakeVars = OsUtility.subEnvVars fakeEnvVarsOperatingSystem
 [<TestCase("Some %var%", "Some REPLACED")>]
 [<TestCase("%var% value", "REPLACED value")>]
 [<TestCase("%var%", "REPLACED")>]
-let ``Replaces %var% in string`` input expected =
+let ``Replaces var in string`` input expected =
     let result = subFakeVars input
     result |> shouldEqual expected
 
 [<TestCase("Some %var value")>]
 [<TestCase("Some var% value")>]
 [<TestCase("Some value")>]
-let ``Leaves non-%var%'s alone`` input =
+let ``Leaves non vars alone`` input =
     let result = subFakeVars input
     result |> shouldEqual input
 
@@ -40,7 +40,7 @@ let ``Leaves unknown vars alone`` input =
     result |> shouldEqual input
 
 [<Test>]
-let ``Replaces %envvar% in string`` () =
+let ``Replaces envvar in string`` () =
     let input = "Some %envvar% value"
     let expected = "Some REPLACED value"
     let os = new OperatingSystem()

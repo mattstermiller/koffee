@@ -6,7 +6,7 @@ open FsUnitTyped
 // create tests
 
 [<Test>]
-let ``Create calls file sys create, openPath and sets status``() =
+let ``Create calls file sys create and openPath and sets status``() =
     let fs = FakeFileSystem [
         file "another"
     ]
@@ -118,7 +118,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo create non-empty item returns error`` isFolder =
+let ``Undo create non empty item returns error`` isFolder =
     let fs = FakeFileSystem [
         if isFolder then
             folder "item" [
@@ -157,7 +157,7 @@ let ``Undo create handles delete error by returning error`` () =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
+let ``Rename calls file sys move and openPath and sets status`` diffCaseOnly =
     let fs = FakeFileSystem [
         file "another"
         file "my file"
@@ -194,7 +194,7 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     ]
 
 [<Test>]
-let ``Rename in search result calls file sys move, sets status`` () =
+let ``Rename in search result calls file sys move and sets status`` () =
     let fs = FakeFileSystem [
         file "another"
         file "file"

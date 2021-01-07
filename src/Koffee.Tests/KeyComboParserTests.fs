@@ -4,7 +4,7 @@ open NUnit.Framework
 open FsUnitTyped
 open System.Windows.Input
 
-let parseKey keyStr = 
+let parseKey keyStr =
     match KeyComboParser.Parse keyStr with
     | Some keys -> keys
     | None -> failwith (sprintf "Could not parse key string %s" keyStr)
@@ -23,15 +23,15 @@ let assertParseSeq charRange startingKey expectedModifer =
         assertParsesToSingle input (expectedModifer, expectedKey))
 
 [<Test>]
-let ``Given a lowercase letter, returns matching key.``() =
+let ``Given a lowercase letter returns matching key``() =
     assertParseSeq ['a'..'z'] Key.A ModifierKeys.None
 
 [<Test>]
-let ``Given an uppercase letter, returns matching key with shift.``() =
+let ``Given an uppercase letter returns matching key with shift``() =
     assertParseSeq ['A'..'Z'] Key.A ModifierKeys.Shift
 
 [<Test>]
-let ``Given a number, returns matching key.``() =
+let ``Given a number returns matching key``() =
     assertParseSeq ['0'..'9'] Key.D0 ModifierKeys.None
 
 [<TestCase("`", Key.Oem3, false)>]
@@ -64,7 +64,7 @@ let ``Given a number, returns matching key.``() =
 [<TestCase(".", Key.OemPeriod, false)>]
 [<TestCase("/", Key.OemQuestion, false)>]
 [<TestCase("?", Key.OemQuestion, true)>]
-let ``Given a symbol, returns matching key.`` input (expectedKey: Key) expectShift =
+let ``Given a symbol returns matching key`` input (expectedKey: Key) expectShift =
     let expectedMod = if expectShift then ModifierKeys.Shift else ModifierKeys.None
     assertParsesToSingle input (expectedMod, expectedKey)
 
@@ -73,13 +73,13 @@ let ``Given a symbol, returns matching key.`` input (expectedKey: Key) expectShi
 [<TestCase("<back>", Key.Back)>]
 [<TestCase("<f1>", Key.F1)>]
 [<TestCase("<scroll>", Key.Scroll)>]
-let ``Given a key name, returns matching key.`` input (expectedKey: Key) =
+let ``Given a key name returns matching key`` input (expectedKey: Key) =
     assertParsesToSingle input (ModifierKeys.None, expectedKey)
 
 [<TestCase("<s>", Key.S, false)>]
 [<TestCase("<S>", Key.S, true)>]
 [<TestCase("<!>", Key.D1, true)>]
-let ``Given a key in brackets, returns matching key and modifier.`` input (expectedKey: Key) expectShift =
+let ``Given a key in brackets returns matching key and modifier`` input (expectedKey: Key) expectShift =
     let expectedMod = if expectShift then ModifierKeys.Shift else ModifierKeys.None
     assertParsesToSingle input (expectedMod, expectedKey)
 
@@ -88,7 +88,7 @@ let ``Given a key in brackets, returns matching key and modifier.`` input (expec
 [<TestCase("<s-tab>", Key.Tab)>]
 [<TestCase("<s-back>", Key.Back)>]
 [<TestCase("<s-f1>", Key.F1)>]
-let ``Given a key name and shift modifer character, returns matching key with shift.`` input (expectedKey: Key) =
+let ``Given a key name and shift modifer character returns matching key with shift`` input (expectedKey: Key) =
     assertParsesToSingle input (ModifierKeys.Shift, expectedKey)
 
 [<TestCase("a", Key.A, false)>]
@@ -96,7 +96,7 @@ let ``Given a key name and shift modifer character, returns matching key with sh
 [<TestCase("1", Key.D1, false)>]
 [<TestCase("!", Key.D1, true)>]
 [<TestCase("enter", Key.Enter, false)>]
-let ``Given a modifier character, returns matching key with the modifer.`` inputKey (expectedKey: Key) expectShift =
+let ``Given a modifier character returns matching key with the modifer`` inputKey (expectedKey: Key) expectShift =
     [('c', ModifierKeys.Control); ('a', ModifierKeys.Alt); ('m', ModifierKeys.Windows)]
     |> Seq.iter (fun (ch, modifier) ->
         let expectedMod = modifier ||| (if expectShift then ModifierKeys.Shift else ModifierKeys.None)
@@ -107,27 +107,27 @@ let ``Given a modifier character, returns matching key with the modifer.`` input
 [<TestCase("<ca-a>", ModifierKeys.Control ||| ModifierKeys.Alt, Key.A)>]
 [<TestCase("<CAM-a>", ModifierKeys.Control ||| ModifierKeys.Alt ||| ModifierKeys.Windows, Key.A)>]
 [<TestCase("<sc-enter>", ModifierKeys.Shift ||| ModifierKeys.Control, Key.Enter)>]
-let ``Given multiple modifer characters, returns matching key with modifiers.`` input (expectedMod: ModifierKeys) (expectedKey: Key) =
+let ``Given multiple modifer characters returns matching key with modifiers`` input (expectedMod: ModifierKeys) (expectedKey: Key) =
     assertParsesToSingle input (expectedMod, expectedKey)
 
 [<Test>]
-let ``Given 3 letters, returns a sequence of those keys.``() =
+let ``Given 3 letters returns a sequence of those keys``() =
     parseKey "abc"
     |> shouldEqual [(ModifierKeys.None, Key.A); (ModifierKeys.None, Key.B); (ModifierKeys.None, Key.C)]
 
 [<Test>]
-let ``Given 3 chords, returns a sequence of those chords.``() =
+let ``Given 3 chords returns a sequence of those chords``() =
     parseKey "<c-a><a-b>C"
     |> shouldEqual [(ModifierKeys.Control, Key.A); (ModifierKeys.Alt, Key.B); (ModifierKeys.Shift, Key.C)]
 
 [<Test>]
-let ``Default key bindings, which uses parsing, does not throw an error.``() =
+let ``Parsing default key bindings does not throw an error``() =
     KeyBinding.defaults |> ignore
 
 [<TestCase("<>")>]
 [<TestCase("<s->")>]
 [<TestCase("<-tab>")>]
 [<TestCase("<s-tab>>")>]
-let ``Given invalid input, returns None.`` input =
+let ``Given invalid input returns None`` input =
     KeyComboParser.Parse input
     |> shouldEqual None

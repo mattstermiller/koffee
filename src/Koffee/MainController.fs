@@ -281,7 +281,7 @@ module Search =
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
-    let private getFilter showHidden searchInput =
+    let getFilter showHidden searchInput =
         searchInput.Terms
         |> Option.ofString
         |> Option.bind (fun input ->
@@ -858,11 +858,18 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         yield! Nav.refresh fsReader model
 }
 
-let toggleHidden fsReader subDirResults progress (model: MainModel) = asyncSeqResult {
+let toggleHidden (model: MainModel) =
     let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
-    yield model
-    yield! refreshOrResearch fsReader subDirResults progress { model with Status = Some <| MainStatus.toggleHidden model.Config.ShowHidden }
-}
+    let select = SelectItem (model.SelectedItem, false)
+    match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden) with
+    | Some filter ->
+        let items =
+            model.Directory @ (model.SubDirectories |? [])
+            |> filter
+            |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
+        { model with Items = items } |> Nav.select select
+    | None ->
+        Nav.listDirectory select model
 
 let inputCharTyped fs cancelInput char model = asyncSeqResult {
     let withBookmark char model =
@@ -1148,7 +1155,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
-            | ToggleHidden -> AsyncResult (toggleHidden fs subDirResults progress)
+            | ToggleHidden -> Sync toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
             | OpenExplorer -> Sync (Action.openExplorer os)

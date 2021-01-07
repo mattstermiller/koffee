@@ -165,7 +165,6 @@ let ``Rename calls file sys move, openPath and sets status`` diffCaseOnly =
     ]
     let item = fs.Item "/c/my file"
     let renamed = createFile (if diffCaseOnly then "/c/My File" else "/c/renamed")
-    // TODO #83: change rename to refresh when not searching, change this test to not set dir+items
     let items = fs.ItemsIn "/c"
     let model = { testModel with Directory = items; Items = items; Cursor = 1 }
 

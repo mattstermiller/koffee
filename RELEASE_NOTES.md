@@ -22,6 +22,7 @@
 - Fixes file size decimal place always showing 0
 - Fixes undo/redo actions that throw error not being removed, blocking all other undo/redo actions
 - Fixes double ending slash in unix drive path formatting
+- Fixes empty item message when deleting last search result
 - Upgrades project to .NET Core SDK format. The `dotnet` command works in the repository folder to build, test, run, etc.
 
 ### 0.5.2  (2020-01-17)

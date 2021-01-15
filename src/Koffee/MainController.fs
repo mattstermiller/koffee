@@ -64,7 +64,7 @@ module Nav =
             model.Directory
             |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = selectHiddenItem)
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
-            |> Seq.ifEmpty (Item.EmptyFolder model.Location)
+            |> Seq.ifEmpty (Item.EmptyFolder model.SearchCurrent.IsSome model.Location)
         { model with Items = items } |> select selectType
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
@@ -327,9 +327,8 @@ module Search =
         match model.InputText |> String.isNotEmpty, getFilter model.Config.ShowHidden input with
         | true, Some filter ->
             let withItems items model =
-                let noResults = [ { Item.Empty with Name = "<No Search Results>"; Path = model.Location } ]
                 { model with
-                    Items = items |> Seq.ifEmpty noResults
+                    Items = items |> Seq.ifEmpty (Item.EmptyFolder true model.Location)
                     Cursor = 0
                 } |> Nav.select (SelectItem (model.SelectedItem, false))
             let items = model.Directory |> filter
@@ -633,7 +632,7 @@ module Action =
             yield
                 { model with
                     Directory = model.Directory |> List.except [item]
-                    Items = model.Items |> List.except [item] |> Seq.ifEmpty (Item.EmptyFolder model.Location)
+                    Items = model.Items |> List.except [item] |> Seq.ifEmpty (Item.EmptyFolder model.SearchCurrent.IsSome model.Location)
                 }.WithCursor model.Cursor
                 |> performedAction action
     }
@@ -644,7 +643,7 @@ module Action =
             yield
                 { model with
                     Directory = model.Directory |> List.except [model.SelectedItem]
-                    Items = model.Items |> List.except [model.SelectedItem] |> Seq.ifEmpty (Item.EmptyFolder model.Location)
+                    Items = model.Items |> List.except [model.SelectedItem] |> Seq.ifEmpty (Item.EmptyFolder model.SearchCurrent.IsSome model.Location)
                     History = model.History.WithoutNetHost host
                     Status = Some <| MainStatus.removedNetworkHost host
                 }.WithCursor model.Cursor

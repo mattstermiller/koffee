@@ -60,9 +60,10 @@ with
           Modified = None; Size = None; IsHidden = false
         }
 
-    static member EmptyFolder path =
+    static member EmptyFolder isSearching path =
         let text =
-            if path = Path.Network then "Remote hosts that you visit will appear here"
+            if isSearching then "No search results"
+            else if path = Path.Network then "Remote hosts that you visit will appear here"
             else "Empty folder"
         [ { Item.Empty with Name = sprintf "<%s>" text; Path = path } ]
 

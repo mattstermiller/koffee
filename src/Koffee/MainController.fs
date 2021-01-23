@@ -38,6 +38,7 @@ let clearSearchProps model =
     model.SubDirectoryCancel.Cancel()
     { model with
         SearchCurrent = None
+        SearchInput = Search.Default
         SearchHistoryIndex = -1
         SubDirectories = None
         Progress = None
@@ -952,11 +953,7 @@ let inputHistory offset model =
     match model.InputMode with
     | Some (Input Search) ->
         let index = model.SearchHistoryIndex + offset |> max -1 |> min (model.History.Searches.Length-1)
-        let search =
-            if index < 0 then
-                { model.SearchInput with Terms = "" }
-            else
-                model.History.Searches.[index]
+        let search = if index < 0 then Search.Default else model.History.Searches.[index]
         { model with
             InputText = search.Terms
             InputTextSelection = (search.Terms.Length, 0)

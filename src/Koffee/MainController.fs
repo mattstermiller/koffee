@@ -859,7 +859,12 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
 }
 
 let toggleHidden (model: MainModel) =
-    let model = { model with Config = { model.Config with ShowHidden = not model.Config.ShowHidden } }
+    let show = not model.Config.ShowHidden
+    let model =
+        { model with
+            Config = { model.Config with ShowHidden = show }
+            Status = Some (MainStatus.toggleHidden show)
+        }
     let select = SelectItem (model.SelectedItem, false)
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden) with
     | Some filter ->

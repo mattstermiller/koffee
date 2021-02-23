@@ -616,11 +616,11 @@ module Action =
 
     let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
         let item = model.SelectedItem
-        match item.Type with
-        | File | Folder ->
+        if item.Type <> Empty then
             do! os.CopyToClipboard item.Path |> actionError "copy to clipboard"
-        | _ -> ()
-        return { model with Status = Some (MainStatus.clipboardCopy (item.Path.Format model.PathFormat)) }
+            return { model with Status = Some (MainStatus.clipboardCopy (item.Path.Format model.PathFormat)) }
+        else
+            return model
     }
 
     let delete (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asyncSeqResult {

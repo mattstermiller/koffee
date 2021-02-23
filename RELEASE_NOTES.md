@@ -20,6 +20,7 @@
 - #87 Fixes toggling hidden files not hiding selected item
 - #88 Fixes refreshing search results
 - #95 Fixes search to respect hidden file setting
+- Fixes copy to clipboard not working on drives, net hosts and net shares
 - Fixes file size decimal place always showing 0
 - Fixes undo/redo actions that throw error not being removed, blocking all other undo/redo actions
 - Fixes double ending slash in unix drive path formatting

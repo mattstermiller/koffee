@@ -153,6 +153,54 @@ let ``Undo create handles delete error by returning error`` () =
     let expected = model.WithError (ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)) |> popUndo
     assertAreEqual expected actual
 
+[<Test>]
+let ``Redo create creates item again`` () =
+    let fs = FakeFileSystem [
+        file "another"
+    ]
+    let createItem = createFile "/c/file"
+    let model = testModel |> pushRedo (CreatedItem createItem)
+
+    let actual = seqResult (MainLogic.Action.redo fs) model
+
+    let expectedAction = CreatedItem createItem
+    let expectedItems = [
+        createFile "/c/another"
+        createItem
+    ]
+    let expected =
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 1
+            UndoStack = expectedAction :: model.UndoStack
+            RedoStack = model.RedoStack.Tail
+            Status = Some <| MainStatus.redoAction expectedAction model.PathFormat 1
+        }
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        file "another"
+        file "file"
+    ]
+
+[<Test>]
+let ``Redo create handles error by returning error``() =
+    let fs = FakeFileSystem [
+        file "another"
+    ]
+    let createItem = createFile "/c/file"
+    fs.AddExnPath ex createItem.Path
+    let model = testModel |> pushRedo (CreatedItem createItem)
+    let expectedFs = fs.Items
+
+    let actual = seqResult (MainLogic.Action.redo fs) model
+
+    let expected =
+        model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
+        |> popRedo
+    assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
+
 // rename tests
 
 [<TestCase(false)>]

@@ -34,11 +34,10 @@ let run args =
     use history = new HistoryFile(History.Default)
     let fileSys = FileSystem()
     let os = OperatingSystem()
-    let openSettings config = Settings.View().ShowDialog(Settings.start config).Config
     let window = KoffeeUI.MainWindow()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let controller = MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
-                                          openSettings, closeWindow, options)
+                                          Settings.showDialog, closeWindow, options)
     Application().Run(window, controller.Start) |> ignore
 
 [<EntryPoint>]

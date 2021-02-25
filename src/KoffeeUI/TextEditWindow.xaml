@@ -1,0 +1,16 @@
+<Window x:Class="KoffeeUI.TextEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Edit" Width="500" Height="500" FontSize="15">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="AppStyles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <DockPanel>
+    <Label Name="Header" x:FieldModifier="public" DockPanel.Dock="Top" />
+    <TextBox Name="TextBox" x:FieldModifier="public" AcceptsReturn="True" VerticalScrollBarVisibility="Visible" />
+  </DockPanel>
+</Window>

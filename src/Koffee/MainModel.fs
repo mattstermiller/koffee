@@ -170,6 +170,7 @@ type Config = {
     ShowHidden: bool
     TextEditor: string
     CommandlinePath: string
+    SearchExclusions: string list
     YankRegister: (Path * ItemType * PutAction) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
@@ -199,6 +200,18 @@ with
         ShowHidden = false
         TextEditor = "notepad.exe"
         CommandlinePath = "cmd.exe"
+        SearchExclusions = [
+            ".git"
+            ".svn"
+            ".hg"
+            "CVS"
+            ".DS_Store"
+            ".fake"
+            "bin"
+            "obj"
+            "packages"
+            "node_modules"
+        ]
         YankRegister = None
         Window = {
             IsMaximized = false

@@ -8,6 +8,7 @@
 - #94 Adds support for environment variable substitution in path box (Thanks @jilleJr)
 - #99 Adds repeat count for cursor movement, Parent Folder, Back, Forward, Undo, Redo, Find Next (Thanks @jilleJr)
 - #81 Adds ability to remove a path from path history suggestions
+- #102 Adds recursive search folder exclusions
 - Changes Search history to also remember Sub-Folders setting
 - Changes clearing search to reset search flags
 - Changes Escape key in path box to always switch focus back to item grid and reset path box to current location

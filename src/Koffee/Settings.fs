@@ -22,6 +22,7 @@ type Events =
     | StartPathChanged of StartPath
     | DefaultPathChanged
     | PathFormatChanged of PathFormat
+    | EditSearchExclusions
 
 type View = KoffeeUI.SettingsWindow
 
@@ -55,13 +56,15 @@ let private binder (view: View) model =
         Bind.model(<@ model.KeyBindings @>).toItemsSource(view.KeyBindings, <@ fun kb -> kb.BoundKeys, kb.EventName @>)
     ]
 
-let private events (view: View) =
-    [ view.StartPathPrevious.Checked |> Observable.mapTo (StartPathChanged RestorePrevious)
-      view.StartPathDefault.Checked |> Observable.mapTo (StartPathChanged DefaultPath)
-      view.DefaultPath.LostFocus |> Observable.mapTo DefaultPathChanged
+module Obs = Observable
 
-      view.PathFormatWindows.Checked |> Observable.mapTo (PathFormatChanged Windows)
-      view.PathFormatUnix.Checked |> Observable.mapTo (PathFormatChanged Unix)
+let private events (view: View) =
+    [ view.StartPathPrevious.Checked |> Obs.mapTo (StartPathChanged RestorePrevious)
+      view.StartPathDefault.Checked |> Obs.mapTo (StartPathChanged DefaultPath)
+      view.DefaultPath.LostFocus |> Obs.mapTo DefaultPathChanged
+      view.EditSearchExclusions.Click |> Obs.mapTo EditSearchExclusions
+      view.PathFormatWindows.Checked |> Obs.mapTo (PathFormatChanged Windows)
+      view.PathFormatUnix.Checked |> Obs.mapTo (PathFormatChanged Unix)
     ]
 
 let updateConfig f (model: Model) =
@@ -72,13 +75,23 @@ let defaultPathChanged (model: Model) =
     | Ok path -> model |> updateConfig (fun c -> { c with DefaultPath = path })
     | Error _ -> model
 
+let editSearchExclusions (model: Model) =
+    let searchExclusions =
+        TextEdit.showDialog
+            "Recursive Search Exclusions"
+            "This list of folder names are excluded from recursive searches."
+            (model.Config.SearchExclusions @ [""] |> String.concat "\n")
+        |> String.split '\n' |> Array.toList |> List.map String.trim
+    model |> updateConfig (fun c -> { c with SearchExclusions = searchExclusions })
+
 let private dispatcher evt =
     match evt with
     | StartPathChanged value -> Sync <| updateConfig (fun c -> { c with StartPath = value })
     | DefaultPathChanged -> Sync defaultPathChanged
     | PathFormatChanged value -> Sync <| updateConfig (fun c -> { c with PathFormat = value})
+    | EditSearchExclusions -> Sync <| editSearchExclusions
 
-let start (config: Config) view =
+let private start (config: Config) view =
     let keyBinding (evt, name) = {
         EventName = name
         BoundKeys =
@@ -93,3 +106,5 @@ let start (config: Config) view =
         KeyBindings = MainEvents.Bindable |> List.map keyBinding
     }
     Framework.start binder events dispatcher view model
+
+let showDialog config = View().ShowDialog(start config).Config

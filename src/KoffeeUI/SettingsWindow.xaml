@@ -22,6 +22,7 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
@@ -46,6 +47,7 @@
     <TextBox Name="CommandlinePath" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
              Grid.Row="3"/>
 
+
     <StackPanel Orientation="Horizontal" Grid.Column="3">
       <Label Name="LabelPathFormat" x:FieldModifier="public" Content="Path format:" VerticalAlignment="Center"/>
       <RadioButton Name="PathFormatWindows" x:FieldModifier="public" Content="Windows" GroupName="PathFormat"
@@ -61,14 +63,18 @@
     <CheckBox Name="RefreshOnActivate" x:FieldModifier="public" Content="Refresh window on focus"
               VerticalAlignment="Center" Grid.Column="3" Grid.Row="3"/>
 
-    <Grid Grid.Row="4" Grid.ColumnSpan="4">
+    <Button Name="EditSearchExclusions" x:FieldModifier="public" Content="Recursive Search Exclusions..."
+            Grid.Column="3" Grid.Row="4"/>
+
+
+    <Grid Grid.Row="5" Grid.ColumnSpan="4">
       <Label Content="Key bindings:"/>
       <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
     </Grid>
 
     <DataGrid Name="KeyBindings" x:FieldModifier="public" IsReadOnly="True" AreRowDetailsFrozen="True"
               AutoGenerateColumns="False" CanUserResizeRows="False" GridLinesVisibility="None" RowHeaderWidth="0"
-              ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="5" Grid.ColumnSpan="4">
+              ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="6" Grid.ColumnSpan="4">
       <DataGrid.Resources>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource Text}"/>

@@ -303,8 +303,9 @@ module Search =
         )
 
     let private enumerateSubDirs (fsReader: IFileSystemReader) (subDirResults: Event<_>) (progress: Event<_>)
-                                 isCancelled items = async {
-        let getDirs = List.filter (fun t -> t.Type = Folder)
+                                 isCancelled (searchExclusions: string list) items = async {
+        let getDirs = List.filter (fun i -> i.Type = Folder &&
+                                            not (searchExclusions |> List.exists (String.equalsIgnoreCase i.Name)))
         let rec enumerate progressFactor dirs = async {
             for dir in dirs do
                 if not <| isCancelled () then
@@ -343,7 +344,8 @@ module Search =
                             SubDirectoryCancel = cancelToken
                             Sort = None
                         } |> withItems items
-                    do! enumerateSubDirs fsReader subDirResults progress cancelToken.get_IsCancelled model.Directory
+                    do! enumerateSubDirs fsReader subDirResults progress cancelToken.get_IsCancelled
+                                         model.Config.SearchExclusions model.Directory
                 | Some subDirs ->
                     let items = items @ filter subDirs |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                     yield model |> withItems items

@@ -391,6 +391,9 @@ type MainModel = {
 
     member this.RepeatCount = this.RepeatCommand |? 1
 
+    member this.ItemsIfEmpty =
+        Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
@@ -482,6 +485,7 @@ type MainEvents =
     | WindowSizeChanged of int * int
     | WindowMaximizedChanged of bool
     | WindowActivated
+    | DropCompleted of PutAction
 
     static member Bindable = [
         CursorUp, "Move Cursor Up"

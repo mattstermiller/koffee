@@ -65,7 +65,7 @@ module Nav =
             model.Directory
             |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = selectHiddenItem)
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
-            |> Seq.ifEmpty (Item.EmptyFolder model.SearchCurrent.IsSome model.Location)
+            |> model.ItemsIfEmpty
         { model with Items = items } |> select selectType
 
     let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
@@ -330,7 +330,7 @@ module Search =
         | true, Some filter ->
             let withItems items model =
                 { model with
-                    Items = items |> Seq.ifEmpty (Item.EmptyFolder true model.Location)
+                    Items = items |> model.ItemsIfEmpty
                     Cursor = 0
                 } |> Nav.select (SelectItem (model.SelectedItem, false))
             let items = model.Directory |> filter
@@ -635,7 +635,7 @@ module Action =
             yield
                 { model with
                     Directory = model.Directory |> List.except [item]
-                    Items = model.Items |> List.except [item] |> Seq.ifEmpty (Item.EmptyFolder model.SearchCurrent.IsSome model.Location)
+                    Items = model.Items |> List.except [item] |> model.ItemsIfEmpty
                 }.WithCursor model.Cursor
                 |> performedAction action
     }
@@ -646,7 +646,7 @@ module Action =
             yield
                 { model with
                     Directory = model.Directory |> List.except [model.SelectedItem]
-                    Items = model.Items |> List.except [model.SelectedItem] |> Seq.ifEmpty (Item.EmptyFolder model.SearchCurrent.IsSome model.Location)
+                    Items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
                     History = model.History.WithoutNetHost host
                     Status = Some <| MainStatus.removedNetworkHost host
                 }.WithCursor model.Cursor
@@ -1092,6 +1092,13 @@ let windowActivated fsReader subDirResults progress model = asyncSeqResult {
         yield model
 }
 
+let dropCompleted dropAction (model: MainModel) =
+    if dropAction = Move then
+        let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
+        { model with Items = items }
+    else
+        model
+
 let SyncResult handler =
     Sync (fun (model: MainModel) ->
         match handler model with
@@ -1174,6 +1181,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
             | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
+            | DropCompleted action -> Sync (dropCompleted action)
         let isBusy model =
             match model.Status with
             | Some (Busy _) -> true

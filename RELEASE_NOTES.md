@@ -7,6 +7,7 @@
 - #63 Adds per-folder storage of sort settings (Thanks @jilleJr)
 - #94 Adds support for environment variable substitution in path box (Thanks @jilleJr)
 - #99 Adds repeat count for cursor movement, Parent Folder, Back, Forward, Undo, Redo, Find Next (Thanks @jilleJr)
+- #91 Adds support for drag'n'drop out of Koffee
 - #81 Adds ability to remove a path from path history suggestions
 - #102 Adds recursive search folder exclusions
 - Changes Search history to also remember Sub-Folders setting

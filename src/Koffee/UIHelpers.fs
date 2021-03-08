@@ -6,6 +6,7 @@ open System.Windows
 open System.Windows.Data
 open System.Windows.Controls
 open System.Windows.Input
+open System.Windows.Media
 open System.Reactive.Linq
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
@@ -47,6 +48,13 @@ type UIElement with
     member this.Collapsed
         with get () = this.Visibility = Visibility.Collapsed
         and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
+
+type DependencyObject with
+    member this.GetParentOf<'a when 'a :> DependencyObject> () =
+        match VisualTreeHelper.GetParent this with
+        | null -> None
+        | :? 'a as parent -> Some parent
+        | parent -> parent.GetParentOf<'a>()
 
 type DataGridColumn with
     member this.Collapsed

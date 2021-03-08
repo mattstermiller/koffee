@@ -11,6 +11,7 @@ open VinylUI.Wpf
 open Reflection
 open Acadian.FSharp
 open KoffeeUI
+open System.Windows.Media
 
 module Obs = Observable
 
@@ -166,16 +167,25 @@ module MainView =
         )
 
         // drag'n'drop out
+        let print = System.Diagnostics.Debug.WriteLine
         window.ItemGrid.MouseMove.Add (fun e ->
             if e.LeftButton = MouseButtonState.Pressed then
-                let item = window.ItemGrid.SelectedItem :?> Item
-                let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
-                match DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.All) with
-                | DragDropEffects.Move -> Some Move
-                | DragDropEffects.Copy -> Some Copy
-                | DragDropEffects.Link -> Some Shortcut
-                | _ -> None
-                |> Option.iter dropCompleted.Trigger
+                let clicked =
+                    VisualTreeHelper.HitTest(window.ItemGrid, e.GetPosition(window.ItemGrid))
+                    |> Option.ofObj
+                    |> Option.bind (fun hit -> hit.VisualHit.GetParentOf<DataGridRow>())
+                    |> Option.map (fun row -> row.Item :?> Item)
+                let selected = window.ItemGrid.SelectedItem :?> Item
+                sprintf "selected %s | grabbed %A" (selected.Name) (clicked |> Option.map (fun i -> i.Name)) |> print
+                if clicked = Some selected then
+                    print "- doing drag drop"
+                    let dropData = DataObject(DataFormats.FileDrop, [|selected.Path.Format Windows|])
+                    match DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.All) with
+                    | DragDropEffects.Move -> Some Move
+                    | DragDropEffects.Copy -> Some Copy
+                    | DragDropEffects.Link -> Some Shortcut
+                    | _ -> None
+                    |> Option.iter dropCompleted.Trigger
         )
 
         // bindings

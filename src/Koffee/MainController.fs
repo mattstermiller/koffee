@@ -1,7 +1,6 @@
 ﻿module Koffee.MainLogic
 
 open System.Text.RegularExpressions
-open System.Threading.Tasks
 open FSharp.Control
 open VinylUI
 open Acadian.FSharp
@@ -11,8 +10,6 @@ type Key = System.Windows.Input.Key
 
 let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
 let itemActionError item pathFormat = Result.mapError (fun e -> ItemActionError (item, pathFormat, e))
-
-let private runAsync (f: unit -> 'a) = f |> Task.Run |> Async.AwaitTask
 
 let private filterByTerms sort caseSensitive search proj items =
     let terms =

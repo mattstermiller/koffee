@@ -9,6 +9,14 @@ open System.Reactive.Concurrency
 open FSharp.Control
 open Acadian.FSharp
 
+let runAsync (f: unit -> 'a) = async {
+    let ctx = System.Threading.SynchronizationContext.Current
+    do! Async.SwitchToNewThread()
+    let result = f()
+    do! Async.SwitchToContext ctx
+    return result
+}
+
 module String =
     let readableIdentifier str =
         Regex.Replace(str, @"(?<=[a-z])(?=[A-Z\d])", " ")

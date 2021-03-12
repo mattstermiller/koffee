@@ -163,6 +163,11 @@ module MainView =
             historyBuffer.Dispose()
         )
 
+        // darg'n'drop feedback
+        window.ItemGrid.GiveFeedback.Add (fun e ->
+            () // TODO: change cursor based on rules in issue
+        )
+
         // bindings
         [   Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
             Bind.model(<@ model.PathSuggestions @>).toFunc(function
@@ -448,6 +453,14 @@ module MainView =
                 | _ -> None
                 |> Option.map DropCompleted
             else None
+        )
+        window.ItemGrid.Drop |> Obs.choose (fun e ->
+            e.Data.GetData(DataFormats.FileDrop) :?> string array
+            |> Option.ofObj
+            |> Option.bind (fun files ->
+                sprintf "%A %A" e.Effects files |> System.Diagnostics.Debug.WriteLine
+                None
+            )
         )
         config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
         history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged

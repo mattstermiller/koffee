@@ -15,8 +15,6 @@ open KoffeeUI
 module Obs = Observable
 
 module MainView =
-    let dropCompleted = Event<PutAction>()
-
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Obs.choose (fun evt ->
             if evt.Key = key then
@@ -163,19 +161,6 @@ module MainView =
         window.Closed.Add (fun _ ->
             history.Value <- historyBuffer.Value
             historyBuffer.Dispose()
-        )
-
-        // drag'n'drop out
-        window.ItemGrid.MouseMove.Add (fun e ->
-            if e.LeftButton = MouseButtonState.Pressed then
-                let item = window.ItemGrid.SelectedItem :?> Item
-                let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
-                match DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.All) with
-                | DragDropEffects.Move -> Some Move
-                | DragDropEffects.Copy -> Some Copy
-                | DragDropEffects.Link -> Some Shortcut
-                | _ -> None
-                |> Option.iter dropCompleted.Trigger
         )
 
         // bindings
@@ -452,7 +437,18 @@ module MainView =
                 Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
             else None
         )
-        dropCompleted.Publish |> Obs.map DropCompleted
+        window.ItemGrid.MouseMove |> Obs.choose (fun e ->
+            if e.LeftButton = MouseButtonState.Pressed then
+                let item = window.ItemGrid.SelectedItem :?> Item
+                let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
+                match DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.All) with
+                | DragDropEffects.Move -> Some Move
+                | DragDropEffects.Copy -> Some Copy
+                | DragDropEffects.Link -> Some Shortcut
+                | _ -> None
+                |> Option.map DropCompleted
+            else None
+        )
         config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
         history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
     ]

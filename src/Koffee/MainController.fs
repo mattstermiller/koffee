@@ -1089,8 +1089,8 @@ let windowActivated fsReader subDirResults progress model = asyncSeqResult {
         yield model
 }
 
-let dropCompleted dropAction (model: MainModel) =
-    if dropAction = Move then
+let dropCompleted (fsReader: IFileSystemReader) dropAction (model: MainModel) =
+    if dropAction = Move && fsReader.GetItem model.SelectedItem.Path = Ok None then
         let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
         { model with Items = items }
     else
@@ -1178,7 +1178,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
             | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
-            | DropCompleted action -> Sync (dropCompleted action)
+            | DropCompleted action -> Sync (dropCompleted fs action)
         let isBusy model =
             match model.Status with
             | Some (Busy _) -> true

@@ -2,14 +2,15 @@
 
 ### 0.6.0  Dark Theme and History Display (WIP)
 - Changes UI to use new dark theme
-- Adds "Open File and Exit" command
 - #20 Adds display of navigation history for Back/Forward (Thanks @jilleJr)
 - #63 Adds per-folder storage of sort settings (Thanks @jilleJr)
 - #94 Adds support for environment variable substitution in path box (Thanks @jilleJr)
 - #99 Adds repeat count for cursor movement, Parent Folder, Back, Forward, Undo, Redo, Find Next (Thanks @jilleJr)
+- #90 Adds support for drag'n'drop into Koffee (single items only for now)
 - #91 Adds support for drag'n'drop out of Koffee
 - #81 Adds ability to remove a path from path history suggestions
 - #102 Adds recursive search folder exclusions
+- Adds "Open File and Exit" command
 - Changes Search history to also remember Sub-Folders setting
 - Changes clearing search to reset search flags
 - Changes Escape key in path box to always switch focus back to item grid and reset path box to current location

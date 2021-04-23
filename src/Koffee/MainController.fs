@@ -1089,7 +1089,42 @@ let windowActivated fsReader subDirResults progress model = asyncSeqResult {
         yield model
 }
 
-let dropCompleted (fsReader: IFileSystemReader) dropAction (model: MainModel) =
+let private getDropInAction (event: DragEvent) (model: MainModel) (path: Path) =
+    let desiredAction =
+        event.Action
+        |> Option.defaultWith (fun () ->
+            match path.Drive, model.Location.Drive with
+            | Some srcDrive, Some destDrive when srcDrive = destDrive -> Move
+            | _ -> Copy
+        )
+    event.AllowedActions
+    |> List.tryFind ((=) desiredAction)
+    |> Option.orElse (event.AllowedActions |> List.tryHead)
+
+let updateDropInAction (paths: Path list) (event: DragEvent) (model: MainModel) =
+    event.Action <- paths |> List.tryHead |> Option.bind (getDropInAction event model)
+    model
+
+let dropIn (fs: IFileSystem) paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
+    match getDropInAction event model (paths |> List.head) with
+    | Some action ->
+        let paths =
+            if action = Move then
+                paths |> List.filter (fun p -> p.Parent <> model.Location)
+            else
+                paths
+        // only supports one item for now until multi-select is implemented
+        match paths |> List.tryHead with
+        | Some path ->
+            match! fs.GetItem path |> actionError "drop item" with
+            | Some item ->
+                yield! Action.putItem fs false item action model
+            | None -> ()
+        | None -> ()
+    | None -> ()
+}
+
+let dropOut (fsReader: IFileSystemReader) dropAction (model: MainModel) =
     if dropAction = Move && fsReader.GetItem model.SelectedItem.Path = Ok None then
         let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
         { model with Items = items }
@@ -1162,6 +1197,9 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
+            | UpdateDropInAction (paths, event) -> Sync (updateDropInAction paths event)
+            | DropIn (paths, event) -> AsyncResult (dropIn fs paths event)
+            | DropOut action -> Sync (dropOut fs action)
             | ToggleHidden -> Sync toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Action.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Action.openWithTextEditor os)
@@ -1178,7 +1216,6 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
             | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
-            | DropCompleted action -> Sync (dropCompleted fs action)
         let isBusy model =
             match model.Status with
             | Some (Busy _) -> true

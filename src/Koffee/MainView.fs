@@ -15,8 +15,6 @@ open KoffeeUI
 module Obs = Observable
 
 module MainView =
-    let dropCompleted = Event<PutAction>()
-
     let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
         keyEvent |> Obs.choose (fun evt ->
             if evt.Key = key then
@@ -163,19 +161,6 @@ module MainView =
         window.Closed.Add (fun _ ->
             history.Value <- historyBuffer.Value
             historyBuffer.Dispose()
-        )
-
-        // drag'n'drop out
-        window.ItemGrid.MouseMove.Add (fun e ->
-            if e.LeftButton = MouseButtonState.Pressed then
-                let item = window.ItemGrid.SelectedItem :?> Item
-                let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
-                match DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.All) with
-                | DragDropEffects.Move -> Some Move
-                | DragDropEffects.Copy -> Some Copy
-                | DragDropEffects.Link -> Some Shortcut
-                | _ -> None
-                |> Option.iter dropCompleted.Trigger
         )
 
         // bindings
@@ -368,6 +353,13 @@ module MainView =
             Bind.model(<@ model.History @>).toFunc(historyBuffer.OnNext)
         ]
 
+    let getFileDropPaths (data: IDataObject) =
+        data.GetData(DataFormats.FileDrop) :?> string array
+        |> Option.ofObj
+        |? [||]
+        |> Seq.choose Path.Parse
+        |> Seq.toList
+
     let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (progress: IObservable<_>)
                (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
@@ -452,7 +444,29 @@ module MainView =
                 Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
             else None
         )
-        dropCompleted.Publish |> Obs.map DropCompleted
+        window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
+            let paths = getFileDropPaths e.Data
+            e.Handled <- true
+            UpdateDropInAction (paths, DragEvent e)
+        )
+        window.ItemGrid.MouseMove |> Obs.choose (fun e ->
+            if e.LeftButton = MouseButtonState.Pressed then
+                let item = window.ItemGrid.SelectedItem :?> Item
+                let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
+                DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
+                |> DragDropEffects.toActions
+                |> List.tryHead
+                |> Option.map DropOut
+            else None
+        )
+        window.ItemGrid.Drop |> Obs.choose (fun e ->
+            let paths = getFileDropPaths e.Data
+            if paths |> List.isEmpty then
+                None
+            else
+                e.Handled <- true
+                Some (DropIn (paths, DragEvent e))
+        )
         config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
         history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
     ]

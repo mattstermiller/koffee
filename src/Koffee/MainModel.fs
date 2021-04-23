@@ -1,6 +1,7 @@
 ﻿namespace Koffee
 
 open System
+open System.Windows
 open System.Windows.Input
 open Acadian.FSharp
 
@@ -429,6 +430,43 @@ type MainModel = {
         History = History.Default
     }
 
+module DragDropEffects =
+    let toActions effects =
+        if effects = DragDropEffects.All then
+            [Move; Copy; Shortcut]
+        else
+            [
+                if effects.HasFlag DragDropEffects.Move then Move
+                if effects.HasFlag DragDropEffects.Copy then Copy
+                if effects.HasFlag DragDropEffects.Link then Shortcut
+            ]
+
+    let ofAction action =
+        match action with
+        | Some Move -> DragDropEffects.Move
+        | Some Copy -> DragDropEffects.Copy
+        | Some Shortcut -> DragDropEffects.Link
+        | None -> DragDropEffects.None
+
+    let fromKeyModifiers () =
+        let ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control)
+        let shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
+        let alt = Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)
+        if ctrl && shift || alt then DragDropEffects.Link
+        else if ctrl then DragDropEffects.Copy
+        else if shift then DragDropEffects.Move
+        else DragDropEffects.None
+
+type DragEvent(event: DragEventArgs) =
+    do
+        event.Effects <- DragDropEffects.fromKeyModifiers ()
+
+    member this.Action
+        with get () = event.Effects |> DragDropEffects.toActions |> Seq.tryHead
+        and set value = event.Effects <- DragDropEffects.ofAction value
+
+    member this.AllowedActions = event.AllowedEffects |> DragDropEffects.toActions
+
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
     | CursorUp
@@ -455,6 +493,9 @@ type MainEvents =
     | InputDelete of EvtHandler
     | SubDirectoryResults of Item list
     | AddProgress of float option
+    | UpdateDropInAction of Path list * DragEvent
+    | DropIn of Path list * DragEvent
+    | DropOut of PutAction
     | SubmitInput
     | CancelInput
     | FindNext
@@ -485,7 +526,6 @@ type MainEvents =
     | WindowSizeChanged of int * int
     | WindowMaximizedChanged of bool
     | WindowActivated
-    | DropCompleted of PutAction
 
     static member Bindable = [
         CursorUp, "Move Cursor Up"

@@ -133,6 +133,15 @@ type ItemAction =
     | RenamedItem of Item * newName: string
     | PutItem of PutAction * Item * newPath: Path
     | DeletedItem of Item * permanent: bool
+with
+    member this.Description pathFormat =
+        match this with
+        | CreatedItem item -> sprintf "Create %s" item.Description
+        | RenamedItem (item, newName) -> sprintf "Rename %s" item.Description
+        | PutItem (action, item, newPath) ->
+            sprintf "%O %s to \"%s\"" action item.Description (newPath.Format pathFormat)
+        | DeletedItem (item, false) -> sprintf "Recycle %s" item.Description
+        | DeletedItem (item, true) -> sprintf "Delete %s" item.Description
 
 type SelectType =
     | SelectNone
@@ -305,6 +314,10 @@ with
         PathSort = Map.empty
     }
 
+type HistoryDisplayType =
+    | NavHistory
+    | UndoHistory
+
 type CancelToken() =
     let mutable cancelled = false
     member this.IsCancelled = cancelled
@@ -335,7 +348,7 @@ type MainModel = {
     Progress: float option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
-    IsNavHistoryVisible: bool
+    ShowHistoryType: HistoryDisplayType option
     UndoStack: ItemAction list
     RedoStack: ItemAction list
     WindowLocation: int * int
@@ -420,7 +433,7 @@ type MainModel = {
         Progress = None
         BackStack = []
         ForwardStack = []
-        IsNavHistoryVisible = false
+        ShowHistoryType = None
         UndoStack = []
         RedoStack = []
         WindowLocation = 0, 0
@@ -480,9 +493,9 @@ type MainEvents =
     | OpenParent
     | Back
     | Forward
-    | ShowNavHistory
     | Refresh
     | DeletePathSuggestion of Path
+    | ShowHistory of HistoryDisplayType
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
     | StartInput of InputType
@@ -547,8 +560,9 @@ type MainEvents =
         OpenParent, "Open Parent Folder"
         Back, "Back in Navigation History"
         Forward, "Forward in Navigation History"
-        ShowNavHistory, "Show Navigation History"
         Refresh, "Refresh Current Folder"
+        ShowHistory NavHistory, "Show Navigation History"
+        ShowHistory UndoHistory, "Show Undo/Redo History"
         StartInput CreateFile, "Create File"
         StartInput CreateFolder, "Create Folder"
         StartInput (Rename Begin), "Rename Item (Prepend)"

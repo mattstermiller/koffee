@@ -108,12 +108,12 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
-      <!-- Navigation History panel -->
-      <StackPanel Name="NavHistoryPanel" x:FieldModifier="public" VerticalAlignment="Bottom" Visibility="Collapsed"
+      <!-- History panel -->
+      <StackPanel Name="HistoryPanel" x:FieldModifier="public" VerticalAlignment="Bottom" Visibility="Collapsed"
                   Background="{DynamicResource PopupBrush}" Margin="32,0">
-        <TextBlock Text="Navigation History" Margin="8,4,8,8" Foreground="{DynamicResource PopupTextBrush}"
-                   FontWeight="Bold"/>
-        <ItemsControl Name="NavHistoryBack" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+        <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8"
+                   Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+        <ItemsControl Name="HistoryBack" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
@@ -123,15 +123,15 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <ItemsControl Name="NavHistoryCurrent" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+        <ItemsControl Name="HistoryCurrent" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
           <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
             <TextBlock Text="(current)" Width="55" Margin="0,0,4,0" Foreground="{DynamicResource PanelTextBrush}"
                        FontStyle="Italic"/>
-            <TextBlock Name="NavHistoryCurrentPath" x:FieldModifier="public" Text="/some/path"
+            <TextBlock Name="HistoryCurrentLabel" x:FieldModifier="public" Text="/some/path"
                        Foreground="{DynamicResource PanelTextBrush}"/>
           </StackPanel>
         </ItemsControl>
-        <ItemsControl Name="NavHistoryForward" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+        <ItemsControl Name="HistoryForward" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
@@ -141,7 +141,7 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock Name="NavHistoryError" x:FieldModifier="public" Text="Nothing in history" Margin="8,0,8,6"
+        <TextBlock Name="HistoryEmpty" x:FieldModifier="public" Text="Nothing in history" Margin="8,0,8,6"
                    Foreground="{DynamicResource PopupTextBrush}"/>
       </StackPanel>
     </Grid>

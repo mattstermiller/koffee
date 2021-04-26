@@ -255,34 +255,39 @@ module MainView =
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
                 window.InputBox.Select(selectStart, selectLen)
             )
-            Bind.modelMulti(<@ model.IsNavHistoryVisible, model.Location, model.BackStack, model.ForwardStack, model.PathFormat @>)
-                .toFunc(fun (isLocHistoryVisible, location, backStack, forwardStack, pathFormat) ->
-                    window.NavHistoryPanel.Visible <- isLocHistoryVisible
-                    if isLocHistoryVisible then
-                        let maxForwardItems = 4
-                        let maxBackItems = 9
+            Bind.modelMulti(<@ model.ShowHistoryType, model.Location, model.BackStack, model.ForwardStack, model.UndoStack, model.RedoStack, model.PathFormat @>)
+                .toFunc(fun (historyType, location, back, forward, undo, redo, pathFormat) ->
+                    let maxPrevItems = 9
+                    let maxNextItems = 4
+                    let formatStack evt items =
+                        items |> List.mapi (fun i (name: string) ->
+                            let repeat = if i > 0 then i + 1 |> string else ""
+                            let key = KeyBinding.getKeysString evt
+                            (repeat + key, name)
+                        )
+                    let prevStack evt stack =
+                        List.truncate maxPrevItems stack |> formatStack evt |> List.rev
+                    let nextStack evt items =
+                        List.truncate maxNextItems items |> formatStack evt
+                    let header, prev, next, current =
+                        match historyType with
+                        | Some NavHistory ->
+                            let format = List.map (fun (p: Path, _) -> p.Format pathFormat)
+                            let current = Some (location.Format pathFormat)
+                            ("Navigation History", prevStack Back (format back), nextStack Forward (format forward), current)
+                        | Some UndoHistory ->
+                            let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
+                            ("Undo/Redo History", prevStack Undo (format undo), nextStack Redo (format redo), None)
+                        | None -> ("", [], [], None)
 
-                        let formatStack key (stack: seq<Path * int>) =
-                            stack |> Seq.mapi (fun i (path, _) ->
-                                let repeat = if i > 0 then i + 1 |> string else ""
-                                (repeat + key, path.Format pathFormat)
-                            )
-
-                        let isEmpty = forwardStack = [] && backStack = []
-
-                        window.NavHistoryError.Collapsed <- not isEmpty
-                        window.NavHistoryForward.Collapsed <- isEmpty
-                        window.NavHistoryBack.Collapsed <- isEmpty
-                        window.NavHistoryCurrent.Collapsed <- isEmpty
-
-                        if not isEmpty then
-                            window.NavHistoryForward.ItemsSource <-
-                                List.truncate maxForwardItems forwardStack
-                                |> formatStack (KeyBinding.getKeysString Forward)
-                            window.NavHistoryBack.ItemsSource <-
-                                List.truncate maxBackItems backStack
-                                |> formatStack (KeyBinding.getKeysString Back) |> Seq.rev
-                            window.NavHistoryCurrentPath.Text <- location.Format pathFormat
+                    let isEmpty = prev = [] && next = []
+                    window.HistoryHeader.Text <- header
+                    window.HistoryBack.ItemsSource <- prev
+                    window.HistoryCurrentLabel.Text <- current |? "---"
+                    window.HistoryCurrent.Collapsed <- isEmpty
+                    window.HistoryForward.ItemsSource <- next
+                    window.HistoryEmpty.Collapsed <- not isEmpty
+                    window.HistoryPanel.Visible <- historyType.IsSome
                 )
             Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
                 | None, _
@@ -571,16 +576,7 @@ type MainError =
                 | e -> e.Message
             sprintf "Could not %s: %s" action msg
         | ItemActionError (action, pathFormat, e) ->
-            let actionName =
-                match action with
-                | CreatedItem item -> sprintf "create %s" item.Description
-                | RenamedItem (item, newName) -> sprintf "rename %s" item.Description
-                | PutItem (action, item, newPath) ->
-                    let action = action |> string |> String.toLower
-                    sprintf "%s %s to \"%s\"" action item.Description (newPath.Format pathFormat)
-                | DeletedItem (item, false) -> sprintf "recycle %s" item.Description
-                | DeletedItem (item, true) -> sprintf "delete %s" item.Description
-            (ActionError (actionName, e)).Message
+            (ActionError (action.Description pathFormat, e)).Message
         | InvalidPath path -> "Path format is invalid: " + path
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path

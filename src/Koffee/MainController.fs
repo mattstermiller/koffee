@@ -1021,8 +1021,8 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                     { m with InputMode = None }
                 else if not m.KeyCombo.IsEmpty || m.RepeatCommand.IsSome then
                     m.WithoutKeyCombo()
-                else if m.IsNavHistoryVisible then
-                    { m with IsNavHistoryVisible = false }
+                else if m.ShowHistoryType.IsSome then
+                    { m with ShowHistoryType = None }
                 else
                     { m with Status = None } |> Search.clearSearch
             (None, modelFunc)
@@ -1035,8 +1035,8 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                 handleKey ()
                 let modelFunc (m: MainModel) =
                     { m.WithoutKeyCombo() with
-                        // hide nav history if input prompt is opened
-                        IsNavHistoryVisible = m.IsNavHistoryVisible && m.InputMode.IsNone
+                        // hide history if input prompt is opened
+                        ShowHistoryType = if m.InputMode.IsSome then None else m.ShowHistoryType
                     }
                 (Some newEvent, modelFunc)
             | KeyBinding.PartialMatch ->
@@ -1173,11 +1173,11 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | OpenParent -> SyncResult (Nav.openParent fs)
             | Back -> SyncResult (Nav.back fs)
             | Forward -> SyncResult (Nav.forward fs)
-            | ShowNavHistory -> Sync (fun m -> { m with IsNavHistoryVisible = not m.IsNavHistoryVisible })
             | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
             | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
             | Undo -> AsyncResult (Action.undo fs)
             | Redo -> AsyncResult (Action.redo fs)
+            | ShowHistory typ -> Sync (fun m -> { m with ShowHistoryType = if m.ShowHistoryType <> Some typ then Some typ else None })
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))

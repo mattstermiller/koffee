@@ -100,6 +100,8 @@ _A capital letter indicates that the letter key is combined with Shift._
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
+    - Press `gu` to display undo / redo history.
+
 - **Copy to Clipboard**: Press `Ctrl + c` to copy the selected item to the Windows Clipboard.
     - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.
     - Paste in any text editor or text input to insert the file or folder's path there.

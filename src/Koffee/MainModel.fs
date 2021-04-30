@@ -317,6 +317,7 @@ with
 type HistoryDisplayType =
     | NavHistory
     | UndoHistory
+    | StatusHistory
 
 type CancelToken() =
     let mutable cancelled = false
@@ -329,6 +330,7 @@ type MainModel = {
     PathSuggestions: Result<string list, string>
     PathSuggestCache: (Path * Result<Path list, string>) option
     Status: StatusType option
+    StatusHistory: StatusType list
     Directory: Item list
     Items: Item list
     Sort: (SortField * bool) option
@@ -408,12 +410,27 @@ type MainModel = {
     member this.ItemsIfEmpty =
         Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
 
+    member this.WithStatus status =
+        { this with
+            Status = Some status
+            StatusHistory =
+                match status with
+                | Busy _ -> this.StatusHistory
+                | s -> s :: this.StatusHistory |> List.truncate 20
+        }
+
+    member this.WithStatusOption status =
+        match status with
+        | Some s -> this.WithStatus s
+        | None -> this
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
         PathSuggestions = Ok []
         PathSuggestCache = None
         Status = None
+        StatusHistory = []
         Directory = []
         Items = [ Item.Empty ]
         Sort = Some (Name, false)
@@ -563,6 +580,7 @@ type MainEvents =
         Refresh, "Refresh Current Folder"
         ShowHistory NavHistory, "Show Navigation History"
         ShowHistory UndoHistory, "Show Undo/Redo History"
+        ShowHistory StatusHistory, "Show Status History"
         StartInput CreateFile, "Create File"
         StartInput CreateFolder, "Create Folder"
         StartInput (Rename Begin), "Rename Item (Prepend)"

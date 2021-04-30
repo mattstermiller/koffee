@@ -135,7 +135,7 @@ module Nav =
                     os.OpenFile item.Path |> openError
                     |> Result.map (fun () ->
                         fnAfterOpen |> Option.iter (fun f -> f())
-                        { model with Status = Some <| MainStatus.openFile item.Name }
+                        model.WithStatus (MainStatus.openFile item.Name)
                     )
             )
         | Empty -> Ok model
@@ -197,9 +197,10 @@ module Nav =
         { model with
             Sort = Some (field, desc)
             Items = model.Items |> SortField.SortByTypeThen (field, desc)
-            Status = Some <| MainStatus.sort field desc
             History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
-        } |> select selectType
+        }
+        |> fun m -> m.WithStatus (MainStatus.sort field desc)
+        |> select selectType
 
     let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
         let getSuggestions search (paths: Path list) =
@@ -275,7 +276,7 @@ module Search =
     let findNext model =
         match model.LastFind with
         | Some prefix ->
-            { model with Status = Some <| MainStatus.find prefix model.RepeatCount }
+            model.WithStatus (MainStatus.find prefix model.RepeatCount)
             |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
         | None -> model
 
@@ -373,12 +374,11 @@ module Search =
         |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
 
 module Action =
-    let private performedAction action model =
+    let private performedAction action (model: MainModel) =
         { model with
             UndoStack = action :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete action model.PathFormat
-        }
+        } |> fun m -> m.WithStatus (MainStatus.actionComplete action model.PathFormat)
 
     let private setInputSelection cursorPos model =
         let fullLen = model.InputText.Length
@@ -443,9 +443,9 @@ module Action =
             return CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
     }
 
-    let undoCreate (fs: IFileSystem) item model = asyncSeqResult {
+    let undoCreate (fs: IFileSystem) item (model: MainModel) = asyncSeqResult {
         if fs.IsEmpty item.Path then
-            yield { model with Status = Some <| MainStatus.undoingCreate item }
+            yield model.WithStatus (MainStatus.undoingCreate item)
             let! res = runAsync (fun () -> fs.Delete item.Path)
             do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
             if model.Location = item.Path.Parent then
@@ -549,7 +549,7 @@ module Action =
                     InputText = ""
                 }
         | _ ->
-            yield { model with Status = MainStatus.runningAction action model.PathFormat }
+            yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
             let! res = runAsync (fun () -> fileSysAction item.Path newPath)
             do! res |> itemActionError action model.PathFormat
             let! model = Nav.openPath fs model.Location (SelectName newName) model
@@ -580,7 +580,7 @@ module Action =
             // TODO: prompt for overwrite here?
             return CannotUndoMoveToExisting item
         | None ->
-            yield { model with Status = Some <| MainStatus.undoingMove item }
+            yield model.WithStatus (MainStatus.undoingMove item)
             let! res = runAsync (fun () -> fs.Move currentPath item.Path)
             do! res |> itemActionError action model.PathFormat
             yield! Nav.openPath fs item.Path.Parent (SelectName item.Name) model
@@ -597,7 +597,7 @@ module Action =
             | _ -> false
         let action = DeletedItem ({ item with Path = currentPath }, isDeletionPermanent)
         let fileSysFunc = if isDeletionPermanent then fs.Delete else fs.Recycle
-        yield { model with Status = Some <| MainStatus.undoingCopy item isDeletionPermanent }
+        yield model.WithStatus (MainStatus.undoingCopy item isDeletionPermanent)
         let! res = runAsync (fun () -> fileSysFunc currentPath)
         do! res |> itemActionError action model.PathFormat
         if model.Location = currentPath.Parent then
@@ -617,7 +617,7 @@ module Action =
         let item = model.SelectedItem
         if item.Type <> Empty then
             do! os.CopyToClipboard item.Path |> actionError "copy to clipboard"
-            return { model with Status = Some (MainStatus.clipboardCopy (item.Path.Format model.PathFormat)) }
+            return model.WithStatus (MainStatus.clipboardCopy (item.Path.Format model.PathFormat))
         else
             return model
     }
@@ -626,7 +626,7 @@ module Action =
         if item.Type.CanModify then
             let action = DeletedItem (item, permanent)
             let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
-            yield { model with Status = MainStatus.runningAction action model.PathFormat }
+            yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
             let! res = runAsync (fun () -> fileSysFunc item.Path)
             do! res |> itemActionError action model.PathFormat
             yield
@@ -645,8 +645,9 @@ module Action =
                     Directory = model.Directory |> List.except [model.SelectedItem]
                     Items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
                     History = model.History.WithoutNetHost host
-                    Status = Some <| MainStatus.removedNetworkHost host
-                }.WithCursor model.Cursor
+                }
+                |> fun m -> m.WithStatus (MainStatus.removedNetworkHost host)
+                |> fun m -> m.WithCursor model.Cursor
         else
             yield! delete fsWriter model.SelectedItem false model
     }
@@ -677,7 +678,7 @@ module Action =
             if iter < model.RepeatCount then
                 yield! undoIter (iter + 1) fs model
             else
-                yield { model with Status = Some <| MainStatus.undoAction action model.PathFormat model.RepeatCount }
+                yield model.WithStatus (MainStatus.undoAction action model.PathFormat model.RepeatCount)
         | [] -> return NoUndoActions
     }
 
@@ -703,18 +704,18 @@ module Action =
                     yield! rename fs item newName model
                 | PutItem (putAction, item, newPath) ->
                     let! model = goToPath newPath
-                    yield { model with Status = MainStatus.redoingAction action model.PathFormat }
+                    yield model.WithStatusOption (MainStatus.redoingAction action model.PathFormat)
                     yield! putItem fs false item putAction model
                 | DeletedItem (item, permanent) ->
                     let! model = goToPath item.Path
-                    yield { model with Status = MainStatus.redoingAction action model.PathFormat }
+                    yield model.WithStatusOption (MainStatus.redoingAction action model.PathFormat)
                     yield! delete fs item permanent model
             }
             let model = { model with RedoStack = rest }
             if iter < model.RepeatCount then
                 yield! redoIter (iter + 1) fs model
             else
-                yield { model with Status = Some <| MainStatus.redoAction action model.PathFormat model.RepeatCount }
+                yield model.WithStatus (MainStatus.redoAction action model.PathFormat model.RepeatCount)
         | [] -> return NoRedoActions
     }
 
@@ -746,14 +747,14 @@ module Action =
 
     let openExplorer (os: IOperatingSystem) (model: MainModel) =
         os.OpenExplorer model.SelectedItem
-        { model with Status = Some <| MainStatus.openExplorer }
+        model.WithStatusOption (Some MainStatus.openExplorer)
 
     let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
         let item = model.SelectedItem
         match item.Type with
         | File ->
             do! os.OpenFileWith item.Path |> actionError "open file with"
-            return { model with Status = Some <| MainStatus.openFile item.Name }
+            return model.WithStatus (MainStatus.openFile item.Name)
         | _ ->
             return model
     }
@@ -763,7 +764,7 @@ module Action =
         match item.Type with
         | File | Folder ->
             do! os.OpenProperties item.Path |> actionError "open properties"
-            return { model with Status = Some <| MainStatus.openProperties item.Name }
+            return model.WithStatus (MainStatus.openProperties item.Name)
         | _ ->
             return model
     }
@@ -772,7 +773,7 @@ module Action =
         if model.Location <> Path.Root then
             do! os.LaunchApp model.Config.CommandlinePath model.Location ""
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Commandline tool", e))
-            return { model with Status = Some <| MainStatus.openCommandLine model.LocationFormatted }
+            return model.WithStatus (MainStatus.openCommandLine model.LocationFormatted)
         else return model
     }
 
@@ -782,7 +783,7 @@ module Action =
             let args = model.SelectedItem.Path.Format Windows |> sprintf "\"%s\""
             do! os.LaunchApp model.Config.TextEditor model.Location args
                 |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
-            return { model with Status = Some <| MainStatus.openTextEditor model.SelectedItem.Name }
+            return model.WithStatus (MainStatus.openTextEditor model.SelectedItem.Name)
         | _ -> return model
     }
 
@@ -862,8 +863,7 @@ let toggleHidden (model: MainModel) =
     let model =
         { model with
             Config = { model.Config with ShowHidden = show }
-            Status = Some (MainStatus.toggleHidden show)
-        }
+        } |> fun m -> m.WithStatus (MainStatus.toggleHidden show)
     let select = SelectItem (model.SelectedItem, false)
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden) with
     | Some filter ->
@@ -879,8 +879,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         { model with
             Config = model.Config.WithBookmark char model.Location
-            Status = Some <| MainStatus.setBookmark char model.LocationFormatted
-        }
+        } |> fun m -> m.WithStatus (MainStatus.setBookmark char model.LocationFormatted)
     match model.InputMode with
     | Some (Input (Find _)) ->
         match KeyBinding.getKeysString FindNext |> Seq.toList with
@@ -898,7 +897,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                 yield model
                 yield! Nav.openPath fs path SelectNone model
             | None ->
-                yield { model with Status = Some <| MainStatus.noBookmark char }
+                yield model.WithStatusOption (Some <| MainStatus.noBookmark char)
         | SetBookmark ->
             match model.Config.GetBookmark char with
             | Some existingPath ->
@@ -915,10 +914,9 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                 yield
                     { model with
                         Config = model.Config.WithoutBookmark char
-                        Status = Some <| MainStatus.deletedBookmark char (path.Format model.PathFormat)
-                    }
+                    } |> fun m -> m.WithStatus (MainStatus.deletedBookmark char (path.Format model.PathFormat))
             | None ->
-                yield { model with Status = Some <| MainStatus.noBookmark char }
+                yield model.WithStatus (MainStatus.noBookmark char)
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -933,7 +931,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
         | 'n' ->
-            let model = { model with Status = Some <| MainStatus.cancelled }
+            let model = model.WithStatus MainStatus.cancelled
             match confirmType with
             | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
                 // if we were temporarily showing a hidden file, refresh

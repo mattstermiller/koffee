@@ -255,8 +255,8 @@ module MainView =
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
                 window.InputBox.Select(selectStart, selectLen)
             )
-            Bind.modelMulti(<@ model.ShowHistoryType, model.Location, model.BackStack, model.ForwardStack, model.UndoStack, model.RedoStack, model.PathFormat @>)
-                .toFunc(fun (historyType, location, back, forward, undo, redo, pathFormat) ->
+            Bind.modelMulti(<@ model.ShowHistoryType, model.Location, model.BackStack, model.ForwardStack, model.UndoStack, model.RedoStack, model.StatusHistory, model.PathFormat @>)
+                .toFunc(fun (historyType, location, back, forward, undo, redo, statuses, pathFormat) ->
                     let maxPrevItems = 9
                     let maxNextItems = 4
                     let formatStack evt items =
@@ -277,14 +277,22 @@ module MainView =
                             ("Navigation History", prevStack Back (format back), nextStack Forward (format forward), current)
                         | Some UndoHistory ->
                             let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
-                            ("Undo/Redo History", prevStack Undo (format undo), nextStack Redo (format redo), None)
+                            ("Undo/Redo History", prevStack Undo (format undo), nextStack Redo (format redo), Some "---")
+                        | Some StatusHistory ->
+                            let statusList =
+                                statuses |> List.map (function
+                                    | Message m -> m
+                                    | ErrorMessage m -> "Error: " + m
+                                    | Busy _ -> ""
+                                ) |> List.map (fun m -> ("", m)) |> List.rev
+                            ("Status History", statusList, [], None)
                         | None -> ("", [], [], None)
 
-                    let isEmpty = prev = [] && next = []
+                    let isEmpty = prev.IsEmpty && next.IsEmpty
                     window.HistoryHeader.Text <- header
                     window.HistoryBack.ItemsSource <- prev
-                    window.HistoryCurrentLabel.Text <- current |? "---"
-                    window.HistoryCurrent.Collapsed <- isEmpty
+                    window.HistoryCurrentLabel.Text <- current |? ""
+                    window.HistoryCurrent.Collapsed <- current.IsNone || isEmpty
                     window.HistoryForward.ItemsSource <- next
                     window.HistoryEmpty.Collapsed <- not isEmpty
                     window.HistoryPanel.Visible <- historyType.IsSome
@@ -604,4 +612,4 @@ type MainError =
 module MainModelExt =
     type MainModel with
         member this.WithError (e: MainError) =
-            { this with Status = Some (ErrorMessage e.Message) }
+            this.WithStatus (ErrorMessage e.Message)

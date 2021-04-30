@@ -47,7 +47,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     let comparer = CompareLogic()
     comparer.Config.MaxDifferences <- 10
     comparer.Config.CustomComparers.AddRange([StructuralEqualityComparer(); PathComparer()])
-    comparer.Config.MembersToIgnore.AddRange((getNonFieldNames<MainModel>() |> Seq.toList) @ ["History"])
+    comparer.Config.MembersToIgnore.AddRange((getNonFieldNames<MainModel>() |> Seq.toList) @ ["History"; "StatusHistory"])
     comparerSetup comparer
     let result = comparer.Compare(expected, actual)
     Assert.IsTrue(result.AreEqual, result.DifferencesString)

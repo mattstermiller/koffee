@@ -109,6 +109,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 #### Other
 - Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `4H` will go back 4 times.
 - Display navigation history for Back/Forward with `gh`
+- Display status message history with `gs`
 - Open the selected file and exit with `Ctrl + Enter`
 - Open the selected file or folder's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`

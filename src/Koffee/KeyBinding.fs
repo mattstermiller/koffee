@@ -32,6 +32,7 @@ let defaultsAsString = [
     ("<cs-z>", Redo)
     ("gh", ShowHistory NavHistory)
     ("gu", ShowHistory UndoHistory)
+    ("gs", ShowHistory StatusHistory)
     ("o", StartInput CreateFile)
     ("O", StartInput CreateFolder)
     ("i", StartInput (Rename Begin))

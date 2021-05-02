@@ -143,6 +143,12 @@ type Path private (path: string) =
             |? root
             |> Path
 
+    member this.Base =
+        if path = root || path = net then
+            this
+        else
+            IOPath.GetPathRoot(path) |> Path
+
     member this.Join name =
         IOPath.Combine(path, name) |> Path
 

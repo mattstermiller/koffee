@@ -1089,12 +1089,7 @@ let windowActivated fsReader subDirResults progress model = asyncSeqResult {
 
 let private getDropInAction (event: DragEvent) (model: MainModel) (path: Path) =
     let desiredAction =
-        event.Action
-        |> Option.defaultWith (fun () ->
-            match path.Drive, model.Location.Drive with
-            | Some srcDrive, Some destDrive when srcDrive = destDrive -> Move
-            | _ -> Copy
-        )
+        event.Action |> Option.defaultWith (fun () -> if path.Base = model.Location.Base then Move else Copy)
     event.AllowedActions
     |> List.tryFind ((=) desiredAction)
     |> Option.orElse (event.AllowedActions |> List.tryHead)

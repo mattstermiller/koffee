@@ -74,7 +74,7 @@ let ``Parse returns path for valid network paths`` input =
 [<TestCase(@"~\", "")>]
 [<TestCase(@"~\test", @"\test")>]
 let ``Parse substitutes tilde for user directory`` input expectedSuffix =
-    let expectedPath = Path.UserDirectory + expectedSuffix 
+    let expectedPath = Path.UserDirectory + expectedSuffix
     input |> Path.Parse |> shouldParseTo expectedPath
 
 [<TestCase("c")>]
@@ -94,11 +94,6 @@ let ``Parse returns None for invalid paths`` input =
     input |> Path.Parse |> shouldEqual None
 
 
-let parseForTest pathStr =
-    match Path.Parse pathStr with
-    | Some p -> p
-    | None -> failwithf "Test path string '%s' does not parse" pathStr
-
 [<TestCase("", "")>]
 [<TestCase(@"C:\", "")>]
 [<TestCase(@"C:\test", @"C:\")>]
@@ -108,7 +103,21 @@ let parseForTest pathStr =
 [<TestCase(@"\\server\share", @"\\server")>]
 [<TestCase(@"\\server\share\a folder", @"\\server\share")>]
 let ``Parent returns expected value`` pathStr expected =
-    (parseForTest pathStr).Parent |> getPathValue |> shouldEqual expected
+    (createPath pathStr).Parent |> getPathValue |> shouldEqual expected
+
+[<TestCase(@"Drives", @"Drives")>]
+[<TestCase(@"Network", @"Network")>]
+[<TestCase(@"c:\", @"c:\")>]
+[<TestCase(@"c:\things", @"c:\")>]
+[<TestCase(@"c:\things\stuff", @"c:\")>]
+[<TestCase(@"\\server", @"\\server")>]
+[<TestCase(@"\\server\share", @"\\server\share")>]
+[<TestCase(@"\\server\share\things", @"\\server\share")>]
+[<TestCase(@"\\server\share\things\stuff", @"\\server\share")>]
+let ``Base returns expected path`` path expected =
+    let actual = (createPath path).Base
+    let expected = createPath expected
+    actual |> shouldEqual expected
 
 [<TestCase(@"", "/")>]
 [<TestCase(@"C:\", "/c/")>]
@@ -118,21 +127,21 @@ let ``Parent returns expected value`` pathStr expected =
 [<TestCase(@"\\server", "/net/server")>]
 [<TestCase(@"\\server\share", "/net/server/share")>]
 let ``Format drive in Unix`` pathStr expected =
-    (parseForTest pathStr).Format Unix |> shouldEqual expected
+    (createPath pathStr).Format Unix |> shouldEqual expected
 
 [<Test>]
 let ``TypeConverter to string`` () =
     let conv = System.ComponentModel.TypeDescriptor.GetConverter typeof<Path>
     let pathString = @"C:\Sample"
-    parseForTest pathString
+    createPath pathString
     |> conv.ConvertToString
     |> shouldEqual pathString
-    
+
 [<Test>]
 let ``TypeConverter from string`` () =
     let conv = System.ComponentModel.TypeDescriptor.GetConverter typeof<Path>
     let pathString = @"C:\Sample"
-    let expected = parseForTest pathString
+    let expected = createPath pathString
     conv.ConvertFromString pathString
     :?> Path
     |> shouldEqual expected
@@ -141,7 +150,7 @@ let ``TypeConverter from string`` () =
 [<TestCase(@"C:\SAMPLE", @"C:\sample", 0)>]
 [<TestCase(@"C:\Sample2", @"C:\Sample1", 1)>]
 let ``Compare Windows paths`` aPath bPath expected =
-    let aComp = parseForTest aPath :> IComparable
-    let bComp = parseForTest bPath :> IComparable
+    let aComp = createPath aPath :> IComparable
+    let bComp = createPath bPath :> IComparable
     aComp.CompareTo bComp |> shouldEqual expected
     bComp.CompareTo aComp |> shouldEqual -expected

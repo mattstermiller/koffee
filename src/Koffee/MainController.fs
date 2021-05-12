@@ -36,7 +36,7 @@ let clearSearchProps model =
     { model with
         SearchCurrent = None
         SearchInput = Search.Default
-        SearchHistoryIndex = -1
+        SearchHistoryIndex = None
         SubDirectories = None
         Progress = None
     }
@@ -954,8 +954,14 @@ let inputChanged fsReader subDirResults progress model = asyncSeq {
 let inputHistory offset model =
     match model.InputMode with
     | Some (Input Search) ->
-        let index = model.SearchHistoryIndex + offset |> max -1 |> min (model.History.Searches.Length-1)
-        let search = if index < 0 then Search.Default else model.History.Searches.[index]
+        let index =
+            (model.SearchHistoryIndex |? -1) + offset
+            |> min (model.History.Searches.Length-1)
+            |> Option.ofCond (flip (>=) 0)
+        let search =
+            match index with
+            | Some index -> model.History.Searches.[index]
+            | None -> Search.Default
         { model with
             InputText = search.Terms
             InputTextSelection = (search.Terms.Length, 0)
@@ -985,7 +991,7 @@ let submitInput fs os model = asyncSeqResult {
             { model with
                 InputMode = None
                 SearchCurrent = if search.IsNone then None else model.SearchCurrent
-                SearchHistoryIndex = 0
+                SearchHistoryIndex = Some 0
                 History = search |> Option.map model.History.WithSearch |? model.History
             }
     | Some (Input CreateFile) ->

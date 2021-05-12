@@ -346,7 +346,7 @@ type MainModel = {
     SearchCurrent: Search option
     SubDirectories: Item list option
     SubDirectoryCancel: CancelToken
-    SearchHistoryIndex: int
+    SearchHistoryIndex: int option
     Progress: float option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
@@ -446,7 +446,7 @@ type MainModel = {
         SearchCurrent = None
         SubDirectories = None
         SubDirectoryCancel = CancelToken()
-        SearchHistoryIndex = -1
+        SearchHistoryIndex = None
         Progress = None
         BackStack = []
         ForwardStack = []

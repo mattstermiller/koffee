@@ -120,6 +120,17 @@ _A capital letter indicates that the letter key is combined with Shift._
 
 There are more commands at your disposal. Open the Settings window with `?` for the full list of commands and their key bindings!
 
+## Contributing
+If you want to contribute to Koffee, thank you! Head to the [issues page](https://github.com/mattstermiller/koffee/issues).
+- Did you find a bug or issue in Koffee? Please create a new issue!
+- Do you have an idea for a cool new feature? Please create an issue and detail your idea and how it would work!
+- Do you want to contribute but not sure where to start? Look for issues that you might be interested in working on.
+    The `help wanted` tag is used for issues that are easier for newcomers to pick up. Bonus if the issue is part of the
+    next milestone, but that's not necessary!
+- Still not sure? [Email me](mailto:miller.mattster@gmail.com) and we can discuss it!
+
+Please read the [Development Guide](DEVGUIDE.md) to get started on Koffee code.
+
 ## Future Planned Features
 - Select multiple items
 - Configurable hotkeys

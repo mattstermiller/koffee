@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open FSharp.Control
@@ -369,7 +369,7 @@ module Search =
         }
 
     let clearSearch (model: MainModel) =
-        model
+        { model with ShowHistoryType = None }
         |> clearSearchProps
         |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
 
@@ -967,6 +967,7 @@ let inputHistory offset model =
             InputTextSelection = (search.Terms.Length, 0)
             SearchInput = search
             SearchHistoryIndex = index
+            ShowHistoryType = index |> Option.map (cnst SearchHistory)
         }
     | _ -> model
 
@@ -993,6 +994,7 @@ let submitInput fs os model = asyncSeqResult {
                 SearchCurrent = if search.IsNone then None else model.SearchCurrent
                 SearchHistoryIndex = Some 0
                 History = search |> Option.map model.History.WithSearch |? model.History
+                ShowHistoryType = None
             }
     | Some (Input CreateFile) ->
         let model = { model with InputMode = None }

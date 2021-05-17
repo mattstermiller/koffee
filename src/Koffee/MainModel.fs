@@ -317,6 +317,7 @@ with
 type HistoryDisplayType =
     | NavHistory
     | UndoHistory
+    | SearchHistory
     | StatusHistory
 
 type CancelToken() =

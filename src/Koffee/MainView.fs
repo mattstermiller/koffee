@@ -255,8 +255,25 @@ module MainView =
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
                 window.InputBox.Select(selectStart, selectLen)
             )
-            Bind.modelMulti(<@ model.ShowHistoryType, model.Location, model.BackStack, model.ForwardStack, model.UndoStack, model.RedoStack, model.StatusHistory, model.PathFormat @>)
-                .toFunc(fun (historyType, location, back, forward, undo, redo, statuses, pathFormat) ->
+            Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
+                | None, _
+                | Some _, Some (Input Search) ->
+                    window.SearchPanel.Collapsed <- true
+                | Some search, _ ->
+                    window.SearchStatus.Text <-
+                        [   sprintf "Search results for \"%s\"" search.Terms
+                            (if search.CaseSensitive then "Case-sensitive" else "Not case-sensitive")
+                            (if search.Regex then "Regular Expression" else "")
+                            (if search.SubFolders then "Sub-Folders" else "")
+                        ] |> List.filter String.isNotEmpty |> String.concat ", "
+                    window.SearchPanel.Visible <- true
+            )
+            Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
+                .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
+            Bind.modelMulti(<@ model.ShowHistoryType, model.Location, model.BackStack, model.ForwardStack,
+                               model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
+                               model.StatusHistory, model.PathFormat @>)
+                .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses, pathFormat) ->
                     let maxPrevItems = 9
                     let maxNextItems = 4
                     let formatStack evt items =
@@ -265,8 +282,8 @@ module MainView =
                             let key = KeyBinding.getKeysString evt
                             (repeat + key, name)
                         )
-                    let prevStack evt stack =
-                        List.truncate maxPrevItems stack |> formatStack evt |> List.rev
+                    let prevStack evt items =
+                        List.truncate maxPrevItems items |> formatStack evt |> List.rev
                     let nextStack evt items =
                         List.truncate maxNextItems items |> formatStack evt
                     let header, prev, next, current =
@@ -278,6 +295,13 @@ module MainView =
                         | Some UndoHistory ->
                             let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
                             ("Undo/Redo History", prevStack Undo (format undo), nextStack Redo (format redo), Some "---")
+                        | Some SearchHistory ->
+                            let format = List.map (fun s -> "", s.Terms)
+                            let prev = searches |> List.skip (searchIndex |> Option.map ((+) 1) |? 0) |> format
+                                                |> List.truncate maxPrevItems |> List.rev
+                            let next = searches |> List.truncate (min maxNextItems (searchIndex |? 0)) |> format |> List.rev
+                            let current = searchIndex |> Option.map (fun i -> searches.[i].Terms)
+                            ("Search History", prev, next, current)
                         | Some StatusHistory ->
                             let statusList =
                                 statuses |> List.map (function
@@ -297,21 +321,6 @@ module MainView =
                     window.HistoryEmpty.Collapsed <- not isEmpty
                     window.HistoryPanel.Visible <- historyType.IsSome
                 )
-            Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
-                | None, _
-                | Some _, Some (Input Search) ->
-                    window.SearchPanel.Collapsed <- true
-                | Some search, _ ->
-                    window.SearchStatus.Text <-
-                        [   sprintf "Search results for \"%s\"" search.Terms
-                            (if search.CaseSensitive then "Case-sensitive" else "Not case-sensitive")
-                            (if search.Regex then "Regular Expression" else "")
-                            (if search.SubFolders then "Sub-Folders" else "")
-                        ] |> List.filter String.isNotEmpty |> String.concat ", "
-                    window.SearchPanel.Visible <- true
-            )
-            Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
-                .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
 
             // update UI for status
             Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)

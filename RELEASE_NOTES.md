@@ -11,6 +11,7 @@
 - #90 Adds support for drag'n'drop into Koffee (single items only for now)
 - #91 Adds support for drag'n'drop out of Koffee
 - #81 Adds ability to remove a path from path history suggestions
+- #103 Adds search history display
 - #102 Adds recursive search folder exclusions
 - Adds "Open File and Exit" command
 - Changes Search history to also remember Sub-Folders setting

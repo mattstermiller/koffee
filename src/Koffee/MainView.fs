@@ -66,6 +66,13 @@ module MainView =
                 | _ -> ""
             symbol + (inputType |> caseName)
 
+    /// trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
+    let trimStacks stackSize prev next =
+        let gap l = max 0 (stackSize - List.length l)
+        let prev = prev |> List.truncate (stackSize + gap next)
+        let next = next |> List.truncate (stackSize + gap prev)
+        (prev, next)
+
     let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
         // path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
@@ -274,61 +281,60 @@ module MainView =
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
                                model.StatusHistory, model.PathFormat @>)
                 .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses, pathFormat) ->
-                    let maxPrevItems = 9
-                    let maxNextItems = 4
-                    let formatStack evt items =
-                        items |> List.mapi (fun i (name: string) ->
-                            let repeat = if i > 0 then i + 1 |> string else ""
+                    match historyType with
+                    | Some historyType ->
+                        let stackSize = 6
+                        let maxStackSize = stackSize*2
+                        let formatStack evt items =
                             let key = KeyBinding.getKeysString evt
-                            (repeat + key, name)
-                        )
-                    let prevStack evt items =
-                        List.truncate maxPrevItems items |> formatStack evt |> List.rev
-                    let nextStack evt items =
-                        List.truncate maxNextItems items |> formatStack evt
-                    let header, prev, next, current =
-                        match historyType with
-                        | Some NavHistory ->
-                            let format = List.map (fun (p: Path, _) -> p.Format pathFormat)
-                            let current = Some (location.Format pathFormat)
-                            ("Navigation History", prevStack Back (format back), nextStack Forward (format forward), current)
-                        | Some UndoHistory ->
-                            let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
-                            ("Undo/Redo History", prevStack Undo (format undo), nextStack Redo (format redo), Some "---")
-                        | Some SearchHistory ->
-                            let format = List.map (fun s -> "", s.Terms)
-                            let prev =
-                                searches
-                                |> List.skip (searchIndex |> Option.map ((+) 1) |? 0)
-                                |> List.truncate maxPrevItems
-                                |> format
-                                |> List.rev
-                            let next =
-                                searches
-                                |> List.skip (max 0 ((searchIndex |? 0) - maxNextItems))
-                                |> List.truncate (min maxNextItems (searchIndex |? 0))
-                                |> format
-                                |> List.rev
-                            let current = searchIndex |> Option.map (fun i -> searches.[i].Terms)
-                            ("Search History", prev, next, current)
-                        | Some StatusHistory ->
-                            let statusList =
-                                statuses |> List.map (function
-                                    | Message m -> m
-                                    | ErrorMessage m -> "Error: " + m
-                                    | Busy _ -> ""
-                                ) |> List.map (fun m -> ("", m)) |> List.rev
-                            ("Status History", statusList, [], None)
-                        | None -> ("", [], [], None)
+                            items |> List.truncate maxStackSize |> List.mapi (fun i (name: string) ->
+                                let repeat = if i > 0 then i + 1 |> string else ""
+                                (repeat + key, name)
+                            )
+                        let header, prev, next, current =
+                            match historyType with
+                            | NavHistory ->
+                                let format = List.map (fun (p: Path, _) -> p.Format pathFormat)
+                                let current = Some (location.Format pathFormat)
+                                ("Navigation History", back |> format |> formatStack Back, forward |> format |> formatStack Forward, current)
+                            | UndoHistory ->
+                                let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
+                                ("Undo/Redo History", undo |> format |> formatStack Undo, redo |> format |> formatStack Redo, Some "---")
+                            | SearchHistory ->
+                                let format = List.map (fun s -> "", s.Terms)
+                                let prev =
+                                    searches
+                                    |> List.skip (searchIndex |> Option.map ((+) 1) |? 0)
+                                    |> List.truncate maxStackSize
+                                    |> format
+                                let next =
+                                    searches
+                                    |> List.skip (max 0 ((searchIndex |? 0) - maxStackSize))
+                                    |> List.truncate (min maxStackSize (searchIndex |? 0))
+                                    |> format
+                                    |> List.rev
+                                let current = searchIndex |> Option.map (fun i -> searches.[i].Terms)
+                                ("Search History", prev, next, current)
+                            | StatusHistory ->
+                                let statusList =
+                                    statuses |> List.map (function
+                                        | Message m -> m
+                                        | ErrorMessage m -> "Error: " + m
+                                        | Busy _ -> ""
+                                    ) |> List.map (fun m -> ("", m))
+                                ("Status History", statusList, [], None)
 
-                    let isEmpty = prev.IsEmpty && next.IsEmpty
-                    window.HistoryHeader.Text <- header
-                    window.HistoryBack.ItemsSource <- prev
-                    window.HistoryCurrentLabel.Text <- current |? ""
-                    window.HistoryCurrent.Collapsed <- current.IsNone || isEmpty
-                    window.HistoryForward.ItemsSource <- next
-                    window.HistoryEmpty.Collapsed <- not isEmpty
-                    window.HistoryPanel.Visible <- historyType.IsSome
+                        let prev, next = trimStacks stackSize prev next
+                        let isEmpty = prev.IsEmpty && next.IsEmpty
+                        window.HistoryHeader.Text <- header
+                        window.HistoryBack.ItemsSource <- prev |> List.rev
+                        window.HistoryCurrentLabel.Text <- current |? ""
+                        window.HistoryCurrent.Collapsed <- current.IsNone || isEmpty
+                        window.HistoryForward.ItemsSource <- next
+                        window.HistoryEmpty.Collapsed <- not isEmpty
+                        window.HistoryPanel.Visible <- true
+                    | None ->
+                        window.HistoryPanel.Visible <- false
                 )
 
             // update UI for status

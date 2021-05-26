@@ -297,9 +297,18 @@ module MainView =
                             ("Undo/Redo History", prevStack Undo (format undo), nextStack Redo (format redo), Some "---")
                         | Some SearchHistory ->
                             let format = List.map (fun s -> "", s.Terms)
-                            let prev = searches |> List.skip (searchIndex |> Option.map ((+) 1) |? 0) |> format
-                                                |> List.truncate maxPrevItems |> List.rev
-                            let next = searches |> List.truncate (min maxNextItems (searchIndex |? 0)) |> format |> List.rev
+                            let prev =
+                                searches
+                                |> List.skip (searchIndex |> Option.map ((+) 1) |? 0)
+                                |> List.truncate maxPrevItems
+                                |> format
+                                |> List.rev
+                            let next =
+                                searches
+                                |> List.skip (max 0 ((searchIndex |? 0) - maxNextItems))
+                                |> List.truncate (min maxNextItems (searchIndex |? 0))
+                                |> format
+                                |> List.rev
                             let current = searchIndex |> Option.map (fun i -> searches.[i].Terms)
                             ("Search History", prev, next, current)
                         | Some StatusHistory ->

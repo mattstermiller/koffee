@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -105,6 +105,29 @@ type PutAction =
     | Move
     | Copy
     | Shortcut
+
+type Search = {
+    Terms: string
+    CaseSensitive: bool
+    Regex: bool
+    SubFolders: bool
+}
+with
+    override this.ToString () =
+        let flags = [
+            if this.CaseSensitive then "Case"
+            if this.Regex then "Regex"
+            if this.SubFolders then "Sub"
+        ]
+        let flagStr = if flags |> List.isEmpty then "" else flags |> String.concat ", " |> sprintf " (%s)"
+        this.Terms + flagStr
+
+    static member Default = {
+        Terms = ""
+        CaseSensitive = false
+        Regex = false
+        SubFolders = false
+    }
 
 type PromptType =
     | GoToBookmark
@@ -247,20 +270,6 @@ with
     }
 
     static member toTuple sort = (sort.Sort, sort.Descending)
-
-type Search = {
-    Terms: string
-    CaseSensitive: bool
-    Regex: bool
-    SubFolders: bool
-}
-with
-    static member Default = {
-        Terms = ""
-        CaseSensitive = false
-        Regex = false
-        SubFolders = false
-    }
 
 type History = {
     Paths: Path list

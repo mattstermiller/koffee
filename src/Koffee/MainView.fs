@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -301,7 +301,7 @@ module MainView =
                                 let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
                                 ("Undo/Redo History", undo |> format |> formatStack Undo, redo |> format |> formatStack Redo, Some "---")
                             | SearchHistory ->
-                                let format = List.map (fun s -> "", s.Terms)
+                                let format = List.map (fun s -> "", string s)
                                 let prev =
                                     searches
                                     |> List.skip (searchIndex |> Option.map ((+) 1) |? 0)
@@ -313,7 +313,7 @@ module MainView =
                                     |> List.truncate (min maxStackSize (searchIndex |? 0))
                                     |> format
                                     |> List.rev
-                                let current = searchIndex |> Option.map (fun i -> searches.[i].Terms)
+                                let current = searchIndex |> Option.map (fun i -> string searches.[i])
                                 ("Search History", prev, next, current)
                             | StatusHistory ->
                                 let statusList =

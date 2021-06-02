@@ -46,6 +46,7 @@ let defaultsAsString = [
     ("/", StartInput Search)
     ("'", StartPrompt GoToBookmark)
     ("m", StartPrompt SetBookmark)
+    ("`", StartPrompt GoToSavedSearch)
     ("d", StartAction Move)
     ("y", StartAction Copy)
     ("Y", StartAction Shortcut)

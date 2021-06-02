@@ -1,7 +1,8 @@
 # Release Notes
 
-### 0.6.0  Dark Theme and History Display (WIP)
+### 0.6.0  Dark Theme and History Display (2021-06-02)
 - Changes UI to use new dark theme
+- #104 Adds Saved Searches
 - #20 Adds display of navigation history for Back/Forward (Thanks @jilleJr)
 - #17 Adds display of undo/redo history
 - #24 Adds display of status history

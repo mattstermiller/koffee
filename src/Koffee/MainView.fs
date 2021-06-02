@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -54,6 +54,8 @@ module MainView =
             sprintf "Permanently delete %s y/n ?" item.Description
         | Confirm (OverwriteBookmark (char, existingPath)) ->
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
+        | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
+            sprintf "Overwrite saved search \"%c\" currently set to \"%s\" y/n ?" char (string existingSearch)
         | Prompt promptType ->
             promptType |> caseName
         | Input (Find multi) ->
@@ -231,8 +233,8 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.Config.SavedSearches @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, searches) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -244,6 +246,17 @@ module MainView =
                                 |> List.map (fun (c, p) -> (c, p.Format pathFormat))
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
+                            window.BookmarksHeader.Text <- "Bookmarks"
+                            window.BookmarkPanel.Visible <- true
+                        | Prompt GoToSavedSearch
+                        | Prompt SetSavedSearch
+                        | Prompt DeleteSavedSearch ->
+                            let searches =
+                                searches
+                                |> List.map (sndf string)
+                                |> Seq.ifEmpty [(' ', "No searches saved")]
+                            window.Bookmarks.ItemsSource <- searches
+                            window.BookmarksHeader.Text <- "Saved Searches"
                             window.BookmarkPanel.Visible <- true
                         | _ ->
                             window.BookmarkPanel.Visible <- false
@@ -518,6 +531,9 @@ module MainStatus =
     let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
     let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
     let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path
+    let noSavedSearch char = Message <| sprintf "Saved Search \"%c\" not set" char
+    let setSavedSearch char (search: Search) = Message <| sprintf "Set saved search \"%c\" to \"%s\"" char (string search)
+    let deletedSavedSearch char  (search: Search) = Message <| sprintf "Deleted saved search \"%c\" that was set to \"%s\"" char (string search)
 
     // actions
     let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")

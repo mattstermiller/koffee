@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open System.Text.RegularExpressions
 open FSharp.Control
@@ -398,6 +398,11 @@ module Action =
         }
 
     let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = result {
+        let inputMode =
+            if inputMode = Prompt SetBookmark && model.SearchCurrent.IsSome then
+                Prompt SetSavedSearch
+            else
+                inputMode
         let! allowed =
             match inputMode with
             | Input CreateFile
@@ -411,7 +416,6 @@ module Action =
                     | Error e -> Error <| ActionError ("create item", e)
             | Input (Rename _)
             | Confirm Delete -> Ok model.SelectedItem.Type.CanModify
-            | Prompt SetBookmark when model.IsSearchingSubFolders -> Ok false
             | _ -> Ok true
         if allowed then
             let model = { model with InputMode = Some inputMode }
@@ -722,13 +726,12 @@ module Action =
     let redo = redoIter 1
 
     let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
-        let mapFst f t = (fst t |> f, snd t)
-        let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
+        let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> fstf ((*) 2))
                       |> Rect.fit (getScreenBounds())
         let model =
             { model with
                 WindowLocation = fitRect.Location
-                WindowSize = fitRect.Size |> mapFst (flip (/) 2)
+                WindowSize = fitRect.Size |> fstf (flip (/) 2)
             }
 
         let left, top = model.WindowLocation
@@ -875,11 +878,15 @@ let toggleHidden (model: MainModel) =
     | None ->
         Nav.listDirectory select model
 
-let inputCharTyped fs cancelInput char model = asyncSeqResult {
+let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqResult {
     let withBookmark char model =
         { model with
             Config = model.Config.WithBookmark char model.Location
         } |> fun m -> m.WithStatus (MainStatus.setBookmark char model.LocationFormatted)
+    let withSavedSearch char search model =
+        { model with
+            Config = model.Config.WithSavedSearch char search
+        } |> fun m -> m.WithStatus (MainStatus.setSavedSearch char search)
     match model.InputMode with
     | Some (Input (Find _)) ->
         match KeyBinding.getKeysString FindNext |> Seq.toList with
@@ -897,7 +904,7 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                 yield model
                 yield! Nav.openPath fs path SelectNone model
             | None ->
-                yield model.WithStatusOption (Some <| MainStatus.noBookmark char)
+                yield model.WithStatus (MainStatus.noBookmark char)
         | SetBookmark ->
             match model.Config.GetBookmark char with
             | Some existingPath ->
@@ -912,11 +919,43 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
             match model.Config.GetBookmark char with
             | Some path ->
                 yield
-                    { model with
-                        Config = model.Config.WithoutBookmark char
-                    } |> fun m -> m.WithStatus (MainStatus.deletedBookmark char (path.Format model.PathFormat))
+                    { model with Config = model.Config.WithoutBookmark char }
+                    |> fun m -> m.WithStatus (MainStatus.deletedBookmark char (path.Format model.PathFormat))
             | None ->
                 yield model.WithStatus (MainStatus.noBookmark char)
+        | GoToSavedSearch ->
+            match model.Config.GetSavedSearch char with
+            | Some search ->
+                yield!
+                    { model with
+                        InputText = search.Terms
+                        SearchInput = search
+                        SearchHistoryIndex = Some 0
+                        History = model.History.WithSearch search
+                    }
+                    |> Search.search fs subDirResults progress
+                    |> AsyncSeq.map Ok
+            | None ->
+                yield model.WithStatus (MainStatus.noSavedSearch char)
+        | SetSavedSearch ->
+            match model.SearchCurrent, model.Config.GetSavedSearch char with
+            | Some _, Some existingSearch ->
+                yield
+                    { model with
+                        InputMode = Some (Confirm (OverwriteSavedSearch (char, existingSearch)))
+                        InputText = ""
+                    }
+            | Some search, None ->
+                yield withSavedSearch char search model
+            | None, _ -> ()
+        | DeleteSavedSearch ->
+            match model.Config.GetSavedSearch char with
+            | Some search ->
+                yield
+                    { model with Config = model.Config.WithoutSavedSearch char }
+                    |> fun m -> m.WithStatus (MainStatus.deletedSavedSearch char search)
+            | None ->
+                yield model.WithStatus (MainStatus.noSavedSearch char)
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -930,6 +969,10 @@ let inputCharTyped fs cancelInput char model = asyncSeqResult {
                 yield! Action.delete fs model.SelectedItem true model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
+            | OverwriteSavedSearch (char, _) ->
+                match model.SearchCurrent with
+                | Some search -> yield withSavedSearch char search model
+                | None -> ()
         | 'n' ->
             let model = model.WithStatus MainStatus.cancelled
             match confirmType with
@@ -976,6 +1019,9 @@ let inputDelete cancelInput model =
     | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
         cancelInput ()
         { model with InputMode = Some (Prompt DeleteBookmark) }
+    | Some (Prompt GoToSavedSearch) | Some (Prompt SetSavedSearch) ->
+        cancelInput ()
+        { model with InputMode = Some (Prompt DeleteSavedSearch) }
     | _ -> model
 
 let submitInput fs os model = asyncSeqResult {
@@ -1182,7 +1228,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))
-            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs handler.Handle c)
+            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs subDirResults progress handler.Handle c)
             | InputChanged -> Async (inputChanged fs subDirResults progress)
             | InputBack -> Sync (inputHistory 1)
             | InputForward -> Sync (inputHistory -1)

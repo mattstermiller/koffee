@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -133,11 +133,15 @@ type PromptType =
     | GoToBookmark
     | SetBookmark
     | DeleteBookmark
+    | GoToSavedSearch
+    | SetSavedSearch
+    | DeleteSavedSearch
 
 type ConfirmType =
     | Overwrite of PutAction * src: Item * dest: Item
     | Delete
     | OverwriteBookmark of char * existingPath: Path
+    | OverwriteSavedSearch of char * existingSearch: Search
 
 type InputType =
     | Find of multi: bool
@@ -207,24 +211,35 @@ type Config = {
     YankRegister: (Path * ItemType * PutAction) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
+    SavedSearches: (char * Search) list
 }
 with
+    static member private addRegister coll item =
+        coll
+        |> List.filter (fst >> (<>) (fst item))
+        |> List.append [item]
+        |> List.sortBy (fun (c, _) ->
+            // sort an upper case letter immediately after its lower case
+            if Char.IsUpper c then Char.ToLower c |> sprintf "%c2" else string c
+        )
+
     member this.GetBookmark char =
         this.Bookmarks |> List.tryFind (fst >> (=) char) |> Option.map snd
 
     member this.WithBookmark char path =
-        let bookmarks =
-            this.Bookmarks
-            |> List.filter (fst >> (<>) char)
-            |> List.append [(char, path)]
-            |> List.sortBy (fun (c, _) ->
-                // sort an upper case letter immediately after its lower case
-                if Char.IsUpper c then Char.ToLower c |> sprintf "%c2" else string c
-            )
-        { this with Bookmarks = bookmarks }
+        { this with Bookmarks = (char, path) |> Config.addRegister this.Bookmarks }
 
     member this.WithoutBookmark char =
         { this with Bookmarks = this.Bookmarks |> List.filter (fst >> (<>) char) }
+
+    member this.GetSavedSearch char =
+        this.SavedSearches |> List.tryFind (fst >> (=) char) |> Option.map snd
+
+    member this.WithSavedSearch char path =
+        { this with SavedSearches = (char, path) |> Config.addRegister this.SavedSearches }
+
+    member this.WithoutSavedSearch char =
+        { this with SavedSearches = this.SavedSearches |> List.filter (fst >> (<>) char) }
 
     static member Default = {
         StartPath = RestorePrevious
@@ -254,6 +269,7 @@ with
             RefreshOnActivate = true
         }
         Bookmarks = []
+        SavedSearches = []
     }
 
 [<Struct>]
@@ -579,7 +595,8 @@ type MainEvents =
         FindNext, "Go To Next Find Match"
         StartInput Search, "Search For Items"
         StartPrompt GoToBookmark, "Go To Bookmark"
-        StartPrompt SetBookmark, "Set Bookmark"
+        StartPrompt SetBookmark, "Set Bookmark/Saved Search"
+        StartPrompt GoToSavedSearch, "Go To Saved Search"
         OpenSelected, "Open Selected Item"
         OpenFileWith, "Open File With..."
         OpenFileAndExit, "Open File and Exit"

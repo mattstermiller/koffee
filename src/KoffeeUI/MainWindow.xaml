@@ -96,7 +96,8 @@
       <!-- Bookmarks panel -->
       <StackPanel Name="BookmarkPanel" x:FieldModifier="public" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                   Visibility="Hidden" Background="{DynamicResource PopupBrush}">
-        <TextBlock Text="Bookmarks" Margin="8,4,8,8" Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+        <TextBlock Name="BookmarksHeader" x:FieldModifier="public" Margin="8,4,8,8"
+                   Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
         <ItemsControl Name="Bookmarks" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>

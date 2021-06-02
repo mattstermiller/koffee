@@ -66,9 +66,13 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Enter` to close the search input and navigate the results. The current search filter will be shown at the bottom of the window.
     - Press `Esc` when the search input is open or when a search filter is active to cancel the search.
 - **Bookmarks**
-    - Set a bookmark by pressing `m`. The list of bookmarks already set are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
-    - Go to a bookmark by pressing `'`. The list of bookmarks are shown. Enter one of the bookmark characters to go to that bookmark.
-    - When viewing bookmarks, press `Delete` then a bookmark character to delete that bookmark.
+    - Set a bookmark by pressing `m`. The existing bookmarks are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
+    - Go to a bookmark by pressing `'`. The bookmarks are shown. Enter a character to activate the bookmark set to that character.
+    - When viewing bookmarks, press `Delete` then a character to delete the bookmark set to that character.
+- **Saved Searches**
+    - To save an active search (the search input must be closed), press `m`. The existing saved searches are shown. Enter any character to set a saved search to that character. Upper-case letters are distinct from lower-case letters.
+    - Activate a saved search by pressing `` ` ``. The saved searches are shown. Enter a character to activate the saved search set to that character.
+    - When viewing saved searches, press `Delete` then a character to delete the saved search set to that character.
 - **Sorting**
     - Press `sn` to sort by name, ascending then descending.
     - Press `sm` to sort by modified date, descending then ascending.

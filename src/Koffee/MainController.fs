@@ -889,11 +889,18 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             Config = model.Config.WithSavedSearch char search
         } |> fun m -> m.WithStatus (MainStatus.setSavedSearch char search)
     match model.InputMode with
+    | Some (Input (CreateFile _))
+    | Some (Input (CreateFolder _))
+    | Some (Input (Rename _)) ->
+        if Path.InvalidNameChars |> String.contains (string char) then
+            cancelInput()
     | Some (Input (Find _)) ->
         match KeyBinding.getKeysString FindNext |> Seq.toList with
         | [nextKey] when char = nextKey ->
             cancelInput ()
             yield Search.findNext model
+        | _ when Path.InvalidNameChars |> String.contains (string char) ->
+            cancelInput ()
         | _ -> ()
     | Some (Prompt mode) ->
         cancelInput ()

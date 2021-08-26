@@ -68,6 +68,8 @@ type Path private (path: string) =
     static member UserDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
     static member KoffeeData = Path(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)).Join "Koffee"
 
+    static member InvalidNameChars = invalidChars + ":/\\"
+
     static member Parse (s: string) =
         match s.Trim() with
         | RootPath p

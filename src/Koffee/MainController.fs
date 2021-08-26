@@ -874,6 +874,7 @@ let toggleHidden (model: MainModel) =
             model.Directory @ (model.SubDirectories |? [])
             |> filter
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
+            |> model.ItemsIfEmpty
         { model with Items = items } |> Nav.select select
     | None ->
         Nav.listDirectory select model

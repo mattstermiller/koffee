@@ -817,7 +817,7 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
         match config.StartPath with
         | RestorePrevious -> prevPath @ [config.DefaultPath]
         | DefaultPath -> [config.DefaultPath] @ prevPath
-    let paths = (startOptions.StartPath |> Option.toList) @ (configPaths |> List.map string)
+    let paths = (startOptions.StartPath |> Option.toList) @ (configPaths @ [Path.Root] |> List.map string)
     let rec openPath error (paths: string list) =
         let withError (m: MainModel) =
             match error with
@@ -826,10 +826,19 @@ let initModel (fsReader: IFileSystemReader) startOptions model =
         match paths with
         | [] -> model |> withError
         | start :: paths ->
-            let prevPath = paths |> Seq.choose Path.Parse |> Seq.tryHead |? Path.Root
-            match Nav.openUserPath fsReader start { model with Location = prevPath } with
-            | Ok model -> model |> withError
-            | Error e -> openPath (Some (error |? e)) paths
+            match Nav.openUserPath fsReader start model with
+            | Ok model ->
+                let back =
+                    paths
+                    |> Seq.choose Path.Parse
+                    |> Seq.filter ((<>) model.Location)
+                    |> Seq.tryHead
+                    |> Option.map (fun p -> (p, 0))
+                    |> Option.toList
+                { model with BackStack = back }
+                |> withError
+            | Error e ->
+                openPath (Some (error |? e)) paths
     openPath None paths
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {

@@ -10,7 +10,15 @@ type StartOptions = {
 }
 
 module ProgramOptions =
-    let private (|Path|_|) (arg: string) = if not <| arg.StartsWith("-") then Some arg else None
+    let private (|Path|_|) arg =
+        if not (arg |> String.startsWith "-") then
+            match arg |> Path.Parse with
+            | Some p when p = Path.Root || p = p.Base || p.IsNetPath ->
+                Some (p |> string)
+            | _ ->
+                Some (arg |> IOPath.GetFullPath)
+        else
+            None
 
     let private (|IntTuple|_|) name arg =
         let parse = System.Int32.Parse
@@ -23,7 +31,7 @@ module ProgramOptions =
         let rec parse args options =
             match args with
             | Path path :: rest when options.StartPath.IsNone ->
-                parse rest { options with StartPath = Some (path |> IOPath.GetFullPath) }
+                parse rest { options with StartPath = Some path }
             | IntTuple "location" loc :: rest when options.StartLocation.IsNone ->
                 parse rest { options with StartLocation = Some loc }
             | IntTuple "size" loc :: rest when options.StartSize.IsNone ->

@@ -97,8 +97,11 @@ type FakeFileSystem(treeItems) =
 
     member this.GetItems path = result {
         callsToGetItems <- callsToGetItems + 1
-        do! checkExn path
-        return this.Items |> List.filter (fun i -> i.Path.Parent = path)
+        if path = Path.Root then
+            return [Item.Basic (Path.Parse "C:").Value "C:" Drive]
+        else
+            do! checkExn path
+            return this.Items |> List.filter (fun i -> i.Path.Parent = path)
     }
 
     member this.GetFolders path =

@@ -24,6 +24,7 @@ let test start path1 path2 =
 
     let actual = MainLogic.initModel fs options model
 
+    actual.Items |> shouldNotEqual [Item.Empty]
     { Start = actual.LocationFormatted
       Back = actual.BackStack |> List.tryHead |> Option.map (fun (p, _) -> p.FormatFolder Unix)
       Error =
@@ -57,3 +58,13 @@ let ``When first path is invalid then opens start and back is first`` () =
 let ``When all paths are invalid then opens root and back is empty`` () =
     test (Some "/c/invalid/") "/c/invalid1" "/c/invalid2"
     |> shouldEqual { Start = "/"; Back = None; Error = Some (openError "/c/invalid/") }
+
+[<Test>]
+let ``When start is same as first path then opens start and back is second`` () =
+    test (Some "/c/start") "/c/Start" "/c/path2"
+    |> shouldEqual { Start = "/c/start/"; Back = Some "/c/path2/"; Error = None }
+
+[<Test>]
+let ``When start is same as both paths then opens start and back is root`` () =
+    test (Some "/c/start") "/c/Start" "/c/START"
+    |> shouldEqual { Start = "/c/start/"; Back = Some "/"; Error = None }

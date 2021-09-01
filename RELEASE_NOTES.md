@@ -1,5 +1,10 @@
 # Release Notes
 
+### 0.6.1  (2021-09-01)
+- #109 Fixes path arg parsing to recognize root and drives, fixes path shown when opening default path via args
+- #110 Fixes error when toggling hidden files in empty search result
+- #108 Disallows invalid chars in name prompts
+
 ### 0.6.0  Dark Theme and History Display (2021-06-02)
 - Changes UI to use new dark theme
 - #104 Adds Saved Searches

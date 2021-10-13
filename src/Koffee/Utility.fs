@@ -20,6 +20,10 @@ let runAsync (f: unit -> 'a) = async {
     return result
 }
 
+module Async =
+    let inline tee f (a: Async<_>) =
+        Async.map (fun x -> f x; x) a
+
 module String =
     let readableIdentifier str =
         Regex.Replace(str, @"(?<=[a-z])(?=[A-Z\d])", " ")

@@ -4,6 +4,8 @@ open NUnit.Framework
 open FsUnitTyped
 open Koffee.Main
 
+let progress = Event<_>()
+
 // create tests
 
 [<Test>]
@@ -162,7 +164,7 @@ let ``Redo create creates item again`` () =
     let createItem = createFile "/c/file"
     let model = testModel |> pushRedo (CreatedItem createItem)
 
-    let actual = seqResult (Action.redo fs) model
+    let actual = seqResult (Action.redo fs progress) model
 
     let expectedAction = CreatedItem createItem
     let expectedItems = [
@@ -194,7 +196,7 @@ let ``Redo create handles error by returning error``() =
     let model = testModel |> pushRedo (CreatedItem createItem)
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.redo fs) model
+    let actual = seqResult (Action.redo fs progress) model
 
     let expected =
         model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))

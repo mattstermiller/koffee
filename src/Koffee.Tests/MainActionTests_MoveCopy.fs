@@ -13,6 +13,8 @@ let copyName = Action.getCopyName
 let copyNames name num =
     List.init num (copyName name)
 
+let progress = Event<_>()
+
 let putActionCases () = [
     TestCaseData(Move)
     TestCaseData(Copy)
@@ -42,7 +44,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     let model = testModel |> withReg item
     let expectedItems = fs.ItemsIn "/c"
 
-    let actual = seqResult (Action.put fs false) model
+    let actual = seqResult (Action.put fs progress false) model
 
     let expected =
         { model with
@@ -60,7 +62,7 @@ let ``Put handles missing register item`` () =
     let fs = FakeFileSystem []
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (Action.put fs false) model
+    let actual = seqResult (Action.put fs progress false) model
 
     let expected = model.WithError (YankRegisterItemMissing (src.Path.Format model.PathFormat))
     assertAreEqual expected actual
@@ -72,7 +74,7 @@ let ``Put handles error reading register item`` () =
     fs.AddExn ex (string src.Path)
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (Action.put fs false) model
+    let actual = seqResult (Action.put fs progress false) model
 
     let expected = model.WithError (ActionError ("read yank register item", ex))
     assertAreEqual expected actual
@@ -91,9 +93,9 @@ let ``Put item handles file system errors`` action =
     let model = testModel |> withReg item
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.put fs false) model
+    let actual = seqResult (Action.put fs progress false) model
 
-    let expectedAction = PutItem (action, src, createPath destPath)
+    let expectedAction = PutItems (action, src, createPath destPath)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -115,9 +117,9 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     let putAction = if copy then Copy else Move
     let model = testModel |> withReg (Some (src.Path, src.Type, putAction))
 
-    let actual = seqResult (Action.put fs overwrite) model
+    let actual = seqResult (Action.put fs progress overwrite) model
 
-    let expectedAction = PutItem (putAction, src, dest.Path)
+    let expectedAction = PutItems (putAction, src, dest.Path)
     let expectedItems = [
         createFolder "/c/folder"
         createFile "/c/file" |> size 41L
@@ -140,6 +142,67 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
         fileWith (size 41L) "file"
     ]
 
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Put folder tree where dest has folder with same name merges correctly`` (copy: bool) =
+    let srcTree =
+        folder "fruit" [
+            folder "bushes" [
+                file "blueberry"
+            ]
+            folder "trees" [
+                fileWith (size 7L) "apple"
+                file "banana"
+            ]
+            file "tomato"
+        ]
+    let fs = FakeFileSystem [
+        srcTree
+        folder "dest" [
+            folder "fruit" [
+                folder "trees" [
+                    file "apple"
+                    file "orange"
+                ]
+            ]
+        ]
+    ]
+    let src = fs.Item "/c/fruit"
+    let dest = createFolder "/c/dest/fruit"
+    let putAction = if copy then Copy else Move
+    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, putAction))
+
+    let actual = seqResult (Action.put fs progress true) model
+
+    let expectedAction = PutItems (putAction, src, dest.Path)
+    let expectedItems = [dest]
+    let expected =
+        { testModel with
+            Directory = expectedItems |> sortByPath
+            Items = expectedItems
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
+        } |> withLocation "/c/dest"
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        if copy then
+            srcTree
+        folder "dest" [
+            folder "fruit" [
+                folder "bushes" [
+                    file "blueberry"
+                ]
+                folder "trees" [
+                    fileWith (size 7L) "apple"
+                    file "banana"
+                    file "orange"
+                ]
+                file "tomato"
+            ]
+        ]
+    ]
+
 // move tests
 
 [<Test>]
@@ -151,7 +214,7 @@ let ``Put item to move in same folder returns error``() =
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.put fs false) model
+    let actual = seqResult (Action.put fs progress false) model
 
     let expected = model.WithError CannotMoveToSameFolder
     assertAreEqual expected actual
@@ -171,7 +234,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     ]
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
-    let action = PutItem (Move, original, moved.Path)
+    let action = PutItems (Move, original, moved.Path)
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
@@ -213,7 +276,7 @@ let ``Undo move item when previous path is occupied returns error``() =
     ]
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
-    let action = PutItem (Move, original, moved.Path)
+    let action = PutItems (Move, original, moved.Path)
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
@@ -234,13 +297,13 @@ let ``Undo move item handles move error by returning error``() =
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
     fs.AddExn ex "/c/file"
-    let action = PutItem (Move, original, moved.Path)
+    let action = PutItems (Move, original, moved.Path)
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.undo fs) model
 
-    let expectedAction = PutItem (Move, moved, original.Path)
+    let expectedAction = PutItems (Move, moved, original.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex)) |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -258,7 +321,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let src = fs.Item "/c/file"
     let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
-    let actual = seqResult (Action.put fs false) model
+    let actual = seqResult (Action.put fs progress false) model
 
     let expectedItems =
         [
@@ -266,7 +329,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
             yield! copyNames "file" (existingCopies+1) |> List.map (fun name -> createFile ("/c/" + name))
         ] |> sortByPath
     let expectedPath = createPath ("/c/" + copyName "file" existingCopies)
-    let expectedAction = PutItem (Copy, createFile "/c/file", expectedPath)
+    let expectedAction = PutItems (Copy, createFile "/c/file", expectedPath)
     let expected =
         { testModel with
             Directory = expectedItems
@@ -299,7 +362,7 @@ let ``Undo copy item deletes when it has the same timestamp or recycles otherwis
     ]
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"
-    let action = PutItem (Copy, original, copied.Path)
+    let action = PutItems (Copy, original, copied.Path)
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
@@ -368,9 +431,9 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     let shortcut = createFile "/c/file.lnk"
     let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
 
-    let actual = seqResult (Action.put fs overwrite) model
+    let actual = seqResult (Action.put fs progress overwrite) model
 
-    let expectedAction = PutItem (Shortcut, target, shortcut.Path)
+    let expectedAction = PutItems (Shortcut, target, shortcut.Path)
     let expectedItems = [
         createFolder "/c/src"
         shortcut

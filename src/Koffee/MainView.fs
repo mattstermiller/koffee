@@ -553,21 +553,22 @@ module MainStatus =
 
     let private runningActionMessage action pathFormat =
         match action with
-        | PutItem (Move, item, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." item.Description (newPath.Format pathFormat)
-        | PutItem (Copy, item, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." item.Description (newPath.Format pathFormat)
+        | PutItems (Move, item, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." item.Description (newPath.Format pathFormat)
+        | PutItems (Copy, item, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." item.Description (newPath.Format pathFormat)
         | DeletedItem (item, false) -> Some <| sprintf "Recycling %s..." item.Description
         | DeletedItem (item, true) -> Some <| sprintf "Deleting %s..." item.Description
         | _ -> None
     let runningAction action pathFormat =
         runningActionMessage action pathFormat |> Option.map Busy
-    let checkingIsRecyclable = Busy <| "Calculating size..."
+    let preparingPut (action: PutAction) name = Busy <| sprintf "Preparing to %O %s..." action name
+    let checkingIsRecyclable = Busy "Calculating size..."
     let private actionCompleteMessage action pathFormat =
         match action with
         | CreatedItem item -> sprintf "Created %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItem (Move, item, newPath) -> sprintf "Moved %s to \"%s\"" item.Description (newPath.Format pathFormat)
-        | PutItem (Copy, item, newPath) -> sprintf "Copied %s to \"%s\"" item.Description (newPath.Format pathFormat)
-        | PutItem (Shortcut, item, _) -> sprintf "Created shortcut to %s \"%s\""
+        | PutItems (Move, item, newPath) -> sprintf "Moved %s to \"%s\"" item.Description (newPath.Format pathFormat)
+        | PutItems (Copy, item, newPath) -> sprintf "Copied %s to \"%s\"" item.Description (newPath.Format pathFormat)
+        | PutItems (Shortcut, item, _) -> sprintf "Created shortcut to %s \"%s\""
                                                  (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
         | DeletedItem (item, false) -> sprintf "Sent %s to Recycle Bin" item.Description
         | DeletedItem (item, true) -> sprintf "Deleted %s" item.Description
@@ -605,6 +606,7 @@ module MainStatus =
 type MainError =
     | ActionError of actionName: string * exn
     | ItemActionError of ItemAction * PathFormat * exn
+    | PutError of PutAction * msg: string * errors: int * total: int
     | InvalidPath of string
     | ShortcutTargetMissing of string
     | YankRegisterItemMissing of string
@@ -630,6 +632,9 @@ type MainError =
             sprintf "Could not %s: %s" action msg
         | ItemActionError (action, pathFormat, e) ->
             (ActionError (action.Description pathFormat, e)).Message
+        | PutError (action, msg, errors, total) ->
+            let action = action |> string |> String.toLower
+            sprintf "Could not %s %i of %i items: %s" action errors total msg
         | InvalidPath path -> "Path format is invalid: " + path
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path

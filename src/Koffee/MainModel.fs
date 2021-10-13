@@ -155,17 +155,23 @@ type InputMode =
     | Confirm of ConfirmType
     | Input of InputType
 
+type PutItem = {
+    Item: Item
+    Dest: Path
+    DestExists: bool
+}
+
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItem of PutAction * Item * newPath: Path
+    | PutItems of PutAction * Item * newPath: Path
     | DeletedItem of Item * permanent: bool
 with
     member this.Description pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Rename %s" item.Description
-        | PutItem (action, item, newPath) ->
+        | PutItems (action, item, newPath) ->
             sprintf "%O %s to \"%s\"" action item.Description (newPath.Format pathFormat)
         | DeletedItem (item, false) -> sprintf "Recycle %s" item.Description
         | DeletedItem (item, true) -> sprintf "Delete %s" item.Description

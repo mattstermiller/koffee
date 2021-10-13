@@ -64,7 +64,7 @@ let ``Create adds item`` () =
     ]
 
 [<Test>]
-let ``Move moves item`` () =
+let ``Move file moves it`` () =
     let fs = createFs ()
     fs.Move (createPath "/c/readme.md") (createPath "/c/programs/docs.md") |> shouldEqual (Ok ())
     fs.ItemsShouldEqual [
@@ -73,6 +73,86 @@ let ``Move moves item`` () =
             file "koffee.exe"
             file "notepad.exe"
         ]
+    ]
+
+[<Test>]
+let ``Move file to add suffix renames it`` () =
+    let fs = createFs ()
+    fs.Move (createPath "/c/readme.md") (createPath "/c/readme.md.bak") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        folder "programs" [
+            file "koffee.exe"
+            file "notepad.exe"
+        ]
+        file "readme.md.bak"
+    ]
+
+[<Test>]
+let ``Move folder moves it and sub items recursively`` () =
+    let fs =
+        FakeFileSystem [
+            folder "dest" []
+            folder "stuff" [
+                folder "sub" [
+                    file "sub1"
+                    file "sub2"
+                ]
+                file "file1"
+                file "file2"
+            ]
+            file "other"
+        ]
+    fs.Move (createPath "/c/stuff") (createPath "/c/dest/stuff") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        folder "dest" [
+            folder "stuff" [
+                folder "sub" [
+                    file "sub1"
+                    file "sub2"
+                ]
+                file "file1"
+                file "file2"
+            ]
+        ]
+        file "other"
+    ]
+
+let ``Move folder where dest exists merges contents`` () =
+    let fs =
+        FakeFileSystem [
+            folder "dest" [
+                folder "stuff" [
+                    folder "sub" [
+                        file "sub existing"
+                    ]
+                    file "existing"
+                ]
+            ]
+            folder "stuff" [
+                folder "sub" [
+                    file "sub1"
+                    file "sub2"
+                ]
+                file "file1"
+                file "file2"
+            ]
+            file "other"
+        ]
+    fs.Move (createPath "/c/stuff") (createPath "/c/dest/stuff") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        folder "dest" [
+            folder "stuff" [
+                folder "sub" [
+                    file "sub existing"
+                    file "sub1"
+                    file "sub2"
+                ]
+                file "existing"
+                file "file1"
+                file "file2"
+            ]
+        ]
+        file "other"
     ]
 
 [<Test>]

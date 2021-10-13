@@ -2,8 +2,9 @@ STORAGE: NONE
 RESTRICTION: == net451
 NUGET
   remote: https://api.nuget.org/v3/index.json
-    Acadian.FSharp (1.2.3)
+    Acadian.FSharp (1.2.23)
       FSharp.Core (>= 4.3.4)
+      System.ValueTuple (>= 4.4)
     CompareNETObjects (4.66) - content: none
     FSharp.Control.AsyncSeq (2.0.21)
       FSharp.Core (>= 3.1.2)
@@ -33,6 +34,7 @@ NUGET
       System.Reactive.Linq (>= 3.1.1)
     System.Reactive.Windows.Threading (3.1.1)
       System.Reactive.Core (>= 3.1.1)
+    System.ValueTuple (4.5)
     VinylUI (2.3.1)
       FSharp.Control.AsyncSeq (>= 2.0.20 < 2.1)
       FSharp.Quotations.Evaluator (>= 1.1 < 2.0)

@@ -28,7 +28,9 @@ type FakeFileSystem(treeItems) =
     let mutable callsToGetItems = 0
 
     let remove path =
-        items <- items |> List.filter (fun i -> i.Path <> path)
+        let itemWithinPath (path: Path) item =
+            item.Path.FormatFolder Windows |> String.startsWithIgnoreCase (path.FormatFolder Windows)
+        items <- items |> List.filter (not << itemWithinPath path)
         shortcuts.Remove(path) |> ignore
 
     let checkPathNotUsed path =
@@ -91,8 +93,7 @@ type FakeFileSystem(treeItems) =
 
     member private this.AssertItem path = result {
         let! item = this.GetItem path
-        let! item = item |> Result.ofOption (exn ("Path does not exist: " + (string path)))
-        return item
+        return! item |> Result.ofOption (exn ("Path does not exist: " + (string path)))
     }
 
     member this.GetItems path = result {
@@ -154,6 +155,12 @@ type FakeFileSystem(treeItems) =
         items <- newItem :: items
         match shortcuts.TryGetValue fromPath with
         | true, target -> shortcuts.Add(toPath, target)
+        | _ -> ()
+        match item.Type with
+        | Folder ->
+            let! folderItems = this.GetItems fromPath
+            for item in folderItems do
+                do! this.Copy item.Path (toPath.Join item.Name)
         | _ -> ()
     }
 

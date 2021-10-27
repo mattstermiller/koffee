@@ -118,6 +118,11 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
 let assertAreEqual expected actual =
     assertAreEqualWith expected actual ignore
 
+let assertErrorExn (expected: exn) (actual: Result<_, exn>) =
+    match actual with
+    | Error ex when ex.Message = expected.Message -> ()
+    | _ -> failwithf "Expected error with message \"%s\" but got %A" expected.Message actual
+
 let assertOk res =
     match res with
     | Ok a -> a

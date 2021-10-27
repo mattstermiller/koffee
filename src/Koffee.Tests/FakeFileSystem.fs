@@ -20,6 +20,24 @@ with
         let c = Path.Parse "/c" |> Option.get
         Item.Basic c "C" Folder :: build c items
 
+module FakeFileSystemErrors =
+    let pathDoesNotExist (path: Path) =
+        exn ("Path does not exist: " + string path)
+
+    let pathAlreadyUsed (path: Path) =
+        exn ("Path already used: " + string path)
+
+    let notAShortcut =
+        exn "Not a shortcut"
+
+    let destPathParentDoesNotExist (path: Path) =
+        exn ("Destination folder does not exist: " + string path)
+
+    let destPathParentIsNotFolder (path: Path) =
+        exn ("Destination path is not a folder: " + string path)
+
+open FakeFileSystemErrors
+
 type FakeFileSystem(treeItems) =
     let mutable items = treeItems |> TreeItem.build
     let shortcuts = Dictionary<Path, string>()
@@ -35,7 +53,7 @@ type FakeFileSystem(treeItems) =
 
     let checkPathNotUsed path =
         if items |> List.exists (fun i -> i.Path = path) then
-            Error (exn ("Path already used: " + string path))
+            Error (pathAlreadyUsed path)
         else
             Ok ()
 
@@ -93,7 +111,7 @@ type FakeFileSystem(treeItems) =
 
     member private this.AssertItem path = result {
         let! item = this.GetItem path
-        return! item |> Result.ofOption (exn ("Path does not exist: " + (string path)))
+        return! item |> Result.ofOption (pathDoesNotExist path)
     }
 
     member this.GetItems path = result {
@@ -121,7 +139,7 @@ type FakeFileSystem(treeItems) =
         do! checkExn path
         match shortcuts.TryGetValue path with
         | true, p -> return p
-        | _ -> return! Error (exn "Not a shortcut")
+        | _ -> return! Error notAShortcut
     }
 
 
@@ -150,6 +168,12 @@ type FakeFileSystem(treeItems) =
     member this.Copy fromPath toPath = result {
         let! item = this.AssertItem fromPath
         do! checkExn toPath
+        let! parent = this.GetItem toPath.Parent
+        do!
+            match parent with
+            | None -> Error (destPathParentDoesNotExist toPath.Parent)
+            | Some item when item.Type <> Folder -> Error (destPathParentIsNotFolder toPath.Parent)
+            | _ -> Ok ()
         remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
         items <- newItem :: items

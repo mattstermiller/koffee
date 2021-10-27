@@ -76,6 +76,20 @@ let ``Move file moves it`` () =
     ]
 
 [<Test>]
+let ``Move file to folder that does not exist returns error`` () =
+    let fs = createFs ()
+    let badPath = createPath "/c/unicorn"
+    fs.Move (createPath "/c/readme.md") (badPath.Join "readme.md")
+    |> assertErrorExn (FakeFileSystemErrors.destPathParentDoesNotExist badPath)
+
+[<Test>]
+let ``Move file to path that is a file returns error`` () =
+    let fs = createFs ()
+    let badPath = createPath "/c/programs/koffee.exe"
+    fs.Move (createPath "/c/readme.md") (badPath.Join "readme.md")
+    |> assertErrorExn (FakeFileSystemErrors.destPathParentIsNotFolder badPath)
+
+[<Test>]
 let ``Move file to add suffix renames it`` () =
     let fs = createFs ()
     fs.Move (createPath "/c/readme.md") (createPath "/c/readme.md.bak") |> shouldEqual (Ok ())

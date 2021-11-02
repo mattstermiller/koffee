@@ -75,7 +75,7 @@ module MainView =
         let next = next |> List.truncate (stackSize + gap prev)
         (prev, next)
 
-    let binder (config: ConfigFile) (history: HistoryFile) (window: MainWindow) model =
+    let binder (config: ConfigFile) (history: HistoryFile) (progress: IObservable<_>) (window: MainWindow) model =
         // path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
             let paths = window.PathSuggestions
@@ -154,6 +154,21 @@ module MainView =
                 | ModifierKeys.Control, Key.S -> window.SearchSubFolders.Toggle()
                 | _ -> ()
         )
+
+        window.Progress.Collapsed <- true
+        progress
+            |> Obs.buffer 0.3
+            |> Obs.onCurrent
+            |> Obs.map (Seq.reduce (fun p1 p2 ->
+                match p1, p2 with
+                | Some p1, Some p2 -> Some (p1 + p2)
+                | None, Some p2 -> Some p2
+                | _ -> None
+            ))
+            |> Obs.add (fun incr ->
+                window.Progress.Value <- incr |> Option.map ((+) window.Progress.Value) |? 0.0
+                window.Progress.Collapsed <- incr.IsNone
+            )
 
         if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
@@ -385,10 +400,6 @@ module MainView =
                 if wasBusy && not isBusy then
                     window.ItemGrid.Focus() |> ignore
             )
-            Bind.model(<@ model.Progress @>).toFunc(fun progress ->
-                window.Progress.Value <- progress |? 0.0
-                window.Progress.Collapsed <- progress.IsNone
-            )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
                 if int window.Left <> left then window.Left <- float left
@@ -410,8 +421,7 @@ module MainView =
         |> Seq.choose Path.Parse
         |> Seq.toList
 
-    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (progress: IObservable<_>)
-               (window: MainWindow) = [
+    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (window: MainWindow) = [
         window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
             let keyPress = KeyPress (evt.Chord, evt.Handler)
             let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -471,14 +481,9 @@ module MainView =
         window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
         window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
         subDirResults |> Obs.buffer 0.3
-                      |> Obs.filter Seq.isNotEmpty
                       |> Obs.onCurrent
                       |> Obs.map (List.concat >> SubDirectoryResults)
         window.InputBox.LostFocus |> Obs.mapTo CancelInput
-        progress |> Obs.buffer 0.3
-                 |> Obs.filter Seq.isNotEmpty
-                 |> Obs.onCurrent
-                 |> Obs.map (Seq.reduce (Option.map2 (+)) >> AddProgress)
 
         window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
         window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->

@@ -38,7 +38,6 @@ let clearSearchProps model =
         SearchInput = Search.Default
         SearchHistoryIndex = None
         SubDirectories = None
-        Progress = None
     }
 
 module Nav =
@@ -1124,9 +1123,6 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
         yield modelFunc model
 }
 
-let addProgress incr model =
-    { model with Progress = incr |> Option.map ((+) (model.Progress |? 0.0)) }
-
 let windowLocationChanged location model =
     let config =
         if model.SaveWindowSettings then
@@ -1253,7 +1249,6 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
             | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput
-            | AddProgress incr -> Sync (addProgress incr)
             | FindNext -> Sync Search.findNext
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
@@ -1304,5 +1299,6 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let model =
             { MainModel.Default with Config = config.Value; History = history.Value }
             |> initModel fs startOptions
-        let events = MainView.events config history subDirResults.Publish progress.Publish
-        Framework.start (MainView.binder config history) events dispatcher view model
+        let binder = MainView.binder config history progress.Publish
+        let events = MainView.events config history subDirResults.Publish
+        Framework.start binder events dispatcher view model

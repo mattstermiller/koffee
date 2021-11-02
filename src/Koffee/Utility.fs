@@ -48,14 +48,15 @@ module Format =
         else scaledStr size 0
 
 module Observable =
-    let throttle (seconds: float) (o: IObservable<_>) =
-        o.Throttle(TimeSpan.FromSeconds(seconds))
-
     let onCurrent (o: IObservable<_>) =
         o.ObserveOn(DispatcherScheduler.Current)
 
+    let throttle (seconds: float) (o: IObservable<_>) =
+        o.Throttle(TimeSpan.FromSeconds(seconds))
+
     let buffer (seconds: float) (o: IObservable<_>) =
         o.Buffer(TimeSpan.FromSeconds(seconds))
+        |> Observable.filter (fun l -> l.Count > 0)
 
 type AsyncSeqResultBuilder() =
     let takeUntilError resSeq =

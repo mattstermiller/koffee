@@ -373,7 +373,6 @@ type MainModel = {
     SubDirectories: Item list option
     SubDirectoryCancel: CancelToken
     SearchHistoryIndex: int option
-    Progress: float option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
     ShowHistoryType: HistoryDisplayType option
@@ -473,7 +472,6 @@ type MainModel = {
         SubDirectories = None
         SubDirectoryCancel = CancelToken()
         SearchHistoryIndex = None
-        Progress = None
         BackStack = []
         ForwardStack = []
         ShowHistoryType = None
@@ -548,7 +546,6 @@ type MainEvents =
     | InputForward
     | InputDelete of EvtHandler
     | SubDirectoryResults of Item list
-    | AddProgress of float option
     | UpdateDropInAction of Path list * DragEvent
     | DropIn of Path list * DragEvent
     | DropOut of PutAction

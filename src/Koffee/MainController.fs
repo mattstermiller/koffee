@@ -299,28 +299,30 @@ module Search =
                 filter
         )
 
-    let private enumerateSubDirs (fsReader: IFileSystemReader) (subDirResults: Event<_>) (progress: Event<_>)
-                                 isCancelled (searchExclusions: string list) items = async {
-        let getDirs = List.filter (fun i -> i.Type = Folder &&
-                                            not (searchExclusions |> List.exists (String.equalsIgnoreCase i.Name)))
-        let rec enumerate progressFactor dirs = async {
+    let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) isCancelled
+                                 (searchExclusions: string list) items = asyncSeq {
+        let getDirs =
+            List.filter (fun i ->
+                i.Type = Folder && not (searchExclusions |> List.exists (String.equalsIgnoreCase i.Name))
+            )
+        let rec enumerate progressFactor dirs = asyncSeq {
             for dir in dirs do
                 if not <| isCancelled () then
                     let! subItemsRes = runAsync (fun () -> fsReader.GetItems dir.Path)
                     if not <| isCancelled () then
                         let subItems = subItemsRes |> Result.toOption |? []
                         let subDirs = getDirs subItems
+                        yield subItems
                         let progressFactor = progressFactor / float (subDirs.Length + 1)
-                        subDirResults.Trigger subItems
                         progress.Trigger (Some progressFactor)
-                        do! enumerate progressFactor subDirs
+                        yield! enumerate progressFactor subDirs
         }
         let dirs = getDirs items
-        do! enumerate (1.0 / float dirs.Length) dirs
+        yield! enumerate (1.0 / float dirs.Length) dirs
         progress.Trigger None
     }
 
-    let search fsReader subDirResults progress (model: MainModel) = asyncSeq {
+    let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyncSeq {
         let input = { model.SearchInput with Terms = model.InputText }
         let model = { model with SearchCurrent = Some input }
         match model.InputText |> String.isNotEmpty, getFilter model.Config.ShowHidden input with
@@ -341,8 +343,9 @@ module Search =
                             SubDirectoryCancel = cancelToken
                             Sort = None
                         } |> withItems items
-                    do! enumerateSubDirs fsReader subDirResults progress cancelToken.get_IsCancelled
-                                         model.Config.SearchExclusions model.Directory
+                    do! enumerateSubDirs fsReader progress cancelToken.get_IsCancelled model.Config.SearchExclusions
+                                         model.Directory
+                        |> AsyncSeq.iter subDirResults.Trigger
                 | Some subDirs ->
                     let items = items @ filter subDirs |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                     yield model |> withItems items

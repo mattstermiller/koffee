@@ -1,7 +1,8 @@
-module Koffee.MainLogicTests_BackForward
+module Koffee.MainNavTests_BackForward
 
 open NUnit.Framework
 open FsUnitTyped
+open Koffee.Main
 
 type TestResult = {
     Path: string
@@ -34,10 +35,10 @@ let history handler count backStack forwardStack =
       ForwardStack = actual.ForwardStack |> List.map pathStr
     }
 
-let back = history MainLogic.Nav.back None
-let forward = history MainLogic.Nav.forward None
-let backCount count = history MainLogic.Nav.back (Some count)
-let forwardCount count = history MainLogic.Nav.forward (Some count)
+let back = history Nav.back None
+let forward = history Nav.forward None
+let backCount count = history Nav.back (Some count)
+let forwardCount count = history Nav.forward (Some count)
 
 [<Test>]
 let ``Back without history does nothing``() =

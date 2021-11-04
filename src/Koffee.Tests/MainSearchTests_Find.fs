@@ -1,8 +1,9 @@
-module Koffee.MainLogicTests_FindSearch
+module Koffee.MainSearchTests_Find
 
 open NUnit.Framework
 open FsUnitTyped
 open Acadian.FSharp
+open Koffee.Main
 
 let items names =
     let toItem name = Item.Basic Path.Root name Folder
@@ -26,9 +27,9 @@ let doFind next repeat prefix cursorStart =
 
     let actual =
         if next then
-            MainLogic.Search.findNext model
+            Search.findNext model
         else
-            MainLogic.Search.find prefix model
+            Search.find prefix model
 
     let expected =
         { model with

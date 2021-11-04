@@ -1,7 +1,8 @@
-﻿module Koffee.MainLogicTests_Delete
+﻿module Koffee.MainActionTests_Delete
 
 open NUnit.Framework
 open FsUnitTyped
+open Koffee.Main
 
 let createFs () =
     FakeFileSystem [
@@ -26,7 +27,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
     let item = fs.Item "/c/file"
     let model = testModel
 
-    let actual = seqResult (MainLogic.Action.delete fs item permanent) model
+    let actual = seqResult (Action.delete fs item permanent) model
 
     let expectedItems = [createFile "/c/other"]
     let expectedAction = DeletedItem (item, permanent)
@@ -50,7 +51,7 @@ let ``Delete handles error by returning error``() =
     let model = testModel
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.delete fs item true) model
+    let actual = seqResult (Action.delete fs item true) model
 
     let expectedAction = (DeletedItem (item, true))
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))

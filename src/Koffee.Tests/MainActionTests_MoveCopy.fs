@@ -1,13 +1,14 @@
-module Koffee.MainLogicTests_MoveCopy
+module Koffee.MainActionTests_MoveCopy
 
 open System
 open NUnit.Framework
 open FsUnitTyped
+open Koffee.Main
 
 let withReg reg model =
     { model with Config = { model.Config with YankRegister = reg } }
 
-let copyName = MainLogic.Action.getCopyName
+let copyName = Action.getCopyName
 
 let copyNames name num =
     List.init num (copyName name)
@@ -41,7 +42,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     let model = testModel |> withReg item
     let expectedItems = fs.ItemsIn "/c"
 
-    let actual = seqResult (MainLogic.Action.put fs false) model
+    let actual = seqResult (Action.put fs false) model
 
     let expected =
         { model with
@@ -59,7 +60,7 @@ let ``Put handles missing register item`` () =
     let fs = FakeFileSystem []
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (MainLogic.Action.put fs false) model
+    let actual = seqResult (Action.put fs false) model
 
     let expected = model.WithError (YankRegisterItemMissing (src.Path.Format model.PathFormat))
     assertAreEqual expected actual
@@ -71,7 +72,7 @@ let ``Put handles error reading register item`` () =
     fs.AddExn ex (string src.Path)
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
-    let actual = seqResult (MainLogic.Action.put fs false) model
+    let actual = seqResult (Action.put fs false) model
 
     let expected = model.WithError (ActionError ("read yank register item", ex))
     assertAreEqual expected actual
@@ -90,7 +91,7 @@ let ``Put item handles file system errors`` action =
     let model = testModel |> withReg item
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.put fs false) model
+    let actual = seqResult (Action.put fs false) model
 
     let expectedAction = PutItem (action, src, createPath destPath)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
@@ -114,7 +115,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     let putAction = if copy then Copy else Move
     let model = testModel |> withReg (Some (src.Path, src.Type, putAction))
 
-    let actual = seqResult (MainLogic.Action.put fs overwrite) model
+    let actual = seqResult (Action.put fs overwrite) model
 
     let expectedAction = PutItem (putAction, src, dest.Path)
     let expectedItems = [
@@ -150,7 +151,7 @@ let ``Put item to move in same folder returns error``() =
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.put fs false) model
+    let actual = seqResult (Action.put fs false) model
 
     let expected = model.WithError CannotMoveToSameFolder
     assertAreEqual expected actual
@@ -174,7 +175,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedItems = [
         createFolder "/c/dest"
@@ -216,7 +217,7 @@ let ``Undo move item when previous path is occupied returns error``() =
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expected = model.WithError (CannotUndoMoveToExisting original) |> popUndo
     assertAreEqual expected actual
@@ -237,7 +238,7 @@ let ``Undo move item handles move error by returning error``() =
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedAction = PutItem (Move, moved, original.Path)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex)) |> popUndo
@@ -257,7 +258,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
     let src = fs.Item "/c/file"
     let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
 
-    let actual = seqResult (MainLogic.Action.put fs false) model
+    let actual = seqResult (Action.put fs false) model
 
     let expectedItems =
         [
@@ -302,7 +303,7 @@ let ``Undo copy item deletes when it has the same timestamp or recycles otherwis
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedItems = [
         createFolder "/c/other"
@@ -343,7 +344,7 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
     let model = testModel
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.undoCopy fs original copied.Path) model
+    let actual = seqResult (Action.undoCopy fs original copied.Path) model
 
     let action = DeletedItem (copied, false)
     let expected = model.WithError (ItemActionError (action, model.PathFormat, ex))
@@ -367,7 +368,7 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     let shortcut = createFile "/c/file.lnk"
     let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
 
-    let actual = seqResult (MainLogic.Action.put fs overwrite) model
+    let actual = seqResult (Action.put fs overwrite) model
 
     let expectedAction = PutItem (Shortcut, target, shortcut.Path)
     let expectedItems = [
@@ -399,7 +400,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location
 
-    let actual = MainLogic.Action.undoShortcut fs shortcut.Path model
+    let actual = Action.undoShortcut fs shortcut.Path model
                  |> assertOk
 
     let expectedItems = [
@@ -429,7 +430,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
     fs.AddExnPath ex shortcut.Path
     let model = testModel
 
-    let actual = MainLogic.Action.undoShortcut fs shortcut.Path model
+    let actual = Action.undoShortcut fs shortcut.Path model
 
     let action = DeletedItem (shortcut, true)
     let expected = Error (ItemActionError (action, model.PathFormat, ex))

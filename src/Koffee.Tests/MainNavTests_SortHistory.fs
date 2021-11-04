@@ -1,8 +1,8 @@
-module Koffee.NavTests_History
+module Koffee.MainNavTests_SortHistory
 
 open FsUnitTyped
-open Koffee.MainLogic
 open NUnit.Framework
+open Koffee.Main
 
 let historyWithPathSort location sort =
     { History.Default with
@@ -66,7 +66,7 @@ let createFs () =
     ]
 
 [<Test>]
-let ``Use stored sort on path change`` () =
+let ``openPath uses stored sort`` () =
     let location = createPath "/c/"
     let originalPathSort = PathSort.Default
     let storedLocation = createPath "/c/programs"
@@ -85,7 +85,7 @@ let ``Use stored sort on path change`` () =
     resultModel.Sort |> shouldEqual (Some expected)
 
 [<Test>]
-let ``Use default sort on path change when no stored sort`` () =
+let ``openPath uses default sort when no stored sort`` () =
     let expected = (PathSort.Default.Sort, PathSort.Default.Descending)
     let location = createPath "/c/"
     let newLocation = createPath "/c/programs"

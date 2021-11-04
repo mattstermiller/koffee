@@ -1,7 +1,8 @@
-module Koffee.MainLogicTests_CreateRename
+module Koffee.MainActionTests_CreateRename
 
 open NUnit.Framework
 open FsUnitTyped
+open Koffee.Main
 
 // create tests
 
@@ -13,7 +14,7 @@ let ``Create calls file sys create and openPath and sets status``() =
     let createItem = createFile "/c/file"
     let model = testModel
 
-    let actual = seqResult (MainLogic.Action.create fs File createItem.Name) model
+    let actual = seqResult (Action.create fs File createItem.Name) model
 
     let expectedAction = CreatedItem createItem
     let expectedItems = [
@@ -45,7 +46,7 @@ let ``Create returns error when item already exists at path`` existingHidden =
     let existing = fs.Item "/c/file"
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.create fs Folder existing.Name) testModel
+    let actual = seqResult (Action.create fs Folder existing.Name) testModel
 
     let expectedItems = [
         createFile "/c/another"
@@ -70,7 +71,7 @@ let ``Create handles error by returning error``() =
     let model = testModel
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.create fs File createItem.Name) model
+    let actual = seqResult (Action.create fs File createItem.Name) model
 
     let expected = model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
     assertAreEqual expected actual
@@ -95,7 +96,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedItems =
         if curPathDifferent then
@@ -132,7 +133,7 @@ let ``Undo create non empty item returns error`` isFolder =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expected = model.WithError (CannotUndoNonEmptyCreated createdItem) |> popUndo
     assertAreEqual expected actual
@@ -148,7 +149,7 @@ let ``Undo create handles delete error by returning error`` () =
     let action = CreatedItem createdItem
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expected = model.WithError (ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)) |> popUndo
     assertAreEqual expected actual
@@ -161,7 +162,7 @@ let ``Redo create creates item again`` () =
     let createItem = createFile "/c/file"
     let model = testModel |> pushRedo (CreatedItem createItem)
 
-    let actual = seqResult (MainLogic.Action.redo fs) model
+    let actual = seqResult (Action.redo fs) model
 
     let expectedAction = CreatedItem createItem
     let expectedItems = [
@@ -193,7 +194,7 @@ let ``Redo create handles error by returning error``() =
     let model = testModel |> pushRedo (CreatedItem createItem)
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.redo fs) model
+    let actual = seqResult (Action.redo fs) model
 
     let expected =
         model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
@@ -216,7 +217,7 @@ let ``Rename calls file sys move and openPath and sets status`` diffCaseOnly =
     let items = fs.ItemsIn "/c"
     let model = { testModel with Directory = items; Items = items; Cursor = 1 }
 
-    let actual = MainLogic.Action.rename fs item renamed.Name model
+    let actual = Action.rename fs item renamed.Name model
                  |> assertOk
 
     let expectedItems = [
@@ -259,7 +260,7 @@ let ``Rename in search result calls file sys move and sets status`` () =
             SearchCurrent = Some { Search.Default with Terms = "file" }
         }
 
-    let actual = MainLogic.Action.rename fs item renamed.Name model
+    let actual = Action.rename fs item renamed.Name model
                  |> assertOk
 
     let expectedItems = [
@@ -293,7 +294,7 @@ let ``Rename to path with existing item returns error`` existingHidden =
     let model = testModel
     let expectedFs = fs.Items
 
-    let actual = MainLogic.Action.rename fs item newName model
+    let actual = Action.rename fs item newName model
 
     actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", File, newName, existingHidden)))
     fs.Items |> shouldEqual expectedFs
@@ -309,7 +310,7 @@ let ``Rename handles error by returning error``() =
     fs.AddExn ex ("/c/" + newName)
     let model = testModel
 
-    let actual = MainLogic.Action.rename fs item newName model
+    let actual = Action.rename fs item newName model
 
     let expectedAction = RenamedItem (item, newName)
     actual |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
@@ -332,7 +333,7 @@ let ``Undo rename item names item back to original`` curPathDifferent diffCaseOn
     let action = RenamedItem (previous, current.Name)
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedItems = [
         createFile "/c/another"
@@ -366,7 +367,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedError = CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
     let expected = model.WithError expectedError |> popUndo
@@ -385,7 +386,7 @@ let ``Undo rename item handles move error by returning error``() =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (MainLogic.Action.undo fs) model
+    let actual = seqResult (Action.undo fs) model
 
     let expectedError = ItemActionError (RenamedItem (current, previous.Name), model.PathFormat, ex)
     let expected = model.WithError expectedError |> popUndo
@@ -406,7 +407,7 @@ let renameTextSelection inputPosition itemType fileName =
     let inputMode = Input (Rename inputPosition)
     let fs = FakeFileSystem []
 
-    let actual = MainLogic.Action.startInput fs inputMode model
+    let actual = Action.startInput fs inputMode model
                  |> assertOk
 
     actual.InputMode |> shouldEqual (Some inputMode)

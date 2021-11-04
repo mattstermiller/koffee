@@ -21,15 +21,15 @@
     <Compile Include="HistoryTests.fs" />
     <Compile Include="MainModelTests.fs" />
     <Compile Include="MainViewTests.fs" />
+    <Compile Include="MainNavTests_BackForward.fs" />
+    <Compile Include="MainNavTests_OpenPath.fs" />
+    <Compile Include="MainNavTests_SortHistory.fs" />
+    <Compile Include="MainNavTests_SuggestPaths.fs" />
+    <Compile Include="MainSearchTests_Find.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
-    <Compile Include="MainLogicTests_OpenPath.fs" />
-    <Compile Include="MainLogicTests_SuggestPaths.fs" />
-    <Compile Include="MainLogicTests_BackForward.fs" />
-    <Compile Include="MainLogicTests_Find.fs" />
-    <Compile Include="MainLogicTests_CreateRename.fs" />
-    <Compile Include="MainLogicTests_Delete.fs" />
-    <Compile Include="MainLogicTests_MoveCopy.fs" />
-    <Compile Include="NavTests_History.fs" />
+    <Compile Include="MainActionTests_CreateRename.fs" />
+    <Compile Include="MainActionTests_Delete.fs" />
+    <Compile Include="MainActionTests_MoveCopy.fs" />
     <Compile Include="OsUtilityTests.fs" />
   </ItemGroup>
   <ItemGroup>

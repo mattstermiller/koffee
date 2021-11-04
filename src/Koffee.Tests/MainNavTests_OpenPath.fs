@@ -1,7 +1,8 @@
-module Koffee.MainLogicTests_OpenPath
+module Koffee.MainNavTests_OpenPath
 
 open NUnit.Framework
 open Acadian.FSharp
+open Koffee.Main
 
 type PathCase =
     | Same
@@ -44,7 +45,7 @@ let test case =
         | Different -> "/c/different"
         | Inaccessible -> "/c/inaccessible"
         |> createPath
-    let res = MainLogic.Nav.openPath fs path case.Select model
+    let res = Nav.openPath fs path case.Select model
 
     let expected =
         match case.GetPath with

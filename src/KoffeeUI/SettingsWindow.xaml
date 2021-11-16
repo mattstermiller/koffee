@@ -26,9 +26,9 @@
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
-    <Label Name="LabelStartPath" x:FieldModifier="public" Content="Startup path:"/>
+    <Label Name="LabelStartPath" x:FieldModifier="public" Content="Startup path:" Grid.Column="0" Grid.Row="0"/>
     <RadioButton Name="StartPathPrevious" x:FieldModifier="public" GroupName="Start Path"
-                 Content="Restore previous path" VerticalAlignment="Center" Grid.Column="1"/>
+                 Content="Restore previous path" VerticalAlignment="Center" Grid.Column="1" Grid.Row="0"/>
     <DockPanel Grid.Column="1" Grid.Row="1">
       <RadioButton Name="StartPathDefault" x:FieldModifier="public" GroupName="Start Path" Content="Default:"
                    VerticalAlignment="Center" DockPanel.Dock="Left"/>
@@ -47,14 +47,21 @@
     <TextBox Name="CommandlinePath" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
              Grid.Row="3"/>
 
-
-    <StackPanel Orientation="Horizontal" Grid.Column="3">
-      <Label Name="LabelPathFormat" x:FieldModifier="public" Content="Path format:" VerticalAlignment="Center"/>
+    <Label Name="LabelPathFormat" x:FieldModifier="public" Content="Path format:" VerticalAlignment="Center"
+           Grid.Column="0" Grid.Row="4"/>
+    <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="4">
       <RadioButton Name="PathFormatWindows" x:FieldModifier="public" Content="Windows" GroupName="PathFormat"
                    VerticalAlignment="Center"/>
       <RadioButton Name="PathFormatUnix" x:FieldModifier="public" Content="Unix" GroupName="PathFormat"
                    VerticalAlignment="Center" Margin="10,0,10,0"/>
     </StackPanel>
+
+
+    <TextBlock Grid.Column="3" Grid.Row="0">
+      <Hyperlink Name="ReadmeLink" NavigateUri="https://github.com/mattstermiller/koffee#using-koffee">
+        How To Use Koffee
+      </Hyperlink>
+    </TextBlock>
 
     <CheckBox Name="ShowFullPathInTitleBar" x:FieldModifier="public" Content="Show full path in title bar"
               VerticalAlignment="Center" Grid.Column="3" Grid.Row="1"/>

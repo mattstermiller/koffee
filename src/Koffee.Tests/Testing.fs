@@ -9,36 +9,72 @@ open KellermanSoftware.CompareNetObjects
 open KellermanSoftware.CompareNetObjects.TypeComparers
 open Acadian.FSharp
 open Koffee
+open Microsoft.FSharp.Reflection
 
-type StructuralEqualityComparer() =
+let private isGeneric (genericT: Type) (t: Type) =
+    t = null || t.IsGenericType && t.GetGenericTypeDefinition() = genericT
+
+[<AbstractClass>]
+type EqualityComparer() =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
-
-    override this.IsTypeMatch(type1, type2) =
-        let isGeneric (genericT: Type) (t: Type) =
-            t = null || t.IsGenericType && t.GetGenericTypeDefinition() = genericT
-        let areBoth t = isGeneric t type1 && isGeneric t type2
-        [typedefof<list<_>>; typedefof<option<_>>]
-            |> List.exists areBoth
 
     override this.CompareType parms =
         if parms.Object1 <> parms.Object2 then
             this.AddDifference parms
+
+type OptionComparer() =
+    inherit EqualityComparer()
+
+    let isOption = isGeneric typedefof<option<_>>
+
+    override _.IsTypeMatch(type1, type2) =
+        List.forall isOption [type1; type2]
+
+type SimpleUnionComparer() =
+    inherit EqualityComparer()
+
+    let isSimpleUnion (t: Type) =
+        FSharpType.IsUnion t &&
+            FSharpType.GetUnionCases(t) |> Array.forall (fun case -> case.GetFields().Length = 0)
+
+    override _.IsTypeMatch(type1, type2) =
+        List.forall isSimpleUnion [type1; type2]
+
+type FSharpListComparer() as this =
+    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
+
+    let listComparer = ListComparer(this.RootComparer)
+
+    let isList = isGeneric typedefof<list<_>>
+
+    let toList source =
+        let genArg = source.GetType().GetGenericArguments().[0]
+        typeof<Linq.Enumerable>
+            .GetMethod("ToList")
+            .MakeGenericMethod(genArg)
+            .Invoke(null, [|source|])
+
+    override _.IsTypeMatch(type1, type2) =
+        List.forall isList [type1; type2]
+
+    override _.CompareType parms =
+        parms.Object1 <- toList parms.Object1
+        parms.Object2 <- toList parms.Object2
+        listComparer.CompareType parms
 
 type PathComparer() =
-    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
+    inherit EqualityComparer()
 
-    override this.IsTypeMatch(type1, type2) =
-        type1 = typeof<Path> && type2 = typeof<Path>
-
-    override this.CompareType parms =
-        if parms.Object1 <> parms.Object2 then
-            this.AddDifference parms
+    override _.IsTypeMatch(type1, type2) =
+        List.forall ((=) typeof<Path>) [type1; type2]
 
 let getNonFieldNames<'a> () =
     let t = typeof<'a>
     let props = t.GetProperties() |> Array.map (fun p -> p.Name)
     let fields = Reflection.FSharpType.GetRecordFields(typeof<'a>) |> Array.map (fun p -> p.Name)
-    props |> Array.except fields
+    props
+    |> Array.except fields
+    |> Array.map ((+) (t.Name + "."))
 
 let ignoreMembers memberNames (comparer: CompareLogic) =
     comparer.Config.MembersToIgnore.AddRange memberNames
@@ -46,8 +82,18 @@ let ignoreMembers memberNames (comparer: CompareLogic) =
 let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     let comparer = CompareLogic()
     comparer.Config.MaxDifferences <- 10
-    comparer.Config.CustomComparers.AddRange([StructuralEqualityComparer(); PathComparer()])
-    comparer.Config.MembersToIgnore.AddRange((getNonFieldNames<MainModel>() |> Seq.toList) @ ["History"; "StatusHistory"])
+    comparer.Config.CustomComparers.AddRange([
+        OptionComparer()
+        SimpleUnionComparer()
+        FSharpListComparer()
+        PathComparer()
+    ])
+    comparer.Config.MembersToIgnore.AddRange(seq {
+        yield! getNonFieldNames<Item>()
+        yield! getNonFieldNames<MainModel>()
+        "MainModel.History"
+        "MainModel.StatusHistory"
+    })
     comparerSetup comparer
     let result = comparer.Compare(expected, actual)
     Assert.IsTrue(result.AreEqual, result.DifferencesString)

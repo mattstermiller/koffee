@@ -73,7 +73,7 @@ let ``Path suggestions return expected results`` input expected =
 let ``Path suggestions return error`` () =
     let ex = exn ""
     let fs = FakeFileSystem []
-    fs.AddExn ex "/c"
+    fs.AddExn false ex "/c"
     let model = { testModel with LocationInput = "/c/" }
 
     let actual = suggestPaths fs model

@@ -69,7 +69,7 @@ let ``Create handles error by returning error``() =
         file "another"
     ]
     let createItem = createFile "/c/file"
-    fs.AddExnPath ex createItem.Path
+    fs.AddExnPath false ex createItem.Path
     let model = testModel
     let expectedFs = fs.Items
 
@@ -147,7 +147,7 @@ let ``Undo create handles delete error by returning error`` () =
         file "file"
     ]
     let createdItem = fs.Item "/c/file"
-    fs.AddExnPath ex createdItem.Path
+    fs.AddExnPath false ex createdItem.Path
     let action = CreatedItem createdItem
     let model = testModel |> pushUndo action
 
@@ -192,7 +192,7 @@ let ``Redo create handles error by returning error``() =
         file "another"
     ]
     let createItem = createFile "/c/file"
-    fs.AddExnPath ex createItem.Path
+    fs.AddExnPath false ex createItem.Path
     let model = testModel |> pushRedo (CreatedItem createItem)
     let expectedFs = fs.Items
 
@@ -309,7 +309,7 @@ let ``Rename handles error by returning error``() =
     ]
     let item = fs.Item "/c/file"
     let newName = "renamed"
-    fs.AddExn ex ("/c/" + newName)
+    fs.AddExn false ex ("/c/" + newName)
     let model = testModel
 
     let actual = Action.rename fs item newName model
@@ -383,7 +383,7 @@ let ``Undo rename item handles move error by returning error``() =
     ]
     let previous = createFile "/c/file"
     let current = fs.Item "/c/renamed"
-    fs.AddExnPath ex previous.Path
+    fs.AddExnPath false ex previous.Path
     let action = RenamedItem (previous, current.Name)
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items

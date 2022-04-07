@@ -168,8 +168,8 @@ type FakeFileSystem with
     member this.Item path =
         createPath path |> this.Item
 
-    member this.AddExn e path =
-        createPath path |> this.AddExnPath e
+    member this.AddExn writeOnly e path =
+        createPath path |> this.AddExnPath writeOnly e
 
     member this.ItemsShouldEqual expectedTree =
         let rec nestLevel level (path: Path) =

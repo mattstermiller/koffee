@@ -15,7 +15,7 @@ let createFs () =
 [<Test>]
 let ``GetItem returns items`` () =
     let fs = createFs ()
-    fs.AddExn (exn "don't throw") "/c/readme.md"
+    fs.AddExn false (exn "don't throw") "/c/readme.md"
     let file = createFile "/c/programs/koffee.exe"
     fs.GetItem file.Path |> shouldEqual (Ok (Some file))
     let folder = createFolder "/c/programs"
@@ -25,8 +25,17 @@ let ``GetItem returns items`` () =
 let ``GetItem on exn path throws exn`` () =
     let fs = createFs ()
     let path = createPath "/c/programs"
-    fs.AddExnPath ex path
+    fs.AddExnPath false ex path
     fs.GetItem path |> shouldEqual (Error ex)
+
+[<Test>]
+let ``GetItem on path with writeOnly exn and other exn throws once`` () =
+    let fs = createFs ()
+    let path = createPath "/c/programs"
+    fs.AddExnPath true (exn "write error") path
+    fs.AddExnPath false ex path
+    [fs.GetItem path; fs.GetItem path]
+    |> shouldEqual [Error ex; Ok (Some (createFolder "/c/programs"))]
 
 [<Test>]
 let ``GetItems on folder returns items`` () =
@@ -40,7 +49,7 @@ let ``GetItems on folder returns items`` () =
 let ``GetItems on exn path throws exn`` () =
     let fs = createFs ()
     let path = createPath "/c/programs"
-    fs.AddExnPath ex path
+    fs.AddExnPath false ex path
     fs.GetItems path |> shouldEqual (Error ex)
 
 [<Test>]
@@ -173,7 +182,7 @@ let ``Move folder where dest exists merges contents`` () =
 let ``Create exn path does not create`` () =
     let fs = createFs ()
     let path = createPath "/c/new"
-    fs.AddExnPath ex path
+    fs.AddExnPath false ex path
     fs.Create File path |> shouldEqual (Error ex)
     fs.Items |> shouldEqual (createFs().Items)
 
@@ -183,6 +192,41 @@ let ``Move exn path does not move`` (errorDest: bool) =
     let fs = createFs ()
     let src = createPath "/c/readme.md"
     let dest = createPath "/c/programs/docs.md"
-    fs.AddExnPath ex (if errorDest then dest else src)
+    fs.AddExnPath false ex (if errorDest then dest else src)
     fs.Move src dest |> shouldEqual (Error ex)
     fs.Items |> shouldEqual (createFs().Items)
+
+[<Test>]
+let ``Delete file removes it`` () =
+    let fs = createFs()
+    fs.Delete (createPath "/c/programs/notepad.exe") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        folder "programs" [
+            file "koffee.exe"
+        ]
+        file "readme.md"
+    ]
+
+[<Test>]
+let ``Delete folder removes it and contents`` () =
+    let fs = createFs()
+    fs.Delete (createPath "/c/programs") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [file "readme.md"]
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Delete exn path throws once`` writeOnlyExn =
+    let fs = createFs()
+    let path = createPath "/c/readme.md"
+    fs.AddExnPath writeOnlyExn ex path
+    [fs.Delete path; fs.Delete path] |> shouldEqual [Error ex; Ok ()]
+
+[<Test>]
+let ``GetItem then Delete with writeOnly exn then read exn throws read exn then writeOnly exn`` () =
+    let fs = createFs()
+    let path = createPath "/c/readme.md"
+    let readExn = exn "read error"
+    let writeExn = exn "write error"
+    fs.AddExnPath true writeExn path
+    fs.AddExnPath false readExn path
+    [fs.GetItem path |> Result.map ignore; fs.Delete path] |> shouldEqual [Error readExn; Error writeExn]

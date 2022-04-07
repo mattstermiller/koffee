@@ -71,7 +71,7 @@ let ``Put handles missing register item`` () =
 let ``Put handles error reading register item`` () =
     let src = createFile "/c/file"
     let fs = FakeFileSystem []
-    fs.AddExn ex (string src.Path)
+    fs.AddExnPath false ex src.Path
     let model = testModel |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (Action.put fs progress false) model
@@ -87,15 +87,15 @@ let ``Put item handles file system errors`` action =
         ]
     ]
     let src = fs.Item "/c/folder/file"
-    let destPath = "/c/file" + (if action = Shortcut then ".lnk" else "")
-    fs.AddExn ex destPath
+    let destPath = "/c/file" + (if action = Shortcut then ".lnk" else "") |> createPath
+    fs.AddExnPath true ex destPath
     let item = Some (src.Path, src.Type, action)
     let model = testModel |> withReg item
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.put fs progress false) model
 
-    let expectedAction = PutItems (action, src, createPath destPath)
+    let expectedAction = PutItems (action, src, destPath)
     let expected = model.WithError (ItemActionError (expectedAction, model.PathFormat, ex))
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -296,7 +296,7 @@ let ``Undo move item handles move error by returning error``() =
     ]
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
-    fs.AddExn ex "/c/file"
+    fs.AddExn false ex "/c/file"
     let action = PutItems (Move, original, moved.Path)
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
@@ -402,8 +402,8 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
     ]
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"
-    fs.AddExnPath (exn "GetItem error") copied.Path
-    fs.AddExnPath ex copied.Path
+    fs.AddExnPath false (exn "GetItem error") copied.Path
+    fs.AddExnPath false ex copied.Path
     let model = testModel
     let expectedFs = fs.Items
 
@@ -490,7 +490,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
         file "file.lnk"
     ]
     let shortcut = fs.Item "/c/file.lnk"
-    fs.AddExnPath ex shortcut.Path
+    fs.AddExnPath false ex shortcut.Path
     let model = testModel
 
     let actual = Action.undoShortcut fs shortcut.Path model

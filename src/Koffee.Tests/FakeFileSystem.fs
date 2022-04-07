@@ -42,7 +42,7 @@ type FakeFileSystem(treeItems) =
     let mutable items = treeItems |> TreeItem.build
     let shortcuts = Dictionary<Path, string>()
     let mutable recycleBin = []
-    let exnPaths = Dictionary<Path, exn list>()
+    let exnPaths = Dictionary<Path, (exn * bool) list>()
     let mutable callsToGetItems = 0
 
     let remove path =
@@ -57,14 +57,20 @@ type FakeFileSystem(treeItems) =
         else
             Ok ()
 
-    let checkExn path =
+    let checkExn isWrite path =
         match exnPaths.TryGetValue path with
-        | true, e::exns ->
-            if exns |> List.isEmpty then
+        | true, exns ->
+            let rec popWhere pred skipped lst =
+                match lst with
+                | [] -> (None, skipped)
+                | x :: rest when pred x -> (Some x, skipped @ rest)
+                | x :: rest -> popWhere pred (skipped @ [x]) rest
+            let (exnItem, rest) = popWhere (fun (_, writeOnly) -> isWrite || not writeOnly) [] exns
+            if rest |> List.isEmpty then
                 exnPaths.Remove path |> ignore
             else
-                exnPaths.[path] <- exns
-            Error e
+                exnPaths.[path] <- rest
+            exnItem |> Option.map (fst >> Error) |? Ok ()
         | _ ->
             Ok ()
 
@@ -78,12 +84,14 @@ type FakeFileSystem(treeItems) =
 
     member this.RecycleBin = recycleBin
 
-    member this.AddExnPath e path =
+    member this.AddExnPath writeOnly e path =
+        let exnItem = (e, writeOnly)
         match exnPaths.TryGetValue path with
         | true, exns ->
-            exnPaths.[path] <- exns @ [e]
+            exnPaths.[path] <- exns @ [exnItem]
         | _ ->
-            exnPaths.Add(path, [e])
+            exnPaths.Add(path, [exnItem])
+
 
     member this.CallsToGetItems = callsToGetItems
 
@@ -105,7 +113,7 @@ type FakeFileSystem(treeItems) =
         member this.Delete path = this.Delete path
 
     member this.GetItem path = result {
-        do! checkExn path
+        do! checkExn false path
         return items |> List.tryFind (fun i -> i.Path = path)
     }
 
@@ -119,7 +127,7 @@ type FakeFileSystem(treeItems) =
         if path = Path.Root then
             return [Item.Basic (Path.Parse "C:").Value "C:" Drive]
         else
-            do! checkExn path
+            do! checkExn false path
             return this.Items |> List.filter (fun i -> i.Path.Parent = path)
     }
 
@@ -136,7 +144,7 @@ type FakeFileSystem(treeItems) =
         | _ -> false
 
     member this.GetShortcutTarget path = result {
-        do! checkExn path
+        do! checkExn false path
         match shortcuts.TryGetValue path with
         | true, p -> return p
         | _ -> return! Error notAShortcut
@@ -144,7 +152,7 @@ type FakeFileSystem(treeItems) =
 
 
     member this.Create itemType path = result {
-        do! checkExn path
+        do! checkExn true path
         do! checkPathNotUsed path
         items <- Item.Basic path path.Name itemType :: items
     }
@@ -167,7 +175,7 @@ type FakeFileSystem(treeItems) =
 
     member this.Copy fromPath toPath = result {
         let! item = this.AssertItem fromPath
-        do! checkExn toPath
+        do! checkExn true toPath
         let! parent = this.GetItem toPath.Parent
         do!
             match parent with
@@ -196,5 +204,6 @@ type FakeFileSystem(treeItems) =
 
     member this.Delete path = result {
         let! _ = this.AssertItem path
+        do! checkExn true path
         remove path
     }

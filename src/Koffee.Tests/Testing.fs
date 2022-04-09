@@ -96,7 +96,24 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     })
     comparerSetup comparer
     let result = comparer.Compare(expected, actual)
-    Assert.IsTrue(result.AreEqual, result.DifferencesString)
+    if not result.AreEqual then
+        let comparedType = expected.GetType().Name
+        let diffCount = result.Differences.Count
+        let diffCountDescr =
+            string diffCount +
+                (if diffCount = comparer.Config.MaxDifferences then " or more" else "") +
+                " difference" +
+                if diffCount <> 1 then "s" else ""
+        let diffs =
+            result.Differences
+            |> Seq.map (fun diff ->
+                let childProp = if String.isNotEmpty diff.ChildPropertyName then "." + diff.ChildPropertyName else ""
+                sprintf "Property: %O%O\n- Expected: %O\n- Actual: %O"
+                    diff.PropertyName childProp diff.Object1Value diff.Object2Value
+            )
+            |> String.concat "\n"
+        failwithf "%s has %s from expected value\n%s\n_____"
+            comparedType diffCountDescr diffs
 
 let assertAreEqual expected actual =
     assertAreEqualWith expected actual ignore
@@ -149,8 +166,19 @@ type FakeFileSystem with
     member this.AddExn e path =
         createPath path |> this.AddExnPath e
 
-    member this.ItemsShouldEqual items =
-        this.Items |> shouldEqual (items |> TreeItem.build |> sortByPath)
+    member this.ItemsShouldEqual expectedTree =
+        let rec nestLevel level (path: Path) =
+            if path.Parent = Path.Root then level else nestLevel (level+1) path.Parent
+        let treeStr (items: Item list) =
+            items
+            |> List.map (fun item ->
+                String(' ', 2 * nestLevel 0 item.Path) + item.Name + (if item.Type = Folder then "/" else "")
+            )
+            |> String.concat "\n"
+            |> fun str -> "\n" + str + "\n"
+        let expectedItems = expectedTree |> TreeItem.build |> sortByPath
+        this.Items |> treeStr |> shouldEqual (expectedItems |> treeStr)
+        this.Items |> assertAreEqual expectedItems
 
 let withLocation path (model: MainModel) = model.WithLocation (createPath path)
 let withBackIf condition (path, cursor) model =

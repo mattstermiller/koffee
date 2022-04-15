@@ -83,7 +83,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! Nav.openPath fs path SelectNone model
+                yield! Nav.openPath fs path SelectNone (model.ClearStatus())
             | None ->
                 yield model.WithStatus (MainStatus.noBookmark char)
         | SetBookmark ->

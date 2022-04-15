@@ -136,8 +136,8 @@ let clearSearch (model: MainModel) =
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.SearchCurrent with
     | Some current ->
-        let selectType = SelectItem (model.SelectedItem, false)
-        let! newModel = model |> Nav.openPath fsReader model.Location selectType
+        let selectItem = SelectItem (model.SelectedItem, false)
+        let! newModel = model |> Nav.openPath fsReader model.Location selectItem
         let searchModels =
             { newModel with
                 InputText = current.Terms
@@ -145,18 +145,13 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
                 SearchHistoryIndex = model.SearchHistoryIndex
             }
             |> search fsReader subDirResults progress
-            |> AsyncSeq.map Ok
             |> AsyncSeq.cache
-        yield! searchModels
+        yield! searchModels |> AsyncSeq.map Ok
         // when done searching, re-sort
         match! searchModels |> AsyncSeq.tryLast with
-        | Some (Ok newModel) ->
+        | Some newModel ->
             let items = newModel.Items |> (newModel.Sort |> Option.map SortField.SortByTypeThen |? id)
-            yield!
-                { newModel with Items = items }
-                |> Nav.select selectType
-                |> Ok
-        | Some error -> yield! error
+            yield { newModel with Items = items } |> Nav.select selectItem
         | None -> ()
     | None ->
         yield! Nav.refresh fsReader model

@@ -42,21 +42,20 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = resu
         { model.WithPushedLocation path with
             Directory = directory
             History = model.History.WithPathAndNetHost path
-            Status = None
             Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
         }
         |> clearSearchProps
         |> listDirectory select
 }
 
-let openUserPath (fsReader: IFileSystemReader) pathStr model =
+let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     match Path.Parse pathStr with
     | Some path ->
         match fsReader.GetItem path with
         | Ok (Some item) when item.Type = File ->
-            openPath fsReader path.Parent (SelectItem (item, true)) model
+            openPath fsReader path.Parent (SelectItem (item, true)) (model.ClearStatus())
         | Ok _ ->
-            openPath fsReader path SelectNone model
+            openPath fsReader path SelectNone (model.ClearStatus())
         | Error e -> Error <| ActionError ("open path", e)
     | None -> Error <| InvalidPath pathStr
 
@@ -71,7 +70,7 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
     let item = model.SelectedItem
     match item.Type with
     | Folder | Drive | NetHost | NetShare ->
-        openPath fsReader item.Path SelectNone model
+        openPath fsReader item.Path SelectNone (model.ClearStatus())
     | File ->
         let openError e = e |> actionError (sprintf "open '%s'" item.Name)
         let shortcutFolder = result {
@@ -93,7 +92,7 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
         shortcutFolder
         |> Result.bind (function
             | Some shortcutFolder ->
-                openPath fsReader shortcutFolder SelectNone model
+                openPath fsReader shortcutFolder SelectNone (model.ClearStatus())
             | None ->
                 os.OpenFile item.Path |> openError
                 |> Result.map (fun () ->
@@ -108,21 +107,16 @@ let openParent fsReader (model: MainModel) =
         if model.SelectedItem.Type = Empty then
             Ok (model |> clearSearchProps |> listDirectory SelectNone)
         else
-            openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false)) model
+            openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false)) (model.ClearStatus())
     else
         let rec getParent n (path: Path) (currentName: string) =
             if n < 1 || path = Path.Root then (path, currentName)
             else getParent (n-1) path.Parent path.Name
         let path, selectName = getParent model.RepeatCount model.Location model.Location.Name
-        openPath fsReader path (SelectName selectName) model
+        openPath fsReader path (SelectName selectName) (model.ClearStatus())
 
 let refresh fsReader (model: MainModel) =
     openPath fsReader model.Location (SelectItem (model.SelectedItem, false)) model
-    |> Result.map (fun newModel ->
-        if model.Status.IsSome then
-            { newModel with Status = model.Status }
-        else newModel
-    )
 
 let rec private shiftStacks current n fromStack toStack =
     match fromStack with
@@ -137,7 +131,7 @@ let back fsReader model = result {
     else
         let (path, cursor), fromStack, toStack =
             shiftStacks (model.Location, model.Cursor) model.RepeatCount model.BackStack model.ForwardStack
-        let! model = openPath fsReader path (SelectIndex cursor) model
+        let! model = openPath fsReader path (SelectIndex cursor) (model.ClearStatus())
         return { model with BackStack = fromStack; ForwardStack = toStack }
 }
 
@@ -147,7 +141,7 @@ let forward fsReader model = result {
     else
         let (path, cursor), fromStack, toStack =
             shiftStacks (model.Location, model.Cursor) model.RepeatCount model.ForwardStack model.BackStack
-        let! model = openPath fsReader path (SelectIndex cursor) model
+        let! model = openPath fsReader path (SelectIndex cursor) (model.ClearStatus())
         return { model with BackStack = toStack; ForwardStack = fromStack }
 }
 

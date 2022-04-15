@@ -449,6 +449,9 @@ type MainModel = {
         | Some s -> this.WithStatus s
         | None -> this
 
+    member this.ClearStatus () =
+        { this with Status = None }
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows

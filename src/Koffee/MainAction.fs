@@ -65,14 +65,15 @@ let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = resu
 }
 
 let create (fs: IFileSystem) itemType name model = asyncSeqResult {
-    let createPath = model.Location.Join name
-    let action = CreatedItem (Item.Basic createPath name itemType)
-    let! existing = fs.GetItem createPath |> itemActionError action model.PathFormat
+    let itemPath = model.Location.Join name
+    let action = CreatedItem (Item.Basic itemPath name itemType)
+    let! existing = fs.GetItem itemPath |> itemActionError action model.PathFormat
     match existing with
     | None ->
-        do! fs.Create itemType createPath |> itemActionError action model.PathFormat
-        let! model = Nav.openPath fs model.Location (SelectName name) model
-        yield model |> performedAction (CreatedItem model.SelectedItem)
+        do! fs.Create itemType itemPath |> itemActionError action model.PathFormat
+        let model = model |> performedAction action
+        yield model
+        yield! Nav.openPath fs model.Location (SelectName name) model
     | Some existing ->
         yield! Nav.openPath fs model.Location (SelectItem (existing, true)) model
         return CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
@@ -187,8 +188,9 @@ let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
         yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
         let! res = runAsync (fun () -> fileSysAction item.Path newPath)
         do! res |> itemActionError action model.PathFormat
-        let! model = Nav.openPath fs model.Location (SelectName newName) model
-        yield model |> performedAction action
+        let model = model |> performedAction action
+        yield model
+        yield! Nav.openPath fs model.Location (SelectName newName) model
 }
 
 let put (fs: IFileSystem) overwrite (model: MainModel) = asyncSeqResult {

@@ -243,6 +243,42 @@ module MainView =
                 window.RegisterPanel.Visible <- text.IsSome
             )
 
+            // update UI for status
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)
+                .toFunc(fun (status, keyCombo, repeatCommand) ->
+                let statusText, errorText =
+                    if keyCombo |> Seq.isNotEmpty then
+                        let msg =
+                            keyCombo
+                            |> Seq.map KeyBinding.keyDescription
+                            |> String.concat ""
+                            |> sprintf "Pressed %s, waiting for another key..."
+                        (msg, "")
+                    elif repeatCommand.IsSome then
+                        let plural = if repeatCommand.Value <> 1 then "s" else ""
+                        (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
+                    else
+                        match status with
+                        | Some (Message msg)
+                        | Some (Busy msg) -> (msg, "")
+                        | Some (ErrorMessage msg) -> ("", msg)
+                        | None -> ("", "")
+                window.StatusText.Text <- statusText
+                window.StatusText.Collapsed <- statusText |> String.isEmpty
+                window.ErrorText.Text <- errorText
+                window.ErrorText.Collapsed <- errorText |> String.isEmpty
+                let isBusy =
+                    match status with
+                    | Some (Busy _) -> true
+                    | _ -> false
+                let wasBusy = not window.ItemGrid.IsEnabled
+                window.PathBox.IsEnabled <- not isBusy
+                window.ItemGrid.IsEnabled <- not isBusy
+                window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
+                if wasBusy && not isBusy then
+                    window.ItemGrid.Focus() |> ignore
+            )
+
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
@@ -364,42 +400,6 @@ module MainView =
                     | None ->
                         window.HistoryPanel.Visible <- false
                 )
-
-            // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)
-                .toFunc(fun (status, keyCombo, repeatCommand) ->
-                let statusText, errorText =
-                    if keyCombo |> Seq.isNotEmpty then
-                        let msg =
-                            keyCombo
-                            |> Seq.map KeyBinding.keyDescription
-                            |> String.concat ""
-                            |> sprintf "Pressed %s, waiting for another key..."
-                        (msg, "")
-                    elif repeatCommand.IsSome then
-                        let plural = if repeatCommand.Value <> 1 then "s" else ""
-                        (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
-                    else
-                        match status with
-                        | Some (Message msg)
-                        | Some (Busy msg) -> (msg, "")
-                        | Some (ErrorMessage msg) -> ("", msg)
-                        | None -> ("", "")
-                window.StatusText.Text <- statusText
-                window.StatusText.Collapsed <- statusText |> String.isEmpty
-                window.ErrorText.Text <- errorText
-                window.ErrorText.Collapsed <- errorText |> String.isEmpty
-                let isBusy =
-                    match status with
-                    | Some (Busy _) -> true
-                    | _ -> false
-                let wasBusy = not window.ItemGrid.IsEnabled
-                window.PathBox.IsEnabled <- not isBusy
-                window.ItemGrid.IsEnabled <- not isBusy
-                window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
-                if wasBusy && not isBusy then
-                    window.ItemGrid.Focus() |> ignore
-            )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
                 if int window.Left <> left then window.Left <- float left

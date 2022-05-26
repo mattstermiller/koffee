@@ -68,6 +68,24 @@ type PathComparer() =
     override _.IsTypeMatch(type1, type2) =
         List.forall ((=) typeof<Path>) [type1; type2]
 
+type ItemComparer() as this =
+    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
+
+    let comparer = StructComparer(this.RootComparer)
+
+    let toItem o = o |> Option.ofObj |> Option.map unbox<Item>
+
+    override _.IsTypeMatch(type1, type2) =
+        [type1; type2] |> List.forall ((=) typeof<Item>)
+
+    override _.CompareType parms =
+        // if path is different, add one difference, otherwise allow rest of properties to be compared separately
+        match toItem parms.Object1, toItem parms.Object2 with
+        | Some o1, Some o2 when o1.Path <> o2.Path ->
+            this.AddDifference parms
+        | _ ->
+            comparer.CompareType parms
+
 let getNonFieldNames<'a> () =
     let t = typeof<'a>
     let props = t.GetProperties() |> Array.map (fun p -> p.Name)
@@ -87,6 +105,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
         SimpleUnionComparer()
         FSharpListComparer()
         PathComparer()
+        ItemComparer()
     ])
     comparer.Config.MembersToIgnore.AddRange(seq {
         yield! getNonFieldNames<Item>()

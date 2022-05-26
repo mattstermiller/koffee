@@ -152,6 +152,7 @@ let createFolder pathStr =
 let file name = TreeFile (name, id)
 let fileWith transform name = TreeFile (name, transform)
 let folder name items = TreeFolder (name, items)
+let drive name items = TreeDrive (name, items)
 
 let size value (item: Item) = { item with Size = Some value }
 let modifiedOpt opt (item: Item) = { item with Modified = opt }
@@ -171,19 +172,26 @@ type FakeFileSystem with
     member this.AddExn writeOnly e path =
         createPath path |> this.AddExnPath writeOnly e
 
-    member this.ItemsShouldEqual expectedTree =
+    member this.ItemsShouldEqualList expectedItems =
         let rec nestLevel level (path: Path) =
             if path.Parent = Path.Root then level else nestLevel (level+1) path.Parent
         let treeStr (items: Item list) =
             items
             |> List.map (fun item ->
-                String(' ', 2 * nestLevel 0 item.Path) + item.Name + (if item.Type = Folder then "/" else "")
+                let suffix =
+                    match item.Type with
+                    | Folder -> @"\"
+                    | Drive -> @":\"
+                    | _ -> ""
+                String(' ', 2 * nestLevel 0 item.Path) + item.Name + suffix
             )
             |> String.concat "\n"
-            |> fun str -> "\n" + str + "\n"
-        let expectedItems = expectedTree |> TreeItem.build |> sortByPath
+            |> sprintf "\n%s\n"
         this.Items |> treeStr |> shouldEqual (expectedItems |> treeStr)
         this.Items |> assertAreEqual expectedItems
+
+    member this.ItemsShouldEqual expectedTree =
+        expectedTree |> TreeItem.build |> sortByPath |> this.ItemsShouldEqualList
 
 let withLocation path (model: MainModel) = model.WithLocation (createPath path)
 let withBackIf condition (path, cursor) model =

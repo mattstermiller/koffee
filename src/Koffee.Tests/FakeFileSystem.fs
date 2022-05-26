@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System.Collections.Generic
 open Acadian.FSharp
@@ -6,6 +6,7 @@ open Acadian.FSharp
 type TreeItem =
     | TreeFile of string * (Item -> Item)
     | TreeFolder of string * TreeItem list
+    | TreeDrive of char * TreeItem list
 with
     static member build items =
         let rec build (path: Path) items =
@@ -16,9 +17,19 @@ with
                 | TreeFolder (name, items) ->
                     let folder = Item.Basic (path.Join name) name Folder
                     folder :: build folder.Path items
+                | TreeDrive (name, _) when path <> Path.Root ->
+                    failwithf "Drive '%O' is invalid because it is not at root level" name
+                | TreeDrive (name, items) ->
+                    let name = string name |> String.toUpper
+                    let path = "/" + name |> Path.Parse |> Option.get
+                    let drive = Item.Basic path name Drive
+                    drive :: build drive.Path items
             )
-        let c = Path.Parse "/c" |> Option.get
-        Item.Basic c "C" Folder :: build c items
+        if items |> List.forall (function TreeDrive _ -> true | _ -> false) then
+            build Path.Root items
+        else
+            let path = Path.Parse "/c" |> Option.get
+            Item.Basic path "C" Drive :: build path items
 
 module FakeFileSystemErrors =
     let pathDoesNotExist (path: Path) =

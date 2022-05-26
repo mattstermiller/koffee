@@ -13,6 +13,26 @@ let createFs () =
     ]
 
 [<Test>]
+let ``Creating with drives creates correct paths`` () =
+    let fs = FakeFileSystem [
+        drive 'c' [
+            folder "folder" [
+                file "file"
+            ]
+        ]
+        drive 'd' [
+            folder "backup" []
+        ]
+    ]
+    fs.ItemsShouldEqualList [
+        Item.Basic (createPath "/c") "C" Drive
+        createFolder "/c/folder"
+        createFile "/c/folder/file"
+        Item.Basic (createPath "/d") "D" Drive
+        createFolder "/d/backup"
+    ]
+
+[<Test>]
 let ``GetItem returns items`` () =
     let fs = createFs ()
     fs.AddExn false (exn "don't throw") "/c/readme.md"
@@ -184,7 +204,7 @@ let ``Create exn path does not create`` () =
     let path = createPath "/c/new"
     fs.AddExnPath false ex path
     fs.Create File path |> shouldEqual (Error ex)
-    fs.Items |> shouldEqual (createFs().Items)
+    fs.ItemsShouldEqualList (createFs().Items)
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -194,7 +214,7 @@ let ``Move exn path does not move`` (errorDest: bool) =
     let dest = createPath "/c/programs/docs.md"
     fs.AddExnPath false ex (if errorDest then dest else src)
     fs.Move src dest |> shouldEqual (Error ex)
-    fs.Items |> shouldEqual (createFs().Items)
+    fs.ItemsShouldEqualList (createFs().Items)
 
 [<Test>]
 let ``Delete file removes it`` () =

@@ -1,7 +1,8 @@
 # Release Notes
 
-### 0.7.0  Multi-Select (WIP)
+### 0.6.2  (WIP)
 - #114 Adds "How To Use Koffee" link in settings window
+- Simplifies same-folder copy naming
 
 ### 0.6.1  (2021-09-01)
 - #109 Fixes path arg parsing to recognize root and drives, fixes path shown when opening default path via args

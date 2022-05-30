@@ -143,8 +143,8 @@ let registerItem action (model: MainModel) =
 
 let getCopyName name i =
     let (nameNoExt, ext) = Path.SplitName name
-    let number = if i = 0 then "" else sprintf " %i" (i+1)
-    sprintf "%s (copy%s)%s" nameNoExt number ext
+    let number = if i = 0 then "" else string (i+1)
+    sprintf "%s copy%s%s" nameNoExt number ext
 
 let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
     let sameFolder = item.Path.Parent = model.Location

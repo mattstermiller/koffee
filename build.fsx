@@ -52,8 +52,16 @@ let buildParams (p: MSBuildParams) =
         Verbosity = Some Quiet
     }
 
-Target.create "build" (fun _ ->
-    DotNet.build (fun a -> { a with Configuration = DotNet.Release; OutputPath = Some buildDir }) "src/Koffee"
+Target.create "buildApp" (fun _ ->
+    DotNet.build (fun opt -> { opt with Configuration = DotNet.Debug }) "src/Koffee"
+)
+
+Target.create "buildAll" (fun _ ->
+    DotNet.build (fun opt -> { opt with Configuration = DotNet.Debug }) ""
+)
+
+Target.create "buildRelease" (fun _ ->
+    DotNet.build (fun opt -> { opt with Configuration = DotNet.Release; OutputPath = Some buildDir }) "src/Koffee"
 )
 
 Target.create "test" (fun _ ->
@@ -103,7 +111,7 @@ Target.create "package" (fun _ ->
 
     let computeHash file =
         use stream = File.OpenRead(file)
-        use sha = new SHA256Managed()
+        use sha = SHA256.Create()
         let checksum = sha.ComputeHash(stream)
         System.BitConverter.ToString(checksum).Replace("-", "").ToLower()
     let zipHash = computeHash zipFile
@@ -114,7 +122,7 @@ Target.create "package" (fun _ ->
         ("!description!", description)
         ("!zipHash!", zipHash)
     ]
-    let substitute destDir source =
+    let substitute destDir (source: string) =
         let destFile = destDir + Path.GetFileName source
         (File.ReadAllText source, substitutions)
         ||> Seq.fold (fun text (key, sub) -> text.Replace(key, sub))
@@ -162,13 +170,19 @@ Target.create "publish" (fun _ ->
 
 open Fake.Core.TargetOperators
 
-"clean"
-    ==> "version"
-    ==> "build"
-    ==> "test"
+"version" ==> "buildApp"
+"version" ==> "buildAll"
+
+"version"
+    ==> "clean"
+    ==> "buildRelease"
     ==> "package"
     ==> "publish"
-"test"
-    ==> "install"
+"test" ==> "package"
 
-Target.runOrDefault "build"
+"install" <== [
+    "buildRelease"
+    "test"
+]
+
+Target.runOrDefault "buildAll"

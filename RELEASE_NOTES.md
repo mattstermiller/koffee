@@ -3,6 +3,7 @@
 ### 0.6.2  (WIP)
 - #114 Adds "How To Use Koffee" link in settings window
 - Simplifies same-folder copy naming
+- Reorders keybindings in Settings list to hopefully be more logical
 
 ### 0.6.1  (2021-09-01)
 - #109 Fixes path arg parsing to recognize root and drives, fixes path shown when opening default path via args

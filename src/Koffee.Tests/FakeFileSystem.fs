@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System.Collections.Generic
 open Acadian.FSharp
@@ -46,6 +46,9 @@ module FakeFileSystemErrors =
 
     let destPathParentIsNotFolder (path: Path) =
         exn ("Destination path is not a folder: " + string path)
+
+    let destPathIsFolder (path: Path) =
+        exn ("Folder exists at destination path: " + string path)
 
 open FakeFileSystemErrors
 
@@ -180,8 +183,10 @@ type FakeFileSystem(treeItems) =
             let newItem = { item with Path = toPath; Name = toPath.Name }
             items <- items |> List.map (fun i -> if i.Path = fromPath then newItem else i)
         else
+            do! checkExn true fromPath
             do! this.Copy fromPath toPath
-            do! this.Delete fromPath
+            let! _ = this.AssertItem fromPath
+            remove fromPath
     }
 
     member this.Copy fromPath toPath = result {
@@ -190,8 +195,10 @@ type FakeFileSystem(treeItems) =
         let! parent = this.GetItem toPath.Parent
         do!
             match parent with
-            | None -> Error (destPathParentDoesNotExist toPath.Parent)
-            | Some item when item.Type <> Folder -> Error (destPathParentIsNotFolder toPath.Parent)
+            | None ->
+                Error (destPathParentDoesNotExist toPath.Parent)
+            | Some item when not (item.Type |> Seq.containedIn [Folder; Drive]) ->
+                Error (destPathParentIsNotFolder toPath.Parent)
             | _ -> Ok ()
         remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }

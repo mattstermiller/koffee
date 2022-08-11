@@ -237,3 +237,5 @@ let testModel =
     } |> withLocation "/c"
 
 let ex = System.UnauthorizedAccessException() :> exn
+
+let testProgress = Event<float option>()

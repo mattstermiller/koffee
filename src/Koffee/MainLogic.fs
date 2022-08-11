@@ -363,7 +363,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Forward -> SyncResult (Nav.forward fs)
             | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
             | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
-            | Undo -> AsyncResult (Action.undo fs)
+            | Undo -> AsyncResult (Action.undo fs progress)
             | Redo -> AsyncResult (Action.redo fs progress)
             | ShowHistory typ -> Sync (fun m -> { m with ShowHistoryType = if m.ShowHistoryType <> Some typ then Some typ else None })
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
@@ -403,23 +403,19 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
             | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
-        let isBusy model =
-            match model.Status with
-            | Some (Busy _) -> true
-            | _ -> false
         match handler, evt with
         | _, ConfigFileChanged _
         | _, HistoryFileChanged _ -> handler
         | Sync handler, _ ->
             Sync (fun model ->
-                if not (isBusy model) then
+                if not model.IsStatusBusy then
                     handler model
                 else
                     model
             )
         | Async handler, _ ->
             Async (fun model -> asyncSeq {
-                if not (isBusy model) then
+                if not model.IsStatusBusy then
                     yield! handler model
             })
 

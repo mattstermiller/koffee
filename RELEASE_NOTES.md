@@ -2,6 +2,7 @@
 
 ### 0.6.2  (WIP)
 - #114 Adds "How To Use Koffee" link in settings window
+- #70 Changes undo move/copy to undo individual file operations for more correct behavior when folders were merged
 - Simplifies same-folder copy naming
 - Reorders keybindings in Settings list to hopefully be more logical
 

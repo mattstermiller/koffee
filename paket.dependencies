@@ -12,7 +12,7 @@ nuget System.Reactive.Core ~> 3.1
 nuget System.Reactive.Interfaces ~> 3.1
 nuget System.Management
 nuget Microsoft.VisualBasic
-nuget Acadian.FSharp ~> 1.2.1
+nuget Acadian.FSharp ~> 1.2.23
 nuget Newtonsoft.Json
 
 nuget FsUnit ~> 2.3.2

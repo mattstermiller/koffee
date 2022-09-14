@@ -68,6 +68,24 @@ type PathComparer() =
     override _.IsTypeMatch(type1, type2) =
         List.forall ((=) typeof<Path>) [type1; type2]
 
+type ItemComparer() as this =
+    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
+
+    let comparer = StructComparer(this.RootComparer)
+
+    let toItem o = o |> Option.ofObj |> Option.map unbox<Item>
+
+    override _.IsTypeMatch(type1, type2) =
+        [type1; type2] |> List.forall ((=) typeof<Item>)
+
+    override _.CompareType parms =
+        // if path is different, add one difference, otherwise allow rest of properties to be compared separately
+        match toItem parms.Object1, toItem parms.Object2 with
+        | Some o1, Some o2 when o1.Path <> o2.Path ->
+            this.AddDifference parms
+        | _ ->
+            comparer.CompareType parms
+
 let getNonFieldNames<'a> () =
     let t = typeof<'a>
     let props = t.GetProperties() |> Array.map (fun p -> p.Name)
@@ -87,6 +105,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
         SimpleUnionComparer()
         FSharpListComparer()
         PathComparer()
+        ItemComparer()
     ])
     comparer.Config.MembersToIgnore.AddRange(seq {
         yield! getNonFieldNames<Item>()
@@ -118,6 +137,11 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
 let assertAreEqual expected actual =
     assertAreEqualWith expected actual ignore
 
+let assertErrorExn (expected: exn) (actual: Result<_, exn>) =
+    match actual with
+    | Error ex when ex.Message = expected.Message -> ()
+    | _ -> failwithf "Expected error with message \"%s\" but got %A" expected.Message actual
+
 let assertOk res =
     match res with
     | Ok a -> a
@@ -147,6 +171,7 @@ let createFolder pathStr =
 let file name = TreeFile (name, id)
 let fileWith transform name = TreeFile (name, transform)
 let folder name items = TreeFolder (name, items)
+let drive name items = TreeDrive (name, items)
 
 let size value (item: Item) = { item with Size = Some value }
 let modifiedOpt opt (item: Item) = { item with Modified = opt }
@@ -163,22 +188,29 @@ type FakeFileSystem with
     member this.Item path =
         createPath path |> this.Item
 
-    member this.AddExn e path =
-        createPath path |> this.AddExnPath e
+    member this.AddExn writeOnly e path =
+        createPath path |> this.AddExnPath writeOnly e
 
-    member this.ItemsShouldEqual expectedTree =
+    member this.ItemsShouldEqualList expectedItems =
         let rec nestLevel level (path: Path) =
             if path.Parent = Path.Root then level else nestLevel (level+1) path.Parent
         let treeStr (items: Item list) =
             items
             |> List.map (fun item ->
-                String(' ', 2 * nestLevel 0 item.Path) + item.Name + (if item.Type = Folder then "/" else "")
+                let suffix =
+                    match item.Type with
+                    | Folder -> @"\"
+                    | Drive -> @":\"
+                    | _ -> ""
+                String(' ', 2 * nestLevel 0 item.Path) + item.Name + suffix
             )
             |> String.concat "\n"
-            |> fun str -> "\n" + str + "\n"
-        let expectedItems = expectedTree |> TreeItem.build |> sortByPath
+            |> sprintf "\n%s\n"
         this.Items |> treeStr |> shouldEqual (expectedItems |> treeStr)
         this.Items |> assertAreEqual expectedItems
+
+    member this.ItemsShouldEqual expectedTree =
+        expectedTree |> TreeItem.build |> sortByPath |> this.ItemsShouldEqualList
 
 let withLocation path (model: MainModel) = model.WithLocation (createPath path)
 let withBackIf condition (path, cursor) model =
@@ -205,3 +237,5 @@ let testModel =
     } |> withLocation "/c"
 
 let ex = System.UnauthorizedAccessException() :> exn
+
+let testProgress = Event<float option>()

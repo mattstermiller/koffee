@@ -243,6 +243,42 @@ module MainView =
                 window.RegisterPanel.Visible <- text.IsSome
             )
 
+            // update UI for status
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)
+                .toFunc(fun (status, keyCombo, repeatCommand) ->
+                let statusText, errorText =
+                    if keyCombo |> Seq.isNotEmpty then
+                        let msg =
+                            keyCombo
+                            |> Seq.map KeyBinding.keyDescription
+                            |> String.concat ""
+                            |> sprintf "Pressed %s, waiting for another key..."
+                        (msg, "")
+                    elif repeatCommand.IsSome then
+                        let plural = if repeatCommand.Value <> 1 then "s" else ""
+                        (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
+                    else
+                        match status with
+                        | Some (Message msg)
+                        | Some (Busy msg) -> (msg, "")
+                        | Some (ErrorMessage msg) -> ("", msg)
+                        | None -> ("", "")
+                window.StatusText.Text <- statusText
+                window.StatusText.Collapsed <- statusText |> String.isEmpty
+                window.ErrorText.Text <- errorText
+                window.ErrorText.Collapsed <- errorText |> String.isEmpty
+                let isBusy =
+                    match status with
+                    | Some (Busy _) -> true
+                    | _ -> false
+                let wasBusy = not window.ItemGrid.IsEnabled
+                window.PathBox.IsEnabled <- not isBusy
+                window.ItemGrid.IsEnabled <- not isBusy
+                window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
+                if wasBusy && not isBusy then
+                    window.ItemGrid.Focus() |> ignore
+            )
+
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
@@ -364,42 +400,6 @@ module MainView =
                     | None ->
                         window.HistoryPanel.Visible <- false
                 )
-
-            // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)
-                .toFunc(fun (status, keyCombo, repeatCommand) ->
-                let statusText, errorText =
-                    if keyCombo |> Seq.isNotEmpty then
-                        let msg =
-                            keyCombo
-                            |> Seq.map KeyBinding.keyDescription
-                            |> String.concat ""
-                            |> sprintf "Pressed %s, waiting for another key..."
-                        (msg, "")
-                    elif repeatCommand.IsSome then
-                        let plural = if repeatCommand.Value <> 1 then "s" else ""
-                        (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
-                    else
-                        match status with
-                        | Some (Message msg)
-                        | Some (Busy msg) -> (msg, "")
-                        | Some (ErrorMessage msg) -> ("", msg)
-                        | None -> ("", "")
-                window.StatusText.Text <- statusText
-                window.StatusText.Collapsed <- statusText |> String.isEmpty
-                window.ErrorText.Text <- errorText
-                window.ErrorText.Collapsed <- errorText |> String.isEmpty
-                let isBusy =
-                    match status with
-                    | Some (Busy _) -> true
-                    | _ -> false
-                let wasBusy = not window.ItemGrid.IsEnabled
-                window.PathBox.IsEnabled <- not isBusy
-                window.ItemGrid.IsEnabled <- not isBusy
-                window.Cursor <- if isBusy then Cursors.Wait else Cursors.Arrow
-                if wasBusy && not isBusy then
-                    window.ItemGrid.Focus() |> ignore
-            )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
                 if int window.Left <> left then window.Left <- float left
@@ -553,22 +553,28 @@ module MainStatus =
 
     let private runningActionMessage action pathFormat =
         match action with
-        | PutItem (Move, item, newPath) -> Some <| sprintf "Moving %s to \"%s\"..." item.Description (newPath.Format pathFormat)
-        | PutItem (Copy, item, newPath) -> Some <| sprintf "Copying %s to \"%s\"..." item.Description (newPath.Format pathFormat)
-        | DeletedItem (item, false) -> Some <| sprintf "Recycling %s..." item.Description
-        | DeletedItem (item, true) -> Some <| sprintf "Deleting %s..." item.Description
-        | _ -> None
+        | PutItems (Move, intent, _) ->
+            Some <| sprintf "Moving %s..." ([intent] |> PutItem.describeList pathFormat)
+        | PutItems (Copy, intent, _) ->
+            Some <| sprintf "Copying %s..." ([intent] |> PutItem.describeList pathFormat)
+        | DeletedItem (item, false) ->
+            Some <| sprintf "Recycling %s..." item.Description
+        | DeletedItem (item, true) ->
+            Some <| sprintf "Deleting %s..." item.Description
+        | _ ->
+            None
     let runningAction action pathFormat =
         runningActionMessage action pathFormat |> Option.map Busy
-    let checkingIsRecyclable = Busy <| "Calculating size..."
+    let preparingPut (action: PutAction) name = Busy <| sprintf "Preparing to %O %s..." action name
+    let checkingIsRecyclable = Busy "Calculating size..."
     let private actionCompleteMessage action pathFormat =
         match action with
         | CreatedItem item -> sprintf "Created %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItem (Move, item, newPath) -> sprintf "Moved %s to \"%s\"" item.Description (newPath.Format pathFormat)
-        | PutItem (Copy, item, newPath) -> sprintf "Copied %s to \"%s\"" item.Description (newPath.Format pathFormat)
-        | PutItem (Shortcut, item, _) -> sprintf "Created shortcut to %s \"%s\""
-                                                 (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
+        | PutItems (Move, item, _) -> sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
+        | PutItems (Copy, item, _) -> sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
+        | PutItems (Shortcut, {Item = item}, _) ->
+            sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
         | DeletedItem (item, false) -> sprintf "Sent %s to Recycle Bin" item.Description
         | DeletedItem (item, true) -> sprintf "Deleted %s" item.Description
     let actionComplete action pathFormat =
@@ -579,9 +585,7 @@ module MainStatus =
     // undo/redo
     let undoingCreate (item: Item) = Busy <| sprintf "Undoing creation of %s - Deleting..." item.Description
     let undoingMove (item: Item) = Busy <| sprintf "Undoing move of %s..." item.Description
-    let undoingCopy (item: Item) isDeletionPermanent =
-        let undoVerb = if isDeletionPermanent then "Deleting" else "Recycling"
-        Busy <| sprintf "Undoing copy of %s - %s..." item.Description undoVerb
+    let undoingCopy (item: Item) = Busy <| sprintf "Undoing copy of %s..." item.Description
     let undoAction action pathFormat repeatCount =
         let prefix =
             if repeatCount = 1 then
@@ -605,6 +609,8 @@ module MainStatus =
 type MainError =
     | ActionError of actionName: string * exn
     | ItemActionError of ItemAction * PathFormat * exn
+    | PutError of isUndo: bool * PutAction * errorItems: (Item * exn) list * totalItems: int
+    | UndoCopyError of errorItems: (Item * exn) list * totalItems: int
     | InvalidPath of string
     | ShortcutTargetMissing of string
     | YankRegisterItemMissing of string
@@ -613,8 +619,8 @@ type MainError =
     | CannotMoveToSameFolder
     | TooManyCopies of fileName: string
     | CannotUndoNonEmptyCreated of Item
-    | CannotUndoMoveToExisting of moded: Item
     | CannotUndoDelete of permanent: bool * item: Item
+    | CannotRedoPutToExisting of action: PutAction * item: Item * destPath: string
     | NoUndoActions
     | NoRedoActions
     | CouldNotOpenApp of app: string * exn
@@ -630,6 +636,26 @@ type MainError =
             sprintf "Could not %s: %s" action msg
         | ItemActionError (action, pathFormat, e) ->
             (ActionError (action.Description pathFormat, e)).Message
+        | PutError (isUndo, action, errorItems, totalItems) ->
+            let undo = if isUndo then "undo " else ""
+            let action = action |> string |> String.toLower
+            let actionMsg = "Could not " + undo + action
+            match errorItems with
+            | [(item, ex)] ->
+                sprintf "%s of %s: %s" actionMsg item.Description ex.Message
+            | (_, ex) :: _ ->
+                sprintf "%s of %i of %i total items. First error: %s" actionMsg errorItems.Length totalItems ex.Message
+            | [] ->
+                actionMsg
+        | UndoCopyError (errorItems, totalItems) ->
+            let actionMsg = "Could not undo copy"
+            match errorItems with
+            | [(item, ex)] when totalItems = 1 ->
+                sprintf "%s of %s: %s" actionMsg item.Description ex.Message
+            | (_, ex) :: _ ->
+                sprintf "%s of %i of %i total items. First error: %s" actionMsg errorItems.Length totalItems ex.Message
+            | [] ->
+                actionMsg
         | InvalidPath path -> "Path format is invalid: " + path
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
@@ -642,16 +668,21 @@ type MainError =
         | TooManyCopies fileName -> sprintf "There are already too many copies of \"%s\"" fileName
         | CannotUndoNonEmptyCreated item ->
             sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
-        | CannotUndoMoveToExisting moved -> sprintf "Cannot undo move of %s because an item exists in its previous location" moved.Name
         | CannotUndoDelete (permanent, item) ->
             if permanent then
                 sprintf "Cannot undo deletion of %s" item.Description
             else
                 sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
+        | CannotRedoPutToExisting (action, item, destPath) ->
+            let action = action |> string |> String.toLower
+            sprintf "Could not redo %s of %s because an item already exists at %s" action item.Description destPath
         | NoUndoActions -> "No more actions to undo"
         | NoRedoActions -> "No more actions to redo"
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
+
+module ErrorMessages =
+    let undoMoveBlockedByExisting = "An item exists in the previous location"
 
 [<AutoOpen>]
 module MainModelExt =

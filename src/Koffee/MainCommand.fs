@@ -33,7 +33,7 @@ let updateDropInAction (paths: Path list) (event: DragEvent) (model: MainModel) 
     event.Action <- paths |> List.tryHead |> Option.bind (getDropInAction event model)
     model
 
-let dropIn (fs: IFileSystem) paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
+let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
     match getDropInAction event model (paths |> List.head) with
     | Some action ->
         let paths =
@@ -46,7 +46,7 @@ let dropIn (fs: IFileSystem) paths (event: DragEvent) (model: MainModel) = async
         | Some path ->
             match! fs.GetItem path |> actionError "drop item" with
             | Some item ->
-                yield! Action.putItem fs false item action model
+                yield! Action.putItem fs progress false item action model
             | None -> ()
         | None -> ()
     | None -> ()

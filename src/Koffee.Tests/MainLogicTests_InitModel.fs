@@ -16,7 +16,7 @@ let test start path1 path2 =
         |> List.partition (String.contains "invalid")
     let fs = FakeFileSystem (valid |> List.map (fun p -> folder p []))
     for p in invalid do
-        fs.AddExn (exn p) p
+        fs.AddExn false (exn p) p
     let config = { Config.Default with DefaultPath = createPath path2; PathFormat = Unix }
     let history = { History.Default with Paths = [createPath path1] }
     let model = { MainModel.Default with Config = config; History = history }

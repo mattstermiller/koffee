@@ -144,7 +144,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         | 'y' ->
             match confirmType with
             | Overwrite (action, src, _) ->
-                let! model = Action.putItem fs true src action model
+                let! model = Action.putItem fs progress true src action model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
                 yield! Action.delete fs model.SelectedItem true model
@@ -363,8 +363,8 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Forward -> SyncResult (Nav.forward fs)
             | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
             | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
-            | Undo -> AsyncResult (Action.undo fs)
-            | Redo -> AsyncResult (Action.redo fs)
+            | Undo -> AsyncResult (Action.undo fs progress)
+            | Redo -> AsyncResult (Action.redo fs progress)
             | ShowHistory typ -> Sync (fun m -> { m with ShowHistoryType = if m.ShowHistoryType <> Some typ then Some typ else None })
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
@@ -380,12 +380,12 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | FindNext -> Sync Search.findNext
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
-            | Put -> AsyncResult (Action.put fs false)
+            | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
             | UpdateDropInAction (paths, event) -> Sync (Command.updateDropInAction paths event)
-            | DropIn (paths, event) -> AsyncResult (Command.dropIn fs paths event)
+            | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)
             | DropOut action -> Sync (Command.dropOut fs action)
             | ToggleHidden -> Sync Command.toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
@@ -403,23 +403,19 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
             | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
-        let isBusy model =
-            match model.Status with
-            | Some (Busy _) -> true
-            | _ -> false
         match handler, evt with
         | _, ConfigFileChanged _
         | _, HistoryFileChanged _ -> handler
         | Sync handler, _ ->
             Sync (fun model ->
-                if not (isBusy model) then
+                if not model.IsStatusBusy then
                     handler model
                 else
                     model
             )
         | Async handler, _ ->
             Async (fun model -> asyncSeq {
-                if not (isBusy model) then
+                if not model.IsStatusBusy then
                     yield! handler model
             })
 

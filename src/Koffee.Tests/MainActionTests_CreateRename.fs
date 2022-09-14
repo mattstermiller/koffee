@@ -67,7 +67,7 @@ let ``Create handles error by returning error``() =
         file "another"
     ]
     let createItem = createFile "/c/file"
-    fs.AddExnPath ex createItem.Path
+    fs.AddExnPath false ex createItem.Path
     let model = testModel
     let expectedFs = fs.Items
 
@@ -94,9 +94,11 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     let createdItem = fs.Item "/c/item"
     let action = CreatedItem createdItem
     let location = if curPathDifferent then "/c/other" else "/c"
-    let model = testModel |> withLocation location |> pushUndo action
+    let model =
+        testModel.WithStatus (ErrorMessage "previous error")
+        |> withLocation location |> pushUndo action
 
-    let actual = seqResult (Action.undo fs) model
+    let actual = seqResult (Action.undo fs testProgress) model
 
     let expectedItems =
         if curPathDifferent then
@@ -133,7 +135,7 @@ let ``Undo create non empty item returns error`` isFolder =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs) model
+    let actual = seqResult (Action.undo fs testProgress) model
 
     let expected = model.WithError (CannotUndoNonEmptyCreated createdItem) |> popUndo
     assertAreEqual expected actual
@@ -145,11 +147,11 @@ let ``Undo create handles delete error by returning error`` () =
         file "file"
     ]
     let createdItem = fs.Item "/c/file"
-    fs.AddExnPath ex createdItem.Path
+    fs.AddExnPath false ex createdItem.Path
     let action = CreatedItem createdItem
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs) model
+    let actual = seqResult (Action.undo fs testProgress) model
 
     let expected = model.WithError (ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)) |> popUndo
     assertAreEqual expected actual
@@ -162,7 +164,7 @@ let ``Redo create creates item again`` () =
     let createItem = createFile "/c/file"
     let model = testModel |> pushRedo (CreatedItem createItem)
 
-    let actual = seqResult (Action.redo fs) model
+    let actual = seqResult (Action.redo fs testProgress) model
 
     let expectedAction = CreatedItem createItem
     let expectedItems = [
@@ -190,11 +192,11 @@ let ``Redo create handles error by returning error``() =
         file "another"
     ]
     let createItem = createFile "/c/file"
-    fs.AddExnPath ex createItem.Path
+    fs.AddExnPath false ex createItem.Path
     let model = testModel |> pushRedo (CreatedItem createItem)
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.redo fs) model
+    let actual = seqResult (Action.redo fs testProgress) model
 
     let expected =
         model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
@@ -307,7 +309,7 @@ let ``Rename handles error by returning error``() =
     ]
     let item = fs.Item "/c/file"
     let newName = "renamed"
-    fs.AddExn ex ("/c/" + newName)
+    fs.AddExn false ex ("/c/" + newName)
     let model = testModel
 
     let actual = Action.rename fs item newName model
@@ -333,7 +335,7 @@ let ``Undo rename item names item back to original`` curPathDifferent diffCaseOn
     let action = RenamedItem (previous, current.Name)
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (Action.undo fs) model
+    let actual = seqResult (Action.undo fs testProgress) model
 
     let expectedItems = [
         createFile "/c/another"
@@ -367,7 +369,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs) model
+    let actual = seqResult (Action.undo fs testProgress) model
 
     let expectedError = CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
     let expected = model.WithError expectedError |> popUndo
@@ -381,12 +383,12 @@ let ``Undo rename item handles move error by returning error``() =
     ]
     let previous = createFile "/c/file"
     let current = fs.Item "/c/renamed"
-    fs.AddExnPath ex previous.Path
+    fs.AddExnPath false ex previous.Path
     let action = RenamedItem (previous, current.Name)
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs) model
+    let actual = seqResult (Action.undo fs testProgress) model
 
     let expectedError = ItemActionError (RenamedItem (current, previous.Name), model.PathFormat, ex)
     let expected = model.WithError expectedError |> popUndo

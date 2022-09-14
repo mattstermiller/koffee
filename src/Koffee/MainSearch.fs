@@ -76,6 +76,7 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) 
                     yield! enumerate progressFactor subDirs
     }
     let dirs = getDirs items
+    progress.Trigger (Some 0.0)
     yield! enumerate (1.0 / float dirs.Length) dirs
     progress.Trigger None
 }

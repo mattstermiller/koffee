@@ -37,7 +37,7 @@ let test case =
         file "file"
         file "newfile"
     ]
-    fs.AddExn ex "/c/inaccessible"
+    fs.AddExn false ex "/c/inaccessible"
 
     let path =
         match case.GetPath with

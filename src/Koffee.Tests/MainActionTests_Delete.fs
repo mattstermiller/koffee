@@ -47,7 +47,7 @@ let ``Delete calls correct file sys func and sets message`` permanent =
 let ``Delete handles error by returning error``() =
     let fs = createFs ()
     let item = fs.Item "/c/file"
-    fs.AddExnPath ex item.Path
+    fs.AddExnPath false ex item.Path
     let model = testModel
     let expectedFs = fs.Items
 

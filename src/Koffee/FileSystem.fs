@@ -91,12 +91,15 @@ type FileSystem() =
     let cannotActOnItemType action itemType =
         exn <| sprintf "Cannot %s item type %O" action itemType
 
+    let folderAlreadyExists dest =
+        exn <| "Folder already exists at destination: " + dest
+
     member private this.FileOrFolderAction path actionName action =
-        match this.GetItem path with
-        | Ok (Some item) when item.Type = File || item.Type = Folder -> action item.Type
-        | Ok (Some item) -> Error <| cannotActOnItemType actionName item.Type
-        | Ok None -> Error <| exn (sprintf "Path does not exist: %s" (wpath path))
-        | Error e -> Error e
+        this.GetItem path |> Result.bind (function
+            | Some item when item.Type = File || item.Type = Folder -> action item.Type
+            | Some item -> Error <| cannotActOnItemType actionName item.Type
+            | None -> Error <| exn (sprintf "Path does not exist: %s" (wpath path))
+        )
 
     interface IFileSystem
 
@@ -190,16 +193,15 @@ type FileSystem() =
                 prepForOverwrite <| FileInfo dest
                 FileSystem.MoveFile(source, dest, true)
             let rec moveDir sameVolume source dest =
-                if not sameVolume || Directory.Exists dest then
-                    // if dest directory exists, merge contents
+                if sameVolume then
+                    Directory.Move(source, dest)
+                else
                     let moveItem moveFunc sourceItem =
                         let destPath = Path.Combine(dest, Path.GetFileName(sourceItem))
                         moveFunc sourceItem destPath
                     Directory.EnumerateFiles(source) |> Seq.iter (moveItem moveFile)
                     Directory.EnumerateDirectories(source) |> Seq.iter (moveItem (moveDir sameVolume))
                     Directory.Delete(source)
-                else
-                    Directory.Move(source, dest)
             let source = wpath fromPath
             let dest = wpath toPath
             if String.equalsIgnoreCase source dest then
@@ -209,6 +211,8 @@ type FileSystem() =
             else
                 return! tryResult <| fun () ->
                     if itemType = Folder then
+                        if Directory.Exists dest then
+                            raise (folderAlreadyExists dest)
                         let getVolume p = p |> Path.GetPathRoot |> String.trimEnd [|'\\'|]
                         let sameVolume = String.equalsIgnoreCase (getVolume source) (getVolume dest)
                         moveDir sameVolume source dest
@@ -226,6 +230,8 @@ type FileSystem() =
             tryResult <| fun () ->
                 if itemType = Folder then
                     let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
+                    if Directory.Exists dest then
+                        raise (folderAlreadyExists dest)
                     // copy folder structure
                     Directory.CreateDirectory dest |> ignore
                     Directory.GetDirectories(source, "*", SearchOption.AllDirectories)

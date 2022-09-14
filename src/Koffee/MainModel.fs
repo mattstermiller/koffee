@@ -75,7 +75,6 @@ with
             Type = itemType
         }
 
-
 type SortField =
     | Name
     | Type
@@ -155,18 +154,43 @@ type InputMode =
     | Confirm of ConfirmType
     | Input of InputType
 
+type PutItem = {
+    Item: Item
+    Dest: Path
+    DestExists: bool
+}
+with
+    static member reverse putItem =
+        let newItem = { putItem.Item with Path = putItem.Dest; Name = putItem.Dest.Name }
+        { Item = newItem; Dest = putItem.Item.Path; DestExists = putItem.DestExists }
+
+    static member describeList pathFormat putItems =
+        match putItems with
+        | [{Item = item; Dest = dest}] ->
+            sprintf "%s to \"%s\"" item.Description (dest.Format pathFormat)
+        | {Dest = dest} :: _ ->
+            sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
+        | [] -> "0 items"
+
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItem of PutAction * Item * newPath: Path
+    | PutItems of PutAction * intent: PutItem * actual: PutItem list
     | DeletedItem of Item * permanent: bool
 with
     member this.Description pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
-        | RenamedItem (item, newName) -> sprintf "Rename %s" item.Description
-        | PutItem (action, item, newPath) ->
-            sprintf "%O %s to \"%s\"" action item.Description (newPath.Format pathFormat)
+        | RenamedItem (item, newName) -> sprintf "Rename %s to %s" item.Description newName
+        | PutItems (action, intent, actual) ->
+            let fileCountStr =
+                actual
+                |> Seq.filter (fun p -> p.Item.Type = File)
+                |> Seq.length
+                |> function
+                    | 0 -> ""
+                    | count -> sprintf " (%i files)" count
+            sprintf "%O %s%s" action ([intent] |> PutItem.describeList pathFormat) fileCountStr
         | DeletedItem (item, false) -> sprintf "Recycle %s" item.Description
         | DeletedItem (item, true) -> sprintf "Delete %s" item.Description
 
@@ -451,6 +475,16 @@ type MainModel = {
 
     member this.ClearStatus () =
         { this with Status = None }
+
+    member this.IsStatusBusy =
+        match this.Status with
+        | Some (Busy _) -> true
+        | _ -> false
+
+    member this.IsStatusError =
+        match this.Status with
+        | Some (ErrorMessage _) -> true
+        | _ -> false
 
     static member Default = {
         Location = Path.Root

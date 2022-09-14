@@ -6,6 +6,7 @@ open Acadian.FSharp
 type TreeItem =
     | TreeFile of string * (Item -> Item)
     | TreeFolder of string * TreeItem list
+    | TreeDrive of char * TreeItem list
 with
     static member build items =
         let rec build (path: Path) items =
@@ -16,35 +17,74 @@ with
                 | TreeFolder (name, items) ->
                     let folder = Item.Basic (path.Join name) name Folder
                     folder :: build folder.Path items
+                | TreeDrive (name, _) when path <> Path.Root ->
+                    failwithf "Drive '%O' is invalid because it is not at root level" name
+                | TreeDrive (name, items) ->
+                    let name = string name |> String.toUpper
+                    let path = "/" + name |> Path.Parse |> Option.get
+                    let drive = Item.Basic path name Drive
+                    drive :: build drive.Path items
             )
-        let c = Path.Parse "/c" |> Option.get
-        Item.Basic c "C" Folder :: build c items
+        if items |> List.forall (function TreeDrive _ -> true | _ -> false) then
+            build Path.Root items
+        else
+            let path = Path.Parse "/c" |> Option.get
+            Item.Basic path "C" Drive :: build path items
+
+module FakeFileSystemErrors =
+    let pathDoesNotExist (path: Path) =
+        exn ("Path does not exist: " + string path)
+
+    let pathAlreadyUsed (path: Path) =
+        exn ("Path already used: " + string path)
+
+    let notAShortcut =
+        exn "Not a shortcut"
+
+    let destPathParentDoesNotExist (path: Path) =
+        exn ("Destination folder does not exist: " + string path)
+
+    let destPathParentIsNotFolder (path: Path) =
+        exn ("Destination path is not a folder: " + string path)
+
+    let destPathIsFolder (path: Path) =
+        exn ("Folder exists at destination path: " + string path)
+
+open FakeFileSystemErrors
 
 type FakeFileSystem(treeItems) =
     let mutable items = treeItems |> TreeItem.build
     let shortcuts = Dictionary<Path, string>()
     let mutable recycleBin = []
-    let exnPaths = Dictionary<Path, exn list>()
+    let exnPaths = Dictionary<Path, (exn * bool) list>()
     let mutable callsToGetItems = 0
 
     let remove path =
-        items <- items |> List.filter (fun i -> i.Path <> path)
+        let itemWithinPath (path: Path) item =
+            item.Path.FormatFolder Windows |> String.startsWithIgnoreCase (path.FormatFolder Windows)
+        items <- items |> List.filter (not << itemWithinPath path)
         shortcuts.Remove(path) |> ignore
 
     let checkPathNotUsed path =
         if items |> List.exists (fun i -> i.Path = path) then
-            Error (exn ("Path already used: " + string path))
+            Error (pathAlreadyUsed path)
         else
             Ok ()
 
-    let checkExn path =
+    let checkExn isWrite path =
         match exnPaths.TryGetValue path with
-        | true, e::exns ->
-            if exns |> List.isEmpty then
+        | true, exns ->
+            let rec popWhere pred skipped lst =
+                match lst with
+                | [] -> (None, skipped)
+                | x :: rest when pred x -> (Some x, skipped @ rest)
+                | x :: rest -> popWhere pred (skipped @ [x]) rest
+            let (exnItem, rest) = popWhere (fun (_, writeOnly) -> isWrite || not writeOnly) [] exns
+            if rest |> List.isEmpty then
                 exnPaths.Remove path |> ignore
             else
-                exnPaths.[path] <- exns
-            Error e
+                exnPaths.[path] <- rest
+            exnItem |> Option.map (fst >> Error) |? Ok ()
         | _ ->
             Ok ()
 
@@ -58,12 +98,14 @@ type FakeFileSystem(treeItems) =
 
     member this.RecycleBin = recycleBin
 
-    member this.AddExnPath e path =
+    member this.AddExnPath writeOnly e path =
+        let exnItem = (e, writeOnly)
         match exnPaths.TryGetValue path with
         | true, exns ->
-            exnPaths.[path] <- exns @ [e]
+            exnPaths.[path] <- exns @ [exnItem]
         | _ ->
-            exnPaths.Add(path, [e])
+            exnPaths.Add(path, [exnItem])
+
 
     member this.CallsToGetItems = callsToGetItems
 
@@ -85,14 +127,13 @@ type FakeFileSystem(treeItems) =
         member this.Delete path = this.Delete path
 
     member this.GetItem path = result {
-        do! checkExn path
+        do! checkExn false path
         return items |> List.tryFind (fun i -> i.Path = path)
     }
 
     member private this.AssertItem path = result {
         let! item = this.GetItem path
-        let! item = item |> Result.ofOption (exn ("Path does not exist: " + (string path)))
-        return item
+        return! item |> Result.ofOption (pathDoesNotExist path)
     }
 
     member this.GetItems path = result {
@@ -100,7 +141,7 @@ type FakeFileSystem(treeItems) =
         if path = Path.Root then
             return [Item.Basic (Path.Parse "C:").Value "C:" Drive]
         else
-            do! checkExn path
+            do! checkExn false path
             return this.Items |> List.filter (fun i -> i.Path.Parent = path)
     }
 
@@ -117,15 +158,15 @@ type FakeFileSystem(treeItems) =
         | _ -> false
 
     member this.GetShortcutTarget path = result {
-        do! checkExn path
+        do! checkExn false path
         match shortcuts.TryGetValue path with
         | true, p -> return p
-        | _ -> return! Error (exn "Not a shortcut")
+        | _ -> return! Error notAShortcut
     }
 
 
     member this.Create itemType path = result {
-        do! checkExn path
+        do! checkExn true path
         do! checkPathNotUsed path
         items <- Item.Basic path path.Name itemType :: items
     }
@@ -142,18 +183,34 @@ type FakeFileSystem(treeItems) =
             let newItem = { item with Path = toPath; Name = toPath.Name }
             items <- items |> List.map (fun i -> if i.Path = fromPath then newItem else i)
         else
+            do! checkExn true fromPath
             do! this.Copy fromPath toPath
-            do! this.Delete fromPath
+            let! _ = this.AssertItem fromPath
+            remove fromPath
     }
 
     member this.Copy fromPath toPath = result {
         let! item = this.AssertItem fromPath
-        do! checkExn toPath
+        do! checkExn true toPath
+        let! parent = this.GetItem toPath.Parent
+        do!
+            match parent with
+            | None ->
+                Error (destPathParentDoesNotExist toPath.Parent)
+            | Some item when not (item.Type |> Seq.containedIn [Folder; Drive]) ->
+                Error (destPathParentIsNotFolder toPath.Parent)
+            | _ -> Ok ()
         remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
         items <- newItem :: items
         match shortcuts.TryGetValue fromPath with
         | true, target -> shortcuts.Add(toPath, target)
+        | _ -> ()
+        match item.Type with
+        | Folder ->
+            let! folderItems = this.GetItems fromPath
+            for item in folderItems do
+                do! this.Copy item.Path (toPath.Join item.Name)
         | _ -> ()
     }
 
@@ -165,5 +222,6 @@ type FakeFileSystem(treeItems) =
 
     member this.Delete path = result {
         let! _ = this.AssertItem path
+        do! checkExn true path
         remove path
     }

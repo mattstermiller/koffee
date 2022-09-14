@@ -146,13 +146,131 @@ let getCopyName name i =
     let number = if i = 0 then "" else string (i+1)
     sprintf "%s copy%s%s" nameNoExt number ext
 
-let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
+let rec private enumeratePutItems (fsReader: IFileSystemReader) copy checkExists (dest: Path) (item: Item) = asyncSeq {
+    let destExists =
+        if not checkExists then
+            false
+        else
+            match fsReader.GetItem dest with
+            | Ok (Some _) -> true
+            | _ -> false
+    let sameBase = item.Path.Base = dest.Base
+    match item.Type with
+    | Folder when copy || not sameBase || destExists ->
+        let! itemsResult = runAsync (fun () -> fsReader.GetItems item.Path)
+        match itemsResult with
+        | Ok [] -> yield Ok { Item = item; Dest = dest; DestExists = destExists }
+        | Ok items ->
+            for item in items do
+                let dest = dest.Join item.Name
+                yield! enumeratePutItems fsReader copy destExists dest item
+        | Error error -> yield Error (item, error)
+    | Folder | File ->
+        yield Ok { Item = item; Dest = dest; DestExists = destExists }
+    | _ -> ()
+}
+
+let private performPutItems (fs: IFileSystem) (progress: Event<_>) (items: (PutAction * PutItem) list) =
+    let incrProgress =
+        let incr = 1.0 / float items.Length
+        fun _ -> progress.Trigger (Some incr)
+    let fileSysAction putAction =
+        match putAction with
+        | Move -> fs.Move
+        | Copy -> fs.Copy
+        | Shortcut -> fs.CreateShortcut
+    let mutable foldersChecked = []
+    let ensureFolderExists (path: Path) = result {
+        if not (foldersChecked |> List.contains path) then
+            foldersChecked <- path :: foldersChecked
+            match! fs.GetItem path with
+            | None -> return! fs.Create Folder path
+            | Some _ -> ()
+    }
+    items
+    |> AsyncSeq.ofSeq
+    |> AsyncSeq.mapAsync (fun (putAction, putItem) -> runAsync (fun () ->
+        ensureFolderExists putItem.Dest.Parent
+        |> Result.bind (fun () ->
+            fileSysAction putAction putItem.Item.Path putItem.Dest
+            |> Result.map (cnst putItem)
+        )
+        |> Result.mapError (fun e -> (putItem.Item, e))
+        |>! incrProgress
+    ))
+    |> AsyncSeq.toListAsync
+    |> Async.tee (fun _ ->
+        progress.Trigger None
+    )
+
+let rec private isEmptyTree (fs: IFileSystem) path =
+    match fs.GetItems path with
+    | Ok [] -> true
+    | Ok items when items |> List.exists (fun i -> i.Type = File) -> false
+    | Ok folders -> folders |> List.forall (fun i -> isEmptyTree fs i.Path)
+    | Error _ -> false
+
+let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors putAction intent items (model: MainModel) = asyncSeqResult {
+    let getItemAction putItem = if isUndo && putItem.DestExists then Copy else putAction
+    let! results =
+        items
+        |> List.map (fun item -> (getItemAction item, item))
+        |> performPutItems fs progress
+    let succeeded, putErrors = results |> Result.partition
+    let action = PutItems (putAction, intent, items)
+    let openDest model = Nav.openPath fs intent.Dest.Parent (SelectName intent.Dest.Name) model
+    match enumErrors @ putErrors with
+    | [] ->
+        let model =
+            if not isUndo then
+                model |> performedAction action
+            else
+                model
+        let model =
+            result {
+                // if folder was enumerated and its contents were moved, delete empty source folder
+                if putAction = Move && intent.Item.Type = Folder
+                    && not (items |> List.exists (fun i -> i.Item = intent.Item))
+                    && isEmptyTree fs intent.Item.Path
+                then
+                    do! fs.Delete intent.Item.Path |> actionError "Delete empty source folder"
+            } |> function
+                | Ok () -> model
+                | Error e -> model.WithError e
+        yield model
+        yield! openDest model
+    | errorItems when succeeded |> List.isEmpty ->
+        // if nothing succeeded, return error
+        return PutError (isUndo, putAction, errorItems, items.Length + enumErrors.Length)
+    | errorItems ->
+        // if partial success, update undo stack with successes
+        // set error message instead of returning Error so that the caller flow is not short-circuited
+        let model = openDest model |> Result.toOption |? model
+        let error = PutError (isUndo, putAction, errorItems, items.Length + enumErrors.Length)
+        if isUndo then
+            let undoIntent = { (intent |> PutItem.reverse) with DestExists = true }
+            let action = PutItems (putAction, undoIntent, succeeded |> List.map PutItem.reverse)
+            yield
+                { model.WithError error with
+                    RedoStack = action :: model.RedoStack
+                }
+        else
+            let action = PutItems (putAction, intent, succeeded)
+            yield
+                { model.WithError error with
+                    UndoStack = action :: model.UndoStack
+                    RedoStack = []
+                }
+}
+
+let putItem (fs: IFileSystem) (progress: Event<_>) overwrite item putAction model = asyncSeqResult {
     let sameFolder = item.Path.Parent = model.Location
     match! fs.GetItem model.Location |> actionError "put item" with
     | Some container when container.Type.CanCreateIn ->
         if putAction = Move && sameFolder then
             return CannotMoveToSameFolder
-    | _ -> return CannotPutHere
+    | _ ->
+        return CannotPutHere
     let! newName =
         match putAction with
         | Copy when sameFolder ->
@@ -168,13 +286,7 @@ let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
         | _ ->
             Ok item.Name
     let newPath = model.Location.Join newName
-    let action = PutItem (putAction, item, newPath)
-    let fileSysAction =
-        match putAction with
-        | Move -> fs.Move
-        | Copy -> fs.Copy
-        | Shortcut -> fs.CreateShortcut
-    let! existing = fs.GetItem newPath |> itemActionError action model.PathFormat
+    let! existing = fs.GetItem newPath |> actionError "check destination path"
     match existing with
     | Some existing when not overwrite ->
         // refresh item list to make sure we can see the existing file
@@ -185,15 +297,20 @@ let putItem (fs: IFileSystem) overwrite item putAction model = asyncSeqResult {
                 InputText = ""
             }
     | _ ->
+        yield model.WithStatus (MainStatus.preparingPut putAction item.Name)
+        progress.Trigger (Some 0.0)
+        let! enumerated =
+            match putAction with
+            | Shortcut -> async { return [Ok { Item = item; Dest = newPath; DestExists = existing.IsSome }] }
+            | Move | Copy -> enumeratePutItems fs (putAction = Copy) true newPath item |> AsyncSeq.toListAsync
+        let items, enumErrors = enumerated |> Result.partition
+        let putItem = { Item = item; Dest = newPath; DestExists = existing.IsSome }
+        let action = PutItems (putAction, putItem, items)
         yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
-        let! res = runAsync (fun () -> fileSysAction item.Path newPath)
-        do! res |> itemActionError action model.PathFormat
-        let model = model |> performedAction action
-        yield model
-        yield! Nav.openPath fs model.Location (SelectName newName) model
+        yield! performPut fs progress false enumErrors putAction putItem items model
 }
 
-let put (fs: IFileSystem) overwrite (model: MainModel) = asyncSeqResult {
+let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult {
     match model.Config.YankRegister with
     | None -> ()
     | Some (path, _, putAction) ->
@@ -201,44 +318,91 @@ let put (fs: IFileSystem) overwrite (model: MainModel) = asyncSeqResult {
             return CannotPutHere
         match! fs.GetItem path |> actionError "read yank register item" with
         | Some item ->
-            let! model = putItem fs overwrite item putAction model
+            let! model = putItem fs progress overwrite item putAction model
             if model.InputMode.IsNone then
                 yield { model with Config = { model.Config with YankRegister = None } }
         | None ->
             return YankRegisterItemMissing (path.Format model.PathFormat)
 }
 
-let undoMove (fs: IFileSystem) item currentPath (model: MainModel) = asyncSeqResult {
-    let from = { item with Path = currentPath; Name = currentPath.Name }
-    let action = PutItem (Move, from, item.Path)
-    let! existing = fs.GetItem item.Path |> itemActionError action model.PathFormat
-    match existing with
-    | Some _ ->
-        // TODO: prompt for overwrite here?
-        return CannotUndoMoveToExisting item
-    | None ->
-        yield model.WithStatus (MainStatus.undoingMove item)
-        let! res = runAsync (fun () -> fs.Move currentPath item.Path)
-        do! res |> itemActionError action model.PathFormat
-        yield! Nav.openPath fs item.Path.Parent (SelectName item.Name) model
+let undoMove (fs: IFileSystem) progress (intent: PutItem) (moved: PutItem list) (model: MainModel) = asyncSeqResult {
+    yield model.WithStatus (MainStatus.undoingMove intent.Item)
+    let items, existErrors =
+        moved
+        |> List.map PutItem.reverse
+        |> List.map (fun putItem ->
+            match fs.GetItem putItem.Dest with
+            | Ok None -> Ok putItem
+            | Ok (Some _) -> Error (putItem.Item, exn ErrorMessages.undoMoveBlockedByExisting)
+            | Error e -> Error (putItem.Item, e)
+        )
+        |> Result.partition
+    let putItem = intent |> PutItem.reverse
+    yield! performPut fs progress true existErrors Move putItem items model
 }
 
-let undoCopy (fs: IFileSystem) item (currentPath: Path) (model: MainModel) = asyncSeqResult {
-    let copyModified =
-        match fs.GetItem currentPath with
-        | Ok (Some copy) -> copy.Modified
-        | _ -> None
-    let isDeletionPermanent =
-        match item.Modified, copyModified with
-        | Some orig, Some copy when orig = copy -> true
-        | _ -> false
-    let action = DeletedItem ({ item with Path = currentPath }, isDeletionPermanent)
-    let fileSysFunc = if isDeletionPermanent then fs.Delete else fs.Recycle
-    yield model.WithStatus (MainStatus.undoingCopy item isDeletionPermanent)
-    let! res = runAsync (fun () -> fileSysFunc currentPath)
-    do! res |> itemActionError action model.PathFormat
-    if model.Location = currentPath.Parent then
-        yield! Nav.refresh fs model
+let private performUndoCopy (fs: IFileSystem) (progress: Event<_>) (items: PutItem list) =
+    let incrProgress =
+        let incr = 1.0 / float items.Length
+        fun _ -> progress.Trigger (Some incr)
+    items
+    |> AsyncSeq.ofSeq
+    |> AsyncSeq.mapAsync (fun putItem -> runAsync (fun () ->
+        let shouldDelete () =
+            let copyModified =
+                match fs.GetItem putItem.Dest with
+                | Ok (Some copy) -> copy.Modified
+                | _ -> None
+            match putItem.Item.Modified, copyModified with
+            | Some orig, Some copy when orig = copy -> true
+            | _ -> false
+        (
+            if putItem.DestExists then
+                Ok () // don't remove items that existed before the copy
+            else if shouldDelete () then
+                fs.Delete putItem.Dest
+            else
+                fs.Recycle putItem.Dest
+        )
+        |> Result.map (cnst putItem)
+        |> Result.mapError (fun e -> (putItem.Item, e))
+        |>! incrProgress
+    ))
+    |> AsyncSeq.toListAsync
+    |> Async.tee (fun _ ->
+        progress.Trigger None
+    )
+
+let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqResult {
+    yield model.WithStatus (MainStatus.undoingCopy intent.Item)
+    let! results = performUndoCopy fs progress copied
+    match results |> Result.partition with
+    | _, [] ->
+        let model =
+            result {
+                // if folder was enumerated and the copied folder contents were deleted, delete empty copy folder
+                if intent.Item.Type = Folder && isEmptyTree fs intent.Dest then
+                    do! fs.Delete intent.Dest |> actionError "Delete empty copied folder"
+            } |> function
+                | Ok () -> model
+                | Error e -> model.WithError e
+        if model.Location = intent.Dest.Parent then
+            yield! Nav.refresh fs model
+    | [], errors ->
+        return UndoCopyError (errors, copied.Length)
+    | succeeded, errors ->
+        // if partial success, update undo stack with successes
+        // set error message instead of returning Error so that the caller flow is not short-circuited
+        let action = PutItems (Copy, intent, succeeded)
+        let model =
+            { model.WithError (UndoCopyError (errors, copied.Length)) with
+                RedoStack = action :: model.RedoStack
+            }
+        yield
+            if model.Location = intent.Dest.Parent then
+                Nav.refresh fs model |> Result.toOption |? model
+            else
+                model
 }
 
 let undoShortcut (fs: IFileSystem) shortcutPath (model: MainModel) = result {
@@ -289,10 +453,11 @@ let recycle fsWriter (model: MainModel) = asyncSeqResult {
         yield! delete fsWriter model.SelectedItem false model
 }
 
-let rec private undoIter iter fs model = asyncSeqResult {
+let rec private undoIter iter fs progress model = asyncSeqResult {
     match model.UndoStack with
     | action :: rest ->
-        let model = { model with UndoStack = rest }
+        let oldRedoHead = model.RedoStack |> List.tryHead
+        let model = { model.ClearStatus () with UndoStack = rest }
         yield model
         let! model =
             match action with
@@ -301,27 +466,33 @@ let rec private undoIter iter fs model = asyncSeqResult {
             | RenamedItem (oldItem, curName) ->
                 undoRename fs oldItem curName model
                 |> AsyncSeq.singleton
-            | PutItem (Move, item, newPath) ->
-                undoMove fs item newPath model
-            | PutItem (Copy, item, newPath) ->
-                undoCopy fs item newPath model
-            | PutItem (Shortcut, item, newPath) ->
-                undoShortcut fs newPath model
+            | PutItems (Move, intent, actual) ->
+                undoMove fs progress intent actual model
+            | PutItems (Copy, intent, actual) ->
+                undoCopy fs progress intent actual model
+            | PutItems (Shortcut, intent, _) ->
+                undoShortcut fs intent.Dest model
                 |> AsyncSeq.singleton
             | DeletedItem (item, permanent) ->
                 Error (CannotUndoDelete (permanent, item))
                 |> AsyncSeq.singleton
-        let model = { model with RedoStack = action :: model.RedoStack }
+        let model =
+            if model.RedoStack |> List.tryHead = oldRedoHead then
+                { model with RedoStack = action :: model.RedoStack }
+            else
+                model
         if iter < model.RepeatCount then
-            yield! undoIter (iter + 1) fs model
-        else
+            yield! undoIter (iter + 1) fs progress model
+        else if not model.IsStatusError then
             yield model.WithStatus (MainStatus.undoAction action model.PathFormat model.RepeatCount)
+        else
+            yield model
     | [] -> return NoUndoActions
 }
 
 let undo fs = undoIter 1 fs
 
-let rec private redoIter iter fs model = asyncSeqResult {
+let rec private redoIter iter fs progress model = asyncSeqResult {
     match model.RedoStack with
     | action :: rest ->
         let model = { model with RedoStack = rest }
@@ -339,10 +510,15 @@ let rec private redoIter iter fs model = asyncSeqResult {
             | RenamedItem (item, newName) ->
                 let! model = goToPath item.Path
                 yield! rename fs item newName model
-            | PutItem (putAction, item, newPath) ->
-                let! model = goToPath newPath
-                yield model.WithStatusOption (MainStatus.redoingAction action model.PathFormat)
-                yield! putItem fs false item putAction model
+            | PutItems (putAction, intent, _) ->
+                let! model = goToPath intent.Dest
+                match! fs.GetItem intent.Dest |> actionError "check destination path" with
+                | Some existing when not intent.DestExists ->
+                    yield Nav.select (SelectItem (existing, true)) model
+                    return CannotRedoPutToExisting (putAction, intent.Item, intent.Dest.Format model.PathFormat)
+                | _ ->
+                    yield model.WithStatusOption (MainStatus.redoingAction action model.PathFormat)
+                    yield! putItem fs progress intent.DestExists intent.Item putAction model
             | DeletedItem (item, permanent) ->
                 let! model = goToPath item.Path
                 yield model.WithStatusOption (MainStatus.redoingAction action model.PathFormat)
@@ -350,7 +526,7 @@ let rec private redoIter iter fs model = asyncSeqResult {
         }
         let model = { model with RedoStack = rest }
         if iter < model.RepeatCount then
-            yield! redoIter (iter + 1) fs model
+            yield! redoIter (iter + 1) fs progress model
         else
             yield model.WithStatus (MainStatus.redoAction action model.PathFormat model.RepeatCount)
     | [] -> return NoRedoActions

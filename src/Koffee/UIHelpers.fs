@@ -7,6 +7,7 @@ open System.Windows.Data
 open System.Windows.Controls
 open System.Windows.Input
 open System.Reactive.Linq
+open System.Windows.Media.Imaging
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
 
@@ -89,6 +90,29 @@ type DataGrid with
         )
         format |> Option.iter binding.set_StringFormat
         col.Binding <- binding
+
+        this.Columns.Add col
+        
+    member this.AddImageColumn (projection: Expr<'a -> BitmapSource>, ?widthWeight) =
+        let propName =
+            match projection with
+            | Reflection.PropertySelector prop -> prop.Name
+            | _ -> failwith "Projection expression must be a function that returns a property from an item."
+        let col = DataGridTemplateColumn()
+        col.Header <- ""
+        
+        let factory = FrameworkElementFactory(typeof<Image>)
+
+        let binding = Binding(propName)
+        
+        let cellTemplate = DataTemplate()
+        cellTemplate.VisualTree <- factory
+        factory.SetValue(Image.SourceProperty, binding)
+        
+        col.CellTemplate <- cellTemplate
+        
+        let widthType = if widthWeight.IsSome then DataGridLengthUnitType.Star else DataGridLengthUnitType.Auto
+        col.Width <- DataGridLength(widthWeight |? 1.0, widthType)
 
         this.Columns.Add col
 

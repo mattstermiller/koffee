@@ -54,7 +54,7 @@ let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = resu
         | Input Search ->
             let input = model.SearchCurrent |> Option.map (fun s -> s.Terms) |? ""
             return { model with InputText = input }
-                   |> setInputSelection End
+                   |> setInputSelection ReplaceAll
         | Input (Rename pos) ->
             return { model with InputText = model.SelectedItem.Name }
                    |> setInputSelection pos

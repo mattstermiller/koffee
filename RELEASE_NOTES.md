@@ -6,6 +6,7 @@
 - #123 Fixes path suggestions not being sorted by MRU
 - #126 Fixes search results to sort by current sort setting instead of always name ascending
 - #118 Fixes window size and position on opening to fit inside the current screen
+- #122 Re-opening search input selects text for easy replacement
 - Simplifies same-folder copy naming
 - Reorders keybindings in Settings list to hopefully be more logical
 

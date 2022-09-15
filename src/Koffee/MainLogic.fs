@@ -6,21 +6,25 @@ open Acadian.FSharp
 open Koffee.Main
 open Koffee.Main.Util
 
-let initModel (fsReader: IFileSystemReader) startOptions model =
+let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptions model =
     let config = model.Config
+    let windowRect =
+        let location =
+            startOptions.StartLocation |> Option.defaultWith (fun () ->
+                let isFirstInstance =
+                    System.Diagnostics.Process.GetProcesses()
+                    |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
+                    |> Seq.length
+                    |> (=) 1
+                let (left, top) = config.Window.Location
+                if isFirstInstance then (left, top) else (left + 30, top + 30)
+            )
+        let size = startOptions.StartSize |? config.Window.Size
+        Rect.ofPairs location size |> Rect.fit screenBounds
     let model =
         { model with
-            WindowLocation =
-                startOptions.StartLocation |> Option.defaultWith (fun () ->
-                    let isFirstInstance =
-                        System.Diagnostics.Process.GetProcesses()
-                        |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
-                        |> Seq.length
-                        |> (=) 1
-                    let (left, top) = config.Window.Location
-                    if isFirstInstance then (left, top) else (left + 30, top + 30)
-                )
-            WindowSize = startOptions.StartSize |? config.Window.Size
+            WindowLocation = windowRect.Location
+            WindowSize = windowRect.Size
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
         }
     let prevPath = model.History.Paths |> List.tryHead |> Option.toList
@@ -422,7 +426,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
     member this.Start view =
         let model =
             { MainModel.Default with Config = config.Value; History = history.Value }
-            |> initModel fs startOptions
+            |> initModel fs (getScreenBounds ()) startOptions
         let binder = MainView.binder config history progress.Publish
         let events = MainView.events config history subDirResults.Publish
         Framework.start binder events dispatcher view model

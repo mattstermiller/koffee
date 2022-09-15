@@ -21,8 +21,9 @@ let test start path1 path2 =
     let history = { History.Default with Paths = [createPath path1] }
     let model = { MainModel.Default with Config = config; History = history }
     let options = { StartPath = start; StartLocation = None; StartSize = None }
+    let screen = Rect.ofPairs (0, 0) (800, 600)
 
-    let actual = MainLogic.initModel fs options model
+    let actual = MainLogic.initModel fs screen options model
 
     actual.Items |> shouldNotEqual [Item.Empty]
     { Start = actual.LocationFormatted

@@ -456,7 +456,7 @@ type MainModel = {
 
     member this.RepeatCount = this.RepeatCommand |? 1
 
-    member this.ItemsIfEmpty =
+    member this.ItemsOrEmpty =
         Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
 
     member this.WithStatus status =

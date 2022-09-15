@@ -25,7 +25,7 @@ let listDirectory selectType model =
         model.Directory
         |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = selectHiddenItem)
         |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
-        |> model.ItemsIfEmpty
+        |> model.ItemsOrEmpty
     { model with Items = items } |> select selectType
 
 let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {

@@ -88,7 +88,10 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
     | true, Some filter ->
         let withItems items model =
             { model with
-                Items = items |> model.ItemsIfEmpty
+                Items =
+                    items
+                    |> model.ItemsOrEmpty
+                    |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                 Cursor = 0
             } |> Nav.select (SelectItem (model.SelectedItem, false))
         let items = model.Directory |> filter
@@ -106,8 +109,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                                      model.Directory
                     |> AsyncSeq.iter subDirResults.Trigger
             | Some subDirs ->
-                let items = items @ filter subDirs |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
-                yield model |> withItems items
+                yield model |> withItems (items @ filter subDirs)
         else
             model.SubDirectoryCancel.Cancel()
             yield { model with SubDirectories = None } |> withItems items

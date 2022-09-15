@@ -433,7 +433,7 @@ let delete (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asy
         yield
             { model with
                 Directory = model.Directory |> List.except [item]
-                Items = model.Items |> List.except [item] |> model.ItemsIfEmpty
+                Items = model.Items |> List.except [item] |> model.ItemsOrEmpty
             }.WithCursor model.Cursor
             |> performedAction action
 }
@@ -444,7 +444,7 @@ let recycle fsWriter (model: MainModel) = asyncSeqResult {
         yield
             { model with
                 Directory = model.Directory |> List.except [model.SelectedItem]
-                Items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
+                Items = model.Items |> List.except [model.SelectedItem] |> model.ItemsOrEmpty
                 History = model.History.WithoutNetHost host
             }
             |> fun m -> m.WithStatus (MainStatus.removedNetworkHost host)

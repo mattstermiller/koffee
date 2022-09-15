@@ -17,7 +17,7 @@ let toggleHidden (model: MainModel) =
             model.Directory @ (model.SubDirectories |? [])
             |> filter
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
-            |> model.ItemsIfEmpty
+            |> model.ItemsOrEmpty
         { model with Items = items } |> Nav.select select
     | None ->
         Nav.listDirectory select model
@@ -54,7 +54,7 @@ let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel
 
 let dropOut (fsReader: IFileSystemReader) dropAction (model: MainModel) =
     if dropAction = Move && fsReader.GetItem model.SelectedItem.Path = Ok None then
-        let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsIfEmpty
+        let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsOrEmpty
         { model with Items = items }
     else
         model

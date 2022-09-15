@@ -9,7 +9,7 @@ type Key = System.Windows.Input.Key
 let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
 let itemActionError action pathFormat = Result.mapError (fun e -> ItemActionError (action, pathFormat, e))
 
-let filterByTerms sort caseSensitive search proj items =
+let filterByTerms sortByStartsWith caseSensitive search projection items =
     let terms =
         search
         |> String.trim
@@ -19,11 +19,10 @@ let filterByTerms sort caseSensitive search proj items =
     | Some terms ->
         let contains = if caseSensitive then String.contains else String.containsIgnoreCase
         let startsWith = if caseSensitive then String.startsWith else String.startsWithIgnoreCase
-        let matches = items |> List.filter (fun i -> terms |> List.forall (fun t -> proj i |> contains t))
-        if sort then
+        let matches = items |> List.filter (fun i -> terms |> List.forall (fun t -> projection i |> contains t))
+        if sortByStartsWith then
             matches |> List.sortBy (fun i ->
-                let weight = if proj i |> startsWith terms.[0] then 0 else 1
-                (weight, proj i |> String.toLower)
+                if projection i |> startsWith terms.[0] then 0 else 1
             )
         else
             matches

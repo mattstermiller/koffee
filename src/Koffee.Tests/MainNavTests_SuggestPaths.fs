@@ -51,8 +51,8 @@ let testCases () =
         ("", [])
         ("gram", [
             history.[6]
-            history.[4]
             history.[1]
+            history.[4]
         ])
         ("invalid/gram", [])
     ] |> List.map (fun (inp, exp) -> TestCaseData(inp, exp))

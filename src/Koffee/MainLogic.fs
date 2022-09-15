@@ -382,6 +382,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput
             | FindNext -> Sync Search.findNext
+            | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
             | StartAction action -> Sync (Action.registerItem action)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)

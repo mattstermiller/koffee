@@ -131,6 +131,20 @@ let addSubDirResults newItems model =
         Items = items
     }
 
+let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
+    if model.SearchCurrent.IsNone then
+        match model.History.Searches |> List.tryHead with
+        | Some prevSearch ->
+            yield!
+                { model with
+                    InputText = prevSearch.Terms
+                    SearchInput = prevSearch
+                }
+                |> search fsReader subDirResults progress
+        | None ->
+            yield model.WithError NoPreviousSearch
+}
+
 let clearSearch (model: MainModel) =
     { model with ShowHistoryType = None }
     |> clearSearchProps

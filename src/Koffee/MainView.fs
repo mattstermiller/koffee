@@ -609,11 +609,12 @@ module MainStatus =
 type MainError =
     | ActionError of actionName: string * exn
     | ItemActionError of ItemAction * PathFormat * exn
-    | PutError of isUndo: bool * PutAction * errorItems: (Item * exn) list * totalItems: int
-    | UndoCopyError of errorItems: (Item * exn) list * totalItems: int
     | InvalidPath of string
+    | NoPreviousSearch
     | ShortcutTargetMissing of string
     | YankRegisterItemMissing of string
+    | PutError of isUndo: bool * PutAction * errorItems: (Item * exn) list * totalItems: int
+    | UndoCopyError of errorItems: (Item * exn) list * totalItems: int
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
     | CannotMoveToSameFolder
@@ -636,6 +637,10 @@ type MainError =
             sprintf "Could not %s: %s" action msg
         | ItemActionError (action, pathFormat, e) ->
             (ActionError (action.Description pathFormat, e)).Message
+        | InvalidPath path -> "Path format is invalid: " + path
+        | NoPreviousSearch -> "No previous search to repeat"
+        | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
+        | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
         | PutError (isUndo, action, errorItems, totalItems) ->
             let undo = if isUndo then "undo " else ""
             let action = action |> string |> String.toLower
@@ -656,9 +661,6 @@ type MainError =
                 sprintf "%s of %i of %i total items. First error: %s" actionMsg errorItems.Length totalItems ex.Message
             | [] ->
                 actionMsg
-        | InvalidPath path -> "Path format is invalid: " + path
-        | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
-        | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
         | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""

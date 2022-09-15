@@ -589,6 +589,7 @@ type MainEvents =
     | SubmitInput
     | CancelInput
     | FindNext
+    | RepeatPreviousSearch
     | StartAction of PutAction
     | ClearYank
     | Put
@@ -638,6 +639,7 @@ type MainEvents =
         StartInput (Find true), "Find Item Starting With... (Multi)"
         FindNext, "Go To Next Find Match"
         StartInput Search, "Search For Items"
+        RepeatPreviousSearch, "Repeat Previous Search"
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt GoToSavedSearch, "Go To Saved Search"
         StartPrompt SetBookmark, "Set Bookmark/Saved Search"

@@ -44,6 +44,7 @@ let defaultsAsString = [
     ("F", StartInput (Find true))
     (";", FindNext)
     ("/", StartInput Search)
+    ("n", RepeatPreviousSearch)
     ("'", StartPrompt GoToBookmark)
     ("m", StartPrompt SetBookmark)
     ("`", StartPrompt GoToSavedSearch)

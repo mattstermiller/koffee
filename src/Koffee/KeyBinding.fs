@@ -22,6 +22,7 @@ let defaultsAsString = [
     ("<c-enter>", OpenFileAndExit)
     ("<a-enter>", OpenProperties)
     ("h", OpenParent)
+    ("gr", OpenRoot)
     ("H", Back)
     ("L", Forward)
     ("r", Refresh)

@@ -359,6 +359,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
             | OpenSelected -> SyncResult (Nav.openSelected fs os None)
+            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root SelectNone)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
             | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
             | OpenProperties -> SyncResult (Command.openProperties os)

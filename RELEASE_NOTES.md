@@ -1,6 +1,7 @@
 # Release Notes
 
 ### 0.6.2  (WIP)
+- #121 Adds command to Open Root Directory
 - #120 Adds command to Repeat Previous Search
 - #114 Adds "How To Use Koffee" link in settings window
 - #70 Changes undo move/copy to undo individual file operations for more correct behavior when folders were merged

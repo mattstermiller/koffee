@@ -569,6 +569,7 @@ type MainEvents =
     | OpenPath of string * EvtHandler
     | OpenSelected
     | OpenParent
+    | OpenRoot
     | Back
     | Forward
     | Refresh
@@ -626,6 +627,7 @@ type MainEvents =
         CursorToFirst, "Move Cursor to First Item"
         CursorToLast, "Move Cursor to Last Item"
         OpenParent, "Open Parent Folder"
+        OpenRoot, "Open Root Directory"
         Back, "Back in Navigation History"
         Forward, "Forward in Navigation History"
         Refresh, "Refresh Current Folder"

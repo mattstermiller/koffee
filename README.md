@@ -42,6 +42,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 - `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
+- `gr` to go to the root directory (Drives)
 - `Tab` to switch between the main view and the path box
 - `?` to open the Settings window, which displays the hotkeys for all commands.
 - `Esc` to cancel actions, searches, path input, etc.
@@ -65,6 +66,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Up` to go back through previous searches and `Down` to go forward.
     - Press `Enter` to close the search input and navigate the results. The current search filter will be shown at the bottom of the window.
     - Press `Esc` when the search input is open or when a search filter is active to cancel the search.
+    - Press `n` to repeat the previous search when no search is active.
 - **Bookmarks**
     - Set a bookmark by pressing `m`. The existing bookmarks are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
     - Go to a bookmark by pressing `'`. The bookmarks are shown. Enter a character to activate the bookmark set to that character.

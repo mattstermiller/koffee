@@ -64,6 +64,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Ctrl + r` to toggle regular expression mode instead of term matching.
     - Press `Ctrl + s` to toggle sub-folder searching. A progress bar will show while results are loaded in the background.
     - Press `Up` to go back through previous searches and `Down` to go forward.
+    - Press `Shift + Delete` when the previous searches are shown to delete the selected search history
     - Press `Enter` to close the search input and navigate the results. The current search filter will be shown at the bottom of the window.
     - Press `Esc` when the search input is open or when a search filter is active to cancel the search.
     - Press `n` to repeat the previous search when no search is active.

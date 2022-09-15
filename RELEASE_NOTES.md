@@ -3,6 +3,7 @@
 ### 0.6.2  (WIP)
 - #121 Adds command to Open Root Directory
 - #120 Adds command to Repeat Previous Search
+- #116 Adds ability to delete search history
 - #114 Adds "How To Use Koffee" link in settings window
 - #70 Changes undo move/copy to undo individual file operations for more correct behavior when folders were merged
 - #123 Fixes path suggestions not being sorted by MRU

@@ -199,14 +199,22 @@ let inputHistory offset model =
         }
     | _ -> model
 
-let inputDelete cancelInput model =
+let inputDelete isShifted cancelInput model =
     match model.InputMode with
-    | Some (Prompt GoToBookmark) | Some (Prompt SetBookmark) ->
+    | Some (Prompt GoToBookmark)
+    | Some (Prompt SetBookmark) ->
         cancelInput ()
         { model with InputMode = Some (Prompt DeleteBookmark) }
-    | Some (Prompt GoToSavedSearch) | Some (Prompt SetSavedSearch) ->
+    | Some (Prompt GoToSavedSearch)
+    | Some (Prompt SetSavedSearch) ->
         cancelInput ()
         { model with InputMode = Some (Prompt DeleteSavedSearch) }
+    | Some (Input Search) when isShifted && model.ShowHistoryType = Some SearchHistory ->
+        match model.SearchHistoryIndex with
+        | Some index ->
+            { model with History = model.History.WithoutSearchIndex index }
+            |> inputHistory 0
+        | None -> model
     | _ -> model
 
 let submitInput fs os model = asyncSeqResult {
@@ -378,7 +386,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | InputChanged -> Async (inputChanged fs subDirResults progress)
             | InputBack -> Sync (inputHistory 1)
             | InputForward -> Sync (inputHistory -1)
-            | InputDelete handler -> Sync (inputDelete handler.Handle)
+            | InputDelete (isShifted, handler) -> Sync (inputDelete isShifted handler.Handle)
             | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
             | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput

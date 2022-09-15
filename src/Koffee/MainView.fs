@@ -468,7 +468,7 @@ module MainView =
             match keyEvt.Key with
             | Key.Up -> Some InputBack
             | Key.Down -> Some InputForward
-            | Key.Delete -> Some (InputDelete keyEvt.Handler)
+            | Key.Delete -> Some (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler))
             | _ -> None
         )
         window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->

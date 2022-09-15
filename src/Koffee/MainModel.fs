@@ -327,6 +327,10 @@ with
     member this.WithSearch search =
         { this with Searches = History.pushDistinct History.MaxSearches this.Searches search }
 
+    member this.WithoutSearchIndex index =
+        let before, rest = this.Searches |> List.splitAt index
+        { this with Searches = before @ rest.Tail }
+
     member this.WithNetHost host =
         if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
             this
@@ -582,7 +586,7 @@ type MainEvents =
     | InputChanged
     | InputBack
     | InputForward
-    | InputDelete of EvtHandler
+    | InputDelete of isShifted: bool * EvtHandler
     | SubDirectoryResults of Item list
     | UpdateDropInAction of Path list * DragEvent
     | DropIn of Path list * DragEvent

@@ -105,8 +105,8 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                         SubDirectoryCancel = cancelToken
                         Sort = None
                     } |> withItems items
-                do! enumerateSubDirs fsReader progress cancelToken.get_IsCancelled model.Config.SearchExclusions
-                                     model.Directory
+                let exclusions = model.Config.SearchExclusions |> List.filter (not << String.startsWith "/")
+                do! enumerateSubDirs fsReader progress cancelToken.get_IsCancelled exclusions model.Directory
                     |> AsyncSeq.iter subDirResults.Trigger
             | Some subDirs ->
                 yield model |> withItems (items @ filter subDirs)

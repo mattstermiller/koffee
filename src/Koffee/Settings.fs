@@ -79,7 +79,8 @@ let editSearchExclusions (model: Model) =
     let searchExclusions =
         TextEdit.showDialog
             "Recursive Search Exclusions"
-            "This list of folder names are excluded from recursive searches."
+            ("This list of folder names are excluded from recursive searches.\n" +
+                "Disable exclusions by adding \"/\" in front of them.")
             (model.Config.SearchExclusions @ [""] |> String.concat "\n")
         |> String.split '\n' |> Array.toList |> List.map String.trim
     model |> updateConfig (fun c -> { c with SearchExclusions = searchExclusions })

@@ -5,6 +5,7 @@
 - #120 Adds command to Repeat Previous Search
 - #116 Adds ability to delete search history
 - #114 Adds "How To Use Koffee" link in settings window
+- #115 Allows commenting out Recursive Search Exclusions
 - #70 Changes undo move/copy to undo individual file operations for more correct behavior when folders were merged
 - #123 Fixes path suggestions not being sorted by MRU
 - #126 Fixes search results to sort by current sort setting instead of always name ascending

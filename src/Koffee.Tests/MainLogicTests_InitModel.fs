@@ -10,17 +10,26 @@ type TestResult = {
     Error: string option
 }
 
-let test start path1 path2 =
-    let invalid, valid =
-        [path1; path2] @ (start |> Option.toList)
-        |> List.partition (String.contains "invalid")
-    let fs = FakeFileSystem (valid |> List.map (fun p -> folder p []))
-    for p in invalid do
+let test (startPath: string option) configPath (defaultPath: string) (history: string list) =
+    let errorPaths, goodPaths =
+        [
+            yield! history
+            defaultPath
+            yield! startPath |> Option.toList
+        ]
+        |> List.partition (String.contains "error")
+    let fs = FakeFileSystem (goodPaths |> List.map (fun p -> folder p []))
+    for p in errorPaths do
         fs.AddExn false (exn p) p
-    let config = { Config.Default with DefaultPath = createPath path2; PathFormat = Unix }
-    let history = { History.Default with Paths = [createPath path1] }
+    let config =
+        { Config.Default with
+            StartPath = configPath
+            DefaultPath = defaultPath |> createPath
+            PathFormat = Unix
+        }
+    let history = { History.Default with Paths = history |> List.map createPath }
     let model = { MainModel.Default with Config = config; History = history }
-    let options = { StartPath = start; StartLocation = None; StartSize = None }
+    let options = { StartPath = startPath; StartLocation = None; StartSize = None }
     let screen = Rect.ofPairs (0, 0) (800, 600)
 
     let actual = MainLogic.initModel fs screen options model
@@ -34,38 +43,64 @@ let test start path1 path2 =
           | _ -> None
     }
 
-let openError p = (ActionError ("open path", exn p)).Message
+let getErrorMsg p = (ActionError ("open path", exn p)).Message
 
 [<Test>]
-let ``When all paths are valid then opens start and back is first path`` () =
-    test (Some "/c/start/") "/c/path1" "/c/path2"
-    |> shouldEqual { Start = "/c/start/"; Back = Some "/c/path1/"; Error = None }
+let ``When all paths are good then opens start and back is prev`` () =
+    test (Some "/c/start/") DefaultPath "/c/default" ["/c/prev"]
+    |> shouldEqual { Start = "/c/start/"; Back = Some "/c/prev/"; Error = None }
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``When start is invalid or missing and both paths are valid then opens first path and back is second`` isStartInvalid =
+let ``When start path errors or is not provided then opens default and back is prev`` isStartError =
     let start, expectedError =
-        if isStartInvalid then (Some "/c/invalid/", Some (openError "/c/invalid/"))
+        if isStartError
+        then (Some "/c/error/", Some (getErrorMsg "/c/error/"))
         else (None, None)
-    test start "/c/path1" "/c/path2"
-    |> shouldEqual { Start = "/c/path1/"; Back = Some "/c/path2/"; Error = expectedError }
+    test start DefaultPath "/c/default" ["/c/prev"]
+    |> shouldEqual { Start = "/c/default/"; Back = Some "/c/prev/"; Error = expectedError }
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``When start path errors with restore prev then opens prev if some else default and back is empty`` hasPrev =
+    let history, expectedStart =
+        if hasPrev
+        then (["/c/prev"], "/c/prev/")
+        else ([], "/c/default/")
+    test (Some "/c/start error/") RestorePrevious "/c/default" history
+    |> shouldEqual { Start = expectedStart; Back = None; Error = Some (getErrorMsg "/c/start error/") }
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``When default path errors or is not configured then opens prev and back is prev2`` isDefaultError =
+    let configPath, defaultPath, expectedError =
+        if isDefaultError
+        then (DefaultPath, "/c/error/", Some (getErrorMsg "/c/error/"))
+        else (RestorePrevious, "/c/default", None)
+    test None configPath defaultPath ["/c/prev"; "/c/prev2"]
+    |> shouldEqual { Start = "/c/prev/"; Back = Some "/c/prev2/"; Error = expectedError }
 
 [<Test>]
-let ``When first path is invalid then opens start and back is first`` () =
-    test (Some "/c/start/") "/c/invalid" "/c/path2"
-    |> shouldEqual { Start = "/c/start/"; Back = Some "/c/invalid/"; Error = None }
+let ``When default path errors and no history then opens root and back is empty`` () =
+    test None DefaultPath "/c/default error/" []
+    |> shouldEqual { Start = "/"; Back = None; Error = Some (getErrorMsg "/c/default error/") }
 
 [<Test>]
-let ``When all paths are invalid then opens root and back is empty`` () =
-    test (Some "/c/invalid/") "/c/invalid1" "/c/invalid2"
-    |> shouldEqual { Start = "/"; Back = None; Error = Some (openError "/c/invalid/") }
+let ``When prev path errors then opens default and back is prev`` () =
+    test None RestorePrevious "/c/default/" ["/c/prev error"; "/c/prev2"]
+    |> shouldEqual { Start = "/c/default/"; Back = Some "/c/prev error/"; Error = Some (getErrorMsg "/c/prev error") }
 
 [<Test>]
-let ``When start is same as first path then opens start and back is second`` () =
-    test (Some "/c/start") "/c/Start" "/c/path2"
-    |> shouldEqual { Start = "/c/start/"; Back = Some "/c/path2/"; Error = None }
+let ``When all paths error then opens root and back is prev`` () =
+    test (Some "/c/start error/") DefaultPath "/c/default error" ["/c/prev error"; "/c/prev2"]
+    |> shouldEqual { Start = "/"; Back = Some "/c/prev error/"; Error = Some (getErrorMsg "/c/start error/") }
 
 [<Test>]
-let ``When start is same as both paths then opens start and back is root`` () =
-    test (Some "/c/start") "/c/Start" "/c/START"
-    |> shouldEqual { Start = "/c/start/"; Back = Some "/"; Error = None }
+let ``When start is same as prev path then opens start and back is prev2`` () =
+    test (Some "/c/start") DefaultPath "/c/default" ["/c/Start"; "/c/prev2/"]
+    |> shouldEqual { Start = "/c/start/"; Back = Some "/c/prev2/"; Error = None }
+
+[<Test>]
+let ``When default is same as prev path then opens default and back is prev2`` () =
+    test None DefaultPath "/c/default" ["/c/Default"; "/c/prev2"]
+    |> shouldEqual { Start = "/c/default/"; Back = Some "/c/prev2/"; Error = None }

@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
@@ -44,12 +44,13 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
             match Nav.openUserPath fsReader start model with
             | Ok model ->
                 let back =
-                    paths
-                    |> Seq.choose Path.Parse
-                    |> Seq.filter ((<>) model.Location)
-                    |> Seq.tryHead
-                    |> Option.map (fun p -> (p, 0))
-                    |> Option.toList
+                    (
+                        match model.History.Paths with
+                        | head :: tail when head = model.Location -> tail
+                        | history -> history
+                    )
+                    |> List.truncate 100
+                    |> List.map (fun p -> (p, 0))
                 { model with BackStack = back }
                 |> withError
             | Error e ->

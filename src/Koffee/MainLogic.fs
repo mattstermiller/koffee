@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
@@ -368,11 +368,12 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
             | OpenSelected -> SyncResult (Nav.openSelected fs os None)
-            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root SelectNone)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
             | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
             | OpenProperties -> SyncResult (Command.openProperties os)
             | OpenParent -> SyncResult (Nav.openParent fs)
+            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root SelectNone)
+            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath SelectNone m)
             | Back -> SyncResult (Nav.back fs)
             | Forward -> SyncResult (Nav.forward fs)
             | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)

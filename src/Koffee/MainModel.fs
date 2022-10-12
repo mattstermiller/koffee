@@ -574,6 +574,7 @@ type MainEvents =
     | OpenSelected
     | OpenParent
     | OpenRoot
+    | OpenDefault
     | Back
     | Forward
     | Refresh
@@ -632,6 +633,7 @@ type MainEvents =
         CursorToLast, "Move Cursor to Last Item"
         OpenParent, "Open Parent Folder"
         OpenRoot, "Open Root Directory"
+        OpenDefault, "Open Default Path"
         Back, "Back in Navigation History"
         Forward, "Forward in Navigation History"
         Refresh, "Refresh Current Folder"

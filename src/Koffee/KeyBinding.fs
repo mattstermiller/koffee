@@ -23,6 +23,7 @@ let defaultsAsString = [
     ("<a-enter>", OpenProperties)
     ("h", OpenParent)
     ("gr", OpenRoot)
+    ("gd", OpenDefault)
     ("H", Back)
     ("L", Forward)
     ("r", Refresh)

@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -224,6 +224,16 @@ type WindowConfig = {
     RefreshOnActivate: bool
 }
 
+type Limits = {
+    Back: int
+    Undo: int
+}
+with
+    static member Default: Limits = {
+        Back = 100
+        Undo = 50
+    }
+
 type Config = {
     StartPath: StartPath
     DefaultPath: Path
@@ -236,6 +246,7 @@ type Config = {
     Window: WindowConfig
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
+    Limits: Limits
 }
 with
     static member private addRegister coll item =
@@ -294,6 +305,7 @@ with
         }
         Bookmarks = []
         SavedSearches = []
+        Limits = Limits.Default
     }
 
 [<Struct>]
@@ -443,7 +455,7 @@ type MainModel = {
     member this.WithPushedLocation path =
         if path <> this.Location then
             { this.WithLocation path with
-                BackStack = (this.Location, this.Cursor) :: this.BackStack
+                BackStack = (this.Location, this.Cursor) :: this.BackStack |> List.truncate this.Config.Limits.Back
                 ForwardStack = []
                 Cursor = 0
             }

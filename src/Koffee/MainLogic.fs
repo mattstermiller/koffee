@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
@@ -49,7 +49,7 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
                         | head :: tail when head = model.Location -> tail
                         | history -> history
                     )
-                    |> List.truncate 100
+                    |> List.truncate model.Config.Limits.Back
                     |> List.map (fun p -> (p, 0))
                 { model with BackStack = back }
                 |> withError

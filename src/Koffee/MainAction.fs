@@ -7,7 +7,7 @@ open Koffee.Main.Util
 
 let private performedAction action (model: MainModel) =
     { model with
-        UndoStack = action :: model.UndoStack
+        UndoStack = action :: model.UndoStack |> List.truncate model.Config.Limits.Undo
         RedoStack = []
     } |> fun m -> m.WithStatus (MainStatus.actionComplete action model.PathFormat)
 
@@ -258,7 +258,7 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors 
             let action = PutItems (putAction, intent, succeeded)
             yield
                 { model.WithError error with
-                    UndoStack = action :: model.UndoStack
+                    UndoStack = action :: model.UndoStack |> List.truncate model.Config.Limits.Undo
                     RedoStack = []
                 }
 }

@@ -1,4 +1,4 @@
-module Koffee.MainLogic
+﻿module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
@@ -117,7 +117,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                         InputText = search.Terms
                         SearchInput = search
                         SearchHistoryIndex = Some 0
-                        History = model.History.WithSearch search
+                        History = model.History.WithSearch model.Config.Limits.PathHistory search
                     }
                     |> Search.search fs subDirResults progress
                     |> AsyncSeq.map Ok
@@ -233,7 +233,7 @@ let submitInput fs os model = asyncSeqResult {
                 InputMode = None
                 SearchCurrent = if search.IsNone then None else model.SearchCurrent
                 SearchHistoryIndex = Some 0
-                History = search |> Option.map model.History.WithSearch |? model.History
+                History = search |> Option.map (model.History.WithSearch model.Config.Limits.SearchHistory) |? model.History
                 ShowHistoryType = None
             }
     | Some (Input CreateFile) ->

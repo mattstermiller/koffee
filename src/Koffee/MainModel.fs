@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -227,11 +227,17 @@ type WindowConfig = {
 type Limits = {
     Back: int
     Undo: int
+    PathHistory: int
+    SearchHistory: int
+    StatusHistory: int
 }
 with
     static member Default: Limits = {
         Back = 100
         Undo = 50
+        PathHistory = 500
+        SearchHistory = 50
+        StatusHistory = 20
     }
 
 type Config = {
@@ -333,11 +339,11 @@ with
     static member private pushDistinct max list item =
         item :: (list |> List.filter ((<>) item)) |> List.truncate max
 
-    member this.WithPath path =
-        { this with Paths = History.pushDistinct History.MaxPaths this.Paths path }
+    member this.WithPath pathLimit path =
+        { this with Paths = History.pushDistinct pathLimit this.Paths path }
 
-    member this.WithSearch search =
-        { this with Searches = History.pushDistinct History.MaxSearches this.Searches search }
+    member this.WithSearch searchLimit search =
+        { this with Searches = History.pushDistinct searchLimit this.Searches search }
 
     member this.WithoutSearchIndex index =
         let before, rest = this.Searches |> List.splitAt index
@@ -352,8 +358,8 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
-    member this.WithPathAndNetHost path =
-        let hist = this.WithPath path
+    member this.WithPathAndNetHost pathLimit path =
+        let hist = this.WithPath pathLimit path
         match path.NetHost with
         | Some host -> hist.WithNetHost host
         | None -> hist
@@ -368,9 +374,6 @@ with
         match this.PathSort.TryFind path with
         | Some sort -> sort
         | None -> PathSort.Default
-
-    static member MaxPaths = 500
-    static member MaxSearches = 50
 
     static member Default = {
         Paths = []
@@ -481,7 +484,7 @@ type MainModel = {
             StatusHistory =
                 match status with
                 | Busy _ -> this.StatusHistory
-                | s -> s :: this.StatusHistory |> List.truncate 20
+                | s -> s :: this.StatusHistory |> List.truncate this.Config.Limits.StatusHistory
         }
 
     member this.WithStatusOption status =

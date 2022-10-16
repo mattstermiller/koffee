@@ -41,7 +41,7 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = resu
     return
         { model.WithPushedLocation path with
             Directory = directory
-            History = model.History.WithPathAndNetHost path
+            History = model.History.WithPathAndNetHost model.Config.Limits.PathHistory path
             Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
         }
         |> clearSearchProps

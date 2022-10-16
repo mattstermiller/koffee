@@ -24,7 +24,7 @@ let model =
         ]
         Location = createPath "/c"
         Cursor = 2
-        History = testModel.History.WithPath (createPath "/c")
+        History = testModel.History.WithPath 9 (createPath "/c")
     }
 
 let test case =
@@ -64,7 +64,7 @@ let test case =
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []
-                    History = model.History.WithPath path
+                    History = model.History.WithPath 9 path
                }
         | Inaccessible ->
             Error (ActionError ("open path", ex))

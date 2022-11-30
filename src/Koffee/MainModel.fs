@@ -410,6 +410,7 @@ type MainModel = {
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
+    InputError: string option
     LastFind: string option
     SearchInput: Search
     SearchCurrent: Search option
@@ -522,6 +523,7 @@ type MainModel = {
         InputMode = None
         InputText = ""
         InputTextSelection = 0, 0
+        InputError = None
         LastFind = None
         SearchInput = Search.Default
         SearchCurrent = None

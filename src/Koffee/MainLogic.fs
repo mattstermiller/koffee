@@ -173,8 +173,8 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
 
 let inputChanged fsReader subDirResults progress model = asyncSeq {
     match model.InputMode with
-    | Some (Input (Find _)) when String.isNotEmpty model.InputText ->
-        yield Search.find model.InputText model
+    | Some (Input (Find _)) ->
+        yield Search.find model
     | Some (Input Search) ->
         yield! Search.search fsReader subDirResults progress model
     | _ -> ()
@@ -252,8 +252,8 @@ let submitInput fs os model = asyncSeqResult {
 }
 
 let cancelInput model =
-    { model with InputMode = None }
-    |>  match model.InputMode with
+    { model with InputMode = None; InputError = None }
+    |> match model.InputMode with
         | Some (Input Search) -> Search.clearSearch
         | _ -> id
 

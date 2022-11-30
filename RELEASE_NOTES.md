@@ -5,6 +5,7 @@
 - #128 Adds command to Open Default Path
 - #120 Adds command to Repeat Previous Search
 - #116 Adds ability to delete search history
+- #119 Adds input error messages when Find input is not found or Search regex is invalid
 - #114 Adds "How To Use Koffee" link in settings window
 - #111 Loads navigation history on startup
 - #115 Allows commenting out Recursive Search Exclusions

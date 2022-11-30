@@ -93,57 +93,66 @@
           </Style>
         </DataGrid.RowStyle>
       </DataGrid>
-      <!-- Bookmarks panel -->
-      <StackPanel Name="BookmarkPanel" x:FieldModifier="public" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                  Visibility="Hidden" Background="{DynamicResource PopupBrush}">
-        <TextBlock Name="BookmarksHeader" x:FieldModifier="public" Margin="8,4,8,8"
-                   Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
-        <ItemsControl Name="Bookmarks" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="20"/>
-                <TextBlock Text="{Binding Item2}"/>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-      <!-- History panel -->
-      <StackPanel Name="HistoryPanel" x:FieldModifier="public" VerticalAlignment="Bottom" Visibility="Collapsed"
-                  Background="{DynamicResource PopupBrush}" Margin="32,0">
-        <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8"
-                   Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
-        <ItemsControl Name="HistoryBack" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right"/>
-                <TextBlock Text="{Binding Item2}"/>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <ItemsControl Name="HistoryCurrent" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
-          <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-            <TextBlock Text="(current)" Width="55" Margin="0,0,4,0" Foreground="{DynamicResource PanelTextBrush}"
-                       FontStyle="Italic"/>
-            <TextBlock Name="HistoryCurrentLabel" x:FieldModifier="public" Text="/some/path"
-                       Foreground="{DynamicResource PanelTextBrush}"/>
-          </StackPanel>
-        </ItemsControl>
-        <ItemsControl Name="HistoryForward" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right" />
-                <TextBlock Text="{Binding Item2}"/>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <TextBlock Name="HistoryEmpty" x:FieldModifier="public" Text="Nothing in history" Margin="8,0,8,6"
-                   Foreground="{DynamicResource PopupTextBrush}"/>
+      <!-- Popup panels -->
+      <StackPanel VerticalAlignment="Bottom" Margin="32,0">
+        <!-- History panel -->
+        <StackPanel Name="HistoryPanel" x:FieldModifier="public" Visibility="Collapsed"
+                    Background="{DynamicResource PopupBrush}" Margin="0">
+          <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8"
+                     Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+          <ItemsControl Name="HistoryBack" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+                  <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right"/>
+                  <TextBlock Text="{Binding Item2}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl Name="HistoryCurrent" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+            <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+              <TextBlock Text="(current)" Width="55" Margin="0,0,4,0" Foreground="{DynamicResource PanelTextBrush}"
+                         FontStyle="Italic"/>
+              <TextBlock Name="HistoryCurrentLabel" x:FieldModifier="public" Text="/some/path"
+                         Foreground="{DynamicResource PanelTextBrush}"/>
+            </StackPanel>
+          </ItemsControl>
+          <ItemsControl Name="HistoryForward" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+                  <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right" />
+                  <TextBlock Text="{Binding Item2}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Name="HistoryEmpty" x:FieldModifier="public" Text="Nothing in history" Margin="8,0,8,6"
+                     Foreground="{DynamicResource PopupTextBrush}"/>
+        </StackPanel>
+        <!-- Bookmarks panel -->
+        <StackPanel Name="BookmarkPanel" x:FieldModifier="public" Visibility="Collapsed"
+                    Background="{DynamicResource PopupBrush}">
+          <TextBlock Name="BookmarksHeader" x:FieldModifier="public" Margin="8,4,8,8"
+                    Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+          <ItemsControl Name="Bookmarks" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
+                  <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="20"/>
+                  <TextBlock Text="{Binding Item2}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+        <!-- Input error panel -->
+        <Border Name="InputErrorPanel" x:FieldModifier="public" BorderThickness="2,2,2,0" Visibility="Collapsed"
+                Background="{DynamicResource PopupBrush}">
+          <TextBlock Name="InputError" x:FieldModifier="public" Margin="8"
+                     Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+        </Border>
       </StackPanel>
     </Grid>
   </DockPanel>

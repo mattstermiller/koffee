@@ -11,7 +11,7 @@ let toggleHidden (model: MainModel) =
             Config = { model.Config with ShowHidden = show }
         } |> fun m -> m.WithStatus (MainStatus.toggleHidden show)
     let select = SelectItem (model.SelectedItem, false)
-    match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden) with
+    match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
         let items =
             model.Directory @ (model.SubDirectories |? [])

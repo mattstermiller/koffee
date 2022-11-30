@@ -298,7 +298,7 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarksHeader.Text <- "Bookmarks"
-                            window.BookmarkPanel.Visible <- true
+                            window.BookmarkPanel.Collapsed <- false
                         | Prompt GoToSavedSearch
                         | Prompt SetSavedSearch
                         | Prompt DeleteSavedSearch ->
@@ -308,9 +308,9 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No searches saved")]
                             window.Bookmarks.ItemsSource <- searches
                             window.BookmarksHeader.Text <- "Saved Searches"
-                            window.BookmarkPanel.Visible <- true
+                            window.BookmarkPanel.Collapsed <- false
                         | _ ->
-                            window.BookmarkPanel.Visible <- false
+                            window.BookmarkPanel.Collapsed <- true
                         window.SearchOptions.Collapsed <- inputMode <> Input Search
                         window.InputText.Text <- getPrompt pathFormat selected inputMode
                         if not window.InputPanel.Visible then
@@ -320,11 +320,18 @@ module MainView =
                     | None ->
                         if window.InputPanel.Visible then
                             window.InputPanel.Collapsed <- true
-                            window.BookmarkPanel.Visible <- false
+                            window.BookmarkPanel.Collapsed <- true
                             window.ItemGrid.Focus() |> ignore
                 )
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
                 window.InputBox.Select(selectStart, selectLen)
+            )
+            Bind.model(<@ model.InputError @>).toFunc(function
+                | Some error ->
+                    window.InputError.Text <- error
+                    window.InputErrorPanel.Collapsed <- false
+                | None ->
+                    window.InputErrorPanel.Collapsed <- true
             )
             Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
                 | None, _
@@ -396,9 +403,9 @@ module MainView =
                         window.HistoryCurrent.Collapsed <- current.IsNone || isEmpty
                         window.HistoryForward.ItemsSource <- next
                         window.HistoryEmpty.Collapsed <- not isEmpty
-                        window.HistoryPanel.Visible <- true
+                        window.HistoryPanel.Collapsed <- false
                     | None ->
-                        window.HistoryPanel.Visible <- false
+                        window.HistoryPanel.Collapsed <- true
                 )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
@@ -684,6 +691,7 @@ type MainError =
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
 
 module ErrorMessages =
+    let findFailed prefix = sprintf "No item starts with \"%s\"" prefix
     let undoMoveBlockedByExisting = "An item exists in the previous location"
 
 [<AutoOpen>]

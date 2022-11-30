@@ -8,7 +8,7 @@ open Koffee
 open Koffee.Main
 open Koffee.Main.Util
 
-let private moveCursorTo next reverse predicate model =
+let private performFind next reverse prefix model =
     let rotate offset (list: _ list) = list.[offset..] @ list.[0..(offset-1)]
     let indexed = model.Items |> List.indexed
     let items =
@@ -16,43 +16,42 @@ let private moveCursorTo next reverse predicate model =
             indexed |> rotate (model.Cursor + (if next then 0 else 1)) |> List.rev
         else
             indexed |> rotate (model.Cursor + (if next then 1 else 0))
-    let cursor =
+    let index =
         items
-        |> List.filter (snd >> predicate)
+        |> List.filter (fun (_, item) -> item.Name |> String.startsWithIgnoreCase prefix)
         |> List.skip (model.RepeatCount - 1)
         |> List.tryHead
         |> Option.map fst
-    match cursor with
-    | Some cursor -> model.WithCursor cursor
-    | None -> model
+    match index with
+    | Some index -> { (model.WithCursor index) with InputError = None }
+    | None -> { model with InputError = Some (ErrorMessages.findFailed prefix) }
 
-let find prefix model =
-    { model with LastFind = Some prefix }
-    |> moveCursorTo false false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
+let find model =
+    if model.InputText |> String.isNotEmpty then
+        { model with LastFind = Some model.InputText }
+        |> performFind false false model.InputText
+    else
+        { model with InputError = None }
 
 let findNext model =
     match model.LastFind with
     | Some prefix ->
         model.WithStatus (MainStatus.find prefix model.RepeatCount)
-        |> moveCursorTo true false (fun i -> i.Name |> String.startsWithIgnoreCase prefix)
+        |> performFind true false prefix
     | None -> model
 
 let getFilter showHidden searchInput =
-    searchInput.Terms
-    |> Option.ofString
-    |> Option.bind (fun input ->
+    (
         if searchInput.Regex then
             let options = if searchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
-            try
-                let re = Regex(input, options)
-                Some (List.filter (fun item -> re.IsMatch item.Name))
-            with :? System.ArgumentException -> None
+            match tryResult (fun () -> Regex(searchInput.Terms, options)) with
+            | Ok re -> Ok (List.filter (fun item -> re.IsMatch item.Name))
+            | Error ex -> Error (sprintf "Regex error: %s" ex.Message)
         else
-            Some (filterByTerms false searchInput.CaseSensitive input (fun item -> item.Name))
-    )
-    |> Option.map (fun filter ->
+            Ok (filterByTerms false searchInput.CaseSensitive searchInput.Terms (fun item -> item.Name))
+    ) |> Result.map (fun filter ->
         if not showHidden then
-            List.filter (fun i -> not i.IsHidden) >> filter
+            (List.filter (fun i -> not i.IsHidden) >> filter)
         else
             filter
     )
@@ -83,9 +82,13 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) 
 
 let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyncSeq {
     let input = { model.SearchInput with Terms = model.InputText }
-    let model = { model with SearchCurrent = Some input }
-    match model.InputText |> String.isNotEmpty, getFilter model.Config.ShowHidden input with
-    | true, Some filter ->
+    let model = { model with SearchCurrent = Some input; InputError = None }
+    let filterResult =
+        input
+        |> Option.ofCond (fun i -> i.Terms |> String.isNotWhiteSpace)
+        |> Option.map (getFilter model.Config.ShowHidden)
+    match filterResult with
+    | Some (Ok filter) ->
         let withItems items model =
             { model with
                 Items =
@@ -113,14 +116,17 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
         else
             model.SubDirectoryCancel.Cancel()
             yield { model with SubDirectories = None } |> withItems items
-    | true, None ->
-        yield model
-    | false, _ ->
+    | Some (Error e) ->
+        yield { model with InputError = Some e }
+    | None ->
         yield model |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
 }
 
 let addSubDirResults newItems model =
-    let filter = model.SearchCurrent |> Option.bind (getFilter model.Config.ShowHidden) |? cnst []
+    let filter =
+        model.SearchCurrent
+        |> Option.bind (getFilter model.Config.ShowHidden >> Result.toOption)
+        |? cnst []
     let items =
         match filter newItems, model.Items with
         | [], _ -> model.Items

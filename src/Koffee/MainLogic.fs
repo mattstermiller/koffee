@@ -148,8 +148,8 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         match char with
         | 'y' ->
             match confirmType with
-            | Overwrite (action, src, _) ->
-                let! model = Action.putItem fs progress true src action model
+            | Overwrite (putType, src, _) ->
+                let! model = Action.putItem fs progress true src putType model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
                 yield! Action.delete fs model.SelectedItem true model
@@ -394,15 +394,15 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CancelInput -> Sync cancelInput
             | FindNext -> Sync Search.findNext
             | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
-            | StartAction action -> Sync (Action.registerItem action)
+            | StartPut putType -> Sync (Action.registerItem putType)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (Action.recycle fs)
             | SortList field -> Sync (Nav.sortList field)
-            | UpdateDropInAction (paths, event) -> Sync (Command.updateDropInAction paths event)
+            | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)
-            | DropOut action -> Sync (Command.dropOut fs action)
+            | DropOut putType -> Sync (Command.dropOut fs putType)
             | ToggleHidden -> Sync Command.toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)

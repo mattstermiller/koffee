@@ -16,21 +16,21 @@ let copyNames name num =
 
 let progress = Event<_>()
 
-let putActionCases () = [
+let putTypeCases () = [
     TestCaseData(Move)
     TestCaseData(Copy)
     TestCaseData(Shortcut)
 ]
 
 let putItemOverwriteCases () =
-    putActionCases () |> List.collect (fun c -> [
+    putTypeCases () |> List.collect (fun c -> [
         TestCaseData(c.Arguments.[0], false)
         TestCaseData(c.Arguments.[0], true)
     ])
 
 [<TestCaseSource("putItemOverwriteCases")>]
-let ``Put item in different folder with item of same name prompts for overwrite`` action existingHidden =
-    let destName = if action = Shortcut then "file.lnk" else "file"
+let ``Put item in different folder with item of same name prompts for overwrite`` putType existingHidden =
+    let destName = if putType = Shortcut then "file.lnk" else "file"
     let fs = FakeFileSystem [
         folder "other" [
             file "file"
@@ -41,7 +41,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     ]
     let src = fs.Item "/c/other/file"
     let dest = fs.Item ("/c/" + destName)
-    let item = Some (src.Path, src.Type, action)
+    let item = Some (src.Path, src.Type, putType)
     let model = testModel |> withReg item
     let expectedItems = fs.ItemsIn "/c"
 
@@ -52,7 +52,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
             Directory = expectedItems |> sortByPath
             Items = expectedItems |> List.filter (fun i -> i.Name <> "hidden")
             Cursor = 2
-            InputMode = Some (Confirm (Overwrite (action, src, dest)))
+            InputMode = Some (Confirm (Overwrite (putType, src, dest)))
         }
     assertAreEqual expected actual
     fs.ItemsIn "/c" |> shouldEqual expectedItems
@@ -80,23 +80,23 @@ let ``Put handles error reading register item`` () =
     let expected = model.WithError (ActionError ("read yank register item", ex))
     assertAreEqual expected actual
 
-[<TestCaseSource("putActionCases")>]
-let ``Put item handles file system errors`` action =
+[<TestCaseSource("putTypeCases")>]
+let ``Put item handles file system errors`` putType =
     let fs = FakeFileSystem [
         folder "folder" [
             file "file"
         ]
     ]
     let src = fs.Item "/c/folder/file"
-    let destPath = "/c/file" + (if action = Shortcut then ".lnk" else "") |> createPath
+    let destPath = "/c/file" + (if putType = Shortcut then ".lnk" else "") |> createPath
     fs.AddExnPath true ex destPath
-    let item = Some (src.Path, src.Type, action)
+    let item = Some (src.Path, src.Type, putType)
     let model = testModel |> withReg item
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.put fs progress false) model
 
-    let expected = model.WithError (PutError (false, action, [(src, ex)], 1))
+    let expected = model.WithError (PutError (false, putType, [(src, ex)], 1))
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -114,13 +114,13 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     ]
     let src = fs.Item "/c/folder/file"
     let dest = createFile "/c/file"
-    let putAction = if copy then Copy else Move
-    let model = testModel |> withReg (Some (src.Path, src.Type, putAction))
+    let putType = if copy then Copy else Move
+    let model = testModel |> withReg (Some (src.Path, src.Type, putType))
 
     let actual = seqResult (Action.put fs progress overwrite) model
 
     let putItem = { Item = src; Dest = dest.Path; DestExists = overwrite }
-    let expectedAction = PutItems (putAction, putItem, [putItem])
+    let expectedAction = PutItems (putType, putItem, [putItem])
     let expectedItems = [
         createFolder "/c/folder"
         createFile "/c/file" |> size 41L
@@ -185,8 +185,8 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
     ]
     let src = fs.Item "/c/fruit"
     let dest = createFolder "/c/dest/fruit"
-    let putAction = if copy then Copy else Move
-    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, putAction))
+    let putType = if copy then Copy else Move
+    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, putType))
 
     let actual = seqResult (Action.put fs progress true) model
 
@@ -205,7 +205,7 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
         createPutItem (createFile "/c/fruit/trees/apple" |> size 7L) true
         createPutItem (createFile "/c/fruit/trees/banana") false
     ]
-    let expectedAction = PutItems (putAction, intent, expectedPut)
+    let expectedAction = PutItems (putType, intent, expectedPut)
     let expectedItems = [dest]
     let expected =
         { testModel with
@@ -1060,12 +1060,12 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
 
 /// redo put item tests
 
-[<TestCaseSource("putActionCases")>]
-let ``Redo put item that was not an overwrite when path is occupied returns error`` putAction =
+[<TestCaseSource("putTypeCases")>]
+let ``Redo put item that was not an overwrite when path is occupied returns error`` putType =
     let fs = FakeFileSystem [
         folder "dest" [
             folder "other" []
-            if putAction = Shortcut then
+            if putType = Shortcut then
                 file "put.lnk"
             else
                 folder "put" []
@@ -1076,25 +1076,25 @@ let ``Redo put item that was not an overwrite when path is occupied returns erro
         ]
     ]
     let item = createFolder "/c/put"
-    let destPath = createPath ("/c/dest/put" + if putAction = Shortcut then ".lnk" else "")
+    let destPath = createPath ("/c/dest/put" + if putType = Shortcut then ".lnk" else "")
     let putItem = { Item = item; Dest = destPath; DestExists = false }
     let actualPut = [
-        if putAction = Shortcut then
+        if putType = Shortcut then
             putItem
         else
             { Item = createFile "/c/put/file"; Dest = destPath.Join "file"; DestExists = false }
             { Item = createFile "/c/put/other"; Dest = destPath.Join "other"; DestExists = false }
     ]
-    let action = PutItems (putAction, putItem, actualPut)
+    let action = PutItems (putType, putItem, actualPut)
     let model = testModel |> pushRedo action
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.redo fs testProgress) model
 
-    let expectedError = CannotRedoPutToExisting (putAction, item, destPath.Format model.PathFormat)
+    let expectedError = CannotRedoPutToExisting (putType, item, destPath.Format model.PathFormat)
     let expectedItems = [
         createFolder "/c/dest/other"
-        if putAction = Shortcut then
+        if putType = Shortcut then
             createFile "/c/dest/put.lnk"
         else
             createFolder "/c/dest/put"

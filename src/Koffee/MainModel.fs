@@ -100,7 +100,7 @@ type RenamePart =
     | ReplaceName
     | ReplaceAll
 
-type PutAction =
+type PutType =
     | Move
     | Copy
     | Shortcut
@@ -137,7 +137,7 @@ type PromptType =
     | DeleteSavedSearch
 
 type ConfirmType =
-    | Overwrite of PutAction * src: Item * dest: Item
+    | Overwrite of PutType * src: Item * dest: Item
     | Delete
     | OverwriteBookmark of char * existingPath: Path
     | OverwriteSavedSearch of char * existingSearch: Search
@@ -175,14 +175,14 @@ with
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItems of PutAction * intent: PutItem * actual: PutItem list
+    | PutItems of PutType * intent: PutItem * actual: PutItem list
     | DeletedItem of Item * permanent: bool
 with
     member this.Description pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Rename %s to %s" item.Description newName
-        | PutItems (action, intent, actual) ->
+        | PutItems (putType, intent, actual) ->
             let fileCountStr =
                 actual
                 |> Seq.filter (fun p -> p.Item.Type = File)
@@ -190,7 +190,7 @@ with
                 |> function
                     | 0 -> ""
                     | count -> sprintf " (%i files)" count
-            sprintf "%O %s%s" action ([intent] |> PutItem.describeList pathFormat) fileCountStr
+            sprintf "%O %s%s" putType ([intent] |> PutItem.describeList pathFormat) fileCountStr
         | DeletedItem (item, false) -> sprintf "Recycle %s" item.Description
         | DeletedItem (item, true) -> sprintf "Delete %s" item.Description
 
@@ -248,7 +248,7 @@ type Config = {
     TextEditor: string
     CommandlinePath: string
     SearchExclusions: string list
-    YankRegister: (Path * ItemType * PutAction) option
+    YankRegister: (Path * ItemType * PutType) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
@@ -543,7 +543,7 @@ type MainModel = {
     }
 
 module DragDropEffects =
-    let toActions effects =
+    let toPutTypes effects =
         if effects = DragDropEffects.All then
             [Move; Copy; Shortcut]
         else
@@ -553,8 +553,8 @@ module DragDropEffects =
                 if effects.HasFlag DragDropEffects.Link then Shortcut
             ]
 
-    let ofAction action =
-        match action with
+    let ofPutTypes putType =
+        match putType with
         | Some Move -> DragDropEffects.Move
         | Some Copy -> DragDropEffects.Copy
         | Some Shortcut -> DragDropEffects.Link
@@ -573,11 +573,11 @@ type DragEvent(event: DragEventArgs) =
     do
         event.Effects <- DragDropEffects.fromKeyModifiers ()
 
-    member this.Action
-        with get () = event.Effects |> DragDropEffects.toActions |> Seq.tryHead
-        and set value = event.Effects <- DragDropEffects.ofAction value
+    member this.PutType
+        with get () = event.Effects |> DragDropEffects.toPutTypes |> Seq.tryHead
+        and set value = event.Effects <- DragDropEffects.ofPutTypes value
 
-    member this.AllowedActions = event.AllowedEffects |> DragDropEffects.toActions
+    member this.AllowedPutTypes = event.AllowedEffects |> DragDropEffects.toPutTypes
 
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
@@ -606,14 +606,14 @@ type MainEvents =
     | InputForward
     | InputDelete of isShifted: bool * EvtHandler
     | SubDirectoryResults of Item list
-    | UpdateDropInAction of Path list * DragEvent
+    | UpdateDropInPutType of Path list * DragEvent
     | DropIn of Path list * DragEvent
-    | DropOut of PutAction
+    | DropOut of PutType
     | SubmitInput
     | CancelInput
     | FindNext
     | RepeatPreviousSearch
-    | StartAction of PutAction
+    | StartPut of PutType
     | ClearYank
     | Put
     | ClipCopy
@@ -676,9 +676,9 @@ type MainEvents =
         StartInput (Rename End), "Rename Item (Append to Extension)"
         StartInput (Rename ReplaceName), "Rename Item (Replace Name)"
         StartInput (Rename ReplaceAll), "Rename Item (Replace Full Name)"
-        StartAction Move, "Start Move Item"
-        StartAction Copy, "Start Copy Item"
-        StartAction Shortcut, "Start Create Shortcut to Item"
+        StartPut Move, "Start Move Item"
+        StartPut Copy, "Start Copy Item"
+        StartPut Shortcut, "Start Create Shortcut to Item"
         ClearYank, "Clear Yank Register"
         Put, "Put Item to Move/Copy in Current Folder"
         ClipCopy, "Copy to Clipboard"

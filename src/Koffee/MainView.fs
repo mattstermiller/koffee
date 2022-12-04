@@ -33,10 +33,10 @@ module MainView =
     let getPrompt pathFormat (item: Item) inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
-        | Confirm (Overwrite (putAction, src, dest)) ->
+        | Confirm (Overwrite (putType, src, dest)) ->
             match dest.Type with
             | Folder ->
-                sprintf "Folder \"%s\" already exists. %A anyway and merge files y/n ?" dest.Name putAction
+                sprintf "Folder \"%s\" already exists. %A anyway and merge files y/n ?" dest.Name putType
             | File ->
                 match src.Modified, src.Size, dest.Modified, dest.Size with
                 | Some srcModified, Some srcSize, Some destModified, Some destSize ->
@@ -237,8 +237,8 @@ module MainView =
             // display yank register
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
-                    register |> Option.map (fun (path, typ, action) ->
-                        sprintf "%A: %s %s" action typ.Symbol path.Name)
+                    register |> Option.map (fun (path, itemType, putType) ->
+                        sprintf "%A: %s %s" putType itemType.Symbol path.Name)
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.Visible <- text.IsSome
             )
@@ -509,14 +509,14 @@ module MainView =
         window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
             let paths = getFileDropPaths e.Data
             e.Handled <- true
-            UpdateDropInAction (paths, DragEvent e)
+            UpdateDropInPutType (paths, DragEvent e)
         )
         window.ItemGrid.MouseMove |> Obs.choose (fun e ->
             if e.LeftButton = MouseButtonState.Pressed then
                 let item = window.ItemGrid.SelectedItem :?> Item
                 let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
                 DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
-                |> DragDropEffects.toActions
+                |> DragDropEffects.toPutTypes
                 |> List.tryHead
                 |> Option.map DropOut
             else None
@@ -572,7 +572,7 @@ module MainStatus =
             None
     let runningAction action pathFormat =
         runningActionMessage action pathFormat |> Option.map Busy
-    let preparingPut (action: PutAction) name = Busy <| sprintf "Preparing to %O %s..." action name
+    let preparingPut (putType: PutType) name = Busy <| sprintf "Preparing to %O %s..." putType name
     let checkingIsRecyclable = Busy "Calculating size..."
     let private actionCompleteMessage action pathFormat =
         match action with
@@ -620,7 +620,7 @@ type MainError =
     | NoPreviousSearch
     | ShortcutTargetMissing of string
     | YankRegisterItemMissing of string
-    | PutError of isUndo: bool * PutAction * errorItems: (Item * exn) list * totalItems: int
+    | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
     | UndoCopyError of errorItems: (Item * exn) list * totalItems: int
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
@@ -628,7 +628,7 @@ type MainError =
     | TooManyCopies of fileName: string
     | CannotUndoNonEmptyCreated of Item
     | CannotUndoDelete of permanent: bool * item: Item
-    | CannotRedoPutToExisting of action: PutAction * item: Item * destPath: string
+    | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
     | NoUndoActions
     | NoRedoActions
     | CouldNotOpenApp of app: string * exn
@@ -648,10 +648,10 @@ type MainError =
         | NoPreviousSearch -> "No previous search to repeat"
         | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
         | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
-        | PutError (isUndo, action, errorItems, totalItems) ->
+        | PutError (isUndo, putType, errorItems, totalItems) ->
             let undo = if isUndo then "undo " else ""
-            let action = action |> string |> String.toLower
-            let actionMsg = "Could not " + undo + action
+            let putType = putType |> string |> String.toLower
+            let actionMsg = "Could not " + undo + putType
             match errorItems with
             | [(item, ex)] ->
                 sprintf "%s of %s: %s" actionMsg item.Description ex.Message
@@ -682,9 +682,9 @@ type MainError =
                 sprintf "Cannot undo deletion of %s" item.Description
             else
                 sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
-        | CannotRedoPutToExisting (action, item, destPath) ->
-            let action = action |> string |> String.toLower
-            sprintf "Could not redo %s of %s because an item already exists at %s" action item.Description destPath
+        | CannotRedoPutToExisting (putType, item, destPath) ->
+            let putType = putType |> string |> String.toLower
+            sprintf "Could not redo %s of %s because an item already exists at %s" putType item.Description destPath
         | NoUndoActions -> "No more actions to undo"
         | NoRedoActions -> "No more actions to redo"
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message

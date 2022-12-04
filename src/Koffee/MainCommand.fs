@@ -22,22 +22,22 @@ let toggleHidden (model: MainModel) =
     | None ->
         Nav.listDirectory select model
 
-let private getDropInAction (event: DragEvent) (model: MainModel) (path: Path) =
-    let desiredAction =
-        event.Action |> Option.defaultWith (fun () -> if path.Base = model.Location.Base then Move else Copy)
-    event.AllowedActions
-    |> List.tryFind ((=) desiredAction)
-    |> Option.orElse (event.AllowedActions |> List.tryHead)
+let private getDropInPutType (event: DragEvent) (model: MainModel) (path: Path) =
+    let desiredPutType =
+        event.PutType |> Option.defaultWith (fun () -> if path.Base = model.Location.Base then Move else Copy)
+    event.AllowedPutTypes
+    |> List.tryFind ((=) desiredPutType)
+    |> Option.orElse (event.AllowedPutTypes |> List.tryHead)
 
-let updateDropInAction (paths: Path list) (event: DragEvent) (model: MainModel) =
-    event.Action <- paths |> List.tryHead |> Option.bind (getDropInAction event model)
+let updateDropInPutType (paths: Path list) (event: DragEvent) (model: MainModel) =
+    event.PutType <- paths |> List.tryHead |> Option.bind (getDropInPutType event model)
     model
 
 let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
-    match getDropInAction event model (paths |> List.head) with
-    | Some action ->
+    match getDropInPutType event model (paths |> List.head) with
+    | Some putType ->
         let paths =
-            if action = Move then
+            if putType = Move then
                 paths |> List.filter (fun p -> p.Parent <> model.Location)
             else
                 paths
@@ -46,14 +46,14 @@ let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel
         | Some path ->
             match! fs.GetItem path |> actionError "drop item" with
             | Some item ->
-                yield! Action.putItem fs progress false item action model
+                yield! Action.putItem fs progress false item putType model
             | None -> ()
         | None -> ()
     | None -> ()
 }
 
-let dropOut (fsReader: IFileSystemReader) dropAction (model: MainModel) =
-    if dropAction = Move && fsReader.GetItem model.SelectedItem.Path = Ok None then
+let dropOut (fsReader: IFileSystemReader) putType (model: MainModel) =
+    if putType = Move && fsReader.GetItem model.SelectedItem.Path = Ok None then
         let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsOrEmpty
         { model with Items = items }
     else

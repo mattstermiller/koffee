@@ -5,12 +5,12 @@
 - #128 Adds command to Open Default Path
 - #120 Adds command to Repeat Previous Search
 - #116 Adds ability to delete search history
-- #119 Adds input error messages when Find input is not found or Search regex is invalid
 - #114 Adds "How To Use Koffee" link in settings window
 - #111 Loads navigation history on startup
 - #115 Allows commenting out Recursive Search Exclusions
 - #124 Adds limit to length of BackStack and UndoStack
 - #125 Moves hard-coded limits to Config
+- #119 Adds input error messages when Find input is not found or Search regex is invalid
 - #70 Changes undo move/copy to undo individual file operations for more correct behavior when folders were merged
 - #123 Fixes path suggestions not being sorted by MRU
 - #126 Fixes search results to sort by current sort setting instead of always name ascending

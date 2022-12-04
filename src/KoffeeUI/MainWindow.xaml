@@ -27,9 +27,9 @@
           <TextBlock Name="RegisterText" x:FieldModifier="public" Text="register" Height="20" Margin="6,2,6,2"
                      VerticalAlignment="Center"/>
         </Border>
-        <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Height="20" Margin="6,2,6,2"
+        <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Height="20" Margin="6,2"
                    VerticalAlignment="Center"/>
-        <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Height="20" Margin="6,2,6,2"
+        <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Height="20" Margin="6,2"
                    VerticalAlignment="Center" Foreground="{DynamicResource ErrorBrush}"/>
       </DockPanel>
     </Border>
@@ -148,10 +148,9 @@
           </ItemsControl>
         </StackPanel>
         <!-- Input error panel -->
-        <Border Name="InputErrorPanel" x:FieldModifier="public" BorderThickness="2,2,2,0" Visibility="Collapsed"
-                Background="{DynamicResource PopupBrush}">
-          <TextBlock Name="InputError" x:FieldModifier="public" Margin="8"
-                     Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
+        <Border Name="InputErrorPanel" x:FieldModifier="public" BorderThickness="2,2,2,0" Visibility="Collapsed">
+          <TextBlock Name="InputError" x:FieldModifier="public" Margin="6,2"
+                     Foreground="{DynamicResource ErrorBrush}"/>
         </Border>
       </StackPanel>
     </Grid>

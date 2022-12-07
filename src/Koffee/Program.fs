@@ -36,8 +36,9 @@ let run args =
     let os = OperatingSystem()
     let window = KoffeeUI.MainWindow()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
-    let controller = MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
-                                          Settings.showDialog, closeWindow, options)
+    let controller =
+        MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
+            DataGridScroller(window.ItemGrid), Settings.showDialog, closeWindow, options)
     Application().Run(window, controller.Start) |> ignore
 
 [<EntryPoint>]

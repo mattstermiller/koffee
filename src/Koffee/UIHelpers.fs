@@ -3,9 +3,11 @@ module UIHelpers
 
 open System
 open System.Windows
-open System.Windows.Data
 open System.Windows.Controls
+open System.Windows.Controls.Primitives
+open System.Windows.Data
 open System.Windows.Input
+open System.Windows.Media
 open System.Reactive.Linq
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
@@ -48,10 +50,14 @@ type UIElement with
         with get () = this.Visibility = Visibility.Collapsed
         and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
 
-type DataGridColumn with
-    member this.Collapsed
-        with get () = this.Visibility = Visibility.Collapsed
-        and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
+type DependencyObject with
+    member this.FindVisualChild<'a when 'a :> DependencyObject>() =
+        seq {0..VisualTreeHelper.GetChildrenCount(this)-1}
+        |> Seq.tryPick (fun i ->
+            match VisualTreeHelper.GetChild(this, i) with
+            | :? 'a as target -> Some target
+            | child -> child.FindVisualChild<'a>()
+        )
 
 type CheckBox with
     member this.Toggle () =
@@ -92,6 +98,14 @@ type DataGrid with
 
         this.Columns.Add col
 
+    member this.ActualColumnHeaderHeight =
+        this.FindVisualChild<DataGridColumnHeadersPresenter>() |> Option.map (fun h -> h.ActualHeight) |? 0.0
+
+type DataGridColumn with
+    member this.Collapsed
+        with get () = this.Visibility = Visibility.Collapsed
+        and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
+
 type Window with
     member this.GetScreen () =
         Forms.Screen.FromHandle(Interop.WindowInteropHelper(this).Handle)
@@ -102,3 +116,11 @@ type Window with
           Top = area.Top
           Width = area.Width
           Height = area.Height }
+
+type DataGridScroller(grid: DataGrid) =
+    let mutable scrollViewer = None
+
+    member this.ScrollTo topIndex =
+        if scrollViewer.IsNone then
+            scrollViewer <- grid.FindVisualChild<ScrollViewer>()
+        scrollViewer |> Option.iter (fun sv -> sv.ScrollToVerticalOffset (float topIndex))

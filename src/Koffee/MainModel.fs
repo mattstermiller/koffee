@@ -438,8 +438,6 @@ type MainModel = {
 
     member this.LocationFormatted = this.Location.FormatFolder this.PathFormat
 
-    member this.HalfPageSize = this.PageSize/2 - 1
-
     member this.IsSearchingSubFolders = this.SearchCurrent |> Option.exists (fun s -> s.SubFolders)
 
     member this.TitleLocation =
@@ -579,6 +577,11 @@ type DragEvent(event: DragEventArgs) =
 
     member this.AllowedPutTypes = event.AllowedEffects |> DragDropEffects.toPutTypes
 
+type ScrollType =
+    | CursorTop
+    | CursorMiddle
+    | CursorBottom
+
 type MainEvents =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
     | CursorUp
@@ -587,6 +590,7 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
+    | Scroll of ScrollType
     | OpenPath of string * EvtHandler
     | OpenSelected
     | OpenParent
@@ -648,6 +652,9 @@ type MainEvents =
         CursorDownHalfPage, "Move Cursor Down Half Page"
         CursorToFirst, "Move Cursor to First Item"
         CursorToLast, "Move Cursor to Last Item"
+        Scroll CursorTop, "Scroll View to Put Cursor at the Top"
+        Scroll CursorMiddle, "Scroll View to Put Cursor at the Middle"
+        Scroll CursorBottom, "Scroll View to Put Cursor at the Bottom"
         OpenParent, "Open Parent Folder"
         OpenRoot, "Open Root Directory"
         OpenDefault, "Open Default Path"

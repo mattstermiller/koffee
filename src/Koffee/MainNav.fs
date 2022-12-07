@@ -206,3 +206,14 @@ let deletePathSuggestion (path: Path) (model: MainModel) =
             PathSuggestions = model.PathSuggestions |> Result.map (List.filter ((<>) pathStr))
         }
     else model
+
+let scrollView (gridScroller: DataGridScroller) scrollType (model: MainModel) =
+    let topIndex =
+        match scrollType with
+        | CursorTop -> model.Cursor
+        | CursorMiddle -> model.Cursor - (model.PageSize/2)
+        | CursorBottom -> model.Cursor - model.PageSize + 1
+    // unfortunately, a two-way binding on scroll index is not feasible because the ScrollViewer does not exist at
+    // binding time, so we're using a side effect :(
+    gridScroller.ScrollTo topIndex
+    model

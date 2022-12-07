@@ -4,6 +4,7 @@
 - #121 Adds command to Open Root Directory
 - #128 Adds command to Open Default Path
 - #120 Adds command to Repeat Previous Search
+- #112 Adds commands to scroll view relative to cursor
 - #116 Adds ability to delete search history
 - #114 Adds "How To Use Koffee" link in settings window
 - #111 Loads navigation history on startup

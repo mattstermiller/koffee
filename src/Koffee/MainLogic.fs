@@ -352,7 +352,7 @@ let AsyncResult handler =
     })
 
 type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
-                openSettings, closeWindow, startOptions) =
+                gridScroller, openSettings, closeWindow, startOptions) =
     let subDirResults = Event<_>()
     let progress = Event<_>()
 
@@ -361,11 +361,12 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
             | CursorUp -> Sync (fun m -> m.WithCursorRel (-1 * m.RepeatCount))
-            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (-m.HalfPageSize * m.RepeatCount))
+            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (-m.PageSize/2 * m.RepeatCount))
             | CursorDown -> Sync (fun m -> m.WithCursorRel (1 * m.RepeatCount))
-            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (m.HalfPageSize * m.RepeatCount))
+            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (m.PageSize/2 * m.RepeatCount))
             | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
             | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
+            | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
             | OpenSelected -> SyncResult (Nav.openSelected fs os None)
             | OpenFileWith -> SyncResult (Command.openFileWith os)

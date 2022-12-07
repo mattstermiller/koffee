@@ -465,10 +465,12 @@ module MainView =
             window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
                 let grid = window.ItemGrid
                 if grid.HasItems then
-                    let index = grid.SelectedIndex |> max 0
-                    grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
-                    |> Option.ofObj
-                    |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int |> PageSizeChanged)
+                    let visibleIndex = grid.SelectedIndex |> max 0
+                    grid.ItemContainerGenerator.ContainerFromIndex(visibleIndex) :?> DataGridRow |> Option.ofObj
+                    |> Option.map (fun visibleRow  ->
+                        let viewHeight = grid.ActualHeight - grid.ActualColumnHeaderHeight
+                        viewHeight / visibleRow.ActualHeight |> int |> PageSizeChanged
+                    )
                 else None
             )
 

@@ -188,7 +188,8 @@ module MainView =
         )
 
         // bindings
-        [   Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
+        [
+            Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
             Bind.model(<@ model.PathSuggestions @>).toFunc(function
                 | Ok paths ->
                     window.PathSuggestions.ItemsSource <- paths
@@ -428,110 +429,112 @@ module MainView =
         |> Seq.choose Path.Parse
         |> Seq.toList
 
-    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (window: MainWindow) = [
-        window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
-            let keyPress = KeyPress (evt.Chord, evt.Handler)
-            let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
-            let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
-            let focusGrid () = window.ItemGrid.Focus() |> ignore
-            let selectedPath = window.PathSuggestions.SelectedItem |> unbox |> Option.ofString
-            let path = selectedPath |? window.PathBox.Text
-            match evt.Chord with
-            | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (path, evt.HandlerWithEffect focusGrid))
-            | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
-            | (ModifierKeys.None, Key.Delete) ->
-                selectedPath
-                |> Option.bind Path.Parse
-                |> Option.map (tee (fun _ -> evt.Handled <- true) >> DeletePathSuggestion)
-            | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
-            | (modifier, _) when not (ignoreMods |> List.contains modifier) -> Some keyPress
-            | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
-            | _ -> None
-        )
-        window.PathBox.TextChanged |> Obs.filter (fun _ -> window.PathBox.IsFocused)
-                                   |> Obs.mapTo LocationInputChanged
-        window.SettingsButton.Click |> Obs.mapTo OpenSettings
+    let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (window: MainWindow) =
+        [
+            window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
+                let keyPress = KeyPress (evt.Chord, evt.Handler)
+                let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
+                let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
+                let focusGrid () = window.ItemGrid.Focus() |> ignore
+                let selectedPath = window.PathSuggestions.SelectedItem |> unbox |> Option.ofString
+                let path = selectedPath |? window.PathBox.Text
+                match evt.Chord with
+                | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (path, evt.HandlerWithEffect focusGrid))
+                | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
+                | (ModifierKeys.None, Key.Delete) ->
+                    selectedPath
+                    |> Option.bind Path.Parse
+                    |> Option.map (tee (fun _ -> evt.Handled <- true) >> DeletePathSuggestion)
+                | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
+                | (modifier, _) when not (ignoreMods |> List.contains modifier) -> Some keyPress
+                | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
+                | _ -> None
+            )
+            window.PathBox.TextChanged |> Obs.filter (fun _ -> window.PathBox.IsFocused)
+                                    |> Obs.mapTo LocationInputChanged
+            window.SettingsButton.Click |> Obs.mapTo OpenSettings
 
-        window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier
-                                       |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
-        window.ItemGrid.PreviewKeyDown |> Obs.choose (fun evt ->
-            if evt.Chord = (ModifierKeys.Control, Key.C) then
-                evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
-            None
-        )
-        window.ItemGrid.MouseDoubleClick |> Obs.mapTo OpenSelected
-        window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
-            let grid = window.ItemGrid
-            if grid.HasItems then
-                let index = grid.SelectedIndex |> max 0
-                grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
-                |> Option.ofObj
-                |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int |> PageSizeChanged)
-            else None
-        )
-
-        window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
-        window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
-            match keyEvt.Key with
-            | Key.Up -> Some InputBack
-            | Key.Down -> Some InputForward
-            | Key.Delete -> Some (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler))
-            | _ -> None
-        )
-        window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
-            match keyEvt.Text.ToCharArray() with
-            | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
-            | _ -> None
-        )
-        window.InputBox.TextChanged |> Obs.mapTo InputChanged
-        window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
-        window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
-        window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
-        subDirResults |> Obs.buffer 0.3
-                      |> Obs.onCurrent
-                      |> Obs.map (List.concat >> SubDirectoryResults)
-        window.InputBox.LostFocus |> Obs.mapTo CancelInput
-
-        window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
-        window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
-            if window.Left > -window.Width && window.Top > -window.Height then
-                Some (WindowLocationChanged (int window.Left, int window.Top))
-            else None
-        )
-        window.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.map (fun _ ->
-            WindowSizeChanged (int window.Width, int window.Height)
-        )
-        window.StateChanged |> Obs.choose (fun _ ->
-            if window.WindowState <> WindowState.Minimized then
-                Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
-            else None
-        )
-        window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
-            let paths = getFileDropPaths e.Data
-            e.Handled <- true
-            UpdateDropInPutType (paths, DragEvent e)
-        )
-        window.ItemGrid.MouseMove |> Obs.choose (fun e ->
-            if e.LeftButton = MouseButtonState.Pressed then
-                let item = window.ItemGrid.SelectedItem :?> Item
-                let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
-                DragDrop.DoDragDrop(window.ItemGrid, dropData, DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
-                |> DragDropEffects.toPutTypes
-                |> List.tryHead
-                |> Option.map DropOut
-            else None
-        )
-        window.ItemGrid.Drop |> Obs.choose (fun e ->
-            let paths = getFileDropPaths e.Data
-            if paths |> List.isEmpty then
+            window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier
+                                        |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
+            window.ItemGrid.PreviewKeyDown |> Obs.choose (fun evt ->
+                if evt.Chord = (ModifierKeys.Control, Key.C) then
+                    evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
                 None
-            else
+            )
+            window.ItemGrid.MouseDoubleClick |> Obs.mapTo OpenSelected
+            window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
+                let grid = window.ItemGrid
+                if grid.HasItems then
+                    let index = grid.SelectedIndex |> max 0
+                    grid.ItemContainerGenerator.ContainerFromIndex(index) :?> DataGridRow
+                    |> Option.ofObj
+                    |> Option.map (fun row -> grid.ActualHeight / row.ActualHeight |> int |> PageSizeChanged)
+                else None
+            )
+
+            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
+            window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
+                match keyEvt.Key with
+                | Key.Up -> Some InputBack
+                | Key.Down -> Some InputForward
+                | Key.Delete -> Some (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler))
+                | _ -> None
+            )
+            window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
+                match keyEvt.Text.ToCharArray() with
+                | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
+                | _ -> None
+            )
+            window.InputBox.TextChanged |> Obs.mapTo InputChanged
+            window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
+            window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
+            window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
+            subDirResults |> Obs.buffer 0.3
+                        |> Obs.onCurrent
+                        |> Obs.map (List.concat >> SubDirectoryResults)
+            window.InputBox.LostFocus |> Obs.mapTo CancelInput
+
+            window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
+            window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
+                if window.Left > -window.Width && window.Top > -window.Height then
+                    Some (WindowLocationChanged (int window.Left, int window.Top))
+                else None
+            )
+            window.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.map (fun _ ->
+                WindowSizeChanged (int window.Width, int window.Height)
+            )
+            window.StateChanged |> Obs.choose (fun _ ->
+                if window.WindowState <> WindowState.Minimized then
+                    Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
+                else None
+            )
+            window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
+                let paths = getFileDropPaths e.Data
                 e.Handled <- true
-                Some (DropIn (paths, DragEvent e))
-        )
-        config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
-        history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
-    ]
+                UpdateDropInPutType (paths, DragEvent e)
+            )
+            window.ItemGrid.MouseMove |> Obs.choose (fun e ->
+                if e.LeftButton = MouseButtonState.Pressed then
+                    let item = window.ItemGrid.SelectedItem :?> Item
+                    let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
+                    DragDrop.DoDragDrop(window.ItemGrid, dropData,
+                        DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
+                    |> DragDropEffects.toPutTypes
+                    |> List.tryHead
+                    |> Option.map DropOut
+                else None
+            )
+            window.ItemGrid.Drop |> Obs.choose (fun e ->
+                let paths = getFileDropPaths e.Data
+                if paths |> List.isEmpty then
+                    None
+                else
+                    e.Handled <- true
+                    Some (DropIn (paths, DragEvent e))
+            )
+            config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
+            history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
+        ]
 
 module MainStatus =
     // navigation

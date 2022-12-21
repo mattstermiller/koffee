@@ -148,7 +148,8 @@
           </ItemsControl>
         </StackPanel>
         <!-- Input error panel -->
-        <Border Name="InputErrorPanel" x:FieldModifier="public" BorderThickness="2,2,2,0" Visibility="Collapsed">
+        <Border Name="InputErrorPanel" x:FieldModifier="public" BorderThickness="2,2,2,0"
+                Background="{DynamicResource BackgroundBrush}" Visibility="Collapsed">
           <TextBlock Name="InputError" x:FieldModifier="public" Margin="6,2"
                      Foreground="{DynamicResource ErrorBrush}"/>
         </Border>

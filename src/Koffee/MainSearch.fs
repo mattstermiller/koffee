@@ -104,7 +104,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                 let cancelToken = CancelToken()
                 yield
                     { model with
-                        SubDirectories = Some []
+                        SubDirectories = Some <| List.replicate 700_000 (Item.Basic Path.Root "dummy" File)
                         SubDirectoryCancel = cancelToken
                         Sort = None
                     } |> withItems items
@@ -132,9 +132,17 @@ let addSubDirResults newItems model =
         | [], _ -> model.Items
         | matches, [item] when item.Type = Empty -> matches
         | matches, _ -> model.Items @ matches
+    let prefix = "SubDirectories length: "
+    let oldLen =
+        match model.Status with
+        | Some (Message msg) when msg.StartsWith prefix ->
+            msg.Substring(prefix.Length) |> Parse.Int |? 0
+        | _ -> 0
+    let len = oldLen + newItems.Length
     { model with
-        SubDirectories = model.SubDirectories |> Option.map (flip (@) newItems)
+        // SubDirectories = model.SubDirectories |> Option.map (flip (@) newItems)
         Items = items
+        Status = Some (Message (prefix + string len))
     }
 
 let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {

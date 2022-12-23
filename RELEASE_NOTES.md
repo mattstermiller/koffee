@@ -1,6 +1,6 @@
 # Release Notes
 
-### 0.6.2  (WIP)
+### 0.6.2  (2022-12-23)
 - #121 Adds command to Open Root Directory
 - #128 Adds command to Open Default Path
 - #120 Adds command to Repeat Previous Search

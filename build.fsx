@@ -156,7 +156,7 @@ Target.create "publish" (fun _ ->
     let token =
        match Environment.environVarOrNone "koffee_deploy_token" with
        | Some s -> s
-       | None -> failwith "Set the koffee_deploy_token environment variable to a github personal access token with repo access."
+       | None -> failwith "Set the koffee_deploy_token environment variable to a github personal access token with 'repo_deployment' access."
     GitHub.createClientWithToken token
     |> GitHub.draftNewRelease "mattstermiller" "koffee" ("v" + version) false releaseNotes.Notes
     |> GitHub.uploadFiles [zipFile; installerFile]

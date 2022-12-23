@@ -6,7 +6,14 @@ nuget Fake.IO.Zip
 nuget Fake.DotNet.AssemblyInfoFile
 nuget Fake.DotNet.Cli
 nuget Fake.Installer.InnoSetup
-nuget Fake.API.GitHub //"
+nuget Fake.API.GitHub
+
+// Pin build dependencies as workaround to https://github.com/fsprojects/FAKE/issues/2722
+nuget Microsoft.Build 17.3.2
+nuget Microsoft.Build.Framework 17.3.2
+nuget Microsoft.Build.Tasks.Core 17.3.2
+nuget Microsoft.Build.Utilities.Core 17.3.2
+//"
 #load "./.fake/build.fsx/intellisense.fsx"
 
 open Fake.Core

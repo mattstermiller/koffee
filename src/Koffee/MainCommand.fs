@@ -14,6 +14,7 @@ let toggleHidden (model: MainModel) =
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
         let items =
+            // TODO: if removing SubDirectories, how to handle toggle hidden? would have to retrigger search? what does changing the input do?
             model.Directory @ (model.SubDirectories |? [])
             |> filter
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)

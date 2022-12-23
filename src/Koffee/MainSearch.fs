@@ -99,6 +99,9 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
             } |> Nav.select (SelectItem (model.SelectedItem, false))
         let items = model.Directory |> filter
         if model.SearchInput.SubFolders then
+            // TODO: if removing SubDirectories, use isSearchingRecursively flag?
+            // or DU for RecursiveSearchState with canceltoken in Active state
+            // or RecursiveSearchCancel: CancelToken option
             match model.SubDirectories with
             | None ->
                 let cancelToken = CancelToken()

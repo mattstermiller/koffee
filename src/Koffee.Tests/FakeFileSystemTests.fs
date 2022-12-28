@@ -142,7 +142,7 @@ let ``Move file to add suffix renames it`` () =
     ]
 
 [<Test>]
-let ``Move folder moves it and sub items recursively`` () =
+let ``Move folder on same drive moves it and sub items recursively`` () =
     let fs =
         FakeFileSystem [
             folder "dest" []
@@ -171,6 +171,106 @@ let ``Move folder moves it and sub items recursively`` () =
         file "other"
     ]
 
+[<Test>]
+let ``Move empty folder across drives moves it`` () =
+    let fs =
+        FakeFileSystem [
+            drive 'c' [
+                folder "stuff" []
+            ]
+            drive 'd' [
+                folder "dest" [
+                    file "other"
+                ]
+            ]
+        ]
+    fs.Move (createPath "/c/stuff") (createPath "/d/dest/stuff") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        drive 'c' []
+        drive 'd' [
+            folder "dest" [
+                folder "stuff" []
+                file "other"
+            ]
+        ]
+    ]
+
+[<Test>]
+let ``Move non-empty folder across drives returns error`` () =
+    let fs =
+        FakeFileSystem [
+            drive 'c' [
+                folder "stuff" [
+                    file "file"
+                ]
+            ]
+            drive 'd' [
+                folder "dest" [
+                    file "other"
+                ]
+            ]
+        ]
+    let expectedFs = fs.Items
+    let src = createPath "/c/stuff"
+    let dest = createPath "/d/dest/stuff"
+    fs.Move src dest
+    |> assertErrorExn FakeFileSystemErrors.cannotMoveNonEmptyFolderAcrossDrives
+    fs.ItemsShouldEqualList expectedFs
+
+[<Test>]
+let ``Copy file copies it`` () =
+    let fs =
+        FakeFileSystem [
+            folder "dest" [
+                file "other"
+            ]
+            file "file"
+        ]
+    fs.Copy (createPath "/c/file") (createPath "/c/dest/file") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        folder "dest" [
+            file "file"
+            file "other"
+        ]
+        file "file"
+    ]
+
+[<Test>]
+let ``Copy empty folder copies it`` () =
+    let fs =
+        FakeFileSystem [
+            folder "stuff" []
+            folder "dest" [
+                file "other"
+            ]
+        ]
+    fs.Copy (createPath "/c/stuff") (createPath "/c/dest/stuff") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        folder "stuff" []
+        folder "dest" [
+            folder "stuff" []
+            file "other"
+        ]
+    ]
+
+[<Test>]
+let ``Copy non-empty folder returns error`` () =
+    let fs =
+        FakeFileSystem [
+            folder "stuff" [
+                file "file"
+            ]
+            folder "dest" [
+                file "other"
+            ]
+        ]
+    let expectedFs = fs.Items
+    let src = createPath "/c/stuff"
+    let dest = createPath "/c/dest/stuff"
+    fs.Copy src dest
+    |> assertErrorExn FakeFileSystemErrors.cannotCopyNonEmptyFolder
+    fs.ItemsShouldEqualList expectedFs
+
 let ``Move folder where dest exists returns error`` () =
     let fs =
         FakeFileSystem [
@@ -184,18 +284,11 @@ let ``Move folder where dest exists returns error`` () =
             file "other"
         ]
     let expectedFs = fs.Items
+    let src = createPath "/c/stuff"
     let dest = createPath "/c/dest/stuff"
-    fs.Move (createPath "/c/stuff") dest
+    fs.Move src dest
     |> assertErrorExn (FakeFileSystemErrors.destPathIsFolder dest)
     fs.ItemsShouldEqualList expectedFs
-
-[<Test>]
-let ``Create exn path does not create`` () =
-    let fs = createFs ()
-    let path = createPath "/c/new"
-    fs.AddExnPath false ex path
-    fs.Create File path |> shouldEqual (Error ex)
-    fs.ItemsShouldEqualList (createFs().Items)
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -205,6 +298,14 @@ let ``Move exn path does not move`` (errorDest: bool) =
     let dest = createPath "/c/programs/docs.md"
     fs.AddExnPath false ex (if errorDest then dest else src)
     fs.Move src dest |> shouldEqual (Error ex)
+    fs.ItemsShouldEqualList (createFs().Items)
+
+[<Test>]
+let ``Create exn path does not create`` () =
+    let fs = createFs ()
+    let path = createPath "/c/new"
+    fs.AddExnPath false ex path
+    fs.Create File path |> shouldEqual (Error ex)
     fs.ItemsShouldEqualList (createFs().Items)
 
 [<Test>]

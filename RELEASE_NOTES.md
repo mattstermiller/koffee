@@ -1,5 +1,8 @@
 # Release Notes
 
+### 0.7.0  Multi-Select (WIP)
+- #129 Fixes FileSystem Move and Copy to handle empty folders
+
 ### 0.6.2  (2022-12-23)
 - #121 Adds command to Open Root Directory
 - #128 Adds command to Open Default Path

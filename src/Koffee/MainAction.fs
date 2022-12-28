@@ -179,10 +179,10 @@ let private performPutItems (fs: IFileSystem) (progress: Event<_>) (items: (PutT
         | Move -> fs.Move
         | Copy -> fs.Copy
         | Shortcut -> fs.CreateShortcut
-    let mutable foldersChecked = []
+    let mutable foldersChecked = Set []
     let ensureFolderExists (path: Path) = result {
-        if not (foldersChecked |> List.contains path) then
-            foldersChecked <- path :: foldersChecked
+        if not (foldersChecked |> Set.contains path) then
+            foldersChecked <- foldersChecked.Add path
             match! fs.GetItem path with
             | None -> return! fs.Create Folder path
             | Some _ -> ()

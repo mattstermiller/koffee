@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System.Collections.Generic
 open Acadian.FSharp
@@ -49,6 +49,12 @@ module FakeFileSystemErrors =
 
     let destPathIsFolder (path: Path) =
         exn ("Folder exists at destination path: " + string path)
+
+    let cannotMoveNonEmptyFolderAcrossDrives =
+        exn "Folder is not empty and cannot be moved to a different drive"
+
+    let cannotCopyNonEmptyFolder =
+        exn "Folder is not empty and cannot be copied"
 
 open FakeFileSystemErrors
 
@@ -177,40 +183,54 @@ type FakeFileSystem(treeItems) =
         shortcuts.Add(path, string target)
     }
 
+    member private this.CheckDestParent (destPath: Path) = result {
+        let! parent = this.GetItem destPath.Parent
+        match parent with
+        | None ->
+            return! Error (destPathParentDoesNotExist destPath.Parent)
+        | Some item when not (item.Type |> Seq.containedIn [Folder; Drive]) ->
+            return! Error (destPathParentIsNotFolder destPath.Parent)
+        | _ -> ()
+    }
+
     member this.Move fromPath toPath = result {
+        let substitute oldItem newItem =
+            items <- items |> List.map (fun i -> if i = oldItem then newItem else i)
         if String.equalsIgnoreCase (string fromPath) (string toPath) then
             let! item = this.AssertItem fromPath
-            let newItem = { item with Path = toPath; Name = toPath.Name }
-            items <- items |> List.map (fun i -> if i.Path = fromPath then newItem else i)
+            substitute item { item with Path = toPath; Name = toPath.Name }
         else
             do! checkExn true fromPath
-            do! this.Copy fromPath toPath
-            let! _ = this.AssertItem fromPath
-            remove fromPath
+            let! item = this.AssertItem fromPath
+            if item.Type = Folder && fromPath.Base <> toPath.Base && not (this.ItemsIn item.Path |> List.isEmpty) then
+                return! Error cannotMoveNonEmptyFolderAcrossDrives
+            do! this.CheckDestParent toPath
+            do! checkExn true toPath
+            remove toPath
+            substitute item { item with Path = toPath; Name = toPath.Name }
+
+            match shortcuts.TryGetValue fromPath with
+            | true, target ->
+                shortcuts.Remove(fromPath) |> ignore
+                shortcuts.Add(toPath, target)
+            | _ -> ()
+
+            if item.Type = Folder then
+                for item in this.ItemsIn fromPath do
+                    do! this.Move item.Path (toPath.Join item.Name)
     }
 
     member this.Copy fromPath toPath = result {
         let! item = this.AssertItem fromPath
         do! checkExn true toPath
-        let! parent = this.GetItem toPath.Parent
-        do!
-            match parent with
-            | None ->
-                Error (destPathParentDoesNotExist toPath.Parent)
-            | Some item when not (item.Type |> Seq.containedIn [Folder; Drive]) ->
-                Error (destPathParentIsNotFolder toPath.Parent)
-            | _ -> Ok ()
+        do! this.CheckDestParent toPath
+        if item.Type = Folder && not (this.ItemsIn item.Path |> List.isEmpty) then
+            return! Error cannotCopyNonEmptyFolder
         remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
         items <- newItem :: items
         match shortcuts.TryGetValue fromPath with
         | true, target -> shortcuts.Add(toPath, target)
-        | _ -> ()
-        match item.Type with
-        | Folder ->
-            let! folderItems = this.GetItems fromPath
-            for item in folderItems do
-                do! this.Copy item.Path (toPath.Join item.Name)
         | _ -> ()
     }
 

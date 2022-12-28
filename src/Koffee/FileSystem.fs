@@ -18,8 +18,13 @@ type IFileSystemReader =
 type IFileSystemWriter =
     abstract member Create: ItemType -> Path -> Result<unit, exn>
     abstract member CreateShortcut: target: Path -> path: Path -> Result<unit, exn>
+
+    /// Moves a file or folder. When moving across volumes, the folder must be empty.
     abstract member Move: fromPath: Path -> toPath: Path -> Result<unit, exn>
+
+    /// Copies a file or empty folder.
     abstract member Copy: fromPath: Path -> toPath: Path -> Result<unit, exn>
+
     abstract member Recycle: Path -> Result<unit, exn>
     abstract member Delete: Path -> Result<unit, exn>
 
@@ -189,19 +194,6 @@ type FileSystem() =
 
     member this.Move fromPath toPath =
         this.FileOrFolderAction fromPath "move" <| fun itemType -> result {
-            let moveFile source dest =
-                prepForOverwrite <| FileInfo dest
-                FileSystem.MoveFile(source, dest, true)
-            let rec moveDir sameVolume source dest =
-                if sameVolume then
-                    Directory.Move(source, dest)
-                else
-                    let moveItem moveFunc sourceItem =
-                        let destPath = Path.Combine(dest, Path.GetFileName(sourceItem))
-                        moveFunc sourceItem destPath
-                    Directory.EnumerateFiles(source) |> Seq.iter (moveItem moveFile)
-                    Directory.EnumerateDirectories(source) |> Seq.iter (moveItem (moveDir sameVolume))
-                    Directory.Delete(source)
             let source = wpath fromPath
             let dest = wpath toPath
             if String.equalsIgnoreCase source dest then
@@ -209,15 +201,18 @@ type FileSystem() =
                 do! this.Move fromPath temp
                 do! this.Move temp toPath
             else
-                return! tryResult <| fun () ->
+                do! tryResult <| fun () ->
                     if itemType = Folder then
                         if Directory.Exists dest then
                             raise (folderAlreadyExists dest)
-                        let getVolume p = p |> Path.GetPathRoot |> String.trimEnd [|'\\'|]
-                        let sameVolume = String.equalsIgnoreCase (getVolume source) (getVolume dest)
-                        moveDir sameVolume source dest
+                        if fromPath.Base = toPath.Base then
+                            Directory.Move(source, dest)
+                        else
+                            Directory.CreateDirectory(dest) |> ignore
+                            Directory.Delete(source)
                     else
-                        moveFile source dest
+                        prepForOverwrite <| FileInfo dest
+                        FileSystem.MoveFile(source, dest, true)
         }
 
     member this.Copy fromPath toPath =
@@ -229,16 +224,9 @@ type FileSystem() =
                 File.Copy(source, dest, true)
             tryResult <| fun () ->
                 if itemType = Folder then
-                    let getDest sourcePath = Regex.Replace(sourcePath, "^" + (Regex.Escape source), dest)
                     if Directory.Exists dest then
                         raise (folderAlreadyExists dest)
-                    // copy folder structure
                     Directory.CreateDirectory dest |> ignore
-                    Directory.GetDirectories(source, "*", SearchOption.AllDirectories)
-                    |> Seq.iter (fun dir -> getDest dir |> Directory.CreateDirectory |> ignore)
-                    // copy files
-                    Directory.GetFiles(source, "*", SearchOption.AllDirectories)
-                    |> Seq.iter (fun file -> copyFile file (getDest file))
                 else
                     copyFile source dest
 

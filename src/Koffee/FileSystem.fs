@@ -2,7 +2,6 @@
 
 open System
 open System.IO
-open System.Text.RegularExpressions
 open System.Management
 open Microsoft.VisualBasic.FileIO
 open Acadian.FSharp
@@ -34,10 +33,9 @@ type IFileSystem =
 
 type FileSystem() =
     let wpath (path: Path) = path.Format Windows
-    let toPath s = (Path.Parse s).Value
 
     let fileItem (file: FileInfo) =
-        { Path = toPath file.FullName
+        { Path = Path.Parse file.FullName |> Option.get
           Name = file.Name
           Type = File
           Modified = Some file.LastWriteTime
@@ -46,7 +44,7 @@ type FileSystem() =
         }
 
     let folderItem (dirInfo: DirectoryInfo) =
-        { Path = toPath dirInfo.FullName
+        { Path = Path.Parse dirInfo.FullName |> Option.get
           Name = dirInfo.Name
           Type = Folder
           Modified = Some dirInfo.LastWriteTime
@@ -65,7 +63,7 @@ type FileSystem() =
                 (sprintf " \"%s\"" drive.VolumeLabel)
             else
                 ""
-        { Path = toPath drive.Name
+        { Path = Path.Parse drive.Name |> Option.get
           Name = sprintf "%s  %s Drive%s" name driveType label
           Type = Drive
           Modified = None
@@ -117,10 +115,10 @@ type FileSystem() =
 
     member this.GetItem path =
         tryResult <| fun () ->
-            let wp = wpath path
-            let drive = lazy DriveInfo(wp)
-            let dir = lazy DirectoryInfo(wp)
-            let file = lazy FileInfo(wp)
+            let winPath = wpath path
+            let drive = lazy DriveInfo(winPath)
+            let dir = lazy DirectoryInfo(winPath)
+            let file = lazy FileInfo(winPath)
             if path.IsNetHost then
                 Some (Item.Basic path path.Name NetHost)
             else if path.Parent.IsNetHost && dir.Value.Exists then
@@ -160,12 +158,12 @@ type FileSystem() =
         items |> Result.map Seq.toList
 
     member this.IsEmpty path =
-        let wp = wpath path
+        let winPath = wpath path
         try
-            if Directory.Exists(wp) then
-                Directory.EnumerateFiles(wp, "*", SearchOption.AllDirectories) |> Seq.isEmpty
+            if Directory.Exists(winPath) then
+                Directory.EnumerateFiles(winPath, "*", SearchOption.AllDirectories) |> Seq.isEmpty
             else
-                FileInfo(wp).Length = 0L
+                FileInfo(winPath).Length = 0L
         with _ -> false
 
     member this.GetShortcutTarget path =
@@ -182,10 +180,10 @@ type FileSystem() =
         member this.Delete path = this.Delete path
 
     member this.Create itemType path =
-        let wp = wpath path
+        let winPath = wpath path
         match itemType with
-        | File -> tryResult (fun () -> File.Create(wp).Dispose())
-        | Folder -> tryResult (fun () -> Directory.CreateDirectory(wp) |> ignore)
+        | File -> tryResult (fun () -> File.Create(winPath).Dispose())
+        | Folder -> tryResult (fun () -> Directory.CreateDirectory(winPath) |> ignore)
         | _ -> Error <| cannotActOnItemType "create" itemType
 
     member this.CreateShortcut target path =
@@ -232,7 +230,7 @@ type FileSystem() =
 
     member this.Recycle path =
         this.FileOrFolderAction path "recycle" <| fun itemType -> result {
-            let wp = wpath path
+            let winPath = wpath path
             let! driveSize =
                 path.Drive
                 |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
@@ -245,7 +243,7 @@ type FileSystem() =
                     Ok f.Size.Value
                 | Some f when f.Type = Folder ->
                     tryResult <| fun () ->
-                        DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
+                        DirectoryInfo(winPath).EnumerateFiles("*", SearchOption.AllDirectories)
                         |> Seq.sumBy (fun fi -> fi.Length)
                 | _ -> Error <| exn "Cannot recycle this item."
             let ratio = (double size) / (double driveSize)
@@ -254,19 +252,19 @@ type FileSystem() =
             else
                 return! tryResult <| fun () ->
                     if itemType = Folder then
-                        FileSystem.DeleteDirectory(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+                        FileSystem.DeleteDirectory(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
                     else
-                        FileSystem.DeleteFile(wp, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+                        FileSystem.DeleteFile(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
         }
 
     member this.Delete path =
         this.FileOrFolderAction path "delete" <| fun itemType ->
-            let wp = wpath path
+            let winPath = wpath path
             tryResult <| fun () ->
                 if itemType = Folder then
-                    DirectoryInfo(wp).EnumerateFiles("*", SearchOption.AllDirectories)
+                    DirectoryInfo(winPath).EnumerateFiles("*", SearchOption.AllDirectories)
                     |> Seq.iter prepForOverwrite
-                    Directory.Delete(wp, true)
+                    Directory.Delete(winPath, true)
                 else
-                    prepForOverwrite <| FileInfo wp
-                    File.Delete wp
+                    prepForOverwrite <| FileInfo winPath
+                    File.Delete winPath

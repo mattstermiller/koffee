@@ -14,8 +14,6 @@ let copyName = Action.getCopyName
 let copyNames name num =
     List.init num (copyName name)
 
-let progress = Event<_>()
-
 let putTypeCases () = [
     TestCaseData(Move)
     TestCaseData(Copy)
@@ -355,7 +353,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest"
@@ -410,7 +408,7 @@ let ``Undo move of enumerated folder deletes original dest folder when empty aft
     let action = PutItems (Move, putItem, actualMoved)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
         createFolder "/d/another"
@@ -464,7 +462,7 @@ let ``Undo move copies back items that were overwrites`` () =
     let action = PutItems (Move, putItem, actualMoved)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest"
@@ -522,7 +520,7 @@ let ``Undo move handles partial success by updating undo and setting error messa
     let action = PutItems (Move, putItem, actualMoved)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest"
@@ -570,7 +568,7 @@ let ``Undo move item when previous path is occupied returns error``() =
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedError = PutError (true, Move, [(original, exn ErrorMessages.undoMoveBlockedByExisting)], 1)
     let expected = model.WithError expectedError |> popUndo
@@ -593,7 +591,7 @@ let ``Undo move item handles move error by returning error``() =
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedError = PutError (true, Move, [(moved, ex)], 1)
     let expected = model.WithError expectedError |> popUndo
@@ -629,7 +627,7 @@ let ``Redo move folder that was an overwrite merges correctly``() =
     let model = testModel |> pushRedo action
     let expectedFile = fs.Item "/c/moved/file"
 
-    let actual = seqResult (Action.redo fs testProgress) model
+    let actual = seqResult (Action.redo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest/another"
@@ -685,7 +683,7 @@ let ``Redo move performs move of intent instead of actual`` () =
     let action = PutItems (Move, putItem, actualMoved)
     let model = testModel |> pushRedo action
 
-    let actual = seqResult (Action.redo fs testProgress) model
+    let actual = seqResult (Action.redo fs progress) model
 
     let expectedActual = actualMoved @ [
         { Item = createFile "/d/moved/new"; Dest = destPath.Join "new"; DestExists = false }
@@ -778,7 +776,7 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/other"
@@ -831,7 +829,7 @@ let ``Undo copy folder deletes items that were copied and removes dest folder if
     let action = PutItems (Copy, putItem, actualCopied)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expected =
         { model with
@@ -877,7 +875,7 @@ let ``Undo copy does nothing for items that were overwrites`` () =
     let action = PutItems (Copy, putItem, actualCopied)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expected =
         { model with
@@ -924,7 +922,7 @@ let ``Undo copy handles partial success by updating undo and setting error messa
     let action = PutItems (Copy, putItem, actualCopied)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs testProgress) model
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedError = UndoCopyError ([errorItem, ex], 2)
     let expectedAction = PutItems (Copy, putItem, actualCopied |> List.skip 1)
@@ -1089,7 +1087,7 @@ let ``Redo put item that was not an overwrite when path is occupied returns erro
     let model = testModel |> pushRedo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.redo fs testProgress) model
+    let actual = seqResult (Action.redo fs progress) model
 
     let expectedError = CannotRedoPutToExisting (putType, item, destPath.Format model.PathFormat)
     let expectedItems = [

@@ -5,6 +5,10 @@ open Acadian.FSharp
 open Koffee
 open Koffee.Main.Util
 
+let private progressIncrementer (progress: Event<float option>) total =
+    let incr = 1.0 / float total
+    fun _ -> progress.Trigger (Some incr)
+
 let private performedAction action (model: MainModel) =
     { model with
         UndoStack = action :: model.UndoStack |> List.truncate model.Config.Limits.Undo
@@ -170,10 +174,8 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) copy checkExists
     | _ -> ()
 }
 
-let private performPutItems (fs: IFileSystem) (progress: Event<_>) (items: (PutType * PutItem) list) =
-    let incrProgress =
-        let incr = 1.0 / float items.Length
-        fun _ -> progress.Trigger (Some incr)
+let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutItem) list) =
+    let incrementProgress = progressIncrementer progress items.Length
     let fileSysAction putType =
         match putType with
         | Move -> fs.Move
@@ -196,7 +198,7 @@ let private performPutItems (fs: IFileSystem) (progress: Event<_>) (items: (PutT
             |> Result.map (cnst putItem)
         )
         |> Result.mapError (fun e -> (putItem.Item, e))
-        |>! incrProgress
+        |>! incrementProgress
     ))
     |> AsyncSeq.toListAsync
     |> Async.tee (fun _ ->
@@ -263,7 +265,7 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors 
                 }
 }
 
-let putItem (fs: IFileSystem) (progress: Event<_>) overwrite item putType model = asyncSeqResult {
+let putItem (fs: IFileSystem) (progress: Event<float option>) overwrite item putType model = asyncSeqResult {
     let sameFolder = item.Path.Parent = model.Location
     match! fs.GetItem model.Location |> actionError "put item" with
     | Some container when container.Type.CanCreateIn ->
@@ -341,10 +343,8 @@ let undoMove (fs: IFileSystem) progress (intent: PutItem) (moved: PutItem list) 
     yield! performPut fs progress true existErrors Move putItem items model
 }
 
-let private performUndoCopy (fs: IFileSystem) (progress: Event<_>) (items: PutItem list) =
-    let incrProgress =
-        let incr = 1.0 / float items.Length
-        fun _ -> progress.Trigger (Some incr)
+let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
+    let incrementProgress = progressIncrementer progress items.Length
     items
     |> AsyncSeq.ofSeq
     |> AsyncSeq.mapAsync (fun putItem -> runAsync (fun () ->
@@ -366,7 +366,7 @@ let private performUndoCopy (fs: IFileSystem) (progress: Event<_>) (items: PutIt
         )
         |> Result.map (cnst putItem)
         |> Result.mapError (fun e -> (putItem.Item, e))
-        |>! incrProgress
+        |>! incrementProgress
     ))
     |> AsyncSeq.toListAsync
     |> Async.tee (fun _ ->

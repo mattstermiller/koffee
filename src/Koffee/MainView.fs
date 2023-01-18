@@ -628,7 +628,6 @@ type MainError =
     | YankRegisterItemMissing of string
     | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
     | DeleteError of errorItems: (Item * exn) list * totalItems: int
-    | UndoCopyError of errorItems: (Item * exn) list * totalItems: int
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
     | CannotMoveToSameFolder
@@ -673,8 +672,6 @@ type MainError =
             this.ItemErrorsDescription (undo + putType) errorItems totalItems
         | DeleteError (errorItems, totalItems) ->
             this.ItemErrorsDescription "delete" errorItems totalItems
-        | UndoCopyError (errorItems, totalItems) ->
-            this.ItemErrorsDescription "undo copy" errorItems totalItems
         | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""

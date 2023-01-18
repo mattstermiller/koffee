@@ -395,13 +395,13 @@ let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqR
         else
             yield model
     | [], errors ->
-        return UndoCopyError (errors, copied.Length)
+        return PutError (true, Copy, errors, copied.Length)
     | succeeded, errors ->
         // if partial success, update undo stack with successes
         // set error message instead of returning Error so that the caller flow is not short-circuited
         let action = PutItems (Copy, intent, succeeded)
         let model =
-            { model.WithError (UndoCopyError (errors, copied.Length)) with
+            { model.WithError (PutError (true, Copy, errors, copied.Length)) with
                 RedoStack = action :: model.RedoStack
             }
         if model.Location = intent.Dest.Parent then

@@ -946,7 +946,7 @@ let ``Undo copy handles partial success by updating undo and setting error messa
     let expectedError =
         if errorIsDeleteDest
         then CouldNotDeleteCopyDest (copied.Name, ex)
-        else UndoCopyError ([errorItem, ex], 2)
+        else PutError (true, Copy, [errorItem, ex], 2)
     let expectedAction = PutItems (Copy, putItem, actualCopied |> List.filter (fun pi -> pi.Dest <> errorItem.Path))
     let expected =
         { model.WithError(expectedError) with
@@ -986,7 +986,7 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expected = model.WithError (UndoCopyError ([copied, ex], 1)) |> popUndo
+    let expected = model.WithError (PutError (true, Copy, [copied, ex], 1)) |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
     fs.RecycleBin |> shouldEqual []

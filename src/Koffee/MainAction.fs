@@ -205,12 +205,20 @@ let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutIte
         progress.Trigger None
     )
 
-let rec private isEmptyTree (fs: IFileSystem) path =
+let rec private deleteEmptyFolders (fs: IFileSystem) path : Async<Result<unit, Path * exn>> = asyncResult {
     match fs.GetItems path with
-    | Ok [] -> true
-    | Ok items when items |> List.exists (fun i -> i.Type = File) -> false
-    | Ok folders -> folders |> List.forall (fun i -> isEmptyTree fs i.Path)
-    | Error _ -> false
+    | Ok items ->
+        let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
+        for folder in folders do
+            let! res = deleteEmptyFolders fs folder.Path
+            do! res
+        if files |> List.isEmpty then
+            return! runAsync (fun () ->
+                fs.Delete path |> Result.mapError (fun ex -> (path, ex))
+            )
+    | Error ex ->
+        return! Error (path, ex)
+}
 
 let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors putType intent items (model: MainModel) = asyncSeqResult {
     let getItemAction putItem = if isUndo && putItem.DestExists then Copy else putType
@@ -228,18 +236,15 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors 
                 model |> performedAction action
             else
                 model
-        let model =
-            result {
-                // if folder was enumerated and its contents were moved, delete empty source folder
-                if putType = Move && intent.Item.Type = Folder
-                    && not (items |> List.exists (fun i -> i.Item = intent.Item))
-                    && isEmptyTree fs intent.Item.Path
-                then
-                    do! fs.Delete intent.Item.Path |> actionError "Delete empty source folder"
-            } |> function
-                | Ok () -> model
-                | Error e -> model.WithError e
-        yield model
+        let! deleteRes = asyncResult {
+            // if folder was enumerated and its contents were moved, delete empty source folders
+            if putType = Move && intent.Item.Type = Folder
+                && not (items |> List.exists (fun i -> i.Item = intent.Item))
+            then
+                let! res = deleteEmptyFolders fs intent.Item.Path
+                return! res |> Result.mapError (fun (path, ex) -> CouldNotDeleteMoveSource (path.Name, ex))
+        }
+        let model = model.WithResult deleteRes
         yield! openDest model
     | errorItems when succeeded |> List.isEmpty ->
         // if nothing succeeded, return error
@@ -378,16 +383,17 @@ let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqR
     let! results = performUndoCopy fs progress copied
     match results |> Result.partition with
     | _, [] ->
-        let model =
-            result {
-                // if folder was enumerated and the copied folder contents were deleted, delete empty copy folder
-                if intent.Item.Type = Folder && isEmptyTree fs intent.Dest then
-                    do! fs.Delete intent.Dest |> actionError "Delete empty copied folder"
-            } |> function
-                | Ok () -> model
-                | Error e -> model.WithError e
+        let! deleteRes = asyncResult {
+            // delete empty copied folders
+            if intent.Item.Type = Folder then
+                let! res = deleteEmptyFolders fs intent.Dest
+                return! res |> Result.mapError (fun (path, ex) -> CouldNotDeleteCopyDest (path.Name, ex))
+        }
+        let model = model.WithResult deleteRes
         if model.Location = intent.Dest.Parent then
             yield! Nav.refresh fs model
+        else
+            yield model
     | [], errors ->
         return UndoCopyError (errors, copied.Length)
     | succeeded, errors ->
@@ -398,11 +404,10 @@ let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqR
             { model.WithError (UndoCopyError (errors, copied.Length)) with
                 RedoStack = action :: model.RedoStack
             }
-        yield
-            if model.Location = intent.Dest.Parent then
-                Nav.refresh fs model |> Result.toOption |? model
-            else
-                model
+        if model.Location = intent.Dest.Parent then
+            yield Nav.refresh fs model |> Result.toOption |? model
+        else
+            yield model
 }
 
 let undoShortcut (fs: IFileSystem) shortcutPath (model: MainModel) = result {
@@ -423,13 +428,47 @@ let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
         return model
 }
 
-let delete (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asyncSeqResult {
+let rec private enumerateDeleteItems (fsReader: IFileSystemReader) (items: Item seq) = asyncSeq {
+    for item in items do
+        match item.Type with
+        | Folder ->
+            let! subItems = runAsync (fun () -> fsReader.GetItems item.Path)
+            match subItems with
+            | Ok subItems when not subItems.IsEmpty ->
+                yield! enumerateDeleteItems fsReader subItems
+                yield item
+            | _ ->
+                yield item
+        | File ->
+            yield item
+        | _ -> ()
+}
+
+let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (model: MainModel) = asyncSeqResult {
     if item.Type.CanModify then
         let action = DeletedItem (item, permanent)
-        let fileSysFunc = if permanent then fsWriter.Delete else fsWriter.Recycle
-        yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
-        let! res = runAsync (fun () -> fileSysFunc item.Path)
-        do! res |> itemActionError action model.PathFormat
+        if permanent then
+            yield model.WithStatus (MainStatus.preparingDelete item.Name)
+            progress.Trigger (Some 0.0)
+            let! items = enumerateDeleteItems fs [item] |> AsyncSeq.toListAsync
+            let incrementProgress = progressIncrementer progress items.Length
+            yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
+            let! res = runAsync (fun () ->
+                items
+                |> Seq.map (fun i ->
+                    fs.Delete i.Path
+                    |> Result.mapError(fun ex -> (i, ex))
+                    |>! incrementProgress
+                )
+                |> Result.accumulate
+                |> Result.map (cnst ())
+            )
+            progress.Trigger None
+            do! res |> Result.mapError (fun errors -> DeleteError (errors, items.Length))
+        else
+            yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
+            let! res = runAsync (fun () -> fs.Recycle item.Path)
+            do! res |> itemActionError action model.PathFormat
         yield
             { model with
                 Directory = model.Directory |> List.except [item]
@@ -438,7 +477,7 @@ let delete (fsWriter: IFileSystemWriter) item permanent (model: MainModel) = asy
             |> performedAction action
 }
 
-let recycle fsWriter (model: MainModel) = asyncSeqResult {
+let recycle fsWriter progress (model: MainModel) = asyncSeqResult {
     if model.SelectedItem.Type = NetHost then
         let host = model.SelectedItem.Name
         yield
@@ -450,7 +489,7 @@ let recycle fsWriter (model: MainModel) = asyncSeqResult {
             |> fun m -> m.WithStatus (MainStatus.removedNetworkHost host)
             |> fun m -> m.WithCursor model.Cursor
     else
-        yield! delete fsWriter model.SelectedItem false model
+        yield! delete fsWriter progress model.SelectedItem false model
 }
 
 let rec private undoIter iter fs progress model = asyncSeqResult {
@@ -522,7 +561,7 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
             | DeletedItem (item, permanent) ->
                 let! model = goToPath item.Path
                 yield model.WithStatusOption (MainStatus.redoingAction action model.PathFormat)
-                yield! delete fs item permanent model
+                yield! delete fs progress item permanent model
         }
         let model = { model with RedoStack = rest }
         if iter < model.RepeatCount then

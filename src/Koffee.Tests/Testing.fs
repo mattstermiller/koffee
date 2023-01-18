@@ -138,9 +138,9 @@ let assertAreEqual expected actual =
     assertAreEqualWith expected actual ignore
 
 let assertErrorExn (expected: exn) (actual: Result<_, exn>) =
-    match actual with
-    | Error ex when ex.Message = expected.Message -> ()
-    | _ -> failwithf "Expected error with message \"%s\" but got %A" expected.Message actual
+    actual
+    |> Result.mapError (fun ex -> ex.Message)
+    |> shouldEqual (Error expected.Message)
 
 let assertOk res =
     match res with

@@ -244,13 +244,14 @@ let ``Put folder to move deletes source folder after enumerated move`` enumerate
                 folder "src" []
         ]
         folder "src" [
+            folder "folder" []
             file "file"
         ]
     ]
-    if enumerated && deleteError then
-        fs.AddExn true ex "/c/src"
     let src = fs.Item "/c/src"
     let dest = fs.Item "/c/dest"
+    if enumerated && deleteError then
+        fs.AddExnPath true ex src.Path
     let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, Move))
 
     let actual = seqResult (Action.put fs progress enumerated) model
@@ -258,7 +259,10 @@ let ``Put folder to move deletes source folder after enumerated move`` enumerate
     let intent = { Item = src; Dest = dest.Path.Join src.Name; DestExists = enumerated }
     let expectedPut =
         if enumerated then
-            [{ Item = createFile "/c/src/file"; Dest = createPath "/c/dest/src/file"; DestExists = false }]
+            [
+                { Item = createFile "/c/src/file"; Dest = createPath "/c/dest/src/file"; DestExists = false }
+                { Item = createFolder "/c/src/folder"; Dest = createPath "/c/dest/src/folder"; DestExists = false }
+            ]
         else
             [intent]
     let expectedAction = PutItems (Move, intent, expectedPut)
@@ -272,12 +276,13 @@ let ``Put folder to move deletes source folder after enumerated move`` enumerate
             Status = Some <| MainStatus.actionComplete expectedAction testModel.PathFormat
         } |> fun m ->
             if enumerated && deleteError then
-                m.WithError (ActionError ("Delete empty source folder", ex))
+                m.WithError (CouldNotDeleteMoveSource (src.Name, ex))
             else m
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "dest" [
             folder "src" [
+                folder "folder" []
                 file "file"
             ]
         ]
@@ -804,14 +809,20 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo copy folder deletes items that were copied and removes dest folder if empty`` hasNewItem =
+let ``Undo copy folder deletes items that were copied and removes dest folders if empty`` hasNewItem =
     let fs = FakeFileSystem [
         folder "copied" [
+            folder "folder" [
+                file "sub"
+            ]
             file "file"
             file "other"
         ]
         folder "dest" [
             folder "copied" [
+                folder "folder" [
+                    file "sub"
+                ]
                 file "file"
                 if hasNewItem then
                     file "new"
@@ -823,6 +834,7 @@ let ``Undo copy folder deletes items that were copied and removes dest folder if
     let original = createFolder "/c/copied"
     let putItem = { Item = original; Dest = copied.Path; DestExists = false }
     let actualCopied = [
+        { Item = createFolder "/c/copied/folder"; Dest = copied.Path.Join "folder"; DestExists = false }
         { Item = createFile "/c/copied/file"; Dest = copied.Path.Join "file"; DestExists = false }
         { Item = createFile "/c/copied/other"; Dest = copied.Path.Join "other"; DestExists = false }
     ]
@@ -840,6 +852,9 @@ let ``Undo copy folder deletes items that were copied and removes dest folder if
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "copied" [
+            folder "folder" [
+                file "sub"
+            ]
             file "file"
             file "other"
         ]
@@ -896,8 +911,9 @@ let ``Undo copy does nothing for items that were overwrites`` () =
         ]
     ]
 
-[<Test>]
-let ``Undo copy handles partial success by updating undo and setting error message`` () =
+[<TestCase(false)>] // error is during deleting an item
+[<TestCase(true)>] // error is during deleting empty original destination folder
+let ``Undo copy handles partial success by updating undo and setting error message`` errorIsDeleteDest =
     let fs = FakeFileSystem [
         folder "copied" [
             file "file"
@@ -910,10 +926,13 @@ let ``Undo copy handles partial success by updating undo and setting error messa
             ]
         ]
     ]
-    let errorItem = createFile "/c/dest/copied/file"
-    fs.AddExnPath true ex errorItem.Path
     let copied = fs.Item "/c/dest/copied"
     let original = createFolder "/c/copied"
+    let errorItem =
+        if errorIsDeleteDest
+        then copied
+        else fs.Item "/c/dest/copied/file"
+    fs.AddExnPath true ex errorItem.Path
     let putItem = { Item = original; Dest = copied.Path; DestExists = false }
     let actualCopied = [
         { Item = createFile "/c/copied/file"; Dest = copied.Path.Join "file"; DestExists = false }
@@ -924,8 +943,11 @@ let ``Undo copy handles partial success by updating undo and setting error messa
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = UndoCopyError ([errorItem, ex], 2)
-    let expectedAction = PutItems (Copy, putItem, actualCopied |> List.skip 1)
+    let expectedError =
+        if errorIsDeleteDest
+        then CouldNotDeleteCopyDest (copied.Name, ex)
+        else UndoCopyError ([errorItem, ex], 2)
+    let expectedAction = PutItems (Copy, putItem, actualCopied |> List.filter (fun pi -> pi.Dest <> errorItem.Path))
     let expected =
         { model.WithError(expectedError) with
             UndoStack = model.UndoStack.Tail
@@ -939,7 +961,8 @@ let ``Undo copy handles partial success by updating undo and setting error messa
         ]
         folder "dest" [
             folder "copied" [
-                file "file"
+                if not errorIsDeleteDest then
+                    file "file"
             ]
         ]
     ]

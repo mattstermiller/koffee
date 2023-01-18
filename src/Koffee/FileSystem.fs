@@ -24,7 +24,10 @@ type IFileSystemWriter =
     /// Copies a file or empty folder.
     abstract member Copy: fromPath: Path -> toPath: Path -> Result<unit, exn>
 
+    /// Sends a file or folder and its contents to the recycle bin
     abstract member Recycle: Path -> Result<unit, exn>
+
+    /// Deletes a file or empty folder.
     abstract member Delete: Path -> Result<unit, exn>
 
 type IFileSystem =
@@ -262,9 +265,7 @@ type FileSystem() =
             let winPath = wpath path
             tryResult <| fun () ->
                 if itemType = Folder then
-                    DirectoryInfo(winPath).EnumerateFiles("*", SearchOption.AllDirectories)
-                    |> Seq.iter prepForOverwrite
-                    Directory.Delete(winPath, true)
+                    Directory.Delete(winPath)
                 else
-                    prepForOverwrite <| FileInfo winPath
+                    prepForOverwrite (FileInfo winPath)
                     File.Delete winPath

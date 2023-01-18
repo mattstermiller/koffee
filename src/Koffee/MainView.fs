@@ -579,6 +579,7 @@ module MainStatus =
         runningActionMessage action pathFormat |> Option.map Busy
     let preparingPut (putType: PutType) name = Busy <| sprintf "Preparing to %O %s..." putType name
     let checkingIsRecyclable = Busy "Calculating size..."
+    let preparingDelete name = Busy <| sprintf "Preparing to delete %s..." name
     let private actionCompleteMessage action pathFormat =
         match action with
         | CreatedItem item -> sprintf "Created %s" item.Description
@@ -626,11 +627,14 @@ type MainError =
     | ShortcutTargetMissing of string
     | YankRegisterItemMissing of string
     | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
+    | DeleteError of errorItems: (Item * exn) list * totalItems: int
     | UndoCopyError of errorItems: (Item * exn) list * totalItems: int
     | CannotPutHere
     | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
     | CannotMoveToSameFolder
     | TooManyCopies of fileName: string
+    | CouldNotDeleteMoveSource of name: string * exn
+    | CouldNotDeleteCopyDest of name: string * exn
     | CannotUndoNonEmptyCreated of Item
     | CannotUndoDelete of permanent: bool * item: Item
     | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
@@ -638,6 +642,16 @@ type MainError =
     | NoRedoActions
     | CouldNotOpenApp of app: string * exn
     | CouldNotFindKoffeeExe
+
+    member private this.ItemErrorsDescription actionName (errorItems: (Item * exn) list) totalItemCount =
+        let actionMsg = "Could not " + actionName
+        match errorItems with
+        | [(item, ex)] ->
+            sprintf "%s %s: %s" actionMsg item.Description ex.Message
+        | (_, ex) :: _ ->
+            sprintf "%s %i of %i total items. First error: %s" actionMsg errorItems.Length totalItemCount ex.Message
+        | [] ->
+            actionMsg
 
     member this.Message =
         match this with
@@ -656,23 +670,11 @@ type MainError =
         | PutError (isUndo, putType, errorItems, totalItems) ->
             let undo = if isUndo then "undo " else ""
             let putType = putType |> string |> String.toLower
-            let actionMsg = "Could not " + undo + putType
-            match errorItems with
-            | [(item, ex)] ->
-                sprintf "%s of %s: %s" actionMsg item.Description ex.Message
-            | (_, ex) :: _ ->
-                sprintf "%s of %i of %i total items. First error: %s" actionMsg errorItems.Length totalItems ex.Message
-            | [] ->
-                actionMsg
+            this.ItemErrorsDescription (undo + putType) errorItems totalItems
+        | DeleteError (errorItems, totalItems) ->
+            this.ItemErrorsDescription "delete" errorItems totalItems
         | UndoCopyError (errorItems, totalItems) ->
-            let actionMsg = "Could not undo copy"
-            match errorItems with
-            | [(item, ex)] when totalItems = 1 ->
-                sprintf "%s of %s: %s" actionMsg item.Description ex.Message
-            | (_, ex) :: _ ->
-                sprintf "%s of %i of %i total items. First error: %s" actionMsg errorItems.Length totalItems ex.Message
-            | [] ->
-                actionMsg
+            this.ItemErrorsDescription "undo copy" errorItems totalItems
         | CannotPutHere -> "Cannot put items here"
         | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
             let append = if hidden then " (hidden)" else ""
@@ -680,6 +682,10 @@ type MainError =
                     actionName itemType name append
         | CannotMoveToSameFolder -> "Cannot move item to same folder it is already in"
         | TooManyCopies fileName -> sprintf "There are already too many copies of \"%s\"" fileName
+        | CouldNotDeleteMoveSource (name, ex) ->
+            sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
+        | CouldNotDeleteCopyDest (name, ex) ->
+            sprintf "Could not delete copy destination folder \"%s\" after undoing copy: %s" name ex.Message
         | CannotUndoNonEmptyCreated item ->
             sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
         | CannotUndoDelete (permanent, item) ->
@@ -704,3 +710,8 @@ module MainModelExt =
     type MainModel with
         member this.WithError (e: MainError) =
             this.WithStatus (ErrorMessage e.Message)
+
+        member this.WithResult (res: Result<unit, MainError>) =
+            match res with
+            | Ok () -> this
+            | Error e -> this.WithError e

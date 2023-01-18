@@ -152,7 +152,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 let! model = Action.putItem fs progress true src putType model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fs model.SelectedItem true model
+                yield! Action.delete fs progress model.SelectedItem true model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
             | OverwriteSavedSearch (char, _) ->
@@ -399,7 +399,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
-            | Recycle -> AsyncResult (Action.recycle fs)
+            | Recycle -> AsyncResult (Action.recycle fs progress)
             | SortList field -> Sync (Nav.sortList field)
             | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)

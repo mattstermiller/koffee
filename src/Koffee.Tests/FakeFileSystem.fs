@@ -56,6 +56,9 @@ module FakeFileSystemErrors =
     let cannotCopyNonEmptyFolder =
         exn "Folder is not empty and cannot be copied"
 
+    let cannotDeleteNonEmptyFolder =
+        exn "Folder is not empty and cannot be deleted"
+
 open FakeFileSystemErrors
 
 type FakeFileSystem(treeItems) =
@@ -93,6 +96,9 @@ type FakeFileSystem(treeItems) =
             exnItem |> Option.map (fst >> Error) |? Ok ()
         | _ ->
             Ok ()
+
+    let hasChildren path =
+        items |> List.exists (fun i -> i.Path.Parent = path)
 
     member this.Items = items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
 
@@ -159,7 +165,7 @@ type FakeFileSystem(treeItems) =
 
     member this.IsEmpty path =
         match items |> List.tryFind (fun i -> i.Path = path) with
-        | Some i when i.Type = Folder -> not (items |> List.exists (fun i -> i.Path.Parent = path))
+        | Some i when i.Type = Folder -> not (hasChildren path)
         | Some i when i.Type = File -> not (i.Size |> Option.exists (flip (>) 0L))
         | _ -> false
 
@@ -202,7 +208,7 @@ type FakeFileSystem(treeItems) =
         else
             do! checkExn true fromPath
             let! item = this.AssertItem fromPath
-            if item.Type = Folder && fromPath.Base <> toPath.Base && not (this.ItemsIn item.Path |> List.isEmpty) then
+            if item.Type = Folder && fromPath.Base <> toPath.Base && hasChildren item.Path then
                 return! Error cannotMoveNonEmptyFolderAcrossDrives
             do! this.CheckDestParent toPath
             do! checkExn true toPath
@@ -224,7 +230,7 @@ type FakeFileSystem(treeItems) =
         let! item = this.AssertItem fromPath
         do! checkExn true toPath
         do! this.CheckDestParent toPath
-        if item.Type = Folder && not (this.ItemsIn item.Path |> List.isEmpty) then
+        if item.Type = Folder && hasChildren item.Path then
             return! Error cannotCopyNonEmptyFolder
         remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
@@ -236,12 +242,15 @@ type FakeFileSystem(treeItems) =
 
     member this.Recycle path = result {
         let! item = this.AssertItem path
+        do! checkExn true path
         recycleBin <- item :: recycleBin
-        return! this.Delete path
+        remove path
     }
 
     member this.Delete path = result {
-        let! _ = this.AssertItem path
+        let! item = this.AssertItem path
         do! checkExn true path
+        if item.Type = Folder && hasChildren item.Path then
+            return! Error cannotDeleteNonEmptyFolder
         remove path
     }

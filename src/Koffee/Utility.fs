@@ -85,6 +85,7 @@ type AsyncSeqResultBuilder() =
     member this.YieldFrom x = result.ReturnFrom x |> asyncSeq.Yield
     member this.YieldFrom (x: AsyncSeq<Result<_,_>>) = asyncSeq.YieldFrom x
     member this.Return x = this.YieldFrom (Error x)
+    member this.Return (_: unit) = this.Zero ()
     member this.Zero () = asyncSeq.Zero ()
     member this.Delay f = asyncSeq.Delay f
     member this.Combine (x: AsyncSeq<_>, y) = AsyncSeq.append x y |> takeUntilError

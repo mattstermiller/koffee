@@ -189,20 +189,18 @@ let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutIte
             | None -> return! fs.Create Folder path
             | Some _ -> ()
     }
-    items
-    |> AsyncSeq.ofSeq
-    |> AsyncSeq.mapAsync (fun (putType, putItem) -> runAsync (fun () ->
-        ensureFolderExists putItem.Dest.Parent
-        |> Result.bind (fun () ->
-            fileSysAction putType putItem.Item.Path putItem.Dest
-            |> Result.map (cnst putItem)
+    runAsync (fun () ->
+        items
+        |> List.map (fun (putType, putItem) ->
+            ensureFolderExists putItem.Dest.Parent
+            |> Result.bind (fun () ->
+                fileSysAction putType putItem.Item.Path putItem.Dest
+                |> Result.map (fun () -> putItem)
+            )
+            |> Result.mapError (fun e -> (putItem.Item, e))
+            |>! incrementProgress
         )
-        |> Result.mapError (fun e -> (putItem.Item, e))
-        |>! incrementProgress
-    ))
-    |> AsyncSeq.toListAsync
-    |> Async.tee (fun _ ->
-        progress.Trigger None
+        |>! (fun _ -> progress.Trigger None)
     )
 
 let rec private deleteEmptyFolders (fs: IFileSystem) path : Async<Result<unit, Path * exn>> = asyncResult {
@@ -461,7 +459,7 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
                     |>! incrementProgress
                 )
                 |> Result.accumulate
-                |> Result.map (cnst ())
+                |> Result.map ignore
             )
             progress.Trigger None
             do! res |> Result.mapError (fun errors -> DeleteError (errors, items.Length))

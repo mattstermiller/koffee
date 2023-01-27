@@ -86,7 +86,7 @@ let create (fs: IFileSystem) itemType name model = asyncSeqResult {
 let undoCreate (fs: IFileSystem) item (model: MainModel) = asyncSeqResult {
     if fs.IsEmpty item.Path then
         yield model.WithStatus (MainStatus.undoingCreate item)
-        let! res = runAsync (fun () -> fs.Delete item.Path)
+        let! res = runAsync (fun () -> fs.Delete item.Type item.Path)
         do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
         if model.Location = item.Path.Parent then
             yield! Nav.refresh fs model
@@ -103,7 +103,7 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
             else fs.GetItem newPath |> itemActionError action model.PathFormat
         match existing with
         | None ->
-            do! fs.Move item.Path newPath |> itemActionError action model.PathFormat
+            do! fs.Move item.Type item.Path newPath |> itemActionError action model.PathFormat
             let newItem = { item with Name = newName; Path = newPath }
             let substitute = List.map (fun i -> if i = item then newItem else i)
             return
@@ -130,7 +130,7 @@ let undoRename (fs: IFileSystem) oldItem currentName (model: MainModel) = result
         else fs.GetItem oldItem.Path |> itemActionError action model.PathFormat
     match existing with
     | None ->
-        do! fs.Move currentPath oldItem.Path |> itemActionError action model.PathFormat
+        do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action model.PathFormat
         return! Nav.openPath fs parentPath (SelectName oldItem.Name) model
     | Some existingItem ->
         return! Error <| CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
@@ -176,10 +176,10 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) copy checkExists
 
 let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutItem) list) =
     let incrementProgress = progressIncrementer progress items.Length
-    let fileSysAction putType =
+    let fileSysAction putType itemType =
         match putType with
-        | Move -> fs.Move
-        | Copy -> fs.Copy
+        | Move -> fs.Move itemType
+        | Copy -> fs.Copy itemType
         | Shortcut -> fs.CreateShortcut
     let mutable foldersChecked = Set []
     let ensureFolderExists (path: Path) = result {
@@ -194,7 +194,7 @@ let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutIte
         |> List.map (fun (putType, putItem) ->
             ensureFolderExists putItem.Dest.Parent
             |> Result.bind (fun () ->
-                fileSysAction putType putItem.Item.Path putItem.Dest
+                fileSysAction putType putItem.Item.Type putItem.Item.Path putItem.Dest
                 |> Result.map (fun () -> putItem)
             )
             |> Result.mapError (fun e -> (putItem.Item, e))
@@ -212,7 +212,7 @@ let rec private deleteEmptyFolders (fs: IFileSystem) path : Async<Result<unit, P
             do! res
         if files |> List.isEmpty then
             return! runAsync (fun () ->
-                fs.Delete path |> Result.mapError (fun ex -> (path, ex))
+                fs.Delete Folder path |> Result.mapError (fun ex -> (path, ex))
             )
     | Error ex ->
         return! Error (path, ex)
@@ -363,9 +363,9 @@ let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
             if putItem.DestExists then
                 Ok () // don't remove items that existed before the copy
             else if shouldDelete () then
-                fs.Delete putItem.Dest
+                fs.Delete putItem.Item.Type putItem.Dest
             else
-                fs.Recycle putItem.Dest
+                fs.Recycle putItem.Item.Type putItem.Dest
         )
         |> Result.map (cnst putItem)
         |> Result.mapError (fun e -> (putItem.Item, e))
@@ -410,7 +410,7 @@ let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqR
 
 let undoShortcut (fs: IFileSystem) shortcutPath (model: MainModel) = result {
     let action = DeletedItem ({ Item.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
-    do! fs.Delete shortcutPath |> itemActionError action model.PathFormat
+    do! fs.Delete File shortcutPath |> itemActionError action model.PathFormat
     if model.Location = shortcutPath.Parent then
         return! Nav.refresh fs model
     else
@@ -454,7 +454,7 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
             let! res = runAsync (fun () ->
                 items
                 |> Seq.map (fun i ->
-                    fs.Delete i.Path
+                    fs.Delete i.Type i.Path
                     |> Result.mapError(fun ex -> (i, ex))
                     |>! incrementProgress
                 )
@@ -465,7 +465,7 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
             do! res |> Result.mapError (fun errors -> DeleteError (errors, items.Length))
         else
             yield model.WithStatusOption (MainStatus.runningAction action model.PathFormat)
-            let! res = runAsync (fun () -> fs.Recycle item.Path)
+            let! res = runAsync (fun () -> fs.Recycle item.Type item.Path)
             do! res |> itemActionError action model.PathFormat
         yield
             { model with

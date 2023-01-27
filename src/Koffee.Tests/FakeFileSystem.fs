@@ -35,6 +35,9 @@ module FakeFileSystemErrors =
     let pathDoesNotExist (path: Path) =
         exn ("Path does not exist: " + string path)
 
+    let pathIsNotExpectedType (path: Path) (expectedType: ItemType) (actualType: ItemType) =
+        exn (sprintf "Item at path \"%O\" was expected to be type %O but was %O" path expectedType actualType)
+
     let pathAlreadyUsed (path: Path) =
         exn ("Path already used: " + string path)
 
@@ -133,20 +136,25 @@ type FakeFileSystem(treeItems) =
     interface IFileSystemWriter with
         member this.Create itemType path = this.Create itemType path
         member this.CreateShortcut target path = this.CreateShortcut target path
-        member this.Move fromPath toPath = this.Move fromPath toPath
-        member this.Copy fromPath toPath = this.Copy fromPath toPath
-        member this.Recycle path = this.Recycle path
-        member this.Delete path = this.Delete path
+        member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
+        member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
+        member this.Recycle itemType path = this.Recycle itemType path
+        member this.Delete itemType path = this.Delete itemType path
 
     member this.GetItem path = result {
         do! checkExn false path
         return items |> List.tryFind (fun i -> i.Path = path)
     }
 
-    member private this.AssertItem path = result {
-        let! item = this.GetItem path
-        return! item |> Result.ofOption (pathDoesNotExist path)
-    }
+    member private this.AssertItem itemType path =
+        this.GetItem path
+        |> Result.bind (Result.ofOption (pathDoesNotExist path))
+        |> Result.bind (fun item ->
+            if item.Type <> itemType then
+                Error (pathIsNotExpectedType path itemType item.Type)
+            else
+                Ok item
+        )
 
     member this.GetItems path = result {
         callsToGetItems <- callsToGetItems + 1
@@ -199,15 +207,15 @@ type FakeFileSystem(treeItems) =
         | _ -> ()
     }
 
-    member this.Move fromPath toPath = result {
+    member this.Move itemType fromPath toPath = result {
         let substitute oldItem newItem =
             items <- items |> List.map (fun i -> if i = oldItem then newItem else i)
         if String.equalsIgnoreCase (string fromPath) (string toPath) then
-            let! item = this.AssertItem fromPath
+            let! item = this.AssertItem itemType fromPath
             substitute item { item with Path = toPath; Name = toPath.Name }
         else
             do! checkExn true fromPath
-            let! item = this.AssertItem fromPath
+            let! item = this.AssertItem itemType fromPath
             if item.Type = Folder && fromPath.Base <> toPath.Base && hasChildren item.Path then
                 return! Error cannotMoveNonEmptyFolderAcrossDrives
             do! this.CheckDestParent toPath
@@ -223,11 +231,11 @@ type FakeFileSystem(treeItems) =
 
             if item.Type = Folder then
                 for item in this.ItemsIn fromPath do
-                    do! this.Move item.Path (toPath.Join item.Name)
+                    do! this.Move item.Type item.Path (toPath.Join item.Name)
     }
 
-    member this.Copy fromPath toPath = result {
-        let! item = this.AssertItem fromPath
+    member this.Copy itemType fromPath toPath = result {
+        let! item = this.AssertItem itemType fromPath
         do! checkExn true toPath
         do! this.CheckDestParent toPath
         if item.Type = Folder && hasChildren item.Path then
@@ -240,15 +248,15 @@ type FakeFileSystem(treeItems) =
         | _ -> ()
     }
 
-    member this.Recycle path = result {
-        let! item = this.AssertItem path
+    member this.Recycle itemType path = result {
+        let! item = this.AssertItem itemType path
         do! checkExn true path
         recycleBin <- item :: recycleBin
         remove path
     }
 
-    member this.Delete path = result {
-        let! item = this.AssertItem path
+    member this.Delete itemType path = result {
+        let! item = this.AssertItem itemType path
         do! checkExn true path
         if item.Type = Folder && hasChildren item.Path then
             return! Error cannotDeleteNonEmptyFolder

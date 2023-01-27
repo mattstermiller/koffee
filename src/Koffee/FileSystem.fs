@@ -19,16 +19,16 @@ type IFileSystemWriter =
     abstract member CreateShortcut: target: Path -> path: Path -> Result<unit, exn>
 
     /// Moves a file or folder. When moving across volumes, the folder must be empty.
-    abstract member Move: fromPath: Path -> toPath: Path -> Result<unit, exn>
+    abstract member Move: ItemType -> fromPath: Path -> toPath: Path -> Result<unit, exn>
 
     /// Copies a file or empty folder.
-    abstract member Copy: fromPath: Path -> toPath: Path -> Result<unit, exn>
+    abstract member Copy: ItemType -> fromPath: Path -> toPath: Path -> Result<unit, exn>
 
     /// Sends a file or folder and its contents to the recycle bin
-    abstract member Recycle: Path -> Result<unit, exn>
+    abstract member Recycle: ItemType -> Path -> Result<unit, exn>
 
     /// Deletes a file or empty folder.
-    abstract member Delete: Path -> Result<unit, exn>
+    abstract member Delete: ItemType -> Path -> Result<unit, exn>
 
 type IFileSystem =
     inherit IFileSystemReader
@@ -94,18 +94,13 @@ type FileSystem() =
             if unbox<int> (file.Attributes &&& flagsToClear) <> 0 then
                 file.Attributes <- file.Attributes &&& (~~~flagsToClear)
 
-    let cannotActOnItemType action itemType =
-        exn <| sprintf "Cannot %s item type %O" action itemType
-
     let folderAlreadyExists dest =
         exn <| "Folder already exists at destination: " + dest
 
-    member private this.FileOrFolderAction path actionName action =
-        this.GetItem path |> Result.bind (function
-            | Some item when item.Type = File || item.Type = Folder -> action item.Type
-            | Some item -> Error <| cannotActOnItemType actionName item.Type
-            | None -> Error <| exn (sprintf "Path does not exist: %s" (wpath path))
-        )
+    let ensureFileOrFolder itemType actionName =
+        match itemType with
+        | File | Folder -> Ok ()
+        | _ -> Error (exn (sprintf "Cannot %s item type %O" actionName itemType))
 
     interface IFileSystem
 
@@ -177,30 +172,36 @@ type FileSystem() =
     interface IFileSystemWriter with
         member this.Create itemType path = this.Create itemType path
         member this.CreateShortcut target path = this.CreateShortcut target path
-        member this.Move fromPath toPath = this.Move fromPath toPath
-        member this.Copy fromPath toPath = this.Copy fromPath toPath
-        member this.Recycle path = this.Recycle path
-        member this.Delete path = this.Delete path
+        member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
+        member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
+        member this.Recycle itemType path = this.Recycle itemType path
+        member this.Delete itemType path = this.Delete itemType path
 
     member this.Create itemType path =
-        let winPath = wpath path
-        match itemType with
-        | File -> tryResult (fun () -> File.Create(winPath).Dispose())
-        | Folder -> tryResult (fun () -> Directory.CreateDirectory(winPath) |> ignore)
-        | _ -> Error <| cannotActOnItemType "create" itemType
+        ensureFileOrFolder itemType "create"
+        |> Result.bind (fun () ->
+            let winPath = wpath path
+            tryResult (fun () ->
+                if itemType = Folder then
+                    Directory.CreateDirectory(winPath) |> ignore
+                else
+                    File.Create(winPath).Dispose()
+            )
+        )
 
     member this.CreateShortcut target path =
         tryResult <| fun () ->
             LinkFile.saveLink (wpath target) (wpath path)
 
-    member this.Move fromPath toPath =
-        this.FileOrFolderAction fromPath "move" <| fun itemType -> result {
+    member this.Move itemType fromPath toPath =
+        ensureFileOrFolder itemType "move"
+        |> Result.bind (fun () -> result {
             let source = wpath fromPath
             let dest = wpath toPath
             if String.equalsIgnoreCase source dest then
                 let temp = sprintf "_rename_%s" fromPath.Name |> fromPath.Parent.Join
-                do! this.Move fromPath temp
-                do! this.Move temp toPath
+                do! this.Move itemType fromPath temp
+                do! this.Move itemType temp toPath
             else
                 do! tryResult <| fun () ->
                     if itemType = Folder then
@@ -214,10 +215,11 @@ type FileSystem() =
                     else
                         prepForOverwrite <| FileInfo dest
                         FileSystem.MoveFile(source, dest, true)
-        }
+        })
 
-    member this.Copy fromPath toPath =
-        this.FileOrFolderAction fromPath "copy" <| fun itemType ->
+    member this.Copy itemType fromPath toPath =
+        ensureFileOrFolder itemType "copy"
+        |> Result.bind (fun () ->
             let source = wpath fromPath
             let dest = wpath toPath
             let copyFile source dest =
@@ -230,9 +232,11 @@ type FileSystem() =
                     Directory.CreateDirectory dest |> ignore
                 else
                     copyFile source dest
+        )
 
-    member this.Recycle path =
-        this.FileOrFolderAction path "recycle" <| fun itemType -> result {
+    member this.Recycle itemType path =
+        ensureFileOrFolder itemType "recycle"
+        |> Result.bind (fun () -> result {
             let winPath = wpath path
             let! driveSize =
                 path.Drive
@@ -258,10 +262,11 @@ type FileSystem() =
                         FileSystem.DeleteDirectory(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
                     else
                         FileSystem.DeleteFile(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-        }
+        })
 
-    member this.Delete path =
-        this.FileOrFolderAction path "delete" <| fun itemType ->
+    member this.Delete itemType path =
+        ensureFileOrFolder itemType "delete"
+        |> Result.bind (fun () ->
             let winPath = wpath path
             tryResult <| fun () ->
                 if itemType = Folder then
@@ -269,3 +274,4 @@ type FileSystem() =
                 else
                     prepForOverwrite (FileInfo winPath)
                     File.Delete winPath
+        )

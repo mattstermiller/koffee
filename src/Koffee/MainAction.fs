@@ -348,33 +348,30 @@ let undoMove (fs: IFileSystem) progress (intent: PutItem) (moved: PutItem list) 
 
 let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
     let incrementProgress = progressIncrementer progress items.Length
-    items
-    |> AsyncSeq.ofSeq
-    |> AsyncSeq.mapAsync (fun putItem -> runAsync (fun () ->
-        let shouldDelete () =
-            let copyModified =
-                match fs.GetItem putItem.Dest with
-                | Ok (Some copy) -> copy.Modified
-                | _ -> None
-            match putItem.Item.Modified, copyModified with
-            | Some orig, Some copy when orig = copy -> true
-            | _ -> false
-        (
-            if putItem.DestExists then
-                Ok () // don't remove items that existed before the copy
-            else if shouldDelete () then
-                fs.Delete putItem.Item.Type putItem.Dest
-            else
-                fs.Recycle putItem.Item.Type putItem.Dest
+    let shouldDelete putItem =
+        let copyModified =
+            match fs.GetItem putItem.Dest with
+            | Ok (Some copy) -> copy.Modified
+            | _ -> None
+        match putItem.Item.Modified, copyModified with
+        | Some orig, Some copy when orig = copy -> true
+        | _ -> false
+    runAsync (fun () ->
+        items
+        |> List.map (fun putItem ->
+            (
+                if putItem.DestExists then
+                    Ok () // don't remove items that existed before the copy
+                else if shouldDelete putItem then
+                    fs.Delete putItem.Item.Type putItem.Dest
+                else
+                    fs.Recycle putItem.Item.Type putItem.Dest
+            )
+            |> Result.map (cnst putItem)
+            |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
+            |>! incrementProgress
         )
-        |> Result.map (cnst putItem)
-        |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
-        |>! incrementProgress
-    ))
-    |> AsyncSeq.toListAsync
-    |> Async.tee (fun _ ->
-        progress.Trigger None
-    )
+    ) |>! (fun _ -> progress.Trigger None)
 
 let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqResult {
     yield model.WithStatus (MainStatus.undoingCopy intent.Item)

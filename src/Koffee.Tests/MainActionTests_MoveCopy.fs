@@ -575,7 +575,7 @@ let ``Undo move item when previous path is occupied returns error``() =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = PutError (true, Move, [(original, UndoMoveBlockedByExistingItemException() :> exn)], 1)
+    let expectedError = PutError (true, Move, [(moved, UndoMoveBlockedByExistingItemException() :> exn)], 1)
     let expected = model.WithError expectedError |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

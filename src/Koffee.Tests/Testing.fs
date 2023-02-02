@@ -23,19 +23,42 @@ type EqualityComparer() =
             this.AddDifference parms
 
 type OptionComparer() =
-    inherit EqualityComparer()
+    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
 
     let isOption = isGeneric typedefof<option<_>>
 
+    let getValueOrNull (value: obj) =
+        if value = null then
+            null
+        else
+            FSharpValue.GetUnionFields(value, value.GetType())
+            |> snd
+            |> Array.head
+
+    let getOptionValueStr valueStr value =
+        if value = null
+        then "None"
+        else sprintf "Some (%s)" valueStr
+
     override _.IsTypeMatch(type1, type2) =
         List.forall isOption [type1; type2]
+
+    override this.CompareType parms =
+        parms.Object1 <- getValueOrNull parms.Object1
+        parms.Object2 <- getValueOrNull parms.Object2
+        if not (this.RootComparer.Compare parms) then
+            let diff = parms.Result.Differences |> Seq.last
+            if diff.PropertyName = parms.BreadCrumb then
+                diff.Object1Value <- getOptionValueStr diff.Object1Value parms.Object1
+                diff.Object2Value <- getOptionValueStr diff.Object2Value parms.Object2
 
 type SimpleUnionComparer() =
     inherit EqualityComparer()
 
     let isSimpleUnion (t: Type) =
+        t <> null &&
         FSharpType.IsUnion t &&
-            FSharpType.GetUnionCases(t) |> Array.forall (fun case -> case.GetFields().Length = 0)
+        FSharpType.GetUnionCases(t) |> Array.forall (fun case -> case.GetFields().Length = 0)
 
     override _.IsTypeMatch(type1, type2) =
         List.forall isSimpleUnion [type1; type2]

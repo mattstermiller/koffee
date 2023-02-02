@@ -95,7 +95,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     let action = CreatedItem createdItem
     let location = if curPathDifferent then "/c/other" else "/c"
     let model =
-        testModel.WithStatus (ErrorMessage "previous error")
+        testModel.WithError NoPreviousSearch
         |> withLocation location |> pushUndo action
 
     let actual = seqResult (Action.undo fs progress) model

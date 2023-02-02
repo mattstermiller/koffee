@@ -256,7 +256,7 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors 
             let undoIntent = { (intent |> PutItem.reverse) with DestExists = true }
             let action = PutItems (putType, undoIntent, succeeded |> List.map PutItem.reverse)
             yield
-                { model.WithError error with
+                { model.WithStatus (ErrorMessage error) with
                     RedoStack = action :: model.RedoStack
                 }
         else
@@ -368,7 +368,7 @@ let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
                 fs.Recycle putItem.Item.Type putItem.Dest
         )
         |> Result.map (cnst putItem)
-        |> Result.mapError (fun e -> (putItem.Item, e))
+        |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
         |>! incrementProgress
     ))
     |> AsyncSeq.toListAsync

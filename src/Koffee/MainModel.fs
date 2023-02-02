@@ -47,7 +47,7 @@ type Item = {
     IsHidden: bool
 }
 with
-    override this.ToString() = this.Path.Format Windows
+    override this.ToString() = sprintf "%O at %O" this.Type this.Path
 
     member this.Description =
         sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
@@ -211,17 +211,89 @@ type InputError =
         | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
         | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
 
+type MainError =
+    | ActionError of actionName: string * exn
+    | ItemActionError of ItemAction * PathFormat * exn
+    | InvalidPath of string
+    | NoPreviousSearch
+    | ShortcutTargetMissing of string
+    | YankRegisterItemMissing of string
+    | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
+    | DeleteError of errorItems: (Item * exn) list * totalItems: int
+    | CannotPutHere
+    | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
+    | CannotMoveToSameFolder
+    | TooManyCopies of fileName: string
+    | CouldNotDeleteMoveSource of name: string * exn
+    | CouldNotDeleteCopyDest of name: string * exn
+    | CannotUndoNonEmptyCreated of Item
+    | CannotUndoDelete of permanent: bool * item: Item
+    | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
+    | NoUndoActions
+    | NoRedoActions
+    | CouldNotOpenApp of app: string * exn
+    | CouldNotFindKoffeeExe
+
+    member private this.ItemErrorsDescription actionName (errorItems: (Item * exn) list) totalItemCount =
+        let actionMsg = "Could not " + actionName
+        match errorItems with
+        | [(item, ex)] ->
+            sprintf "%s %s: %s" actionMsg item.Description ex.Message
+        | (_, ex) :: _ ->
+            sprintf "%s %i of %i total items. First error: %s" actionMsg errorItems.Length totalItemCount ex.Message
+        | [] ->
+            actionMsg
+
+    member this.Message =
+        match this with
+        | ActionError (action, e) ->
+            let msg =
+                match e with
+                | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
+                | e -> e.Message
+            sprintf "Could not %s: %s" action msg
+        | ItemActionError (action, pathFormat, e) ->
+            (ActionError (action.Description pathFormat, e)).Message
+        | InvalidPath path -> "Path format is invalid: " + path
+        | NoPreviousSearch -> "No previous search to repeat"
+        | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
+        | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
+        | PutError (isUndo, putType, errorItems, totalItems) ->
+            let undo = if isUndo then "undo " else ""
+            let putType = putType |> string |> String.toLower
+            this.ItemErrorsDescription (undo + putType) errorItems totalItems
+        | DeleteError (errorItems, totalItems) ->
+            this.ItemErrorsDescription "delete" errorItems totalItems
+        | CannotPutHere -> "Cannot put items here"
+        | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
+            let append = if hidden then " (hidden)" else ""
+            sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
+                    actionName itemType name append
+        | CannotMoveToSameFolder -> "Cannot move item to same folder it is already in"
+        | TooManyCopies fileName -> sprintf "There are already too many copies of \"%s\"" fileName
+        | CouldNotDeleteMoveSource (name, ex) ->
+            sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
+        | CouldNotDeleteCopyDest (name, ex) ->
+            sprintf "Could not delete copy destination folder \"%s\" after undoing copy: %s" name ex.Message
+        | CannotUndoNonEmptyCreated item ->
+            sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
+        | CannotUndoDelete (permanent, item) ->
+            if permanent then
+                sprintf "Cannot undo deletion of %s" item.Description
+            else
+                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
+        | CannotRedoPutToExisting (putType, item, destPath) ->
+            let putType = putType |> string |> String.toLower
+            sprintf "Could not redo %s of %s because an item already exists at %s" putType item.Description destPath
+        | NoUndoActions -> "No more actions to undo"
+        | NoRedoActions -> "No more actions to redo"
+        | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
+        | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
+
 type StatusType =
     | Message of string
-    | ErrorMessage of string
+    | ErrorMessage of MainError
     | Busy of string
-
-    static member fromExn actionName (ex: exn) =
-        let exnMessage =
-            match ex with
-            | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
-            | _ -> ex.Message
-        ErrorMessage (sprintf "Could not %s: %s" actionName exnMessage)
 
 type StartPath =
     | RestorePrevious
@@ -501,6 +573,14 @@ type MainModel = {
         match status with
         | Some s -> this.WithStatus s
         | None -> this
+
+    member this.WithError error =
+        this.WithStatus (ErrorMessage error)
+
+    member this.WithResult (res: Result<unit, MainError>) =
+        match res with
+        | Ok () -> this
+        | Error e -> this.WithError e
 
     member this.ClearStatus () =
         { this with Status = None }

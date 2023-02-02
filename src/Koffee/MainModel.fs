@@ -200,6 +200,14 @@ type SelectType =
     | SelectName of string
     | SelectItem of Item * showHidden: bool
 
+type InputError =
+    | FindFailure of prefix: string
+    | InvalidRegex of error: string
+    member this.Message =
+        match this with
+        | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
+        | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
+
 type StatusType =
     | Message of string
     | ErrorMessage of string
@@ -410,7 +418,7 @@ type MainModel = {
     InputMode: InputMode option
     InputText: string
     InputTextSelection: int * int
-    InputError: string option
+    InputError: InputError option
     LastFind: string option
     SearchInput: Search
     SearchCurrent: Search option

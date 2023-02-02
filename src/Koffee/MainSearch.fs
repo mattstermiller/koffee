@@ -24,7 +24,7 @@ let private performFind next reverse prefix model =
         |> Option.map fst
     match index with
     | Some index -> { (model.WithCursor index) with InputError = None }
-    | None -> { model with InputError = Some (ErrorMessages.findFailed prefix) }
+    | None -> { model with InputError = Some (FindFailure prefix) }
 
 let find model =
     if model.InputText |> String.isNotEmpty then
@@ -46,7 +46,7 @@ let getFilter showHidden searchInput =
             let options = if searchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
             match tryResult (fun () -> Regex(searchInput.Terms, options)) with
             | Ok re -> Ok (List.filter (fun item -> re.IsMatch item.Name))
-            | Error ex -> Error (sprintf "Regex error: %s" ex.Message)
+            | Error ex -> Error (InvalidRegex ex.Message)
         else
             Ok (filterByTerms false searchInput.CaseSensitive searchInput.Terms (fun item -> item.Name))
     ) |> Result.map (fun filter ->

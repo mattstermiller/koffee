@@ -15,7 +15,7 @@ let doFind next repeat findText cursorStart =
             Items = "alice,bob,charlie,crystal,apple,cherry".Split(',') |> items
             Cursor = cursorStart
             RepeatCommand = repeat
-            InputError = Some "old error"
+            InputError = Some (FindFailure "old error")
             InputText = if not next then findText else ""
             LastFind = if next then Some findText else None
         }
@@ -44,7 +44,7 @@ let ``Find empty string clears error``() =
 
 [<Test>]
 let ``Find that matches nothing should show error and not change the cursor``() =
-    find "d" 1 |> shouldEqual (1, Some (ErrorMessages.findFailed "d"))
+    find "d" 1 |> shouldEqual (1, Some (FindFailure "d"))
 
 [<Test>]
 let ``Find that matches only the current item should not change the cursor``() =
@@ -60,7 +60,7 @@ let ``Find that matches an item wrapping around should set the cursor to the tha
 
 [<Test>]
 let ``Find next that matches nothing should show error and not change the cursor``() =
-    findNext "d" 1 |> shouldEqual (1, Some (ErrorMessages.findFailed "d"))
+    findNext "d" 1 |> shouldEqual (1, Some (FindFailure "d"))
 
 [<Test>]
 let ``Find next that matches only the current item should not change the cursor``() =

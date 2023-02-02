@@ -329,7 +329,7 @@ module MainView =
             )
             Bind.model(<@ model.InputError @>).toFunc(function
                 | Some error ->
-                    window.InputError.Text <- error
+                    window.InputError.Text <- error.Message
                     window.InputErrorPanel.Collapsed <- false
                 | None ->
                     window.InputErrorPanel.Collapsed <- true
@@ -699,7 +699,6 @@ type MainError =
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
 
 module ErrorMessages =
-    let findFailed prefix = sprintf "No item starts with \"%s\"" prefix
     let undoMoveBlockedByExisting = "An item exists in the previous location"
 
 [<AutoOpen>]

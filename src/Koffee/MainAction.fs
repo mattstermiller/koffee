@@ -338,7 +338,7 @@ let undoMove (fs: IFileSystem) progress (intent: PutItem) (moved: PutItem list) 
         |> List.map (fun putItem ->
             match fs.GetItem putItem.Dest with
             | Ok None -> Ok putItem
-            | Ok (Some _) -> Error (putItem.Item, exn ErrorMessages.undoMoveBlockedByExisting)
+            | Ok (Some _) -> Error (putItem.Item, UndoMoveBlockedByExistingItemException() :> exn)
             | Error e -> Error (putItem.Item, e)
         )
         |> Result.partition

@@ -200,6 +200,9 @@ type SelectType =
     | SelectName of string
     | SelectItem of Item * showHidden: bool
 
+type UndoMoveBlockedByExistingItemException() =
+    inherit exn("An item exists in the previous location")
+
 type InputError =
     | FindFailure of prefix: string
     | InvalidRegex of error: string

@@ -698,9 +698,6 @@ type MainError =
         | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
         | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
 
-module ErrorMessages =
-    let undoMoveBlockedByExisting = "An item exists in the previous location"
-
 [<AutoOpen>]
 module MainModelExt =
     type MainModel with

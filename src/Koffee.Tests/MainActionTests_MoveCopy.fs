@@ -531,7 +531,7 @@ let ``Undo move handles partial success by updating undo and setting error messa
         createFolder "/c/dest"
         createFolder "/c/moved"
     ]
-    let expectedExn = if errorCausedByExisting then exn ErrorMessages.undoMoveBlockedByExisting else ex
+    let expectedExn = if errorCausedByExisting then UndoMoveBlockedByExistingItemException() :> exn else ex
     let expectedError = PutError (true, Move, [(errorItem, expectedExn)], 2)
     // DestExists should be set to true on intent so that redo would merge, otherwise it would always return error
     let expectedAction = PutItems (Move, { putItem with DestExists = true }, actualMoved |> List.skip 1)
@@ -575,7 +575,7 @@ let ``Undo move item when previous path is occupied returns error``() =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = PutError (true, Move, [(original, exn ErrorMessages.undoMoveBlockedByExisting)], 1)
+    let expectedError = PutError (true, Move, [(original, UndoMoveBlockedByExistingItemException() :> exn)], 1)
     let expected = model.WithError expectedError |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

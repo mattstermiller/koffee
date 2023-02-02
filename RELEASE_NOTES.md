@@ -3,6 +3,7 @@
 ### 0.7.0  Multi-Select (WIP)
 - #129 Fixes FileSystem Move and Copy to handle empty folders
 - #9 Changes Delete to enumerate and work on single items
+- #130 Closes Find prompt when opening a file
 - Various optimizations for file write operations
 
 ### 0.6.2  (2022-12-23)

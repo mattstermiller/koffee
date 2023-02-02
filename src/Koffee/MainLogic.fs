@@ -222,8 +222,10 @@ let submitInput fs os model = asyncSeqResult {
     match model.InputMode with
     | Some (Input (Find multi)) ->
         let model =
-            if multi then { model with InputText = ""  }
-            else { model with InputMode = None }
+            { model with
+                InputText = ""
+                InputMode = if not multi || model.SelectedItem.Type = File then None else model.InputMode
+            }
         yield model
         yield! Nav.openSelected fs os None model
     | Some (Input Search) ->

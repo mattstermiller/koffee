@@ -36,7 +36,7 @@ let find model =
 let findNext model =
     match model.LastFind with
     | Some prefix ->
-        model.WithStatus (MainStatus.find prefix model.RepeatCount)
+        model.WithMessage (MainStatus.Find (prefix, model.RepeatCount))
         |> performFind true false prefix
     | None -> model
 
@@ -148,7 +148,7 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
                 }
                 |> search fsReader subDirResults progress
         | None ->
-            yield model.WithError NoPreviousSearch
+            yield model.WithError MainStatus.NoPreviousSearch
 }
 
 let clearSearch (model: MainModel) =

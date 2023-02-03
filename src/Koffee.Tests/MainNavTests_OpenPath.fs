@@ -67,7 +67,7 @@ let test case =
                     History = model.History.WithPath 9 path
                }
         | Inaccessible ->
-            Error (ActionError ("open path", ex))
+            Error (MainStatus.ActionError ("open path", ex))
 
     assertAreEqual expected res
 

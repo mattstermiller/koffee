@@ -9,7 +9,7 @@ let toggleHidden (model: MainModel) =
     let model =
         { model with
             Config = { model.Config with ShowHidden = show }
-        } |> fun m -> m.WithStatus (MainStatus.toggleHidden show)
+        } |> fun m -> m.WithMessage (MainStatus.ToggleHidden show)
     let select = SelectItem (model.SelectedItem, false)
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
@@ -75,23 +75,23 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
                        path (left + width) top width height
 
     let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
-                      |> Result.ofOption CouldNotFindKoffeeExe
+                      |> Result.ofOption MainStatus.CouldNotFindKoffeeExe
     let folder = koffeePath.Parent
     do! os.LaunchApp (koffeePath.Format Windows) folder args
-        |> Result.mapError (fun e -> CouldNotOpenApp ("Koffee", e))
+        |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Koffee", e))
     return model
 }
 
 let openExplorer (os: IOperatingSystem) (model: MainModel) =
     os.OpenExplorer model.SelectedItem
-    model.WithStatusOption (Some MainStatus.openExplorer)
+    model.WithMessage MainStatus.OpenExplorer
 
 let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
     let item = model.SelectedItem
     match item.Type with
     | File ->
         do! os.OpenFileWith item.Path |> actionError "open file with"
-        return model.WithStatus (MainStatus.openFile item.Name)
+        return model.WithMessage (MainStatus.OpenFile item.Name)
     | _ ->
         return model
 }
@@ -101,7 +101,7 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
     match item.Type with
     | File | Folder ->
         do! os.OpenProperties item.Path |> actionError "open properties"
-        return model.WithStatus (MainStatus.openProperties item.Name)
+        return model.WithMessage (MainStatus.OpenProperties item.Name)
     | _ ->
         return model
 }
@@ -109,8 +109,8 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
 let openCommandLine (os: IOperatingSystem) model = result {
     if model.Location <> Path.Root then
         do! os.LaunchApp model.Config.CommandlinePath model.Location ""
-            |> Result.mapError (fun e -> CouldNotOpenApp ("Commandline tool", e))
-        return model.WithStatus (MainStatus.openCommandLine model.LocationFormatted)
+            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Commandline tool", e))
+        return model.WithMessage (MainStatus.OpenCommandLine model.LocationFormatted)
     else return model
 }
 
@@ -119,8 +119,8 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
     | File ->
         let args = model.SelectedItem.Path.Format Windows |> sprintf "\"%s\""
         do! os.LaunchApp model.Config.TextEditor model.Location args
-            |> Result.mapError (fun e -> CouldNotOpenApp ("Text Editor", e))
-        return model.WithStatus (MainStatus.openTextEditor model.SelectedItem.Name)
+            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text Editor", e))
+        return model.WithMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
     | _ -> return model
 }
 

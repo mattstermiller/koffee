@@ -7,7 +7,7 @@ open Acadian.FSharp
 type TestResult = {
     Start: string
     Back: string option
-    Error: MainError option
+    Error: MainStatus.Error option
 }
 
 let test (startPath: string option) configPath (defaultPath: string) (history: string list) =
@@ -39,11 +39,11 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
       Back = actual.BackStack |> List.tryHead |> Option.map (fun (p, _) -> p.FormatFolder Unix)
       Error =
           match actual.Status with
-          | Some (ErrorMessage e) -> Some e
+          | Some (MainStatus.Error e) -> Some e
           | _ -> None
     }
 
-let openPathError p = ActionError ("open path", exn p)
+let openPathError p = MainStatus.ActionError ("open path", exn p)
 
 [<Test>]
 let ``When all paths are good then opens start and back is prev`` () =

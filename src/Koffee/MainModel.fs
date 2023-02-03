@@ -200,8 +200,6 @@ type SelectType =
     | SelectName of string
     | SelectItem of Item * showHidden: bool
 
-type UndoMoveBlockedByExistingItemException() =
-    inherit exn("An item exists in the previous location")
 
 type InputError =
     | FindFailure of prefix: string
@@ -211,89 +209,245 @@ type InputError =
         | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
         | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
 
-type MainError =
-    | ActionError of actionName: string * exn
-    | ItemActionError of ItemAction * PathFormat * exn
-    | InvalidPath of string
-    | NoPreviousSearch
-    | ShortcutTargetMissing of string
-    | YankRegisterItemMissing of string
-    | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
-    | DeleteError of errorItems: (Item * exn) list * totalItems: int
-    | CannotPutHere
-    | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
-    | CannotMoveToSameFolder
-    | TooManyCopies of fileName: string
-    | CouldNotDeleteMoveSource of name: string * exn
-    | CouldNotDeleteCopyDest of name: string * exn
-    | CannotUndoNonEmptyCreated of Item
-    | CannotUndoDelete of permanent: bool * item: Item
-    | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
-    | NoUndoActions
-    | NoRedoActions
-    | CouldNotOpenApp of app: string * exn
-    | CouldNotFindKoffeeExe
+type UndoMoveBlockedByExistingItemException() =
+    inherit exn("An item exists in the previous location")
 
-    member private this.ItemErrorsDescription actionName (errorItems: (Item * exn) list) totalItemCount =
-        let actionMsg = "Could not " + actionName
-        match errorItems with
-        | [(item, ex)] ->
-            sprintf "%s %s: %s" actionMsg item.Description ex.Message
-        | (_, ex) :: _ ->
-            sprintf "%s %i of %i total items. First error: %s" actionMsg errorItems.Length totalItemCount ex.Message
-        | [] ->
-            actionMsg
+[<RequireQualifiedAccess>]
+module MainStatus =
+    let private actionCompleteMessage action pathFormat =
+        match action with
+        | CreatedItem item ->
+            sprintf "Created %s" item.Description
+        | RenamedItem (item, newName) ->
+            sprintf "Renamed %s to \"%s\"" item.Description newName
+        | PutItems (Move, item, _) ->
+            sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
+        | PutItems (Copy, item, _) ->
+            sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
+        | PutItems (Shortcut, {Item = item}, _) ->
+            sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
+        | DeletedItem (item, false) ->
+            sprintf "Sent %s to Recycle Bin" item.Description
+        | DeletedItem (item, true) ->
+            sprintf "Deleted %s" item.Description
 
-    member this.Message =
-        match this with
-        | ActionError (action, e) ->
-            let msg =
-                match e with
-                | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
-                | e -> e.Message
-            sprintf "Could not %s: %s" action msg
-        | ItemActionError (action, pathFormat, e) ->
-            (ActionError (action.Description pathFormat, e)).Message
-        | InvalidPath path -> "Path format is invalid: " + path
-        | NoPreviousSearch -> "No previous search to repeat"
-        | ShortcutTargetMissing path -> "Shortcut target does not exist: " + path
-        | YankRegisterItemMissing path -> "Item in yank register no longer exists: " + path
-        | PutError (isUndo, putType, errorItems, totalItems) ->
-            let undo = if isUndo then "undo " else ""
-            let putType = putType |> string |> String.toLower
-            this.ItemErrorsDescription (undo + putType) errorItems totalItems
-        | DeleteError (errorItems, totalItems) ->
-            this.ItemErrorsDescription "delete" errorItems totalItems
-        | CannotPutHere -> "Cannot put items here"
-        | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
-            let append = if hidden then " (hidden)" else ""
-            sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
-                    actionName itemType name append
-        | CannotMoveToSameFolder -> "Cannot move item to same folder it is already in"
-        | TooManyCopies fileName -> sprintf "There are already too many copies of \"%s\"" fileName
-        | CouldNotDeleteMoveSource (name, ex) ->
-            sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
-        | CouldNotDeleteCopyDest (name, ex) ->
-            sprintf "Could not delete copy destination folder \"%s\" after undoing copy: %s" name ex.Message
-        | CannotUndoNonEmptyCreated item ->
-            sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
-        | CannotUndoDelete (permanent, item) ->
-            if permanent then
-                sprintf "Cannot undo deletion of %s" item.Description
-            else
-                sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
-        | CannotRedoPutToExisting (putType, item, destPath) ->
-            let putType = putType |> string |> String.toLower
-            sprintf "Could not redo %s of %s because an item already exists at %s" putType item.Description destPath
-        | NoUndoActions -> "No more actions to undo"
-        | NoRedoActions -> "No more actions to redo"
-        | CouldNotOpenApp (app, e) -> sprintf "Could not open app %s: %s" app e.Message
-        | CouldNotFindKoffeeExe -> "Could not determine Koffee.exe path"
+    let private runningActionMessage action pathFormat =
+        match action with
+        | PutItems (Move, intent, _) ->
+            sprintf "Moving %s..." ([intent] |> PutItem.describeList pathFormat)
+        | PutItems (Copy, intent, _) ->
+            sprintf "Copying %s..." ([intent] |> PutItem.describeList pathFormat)
+        | DeletedItem (item, false) ->
+            sprintf "Recycling %s..." item.Description
+        | DeletedItem (item, true) ->
+            sprintf "Deleting %s..." item.Description
+        | _ -> ""
 
-type StatusType =
-    | Message of string
-    | ErrorMessage of MainError
-    | Busy of string
+    type Message =
+        // Navigation
+        | Find of prefix: string * repeatCount: int
+        | NoBookmark of Char
+        | SetBookmark of Char * path: string
+        | DeletedBookmark of Char * path: string
+        | NoSavedSearch of Char
+        | SetSavedSearch of Char * Search
+        | DeletedSavedSearch of Char * Search
+
+        // Actions
+        | ActionComplete of ItemAction * PathFormat
+        | UndoAction of ItemAction * PathFormat * repeatCount: int
+        | RedoAction of ItemAction * PathFormat * repeatCount: int
+        | Sort of field: obj * desc: bool
+        | ToggleHidden of showing: bool
+        | OpenFile of name: string
+        | OpenProperties of name: string
+        | OpenExplorer
+        | OpenCommandLine of path: string
+        | OpenTextEditor of name: string
+        | ClipboardCopy of path: string
+        | RemovedNetworkHost of name: string
+        | Cancelled
+
+        member this.Message =
+            match this with
+            | Find (prefix, repeatCount) ->
+                if repeatCount = 1
+                then sprintf "Find item starting with: %s" prefix
+                else sprintf "Find every %i items starting with: %s" repeatCount prefix
+            | NoBookmark char ->
+                sprintf "Bookmark \"%c\" not set" char
+            | SetBookmark (char, path) ->
+                sprintf "Set bookmark \"%c\" to %s" char path
+            | DeletedBookmark (char, path) ->
+                sprintf "Deleted bookmark \"%c\" that was set to %s" char path
+            | NoSavedSearch char ->
+                sprintf "Saved Search \"%c\" not set" char
+            | SetSavedSearch (char, search) ->
+                sprintf "Set saved search \"%c\" to \"%O\"" char search
+            | DeletedSavedSearch (char, search) ->
+                sprintf "Deleted saved search \"%c\" that was set to \"%O\"" char search
+
+            | ActionComplete (action, pathFormat) ->
+                actionCompleteMessage action pathFormat
+            | UndoAction (action, pathFormat, repeatCount) ->
+                let prefix =
+                    if repeatCount = 1
+                    then "Action undone: "
+                    else sprintf "%i actions undone. Last: " repeatCount
+                prefix + actionCompleteMessage action pathFormat
+            | RedoAction (action, pathFormat, repeatCount) ->
+                let prefix =
+                    if repeatCount = 1
+                    then "Action redone: "
+                    else sprintf "%i actions redone. Last: " repeatCount
+                prefix + actionCompleteMessage action pathFormat
+            | Sort (field, desc) ->
+                sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
+            | ToggleHidden showing ->
+                sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
+            | OpenFile name ->
+                sprintf "Opened File: %s" name
+            | OpenProperties name ->
+                sprintf "Opened Properties: %s" name
+            | OpenExplorer ->
+                "Opened Windows Explorer"
+            | OpenCommandLine path ->
+                sprintf "Opened Commandline at: %s" path
+            | OpenTextEditor name ->
+                sprintf "Opened text editor for: %s" name
+            | ClipboardCopy path ->
+                sprintf "Copied to clipboard: %s" path
+            | RemovedNetworkHost name ->
+                sprintf "Removed network host: %s" name
+            | Cancelled ->
+                "Cancelled"
+
+    type Busy =
+        // TODO: split this into separate cases
+        | RunningAction of ItemAction * PathFormat
+        | PreparingPut of PutType * name: string
+        | CheckingIsRecyclable
+        | PreparingDelete of name: string
+        | UndoingCreate of Item
+        | UndoingMove of Item
+        | UndoingCopy of Item
+        // TODO: split this into separate cases
+        | RedoingAction of ItemAction * PathFormat
+
+        member this.Message =
+            match this with
+            | RunningAction (action, pathFormat) ->
+                runningActionMessage action pathFormat
+            | PreparingPut (putType, name) ->
+                sprintf "Preparing to %O %s..." putType name
+            | CheckingIsRecyclable ->
+                "Calculating size..."
+            | PreparingDelete name ->
+                sprintf "Preparing to delete %s..." name
+            | UndoingCreate item ->
+                sprintf "Undoing creation of %s - Deleting..." item.Description
+            | UndoingMove item ->
+                sprintf "Undoing move of %s..." item.Description
+            | UndoingCopy item ->
+                sprintf "Undoing copy of %s..." item.Description
+            | RedoingAction (action, pathFormat) ->
+                runningActionMessage action pathFormat
+                |> sprintf "Redoing action: %s"
+
+    type Error =
+        | ActionError of actionName: string * exn
+        | ItemActionError of ItemAction * PathFormat * exn
+        | InvalidPath of string
+        | NoPreviousSearch
+        | ShortcutTargetMissing of string
+        | YankRegisterItemMissing of string
+        | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
+        | DeleteError of errorItems: (Item * exn) list * totalItems: int
+        | CannotPutHere
+        | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
+        | CannotMoveToSameFolder
+        | TooManyCopies of fileName: string
+        | CouldNotDeleteMoveSource of name: string * exn
+        | CouldNotDeleteCopyDest of name: string * exn
+        | CannotUndoNonEmptyCreated of Item
+        | CannotUndoDelete of permanent: bool * item: Item
+        | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
+        | NoUndoActions
+        | NoRedoActions
+        | CouldNotOpenApp of app: string * exn
+        | CouldNotFindKoffeeExe
+
+        member private this.ItemErrorsDescription actionName (errorItems: (Item * exn) list) totalItemCount =
+            let actionMsg = "Could not " + actionName
+            match errorItems with
+            | [(item, ex)] ->
+                sprintf "%s %s: %s" actionMsg item.Description ex.Message
+            | (_, ex) :: _ ->
+                sprintf "%s %i of %i total items. First error: %s" actionMsg errorItems.Length totalItemCount ex.Message
+            | [] ->
+                actionMsg
+
+        member this.Message =
+            match this with
+            | ActionError (action, e) ->
+                let msg =
+                    match e with
+                    | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
+                    | e -> e.Message
+                sprintf "Could not %s: %s" action msg
+            | ItemActionError (action, pathFormat, e) ->
+                (ActionError (action.Description pathFormat, e)).Message
+            | InvalidPath path ->
+                "Path format is invalid: " + path
+            | NoPreviousSearch ->
+                "No previous search to repeat"
+            | ShortcutTargetMissing path ->
+                "Shortcut target does not exist: " + path
+            | YankRegisterItemMissing path ->
+                "Item in yank register no longer exists: " + path
+            | PutError (isUndo, putType, errorItems, totalItems) ->
+                let undo = if isUndo then "undo " else ""
+                let putType = putType |> string |> String.toLower
+                this.ItemErrorsDescription (undo + putType) errorItems totalItems
+            | DeleteError (errorItems, totalItems) ->
+                this.ItemErrorsDescription "delete" errorItems totalItems
+            | CannotPutHere ->
+                "Cannot put items here"
+            | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
+                let append = if hidden then " (hidden)" else ""
+                sprintf "Cannot %s %O \"%s\" because an item with that name already exists%s"
+                        actionName itemType name append
+            | CannotMoveToSameFolder ->
+                "Cannot move item to same folder it is already in"
+            | TooManyCopies fileName ->
+                sprintf "There are already too many copies of \"%s\"" fileName
+            | CouldNotDeleteMoveSource (name, ex) ->
+                sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
+            | CouldNotDeleteCopyDest (name, ex) ->
+                sprintf "Could not delete copy destination folder \"%s\" after undoing copy: %s" name ex.Message
+            | CannotUndoNonEmptyCreated item ->
+                sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
+            | CannotUndoDelete (permanent, item) ->
+                if permanent then
+                    sprintf "Cannot undo deletion of %s" item.Description
+                else
+                    sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
+            | CannotRedoPutToExisting (putType, item, destPath) ->
+                let putType = putType |> string |> String.toLower
+                sprintf "Could not redo %s of %s because an item already exists at %s" putType item.Description destPath
+            | NoUndoActions ->
+                "No more actions to undo"
+            | NoRedoActions ->
+                "No more actions to redo"
+            | CouldNotOpenApp (app, e) ->
+                sprintf "Could not open app %s: %s" app e.Message
+            | CouldNotFindKoffeeExe ->
+                "Could not determine Koffee.exe path"
+
+    type StatusType =
+        | Message of Message
+        | Error of Error
+        | Busy of Busy
 
 type StartPath =
     | RestorePrevious
@@ -481,8 +635,8 @@ type MainModel = {
     LocationInput: string
     PathSuggestions: Result<string list, string>
     PathSuggestCache: (Path * Result<Path list, string>) option
-    Status: StatusType option
-    StatusHistory: StatusType list
+    Status: MainStatus.StatusType option
+    StatusHistory: MainStatus.StatusType list
     Directory: Item list
     Items: Item list
     Sort: (SortField * bool) option
@@ -560,24 +714,20 @@ type MainModel = {
     member this.ItemsOrEmpty =
         Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
 
-    member this.WithStatus status =
+    member private this.WithStatus status =
         { this with
             Status = Some status
             StatusHistory =
                 match status with
-                | Busy _ -> this.StatusHistory
+                | MainStatus.Busy _ -> this.StatusHistory
                 | s -> s :: this.StatusHistory |> List.truncate this.Config.Limits.StatusHistory
         }
 
-    member this.WithStatusOption status =
-        match status with
-        | Some s -> this.WithStatus s
-        | None -> this
+    member this.WithMessage message = this.WithStatus (MainStatus.Message message)
+    member this.WithBusy busy = this.WithStatus (MainStatus.Busy busy)
+    member this.WithError error = this.WithStatus (MainStatus.Error error)
 
-    member this.WithError error =
-        this.WithStatus (ErrorMessage error)
-
-    member this.WithResult (res: Result<unit, MainError>) =
+    member this.WithResult (res: Result<unit, MainStatus.Error>) =
         match res with
         | Ok () -> this
         | Error e -> this.WithError e
@@ -587,12 +737,12 @@ type MainModel = {
 
     member this.IsStatusBusy =
         match this.Status with
-        | Some (Busy _) -> true
+        | Some (MainStatus.Busy _) -> true
         | _ -> false
 
     member this.IsStatusError =
         match this.Status with
-        | Some (ErrorMessage _) -> true
+        | Some (MainStatus.Error _) -> true
         | _ -> false
 
     static member Default = {

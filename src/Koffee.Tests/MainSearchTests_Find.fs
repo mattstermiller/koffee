@@ -29,7 +29,7 @@ let doFind next repeat findText cursorStart =
     let expected =
         { model with
             LastFind = findText |> Option.ofString
-            Status = if next then Some (MainStatus.find findText (repeat |? 1)) else None
+            Status = if next then Some (MainStatus.Message (MainStatus.Find (findText, (repeat |? 1)))) else None
         }
     assertAreEqualWith expected actual (ignoreMembers ["Cursor"; "InputError"])
     (actual.Cursor, actual.InputError)

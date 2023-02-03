@@ -61,11 +61,11 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
     let withBookmark char model =
         { model with
             Config = model.Config.WithBookmark char model.Location
-        } |> fun m -> m.WithStatus (MainStatus.setBookmark char model.LocationFormatted)
+        } |> fun m -> m.WithMessage (MainStatus.SetBookmark (char, model.LocationFormatted))
     let withSavedSearch char search model =
         { model with
             Config = model.Config.WithSavedSearch char search
-        } |> fun m -> m.WithStatus (MainStatus.setSavedSearch char search)
+        } |> fun m -> m.WithMessage (MainStatus.SetSavedSearch (char, search))
     match model.InputMode with
     | Some (Input (CreateFile _))
     | Some (Input (CreateFolder _))
@@ -90,7 +90,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 yield model
                 yield! Nav.openPath fs path SelectNone (model.ClearStatus())
             | None ->
-                yield model.WithStatus (MainStatus.noBookmark char)
+                yield model.WithMessage (MainStatus.NoBookmark char)
         | SetBookmark ->
             match model.Config.GetBookmark char with
             | Some existingPath ->
@@ -106,9 +106,9 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             | Some path ->
                 yield
                     { model with Config = model.Config.WithoutBookmark char }
-                    |> fun m -> m.WithStatus (MainStatus.deletedBookmark char (path.Format model.PathFormat))
+                    |> fun m -> m.WithMessage (MainStatus.DeletedBookmark (char, (path.Format model.PathFormat)))
             | None ->
-                yield model.WithStatus (MainStatus.noBookmark char)
+                yield model.WithMessage (MainStatus.NoBookmark char)
         | GoToSavedSearch ->
             match model.Config.GetSavedSearch char with
             | Some search ->
@@ -122,7 +122,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                     |> Search.search fs subDirResults progress
                     |> AsyncSeq.map Ok
             | None ->
-                yield model.WithStatus (MainStatus.noSavedSearch char)
+                yield model.WithMessage (MainStatus.NoSavedSearch char)
         | SetSavedSearch ->
             match model.SearchCurrent, model.Config.GetSavedSearch char with
             | Some _, Some existingSearch ->
@@ -139,9 +139,9 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             | Some search ->
                 yield
                     { model with Config = model.Config.WithoutSavedSearch char }
-                    |> fun m -> m.WithStatus (MainStatus.deletedSavedSearch char search)
+                    |> fun m -> m.WithMessage (MainStatus.DeletedSavedSearch (char, search))
             | None ->
-                yield model.WithStatus (MainStatus.noSavedSearch char)
+                yield model.WithMessage (MainStatus.NoSavedSearch char)
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -160,7 +160,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 | Some search -> yield withSavedSearch char search model
                 | None -> ()
         | 'n' ->
-            let model = model.WithStatus MainStatus.cancelled
+            let model = model.WithMessage MainStatus.Cancelled
             match confirmType with
             | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
                 // if we were temporarily showing a hidden file, refresh

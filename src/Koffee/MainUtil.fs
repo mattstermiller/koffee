@@ -6,8 +6,8 @@ open Koffee
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
-let actionError actionName = Result.mapError (fun e -> ActionError (actionName, e))
-let itemActionError action pathFormat = Result.mapError (fun e -> ItemActionError (action, pathFormat, e))
+let actionError actionName = Result.mapError (fun e -> MainStatus.ActionError (actionName, e))
+let itemActionError action pathFormat = Result.mapError (fun e -> MainStatus.ItemActionError (action, pathFormat, e))
 
 let filterByTerms sortByStartsWith caseSensitive search projection items =
     let terms =

@@ -31,8 +31,7 @@ let ``Delete file deletes it`` permanent =
             Items = expectedItems
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
-        }
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [file "other"]
     fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
@@ -61,8 +60,7 @@ let ``Recycle folder recycles it`` () =
             Items = expectedItems
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
-        }
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [file "other"]
     fs.RecycleBin |> shouldEqual [item]
@@ -92,8 +90,7 @@ let ``Delete folder deletes all items`` () =
             Items = expectedItems
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
-        }
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [file "other"]
     fs.RecycleBin |> shouldEqual []
@@ -121,7 +118,7 @@ let ``Delete folder handles individual error and deletes other items and returns
         createFolder "/c/folder/sub", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
         createFolder "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     ]
-    let expected = model.WithError (DeleteError (expectedErrorItems, 5))
+    let expected = model.WithError (MainStatus.DeleteError (expectedErrorItems, 5))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "folder" [
@@ -148,9 +145,9 @@ let ``Recycle and Delete handle errors by returning error`` permanent =
 
     let expectedError =
         if permanent then
-            DeleteError ([item, ex], 1)
+            MainStatus.DeleteError ([item, ex], 1)
         else
-            ItemActionError (DeletedItem (item, false), model.PathFormat, ex)
+            MainStatus.ItemActionError (DeletedItem (item, false), model.PathFormat, ex)
     let expected = model.WithError expectedError
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

@@ -28,8 +28,7 @@ let ``Create calls file sys create and openPath and sets status``() =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
-        }
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -57,7 +56,7 @@ let ``Create returns error when item already exists at path`` existingHidden =
             Directory = expectedItems
             Items = expectedItems
             Cursor = 1
-        }.WithError (CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
+        }.WithError (MainStatus.CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -73,7 +72,7 @@ let ``Create handles error by returning error``() =
 
     let actual = seqResult (Action.create fs File createItem.Name) model
 
-    let expected = model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
+    let expected = model.WithError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -95,7 +94,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     let action = CreatedItem createdItem
     let location = if curPathDifferent then "/c/other" else "/c"
     let model =
-        testModel.WithError NoPreviousSearch
+        testModel.WithError MainStatus.NoPreviousSearch
         |> withLocation location |> pushUndo action
 
     let actual = seqResult (Action.undo fs progress) model
@@ -111,8 +110,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
             Items = expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
-            Status = Some (MainStatus.undoAction action model.PathFormat 1)
-        }
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -137,7 +135,7 @@ let ``Undo create non empty item returns error`` isFolder =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expected = model.WithError (CannotUndoNonEmptyCreated createdItem) |> popUndo
+    let expected = model.WithError (MainStatus.CannotUndoNonEmptyCreated createdItem) |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -153,7 +151,8 @@ let ``Undo create handles delete error by returning error`` () =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expected = model.WithError (ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)) |> popUndo
+    let expectedError = MainStatus.ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)
+    let expected = model.WithError expectedError |> popUndo
     assertAreEqual expected actual
 
 [<Test>]
@@ -178,8 +177,7 @@ let ``Redo create creates item again`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = model.RedoStack.Tail
-            Status = Some <| MainStatus.redoAction expectedAction model.PathFormat 1
-        }
+        }.WithMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -199,7 +197,7 @@ let ``Redo create handles error by returning error``() =
     let actual = seqResult (Action.redo fs progress) model
 
     let expected =
-        model.WithError (ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
+        model.WithError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
         |> popRedo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -235,8 +233,7 @@ let ``Rename calls file sys move and openPath and sets status`` diffCaseOnly =
             Cursor = if diffCaseOnly then 1 else 2
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
-        }
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -280,8 +277,7 @@ let ``Rename in search result calls file sys move and sets status`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-            Status = Some <| MainStatus.actionComplete expectedAction model.PathFormat
-        }
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
 
 [<TestCase(false)>]
@@ -298,7 +294,7 @@ let ``Rename to path with existing item returns error`` existingHidden =
 
     let actual = Action.rename fs item newName model
 
-    actual |> shouldEqual (Error (CannotUseNameAlreadyExists ("rename", File, newName, existingHidden)))
+    actual |> shouldEqual (Error (MainStatus.CannotUseNameAlreadyExists ("rename", File, newName, existingHidden)))
     fs.Items |> shouldEqual expectedFs
 
 [<Test>]
@@ -315,7 +311,7 @@ let ``Rename handles error by returning error``() =
     let actual = Action.rename fs item newName model
 
     let expectedAction = RenamedItem (item, newName)
-    actual |> shouldEqual (Error (ItemActionError (expectedAction, model.PathFormat, ex)))
+    actual |> shouldEqual (Error (MainStatus.ItemActionError (expectedAction, model.PathFormat, ex)))
 
 // undo rename tests
 
@@ -347,8 +343,8 @@ let ``Undo rename item names item back to original`` curPathDifferent diffCaseOn
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
-            Status = Some (MainStatus.undoAction action model.PathFormat 1)
-        } |> withBackIf curPathDifferent (model.Location, 0)
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        |> withBackIf curPathDifferent (model.Location, 0)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -371,7 +367,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
+    let expectedError = MainStatus.CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
     let expected = model.WithError expectedError |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -390,7 +386,7 @@ let ``Undo rename item handles move error by returning error``() =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = ItemActionError (RenamedItem (current, previous.Name), model.PathFormat, ex)
+    let expectedError = MainStatus.ItemActionError (RenamedItem (current, previous.Name), model.PathFormat, ex)
     let expected = model.WithError expectedError |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

@@ -260,9 +260,9 @@ module MainView =
                         (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
                     else
                         match status with
-                        | Some (Message msg)
-                        | Some (Busy msg) -> (msg, "")
-                        | Some (ErrorMessage error) -> ("", error.Message)
+                        | Some (MainStatus.Message msg) -> (msg.Message, "")
+                        | Some (MainStatus.Busy msg) -> (msg.Message, "")
+                        | Some (MainStatus.Error error) -> ("", error.Message)
                         | None -> ("", "")
                 window.StatusText.Text <- statusText
                 window.StatusText.Collapsed <- statusText |> String.isEmpty
@@ -270,7 +270,7 @@ module MainView =
                 window.ErrorText.Collapsed <- errorText |> String.isEmpty
                 let isBusy =
                     match status with
-                    | Some (Busy _) -> true
+                    | Some (MainStatus.Busy _) -> true
                     | _ -> false
                 let wasBusy = not window.ItemGrid.IsEnabled
                 window.PathBox.IsEnabled <- not isBusy
@@ -390,9 +390,9 @@ module MainView =
                             | StatusHistory ->
                                 let statusList =
                                     statuses |> List.map (function
-                                        | Message m -> m
-                                        | ErrorMessage error -> "Error: " + error.Message
-                                        | Busy _ -> ""
+                                        | MainStatus.Message m -> m.Message
+                                        | MainStatus.Error error -> "Error: " + error.Message
+                                        | MainStatus.Busy _ -> ""
                                     ) |> List.map (fun m -> ("", m))
                                 ("Status History", statusList, [], None)
 
@@ -537,83 +537,3 @@ module MainView =
             config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
             history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
         ]
-
-module MainStatus =
-    // navigation
-    let find prefix repeatCount =
-        if repeatCount = 1 then
-            Message <| sprintf "Find item starting with: %s" prefix
-        else
-            Message <| sprintf "Find every %i items starting with: %s" repeatCount prefix
-    let noBookmark char = Message <| sprintf "Bookmark \"%c\" not set" char
-    let setBookmark char path = Message <| sprintf "Set bookmark \"%c\" to %s" char path
-    let deletedBookmark char path = Message <| sprintf "Deleted bookmark \"%c\" that was set to %s" char path
-    let noSavedSearch char = Message <| sprintf "Saved Search \"%c\" not set" char
-    let setSavedSearch char (search: Search) = Message <| sprintf "Set saved search \"%c\" to \"%s\"" char (string search)
-    let deletedSavedSearch char  (search: Search) = Message <| sprintf "Deleted saved search \"%c\" that was set to \"%s\"" char (string search)
-
-    // actions
-    let sort field desc = Message <| sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
-    let toggleHidden showing = Message <| sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
-    let openFile name = Message <| sprintf "Opened File: %s" name
-    let openProperties name = Message <| sprintf "Opened Properties: %s" name
-    let openExplorer = Message "Opened Windows Explorer"
-    let openCommandLine path = Message <| sprintf "Opened Commandline at: %s" path
-    let openTextEditor name = Message <| sprintf "Opened text editor for: %s" name
-    let clipboardCopy path = Message <| sprintf "Copied to clipboard: %s" path
-    let removedNetworkHost host = Message <| sprintf "Removed network host: %s" host
-
-    let private runningActionMessage action pathFormat =
-        match action with
-        | PutItems (Move, intent, _) ->
-            Some <| sprintf "Moving %s..." ([intent] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, intent, _) ->
-            Some <| sprintf "Copying %s..." ([intent] |> PutItem.describeList pathFormat)
-        | DeletedItem (item, false) ->
-            Some <| sprintf "Recycling %s..." item.Description
-        | DeletedItem (item, true) ->
-            Some <| sprintf "Deleting %s..." item.Description
-        | _ ->
-            None
-    let runningAction action pathFormat =
-        runningActionMessage action pathFormat |> Option.map Busy
-    let preparingPut (putType: PutType) name = Busy <| sprintf "Preparing to %O %s..." putType name
-    let checkingIsRecyclable = Busy "Calculating size..."
-    let preparingDelete name = Busy <| sprintf "Preparing to delete %s..." name
-    let private actionCompleteMessage action pathFormat =
-        match action with
-        | CreatedItem item -> sprintf "Created %s" item.Description
-        | RenamedItem (item, newName) -> sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItems (Move, item, _) -> sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, item, _) -> sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Shortcut, {Item = item}, _) ->
-            sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
-        | DeletedItem (item, false) -> sprintf "Sent %s to Recycle Bin" item.Description
-        | DeletedItem (item, true) -> sprintf "Deleted %s" item.Description
-    let actionComplete action pathFormat =
-        actionCompleteMessage action pathFormat |> Message
-
-    let cancelled = Message <| "Cancelled"
-
-    // undo/redo
-    let undoingCreate (item: Item) = Busy <| sprintf "Undoing creation of %s - Deleting..." item.Description
-    let undoingMove (item: Item) = Busy <| sprintf "Undoing move of %s..." item.Description
-    let undoingCopy (item: Item) = Busy <| sprintf "Undoing copy of %s..." item.Description
-    let undoAction action pathFormat repeatCount =
-        let prefix =
-            if repeatCount = 1 then
-                "Action undone: "
-            else
-                sprintf "%i actions undone. Last: " repeatCount
-        Message (prefix + actionCompleteMessage action pathFormat)
-
-    let redoingAction action pathFormat =
-        runningActionMessage action pathFormat
-            |> Option.map (fun m -> Busy <| sprintf "Redoing action: %s" m)
-    let redoAction action pathFormat repeatCount =
-        let prefix =
-            if repeatCount = 1 then
-                "Action redone: "
-            else
-                sprintf "%i actions redone. Last: " repeatCount
-        Message (prefix + actionCompleteMessage action pathFormat)

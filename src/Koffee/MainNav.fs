@@ -56,8 +56,8 @@ let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
             openPath fsReader path.Parent (SelectItem (item, true)) (model.ClearStatus())
         | Ok _ ->
             openPath fsReader path SelectNone (model.ClearStatus())
-        | Error e -> Error <| ActionError ("open path", e)
-    | None -> Error <| InvalidPath pathStr
+        | Error e -> Error <| MainStatus.ActionError ("open path", e)
+    | None -> Error <| MainStatus.InvalidPath pathStr
 
 let openInputPath fsReader os pathStr (evtHandler: EvtHandler) model = result {
     let pathStr = OsUtility.subEnvVars os pathStr
@@ -84,7 +84,7 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
             | Some targetPath ->
                 let! target =
                     fsReader.GetItem targetPath |> openError
-                    |> Result.bind (Result.ofOption (ShortcutTargetMissing (targetPath.Format model.PathFormat)))
+                    |> Result.bind (Result.ofOption (MainStatus.ShortcutTargetMissing (targetPath.Format model.PathFormat)))
                 return if target.Type = Folder then Some target.Path else None
             | None ->
                 return None
@@ -97,7 +97,7 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
                 os.OpenFile item.Path |> openError
                 |> Result.map (fun () ->
                     fnAfterOpen |> Option.iter (fun f -> f())
-                    model.WithStatus (MainStatus.openFile item.Name)
+                    model.WithMessage (MainStatus.OpenFile item.Name)
                 )
         )
     | Empty -> Ok model
@@ -156,7 +156,7 @@ let sortList field model =
         Items = model.Items |> SortField.SortByTypeThen (field, desc)
         History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
     }
-    |> fun m -> m.WithStatus (MainStatus.sort field desc)
+    |> fun m -> m.WithMessage (MainStatus.Sort (field, desc))
     |> select selectType
 
 let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {

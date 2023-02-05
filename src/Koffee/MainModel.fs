@@ -231,18 +231,6 @@ module MainStatus =
         | DeletedItem (item, true) ->
             sprintf "Deleted %s" item.Description
 
-    let private runningActionMessage action pathFormat =
-        match action with
-        | PutItems (Move, intent, _) ->
-            sprintf "Moving %s..." ([intent] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, intent, _) ->
-            sprintf "Copying %s..." ([intent] |> PutItem.describeList pathFormat)
-        | DeletedItem (item, false) ->
-            sprintf "Recycling %s..." item.Description
-        | DeletedItem (item, true) ->
-            sprintf "Deleting %s..." item.Description
-        | _ -> ""
-
     type Message =
         // Navigation
         | Find of prefix: string * repeatCount: int
@@ -323,21 +311,28 @@ module MainStatus =
                 "Cancelled"
 
     type Busy =
-        // TODO: split this into separate cases
-        | RunningAction of ItemAction * PathFormat
+        | MovingItem of PutItem * PathFormat
+        | CopyingItem of PutItem * PathFormat
+        | DeletingItem of Item * permanent: bool
         | PreparingPut of PutType * name: string
         | CheckingIsRecyclable
         | PreparingDelete of name: string
         | UndoingCreate of Item
         | UndoingMove of Item
         | UndoingCopy of Item
-        // TODO: split this into separate cases
-        | RedoingAction of ItemAction * PathFormat
+        | RedoingMovingItem of PutItem * PathFormat
+        | RedoingCopyingItem of PutItem * PathFormat
+        | RedoingDeletingItem of Item * permanent: bool
 
         member this.Message =
             match this with
-            | RunningAction (action, pathFormat) ->
-                runningActionMessage action pathFormat
+            | MovingItem (putItem, pathFormat) ->
+                sprintf "Moving %s..." ([putItem] |> PutItem.describeList pathFormat)
+            | CopyingItem (putItem, pathFormat) ->
+                sprintf "Copying %s..." ([putItem] |> PutItem.describeList pathFormat)
+            | DeletingItem (item, permanent) ->
+                let action = if permanent then "Deleting" else "Recycling"
+                sprintf "%s %s..." action item.Description
             | PreparingPut (putType, name) ->
                 sprintf "Preparing to %O %s..." putType name
             | CheckingIsRecyclable ->
@@ -350,9 +345,13 @@ module MainStatus =
                 sprintf "Undoing move of %s..." item.Description
             | UndoingCopy item ->
                 sprintf "Undoing copy of %s..." item.Description
-            | RedoingAction (action, pathFormat) ->
-                runningActionMessage action pathFormat
-                |> sprintf "Redoing action: %s"
+            | RedoingMovingItem (putItem, pathFormat) ->
+                sprintf "Redoing move of %s..." ([putItem] |> PutItem.describeList pathFormat)
+            | RedoingCopyingItem (putItem, pathFormat) ->
+                sprintf "Redoing copy of %s..." ([putItem] |> PutItem.describeList pathFormat)
+            | RedoingDeletingItem (item, permanent) ->
+                let action = if permanent then "deletion" else "recycle"
+                sprintf "Redoing %s of %s..." action item.Description
 
     type Error =
         | ActionError of actionName: string * exn

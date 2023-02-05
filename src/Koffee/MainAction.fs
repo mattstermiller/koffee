@@ -310,8 +310,12 @@ let putItem (fs: IFileSystem) (progress: Event<float option>) overwrite item put
             | Move | Copy -> enumeratePutItems fs (putType = Copy) true newPath item |> AsyncSeq.toListAsync
         let items, enumErrors = enumerated |> Result.partition
         let putItem = { Item = item; Dest = newPath; DestExists = existing.IsSome }
-        let action = PutItems (putType, putItem, items)
-        yield model.WithBusy (MainStatus.RunningAction (action, model.PathFormat))
+        match putType with
+        | Move ->
+            yield model.WithBusy (MainStatus.MovingItem (putItem, model.PathFormat))
+        | Copy ->
+            yield model.WithBusy (MainStatus.CopyingItem (putItem, model.PathFormat))
+        | _ -> ()
         yield! performPut fs progress false enumErrors putType putItem items model
 }
 
@@ -447,7 +451,7 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
             progress.Trigger (Some 0.0)
             let! items = enumerateDeleteItems fs [item] |> AsyncSeq.toListAsync
             let incrementProgress = progressIncrementer progress items.Length
-            yield model.WithBusy (MainStatus.RunningAction (action, model.PathFormat))
+            yield model.WithBusy (MainStatus.DeletingItem (item, permanent))
             let! res = runAsync (fun () ->
                 items
                 |> Seq.map (fun i ->
@@ -461,7 +465,7 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
             progress.Trigger None
             do! res |> Result.mapError (fun errors -> MainStatus.DeleteError (errors, items.Length))
         else
-            yield model.WithBusy (MainStatus.RunningAction (action, model.PathFormat))
+            yield model.WithBusy (MainStatus.DeletingItem (item, permanent))
             let! res = runAsync (fun () -> fs.Recycle item.Type item.Path)
             do! res |> itemActionError action model.PathFormat
         yield
@@ -551,11 +555,16 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                     yield Nav.select (SelectItem (existing, true)) model
                     return MainStatus.CannotRedoPutToExisting (putType, intent.Item, intent.Dest.Format model.PathFormat)
                 | _ ->
-                    yield model.WithBusy (MainStatus.RedoingAction (action, model.PathFormat))
+                    match putType with
+                    | Move ->
+                        yield model.WithBusy (MainStatus.RedoingMovingItem (intent, model.PathFormat))
+                    | Copy ->
+                        yield model.WithBusy (MainStatus.RedoingCopyingItem (intent, model.PathFormat))
+                    | _ -> ()
                     yield! putItem fs progress intent.DestExists intent.Item putType model
             | DeletedItem (item, permanent) ->
                 let! model = goToPath item.Path
-                yield model.WithBusy (MainStatus.RedoingAction (action, model.PathFormat))
+                yield model.WithBusy (MainStatus.RedoingDeletingItem (item, permanent))
                 yield! delete fs progress item permanent model
         }
         let model = { model with RedoStack = rest }

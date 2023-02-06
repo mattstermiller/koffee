@@ -375,7 +375,8 @@ let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
             |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
             |>! incrementProgress
         )
-    ) |>! (fun _ -> progress.Trigger None)
+        |>! (fun _ -> progress.Trigger None)
+    )
 
 let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqResult {
     yield model.WithBusy (MainStatus.UndoingCopy intent.Item)

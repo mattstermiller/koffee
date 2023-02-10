@@ -732,7 +732,7 @@ type MainModel = {
         | Error e -> this.WithError e
 
     member this.ClearStatus () =
-        { this with Status = None }
+        { this with Status = None; InputError = None }
 
     member this.IsStatusBusy =
         match this.Status with

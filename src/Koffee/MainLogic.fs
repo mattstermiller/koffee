@@ -272,7 +272,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                 else if m.ShowHistoryType.IsSome then
                     { m with ShowHistoryType = None }
                 else
-                    { m with Status = None } |> Search.clearSearch
+                    m.ClearStatus() |> Search.clearSearch
             (None, modelFunc)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
             (None, (fun m -> m.AppendRepeatDigit digit))

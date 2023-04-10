@@ -154,3 +154,37 @@ let ``Compare Windows paths`` aPath bPath expected =
     let bComp = createPath bPath :> IComparable
     aComp.CompareTo bComp |> shouldEqual expected
     bComp.CompareTo aComp |> shouldEqual -expected
+
+[<TestCase("/")>]
+[<TestCase("/c")>]
+[<TestCase("/c/folder")>]
+[<TestCase("/c/folder/sub")>]
+[<TestCase("/c/folder/sub/file")>]
+let ``IsWithin returns true if contains path`` path =
+    (createPath "/c/folder/sub/file").IsWithin (createPath path)
+    |> shouldEqual true
+
+[<TestCase("/d")>]
+[<TestCase("/c/folde")>]
+[<TestCase("/c/folderr")>]
+[<TestCase("/c/folder/sub/fil")>]
+let ``IsWithin returns false if does not contain path`` path =
+    (createPath "/c/folder/sub/file").IsWithin (createPath path)
+    |> shouldEqual false
+
+[<TestCase("/c", "/c/new/folder/sub/file")>]
+[<TestCase("/c/folder", "/c/new/sub/file")>]
+[<TestCase("/c/folder/sub", "/c/new/file")>]
+[<TestCase("/c/folder/sub/file", "/c/new")>]
+let ``TryReplace returns new path if contains path`` path expectedPath =
+    (createPath "/c/folder/sub/file").TryReplace (createPath path) (createPath "/c/new")
+    |> shouldEqual (Some (createPath expectedPath))
+
+[<TestCase("/")>]
+[<TestCase("/d")>]
+[<TestCase("/c/folde")>]
+[<TestCase("/c/folderr")>]
+[<TestCase("/c/folder/sub/fil")>]
+let ``TryReplace returns None if does not contain path`` path =
+    (createPath "/c/folder/sub/file").TryReplace (createPath path) (createPath "/c/new")
+    |> shouldEqual None

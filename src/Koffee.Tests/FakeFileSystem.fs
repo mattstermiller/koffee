@@ -72,9 +72,7 @@ type FakeFileSystem(treeItems) =
     let mutable callsToGetItems = 0
 
     let remove path =
-        let itemWithinPath (path: Path) item =
-            item.Path.FormatFolder Windows |> String.startsWithIgnoreCase (path.FormatFolder Windows)
-        items <- items |> List.filter (not << itemWithinPath path)
+        items <- items |> List.filter (fun item -> not (item.Path.IsWithin path))
         shortcuts.Remove(path) |> ignore
 
     let checkPathNotUsed path =

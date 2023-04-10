@@ -154,6 +154,18 @@ type Path private (path: string) =
     member this.Join name =
         IOPath.Combine(path, name) |> Path
 
+    member this.IsWithin (otherPath: Path) =
+        if otherPath = Path.Root || otherPath = this
+        then true
+        else path |> String.startsWithIgnoreCase (otherPath.FormatFolder Windows)
+
+    member this.TryReplace (oldPath: Path) (newPath: Path) =
+        if oldPath <> Path.Root && this.IsWithin oldPath then
+            let relative = path |> String.replace (string oldPath) "" |> String.trimStart [|'\\'|]
+            Some (newPath.Join relative)
+        else
+            None
+
     member this.IsNetPath = path.StartsWith(@"\\")
 
     member this.IsNetHost =

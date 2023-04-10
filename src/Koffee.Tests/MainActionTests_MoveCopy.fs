@@ -113,7 +113,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     let src = fs.Item "/c/folder/file"
     let dest = createFile "/c/file"
     let putType = if copy then Copy else Move
-    let model = testModel |> withReg (Some (src.Path, src.Type, putType))
+    let model = testModel |> withReg (Some (src.Path, src.Type, putType)) |> withPathHistory [string src.Path]
 
     let actual = seqResult (Action.put fs progress overwrite) model
 
@@ -139,6 +139,13 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
         ]
         fileWith (size 41L) "file"
     ]
+    actual |> assertPathHistoryEqual ([
+        createHistoryPath "/c/"
+        if copy then
+            model.History.Paths.[0]
+        else
+            createHistoryPath (string dest.Path)
+    ])
 
 [<Test>]
 let ``Put item to move in same folder returns error``() =
@@ -236,7 +243,7 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
 [<TestCase(false, false)>]
 [<TestCase(true, false)>]
 [<TestCase(true, true)>]
-let ``Put folder to move deletes source folder after enumerated move`` enumerated deleteError =
+let ``Put folder to move deletes source folder after enumerated move and updates history`` enumerated deleteError =
     let fs = FakeFileSystem [
         folder "dest" [
             if enumerated then
@@ -251,7 +258,16 @@ let ``Put folder to move deletes source folder after enumerated move`` enumerate
     let dest = fs.Item "/c/dest"
     if enumerated && deleteError then
         fs.AddExnPath true ex src.Path
-    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, Move))
+    let model =
+        testModel
+        |> withLocation "/c/dest"
+        |> withReg (Some (src.Path, src.Type, Move))
+        |> withPathHistory [
+            "/c/src/file"
+            "/c/dest2/unrelated"
+            "/c/src/folder/"
+            "/c/src/"
+        ]
 
     let actual = seqResult (Action.put fs progress enumerated) model
 
@@ -288,6 +304,13 @@ let ``Put folder to move deletes source folder after enumerated move`` enumerate
         if enumerated && deleteError then
             folder "src" []
     ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath "/c/dest/"
+        createHistoryPath "/c/dest/src/file"
+        model.History.Paths.[1]
+        createHistoryPath "/c/dest/src/folder/"
+        createHistoryPath "/c/dest/src/"
+    ]
 
 [<Test>]
 let ``Put folder to move handles partial success by updating undo and setting error message``() =
@@ -305,7 +328,16 @@ let ``Put folder to move handles partial success by updating undo and setting er
     fs.AddExnPath true ex errorItem.Path
     let src = fs.Item "/c/src"
     let dest = fs.Item "/c/dest"
-    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, Move))
+    let model =
+        testModel
+        |> withLocation "/c/dest"
+        |> withReg (Some (src.Path, src.Type, Move))
+        |> withPathHistory [
+            "/c/src/file"
+            "/c/dest2/unrelated"
+            "/c/src/unmovable"
+            "/c/src/"
+        ]
 
     let actual = seqResult (Action.put fs progress true) model
 
@@ -336,6 +368,11 @@ let ``Put folder to move handles partial success by updating undo and setting er
         folder "src" [
             file "unmovable"
         ]
+    ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath "/c/dest/"
+        createHistoryPath "/c/dest/src/file"
+        yield! model.History.Paths.[1..3]
     ]
 
 // undo move tests
@@ -519,7 +556,15 @@ let ``Undo move handles partial success by updating undo and setting error messa
         { Item = createFile "/c/moved/other"; Dest = destPath.Join "other"; DestExists = false }
     ]
     let action = PutItems (Move, putItem, actualMoved)
-    let model = testModel |> pushUndo action
+    let model =
+        testModel
+        |> pushUndo action
+        |> withPathHistory [
+            "/c/dest/moved/file"
+            "/c/dest2/unrelated"
+            "/c/dest/moved/"
+            "/c/dest/moved/other"
+        ]
 
     let actual = seqResult (Action.undo fs progress) model
 
@@ -551,6 +596,11 @@ let ``Undo move handles partial success by updating undo and setting error messa
                 file "file"
             file "other"
         ]
+    ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath "/c/"
+        yield! model.History.Paths.[0..2]
+        createHistoryPath "/c/moved/other"
     ]
 
 [<Test>]

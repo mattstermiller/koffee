@@ -13,13 +13,13 @@ let testModel (fs: FakeFileSystem)  =
 
 [<TestCase(true)>]
 [<TestCase(false)>]
-let ``Delete file deletes it`` permanent =
+let ``Delete file deletes it and updates path history`` permanent =
     let fs = FakeFileSystem [
         file "file"
         file "other"
     ]
     let item = fs.Item "/c/file"
-    let model = testModel fs
+    let model = testModel fs |> withPathHistory ["/c/folder2/unrelated"; "/c/file"]
 
     let actual = seqResult (Action.delete fs progress item permanent) model
 
@@ -35,9 +35,10 @@ let ``Delete file deletes it`` permanent =
     assertAreEqual expected actual
     fs.ItemsShouldEqual [file "other"]
     fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
+    actual |> assertPathHistoryEqual (model.History.Paths |> List.take 1)
 
 [<Test>]
-let ``Recycle folder recycles it`` () =
+let ``Recycle folder recycles it and updates path history`` () =
     let fs = FakeFileSystem [
         folder "folder" [
             folder "sub" [
@@ -48,7 +49,12 @@ let ``Recycle folder recycles it`` () =
         file "other"
     ]
     let item = fs.Item "/c/folder"
-    let model = testModel fs
+    let pathHistory = [
+        "/c/folder2/unrelated"
+        "/c/folder"
+        "/c/folder/sub/sub file"
+    ]
+    let model = testModel fs |> withPathHistory pathHistory
 
     let actual = seqResult (Action.delete fs progress item false) model
 
@@ -64,9 +70,10 @@ let ``Recycle folder recycles it`` () =
     assertAreEqual expected actual
     fs.ItemsShouldEqual [file "other"]
     fs.RecycleBin |> shouldEqual [item]
+    actual |> assertPathHistoryEqual (model.History.Paths |> List.take 1)
 
 [<Test>]
-let ``Delete folder deletes all items`` () =
+let ``Delete folder deletes all items and updates path history`` () =
     let fs = FakeFileSystem [
         folder "folder" [
             folder "sub" [
@@ -77,8 +84,13 @@ let ``Delete folder deletes all items`` () =
         ]
         file "other"
     ]
+    let pathHistory = [
+        "/c/folder2/unrelated"
+        "/c/folder"
+        "/c/folder/sub/sub file"
+    ]
     let item = fs.Item "/c/folder"
-    let model = testModel fs
+    let model = testModel fs |> withPathHistory pathHistory
 
     let actual = seqResult (Action.delete fs progress item true) model
 
@@ -94,6 +106,7 @@ let ``Delete folder deletes all items`` () =
     assertAreEqual expected actual
     fs.ItemsShouldEqual [file "other"]
     fs.RecycleBin |> shouldEqual []
+    actual |> assertPathHistoryEqual (model.History.Paths |> List.take 1)
 
 [<Test>]
 let ``Delete folder handles individual error and deletes other items and returns error`` () =

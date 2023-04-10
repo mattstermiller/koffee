@@ -2,6 +2,7 @@
 
 ### 0.7.0  Multi-Select (WIP)
 - #132 Adds opened files to path history and shows in path suggestions
+- #133 Renaming, moving or deleting items updates path history
 - #9 Changes Delete to enumerate and work on single items
 - #130 Closes Find prompt when opening a file
 - #129 Fixes FileSystem Move and Copy to handle empty folders

@@ -628,6 +628,19 @@ with
         | Some host -> hist.WithNetHost host
         | None -> hist
 
+    member this.WithPathReplaced oldPath newPath =
+        this.WithPathsReplaced (Map [oldPath, newPath])
+
+    member this.WithPathsReplaced pathMap =
+        let replaceOld hp =
+            match pathMap |> Map.tryPick (fun oldPath newPath -> hp.PathValue.TryReplace oldPath newPath) with
+            | Some path -> { hp with PathValue = path }
+            | None -> hp
+        { this with Paths = this.Paths |> List.map replaceOld }
+
+    member this.WithPathRemoved path =
+        { this with Paths = this.Paths |> List.filter (fun hp -> not (hp.PathValue.IsWithin path)) }
+
     member this.WithPathSort path sort =
         if sort = PathSort.Default then
             { this with PathSort = this.PathSort.Remove path }

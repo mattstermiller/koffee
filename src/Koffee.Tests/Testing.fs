@@ -177,11 +177,19 @@ let seqResult handler (model: MainModel) =
         | Error e -> m.WithError e
     ) |> Async.RunSynchronously
 
+let assertPathHistoryEqual (expectedHistoryPaths: HistoryPath list) model =
+    let fmt (hp: HistoryPath) = hp.Format Unix
+    model.History.Paths |> List.map fmt |> shouldEqual (expectedHistoryPaths |> List.map fmt)
+
 let createPath pathStr =
     Path.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
 
 let createHistoryPath pathStr =
     HistoryPath.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
+
+let withPathHistory pathStrs model =
+    let paths = pathStrs |> List.map createHistoryPath
+    { model with History = { History.Default with Paths = paths } }
 
 let createFile pathStr =
     let path = createPath pathStr

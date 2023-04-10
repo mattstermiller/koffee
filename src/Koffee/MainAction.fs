@@ -99,7 +99,8 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
         let action = RenamedItem (item, newName)
         let newPath = item.Path.Parent.Join newName
         let! existing =
-            if String.equalsIgnoreCase item.Name newName then Ok None
+            if String.equalsIgnoreCase item.Name newName
+            then Ok None
             else fs.GetItem newPath |> itemActionError action model.PathFormat
         match existing with
         | None ->
@@ -107,12 +108,14 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
             let newItem = { item with Name = newName; Path = newPath }
             let substitute = List.map (fun i -> if i = item then newItem else i)
             return
-                { model with Directory = model.Directory |> substitute }
-                |> (
-                    if model.SearchCurrent.IsSome then
-                        fun m -> { m with Items = m.Items |> substitute }
-                    else
-                        Nav.listDirectory (SelectName newName)
+                { model with
+                    Directory = model.Directory |> substitute
+                    History = model.History.WithPathReplaced item.Path newPath
+                }
+                |> (fun model ->
+                    if model.SearchCurrent.IsSome
+                    then { model with Items = model.Items |> substitute }
+                    else Nav.listDirectory (SelectName newName) model
                 )
                 |> performedAction action
         | Some existingItem ->
@@ -131,7 +134,9 @@ let undoRename (fs: IFileSystem) oldItem currentName (model: MainModel) = result
     match existing with
     | None ->
         do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action model.PathFormat
-        return! Nav.openPath fs parentPath (SelectName oldItem.Name) model
+        return!
+            { model with History = model.History.WithPathReplaced item.Path oldItem.Path }
+            |> Nav.openPath fs parentPath (SelectName oldItem.Name)
     | Some existingItem ->
         return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
 }
@@ -242,14 +247,24 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors 
                 let! res = deleteEmptyFolders fs intent.Item.Path
                 return! res |> Result.mapError (fun (path, ex) -> MainStatus.CouldNotDeleteMoveSource (path.Name, ex))
         }
-        let model = model.WithResult deleteRes
-        yield! openDest model
+        let model =
+            if putType = Move then
+                { model with History = model.History.WithPathReplaced intent.Item.Path intent.Dest }
+            else
+                model
+        yield! model.WithResult deleteRes |> openDest
     | errorItems when succeeded |> List.isEmpty ->
         // if nothing succeeded, return error
         return MainStatus.PutError (isUndo, putType, errorItems, items.Length + enumErrors.Length)
     | errorItems ->
         // if partial success, update undo stack with successes
         // set error message instead of returning Error so that the caller flow is not short-circuited
+        let model =
+            if putType = Move then
+                let pathReplacements = succeeded |> List.map (fun putItem -> putItem.Item.Path, putItem.Dest) |> Map
+                { model with History = model.History.WithPathsReplaced pathReplacements }
+            else
+                model
         let model = openDest model |> Result.toOption |? model
         let error = MainStatus.PutError (isUndo, putType, errorItems, items.Length + enumErrors.Length)
         if isUndo then
@@ -473,6 +488,7 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
             { model with
                 Directory = model.Directory |> List.except [item]
                 Items = model.Items |> List.except [item] |> model.ItemsOrEmpty
+                History = model.History.WithPathRemoved item.Path
             }.WithCursor model.Cursor
             |> performedAction action
 }

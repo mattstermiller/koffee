@@ -1,221 +1,29 @@
-module Koffee.MainActionTests_CreateRename
+module Koffee.MainActionTests_Rename
 
 open NUnit.Framework
 open FsUnitTyped
 open Koffee.Main
 
-// create tests
-
-[<Test>]
-let ``Create calls file sys create and openPath and sets status``() =
-    let fs = FakeFileSystem [
-        file "another"
-    ]
-    let createItem = createFile "/c/file"
-    let model = testModel
-
-    let actual = seqResult (Action.create fs File createItem.Name) model
-
-    let expectedAction = CreatedItem createItem
-    let expectedItems = [
-        createFile "/c/another"
-        createItem
-    ]
-    let expected =
-        { model with
-            Directory = expectedItems
-            Items = expectedItems
-            Cursor = 1
-            UndoStack = expectedAction :: model.UndoStack
-            RedoStack = []
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
-    assertAreEqual expected actual
-    fs.ItemsShouldEqual [
-        file "another"
-        file "file"
-    ]
-
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Create returns error when item already exists at path`` existingHidden =
-    let fs = FakeFileSystem [
-        file "another"
-        fileWith (hide existingHidden) "file"
-    ]
-    let existing = fs.Item "/c/file"
-    let expectedFs = fs.Items
-
-    let actual = seqResult (Action.create fs Folder existing.Name) testModel
-
-    let expectedItems = [
-        createFile "/c/another"
-        existing
-    ]
-    let expected =
-        { testModel with
-            Directory = expectedItems
-            Items = expectedItems
-            Cursor = 1
-        }.WithError (MainStatus.CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
-    assertAreEqual expected actual
-    fs.Items |> shouldEqual expectedFs
-
-[<Test>]
-let ``Create handles error by returning error``() =
-    let fs = FakeFileSystem [
-        file "another"
-    ]
-    let createItem = createFile "/c/file"
-    fs.AddExnPath false ex createItem.Path
-    let model = testModel
-    let expectedFs = fs.Items
-
-    let actual = seqResult (Action.create fs File createItem.Name) model
-
-    let expected = model.WithError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
-    assertAreEqual expected actual
-    fs.Items |> shouldEqual expectedFs
-
-// undo create tests
-
-[<TestCase(false, false)>]
-[<TestCase(true, false)>]
-[<TestCase(false, true)>]
-[<TestCase(true, true)>]
-let ``Undo create empty item calls delete`` curPathDifferent isFolder =
-    let fs = FakeFileSystem [
-        file "another"
-        if isFolder then
-            folder "item" []
-        else
-            file "item"
-    ]
-    let createdItem = fs.Item "/c/item"
-    let action = CreatedItem createdItem
-    let location = if curPathDifferent then "/c/other" else "/c"
-    let model =
-        testModel.WithError MainStatus.NoPreviousSearch
-        |> withLocation location |> pushUndo action
-
-    let actual = seqResult (Action.undo fs progress) model
-
-    let expectedItems =
-        if curPathDifferent then
-            model.Items
-        else
-            [ createFile "/c/another" ]
-    let expected =
-        { model with
-            Directory = expectedItems
-            Items = expectedItems
-            UndoStack = model.UndoStack.Tail
-            RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
-    assertAreEqual expected actual
-    fs.ItemsShouldEqual [
-        file "another"
-    ]
-    fs.RecycleBin |> shouldEqual []
-
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Undo create non empty item returns error`` isFolder =
-    let fs = FakeFileSystem [
-        if isFolder then
-            folder "item" [
-                file "file"
-            ]
-        else
-            fileWith (size 1L) "item"
-    ]
-    let createdItem = fs.Item "/c/item"
-    let action = CreatedItem createdItem
-    let model = testModel |> pushUndo action
-    let expectedFs = fs.Items
-
-    let actual = seqResult (Action.undo fs progress) model
-
-    let expected = model.WithError (MainStatus.CannotUndoNonEmptyCreated createdItem) |> popUndo
-    assertAreEqual expected actual
-    fs.Items |> shouldEqual expectedFs
-
-[<Test>]
-let ``Undo create handles delete error by returning error`` () =
-    let fs = FakeFileSystem [
-        file "file"
-    ]
-    let createdItem = fs.Item "/c/file"
-    fs.AddExnPath false ex createdItem.Path
-    let action = CreatedItem createdItem
-    let model = testModel |> pushUndo action
-
-    let actual = seqResult (Action.undo fs progress) model
-
-    let expectedError = MainStatus.ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)
-    let expected = model.WithError expectedError |> popUndo
-    assertAreEqual expected actual
-
-[<Test>]
-let ``Redo create creates item again`` () =
-    let fs = FakeFileSystem [
-        file "another"
-    ]
-    let createItem = createFile "/c/file"
-    let model = testModel |> pushRedo (CreatedItem createItem)
-
-    let actual = seqResult (Action.redo fs progress) model
-
-    let expectedAction = CreatedItem createItem
-    let expectedItems = [
-        createFile "/c/another"
-        createItem
-    ]
-    let expected =
-        { model with
-            Directory = expectedItems
-            Items = expectedItems
-            Cursor = 1
-            UndoStack = expectedAction :: model.UndoStack
-            RedoStack = model.RedoStack.Tail
-        }.WithMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1))
-    assertAreEqual expected actual
-    fs.ItemsShouldEqual [
-        file "another"
-        file "file"
-    ]
-
-[<Test>]
-let ``Redo create handles error by returning error``() =
-    let fs = FakeFileSystem [
-        file "another"
-    ]
-    let createItem = createFile "/c/file"
-    fs.AddExnPath false ex createItem.Path
-    let model = testModel |> pushRedo (CreatedItem createItem)
-    let expectedFs = fs.Items
-
-    let actual = seqResult (Action.redo fs progress) model
-
-    let expected =
-        model.WithError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
-        |> popRedo
-    assertAreEqual expected actual
-    fs.Items |> shouldEqual expectedFs
-
 // rename tests
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Rename calls file sys move and openPath and sets status`` diffCaseOnly =
+let ``Rename file calls file sys move and openPath and updates history`` diffCaseOnly =
     let fs = FakeFileSystem [
         file "another"
         file "my file"
         file "nacho file"
     ]
     let item = fs.Item "/c/my file"
-    let renamed = createFile (if diffCaseOnly then "/c/My File" else "/c/renamed")
+    let newPath = if diffCaseOnly then "/c/My File" else "/c/renamed"
+    let renamed = createFile newPath
     let items = fs.ItemsIn "/c"
-    let model = { testModel with Directory = items; Items = items; Cursor = 1 }
+    let model =
+        { testModel with
+            Directory = items
+            Items = items
+            Cursor = 1
+        } |> withPathHistory ["/c/unrelated/file"; "/c/my file"]
 
     let actual = Action.rename fs item renamed.Name model
                  |> assertOk
@@ -239,6 +47,64 @@ let ``Rename calls file sys move and openPath and sets status`` diffCaseOnly =
         file "another"
         file renamed.Name
         file "nacho file"
+    ]
+    actual |> assertPathHistoryEqual [
+        model.History.Paths.[0]
+        createHistoryPath newPath
+    ]
+
+[<Test>]
+let ``Rename folder calls file sys move and updates history`` () =
+    let fs = FakeFileSystem [
+        folder "another" []
+        folder "folder" [
+            file "my file"
+            file "your file"
+        ]
+    ]
+    let item = fs.Item "/c/folder"
+    let newPath = "/c/renamed/"
+    let renamed = createFolder newPath
+    let items = fs.ItemsIn "/c"
+    let model =
+        { testModel with
+            Directory = items
+            Items = items
+            Cursor = 1
+        } |> withPathHistory [
+            "/c/folder/your file"
+            "/c/unrelated/file"
+            "/c/folder/"
+        ]
+
+    let actual = Action.rename fs item renamed.Name model
+                 |> assertOk
+
+    let expectedItems = [
+        items.[0]
+        renamed
+    ]
+    let expectedAction = RenamedItem (item, renamed.Name)
+    let expected =
+        { model with
+            Directory = expectedItems
+            Items = expectedItems |> sortByPath
+            Cursor = 1
+            UndoStack = expectedAction :: model.UndoStack
+            RedoStack = []
+        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        folder "another" []
+        folder "renamed" [
+            file "my file"
+            file "your file"
+        ]
+    ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath (newPath + "your file")
+        model.History.Paths.[1]
+        createHistoryPath newPath
     ]
 
 [<Test>]
@@ -319,7 +185,7 @@ let ``Rename handles error by returning error``() =
 [<TestCase(true, false)>]
 [<TestCase(false, true)>]
 [<TestCase(true, true)>]
-let ``Undo rename item names item back to original`` curPathDifferent diffCaseOnly =
+let ``Undo rename file changes name back to original and updates history`` curPathDifferent diffCaseOnly =
     let currentName = if diffCaseOnly then "File" else "renamed"
     let fs = FakeFileSystem [
         file "another"
@@ -329,7 +195,11 @@ let ``Undo rename item names item back to original`` curPathDifferent diffCaseOn
     let current = fs.Item ("/c/" + currentName)
     let location = if curPathDifferent then "/c/other" else "/c"
     let action = RenamedItem (previous, current.Name)
-    let model = testModel |> withLocation location |> pushUndo action
+    let model =
+        testModel
+        |> withLocation location
+        |> pushUndo action
+        |> withPathHistory ["/c/unrelated/file"; string current.Path]
 
     let actual = seqResult (Action.undo fs progress) model
 
@@ -349,6 +219,54 @@ let ``Undo rename item names item back to original`` curPathDifferent diffCaseOn
     fs.ItemsShouldEqual [
         file "another"
         file previous.Name
+    ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath "/c/"
+        model.History.Paths.[0]
+        createHistoryPath (string previous.Path)
+    ]
+
+[<Test>]
+let ``Undo rename folder changes name back to original and updates history`` () =
+    let fs = FakeFileSystem [
+        folder "another" []
+        folder "renamed" []
+    ]
+    let previous = createFolder "/c/folder"
+    let current = fs.Item "/c/renamed"
+    let action = RenamedItem (previous, current.Name)
+    let model =
+        testModel
+        |> pushUndo action
+        |> withPathHistory [
+            "/c/renamed/file"
+            "/c/unrelated/file"
+            "/c/renamed/"
+        ]
+
+    let actual = seqResult (Action.undo fs progress) model
+
+    let expectedItems = [
+        createFolder "/c/another"
+        previous
+    ]
+    let expected =
+        { testModel with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 1
+            RedoStack = action :: model.RedoStack
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        folder "another" []
+        folder "folder" []
+    ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath "/c/"
+        createHistoryPath "/c/folder/file"
+        model.History.Paths.[1]
+        createHistoryPath "/c/folder/"
     ]
 
 [<TestCase(false)>]

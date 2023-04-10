@@ -41,7 +41,7 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = resu
     return
         { model.WithPushedLocation path with
             Directory = directory
-            History = model.History.WithPathAndNetHost model.Config.Limits.PathHistory path
+            History = model.History.WithFolderPath model.Config.Limits.PathHistory path
             Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
         }
         |> clearSearchProps
@@ -97,7 +97,9 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
                 os.OpenFile item.Path |> openError
                 |> Result.map (fun () ->
                     fnAfterOpen |> Option.iter (fun f -> f())
-                    model.WithMessage (MainStatus.OpenFile item.Name)
+                    { model with
+                        History = model.History.WithFilePath model.Config.Limits.PathHistory item.Path
+                    }.WithMessage (MainStatus.OpenFile item.Name)
                 )
         )
     | Empty -> Ok model
@@ -160,10 +162,10 @@ let sortList field model =
     |> select selectType
 
 let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
-    let getSuggestions search (paths: Path list) =
+    let getSuggestions search (paths: HistoryPath list) =
         paths
-        |> filterByTerms true false search (fun p -> p.Name)
-        |> List.map (fun p -> p.FormatFolder model.PathFormat)
+        |> filterByTerms true false search (fun p -> p.PathValue.Name)
+        |> List.map (fun p -> p.Format model.PathFormat)
     let dirAndSearch =
         model.LocationInput
         |> String.replace @"\" "/"
@@ -186,7 +188,8 @@ let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
                     |> Result.map (List.map (fun i -> i.Path))
                     |> Result.mapError (fun e -> e.Message)
                 )
-            let suggestions = pathsRes |> Result.map (getSuggestions search)
+            let toHistory p = { PathValue = p; IsDirectory = true }
+            let suggestions = pathsRes |> Result.map (List.map toHistory >> getSuggestions search)
             yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (dir, pathsRes) }
         | None ->
             yield { model with PathSuggestions = Ok [] }
@@ -202,7 +205,7 @@ let deletePathSuggestion (path: Path) (model: MainModel) =
     if not (model.LocationInput |> String.contains "/" || model.LocationInput |> String.contains @"\") then
         let pathStr = path.FormatFolder model.PathFormat
         { model with
-            History = { model.History with Paths = model.History.Paths |> List.filter ((<>) path) }
+            History = { model.History with Paths = model.History.Paths |> List.filter (fun hp -> hp.PathValue <> path) }
             PathSuggestions = model.PathSuggestions |> Result.map (List.filter ((<>) pathStr))
         }
     else model

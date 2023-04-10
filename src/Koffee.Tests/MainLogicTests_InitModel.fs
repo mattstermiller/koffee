@@ -27,7 +27,7 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
             DefaultPath = defaultPath |> createPath
             PathFormat = Unix
         }
-    let history = { History.Default with Paths = history |> List.map createPath }
+    let history = { History.Default with Paths = history |> List.map createHistoryPath }
     let model = { MainModel.Default with Config = config; History = history }
     let options = { StartPath = startPath; StartLocation = None; StartSize = None }
     let screen = Rect.ofPairs (0, 0) (800, 600)

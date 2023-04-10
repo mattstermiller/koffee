@@ -81,7 +81,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `sm` to sort by modified date, descending then ascending.
     - Press `ss` to sort by size, ascending then descending.
 - **Path Box Suggestions** will appear when typing in the path box.
-    - When no slashes are in the path box, folders that you have visited before are searched. Folders starting with the first search term are shown first, then other matches sorted by most recently visited.
+    - When no slashes are in the path box, files and folders that you have opened in Koffee are searched. Items starting with the first search term are shown first, then other matches sorted by most recently visited.
     - When a path is in the path box, everything after the last slash is used to search the folder before the last slash. For example, typing "C:\Windows\sy 32" would suggest "C:\Windows\System32".
     - When suggestions are shown, use the up and down arrow keys to select a suggestion. When there is only one suggestion, it is selected automatically.
     - Press `Tab` to fill in the path box with the selected suggestion and continue typing, or press `Enter` to open the selected suggestion.

@@ -20,7 +20,7 @@ let ``History can be serialized and deserialized`` () =
                 "Some net host"
             ]
             Paths = [
-                createPath @"C:\Some\Path"
+                createHistoryPath @"C:\Some\Path"
             ]
             Searches = [
                 {

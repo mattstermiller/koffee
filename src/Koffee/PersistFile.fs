@@ -57,10 +57,26 @@ module FSharpJsonConverters =
             override this.WriteJson (writer, value, _) =
                 (value :?> Path).Format Windows |> writer.WriteValue
 
+    /// Serializes HistoryPaths as normal Path strings except directories have trailing slash
+    type HistoryPathJsonConverter() =
+        inherit JsonConverter() with
+            override this.CanConvert typ = typ = typeof<HistoryPath>
+
+            override this.ReadJson (reader, _, _, _) =
+                let str = reader.Value :?> string
+                {
+                    PathValue = str |> Path.Parse |> Option.get
+                    IsDirectory = str.EndsWith @"\"
+                } |> box
+
+            override this.WriteJson (writer, value, _) =
+                (value :?> HistoryPath).Format Windows |> writer.WriteValue
+
     let getAll () : JsonConverter[] = [|
         UnionJsonConverter()
         OptionJsonConverter()
         PathJsonConverter()
+        HistoryPathJsonConverter()
     |]
 
 type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =

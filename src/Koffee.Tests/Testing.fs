@@ -182,6 +182,9 @@ let createPath pathStr =
     | Some p -> p
     | None -> failwithf "Invalid path: %s" pathStr
 
+let createHistoryPath p =
+    { PathValue = createPath p; IsDirectory = true }
+
 let createFile pathStr =
     let path = createPath pathStr
     Item.Basic path path.Name File

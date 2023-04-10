@@ -565,8 +565,29 @@ with
 
     static member toTuple sort = (sort.Sort, sort.Descending)
 
+[<CustomEquality; NoComparison>]
+type HistoryPath = {
+    PathValue: Path
+    IsDirectory: bool
+}
+with
+    member this.Format pathFormat =
+        if this.IsDirectory
+        then this.PathValue.FormatFolder pathFormat
+        else this.PathValue.Format pathFormat
+
+    interface IEquatable<HistoryPath> with
+        member this.Equals other = other.PathValue.Equals this.PathValue
+
+    override this.Equals other =
+        match other with
+        | :? HistoryPath as other -> (this :> IEquatable<HistoryPath>).Equals other
+        | _ -> false
+
+    override this.GetHashCode () = this.PathValue.GetHashCode()
+
 type History = {
-    Paths: Path list
+    Paths: HistoryPath list
     Searches: Search list
     NetHosts: string list
     PathSort: Map<Path, PathSort>
@@ -574,9 +595,6 @@ type History = {
 with
     static member private pushDistinct max list item =
         item :: (list |> List.filter ((<>) item)) |> List.truncate max
-
-    member this.WithPath pathLimit path =
-        { this with Paths = History.pushDistinct pathLimit this.Paths path }
 
     member this.WithSearch searchLimit search =
         { this with Searches = History.pushDistinct searchLimit this.Searches search }
@@ -594,8 +612,14 @@ with
     member this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
-    member this.WithPathAndNetHost pathLimit path =
-        let hist = this.WithPath pathLimit path
+    member private this.WithPath pathLimit isDirectory path =
+        let histPath = { PathValue = path; IsDirectory = isDirectory }
+        { this with Paths = History.pushDistinct pathLimit this.Paths histPath }
+
+    member this.WithFilePath pathLimit path = this.WithPath pathLimit false path
+
+    member this.WithFolderPath pathLimit path =
+        let hist = this.WithPath pathLimit true path
         match path.NetHost with
         | Some host -> hist.WithNetHost host
         | None -> hist

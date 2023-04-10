@@ -120,7 +120,10 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         let args = model.SelectedItem.Path.Format Windows |> sprintf "\"%s\""
         do! os.LaunchApp model.Config.TextEditor model.Location args
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text Editor", e))
-        return model.WithMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
+        return
+            { model with
+                History = model.History.WithFilePath model.Config.Limits.PathHistory model.SelectedItem.Path
+            }.WithMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
     | _ -> return model
 }
 

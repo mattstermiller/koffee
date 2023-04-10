@@ -27,7 +27,7 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
             WindowSize = windowRect.Size
             SaveWindowSettings = startOptions.StartLocation.IsNone && startOptions.StartSize.IsNone
         }
-    let prevPath = model.History.Paths |> List.tryHead |> Option.toList
+    let prevPath = model.History.Paths |> List.tryHead |> Option.map (fun hp -> hp.PathValue) |> Option.toList
     let configPaths =
         match config.StartPath with
         | RestorePrevious -> prevPath @ [config.DefaultPath]
@@ -45,7 +45,7 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
             | Ok model ->
                 let back =
                     (
-                        match model.History.Paths with
+                        match model.History.Paths |> List.map (fun hp -> hp.PathValue) with
                         | head :: tail when head = model.Location -> tail
                         | history -> history
                     )

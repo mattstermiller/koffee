@@ -163,9 +163,7 @@ let sortList field model =
 
 let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
     let getSuggestions search (paths: HistoryPath list) =
-        paths
-        |> filterByTerms true false search (fun p -> p.PathValue.Name)
-        |> List.map (fun p -> p.Format model.PathFormat)
+        paths |> filterByTerms true false search (fun p -> p.PathValue.Name)
     let dirAndSearch =
         model.LocationInput
         |> String.replace @"\" "/"
@@ -200,13 +198,12 @@ let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
         yield { model with PathSuggestions = Ok [] }
 }
 
-let deletePathSuggestion (path: Path) (model: MainModel) =
+let deletePathSuggestion (path: HistoryPath) (model: MainModel) =
     // if location input does not contain a slash, the suggestions are from history
     if not (model.LocationInput |> String.contains "/" || model.LocationInput |> String.contains @"\") then
-        let pathStr = path.FormatFolder model.PathFormat
         { model with
-            History = { model.History with Paths = model.History.Paths |> List.filter (fun hp -> hp.PathValue <> path) }
-            PathSuggestions = model.PathSuggestions |> Result.map (List.filter ((<>) pathStr))
+            History = { model.History with Paths = model.History.Paths |> List.filter ((<>) path) }
+            PathSuggestions = model.PathSuggestions |> Result.map (List.filter ((<>) path))
         }
     else model
 

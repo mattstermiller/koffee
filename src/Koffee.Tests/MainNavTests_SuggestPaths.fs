@@ -12,13 +12,16 @@ let fs = FakeFileSystem [
     folder "temporary" []
 ]
 
-let folders = fs.ItemsIn "/c" |> List.map (fun i -> i.Path.FormatFolder Unix)
+let folders = fs.ItemsIn "/c" |> List.map (fun i -> { PathValue = i.Path; IsDirectory = true })
 
-let history = folders @ [
-    "/c/users/me/my programs/"
-    "/c/programs/vim/"
-    "/c/programs/grammar wizard/"
-]
+let history =
+    folders @ (
+        [
+            "/c/users/me/my programs/"
+            "/c/programs/vim/"
+            "/c/programs/grammar wizard/"
+        ] |> List.map createHistoryPath
+    )
 
 let suggestPaths fsReader model =
     Main.Nav.suggestPaths fsReader model
@@ -62,7 +65,7 @@ let ``Path suggestions return expected results`` input expected =
     let model =
         { testModel with
             LocationInput = input
-            History = { testModel.History with Paths = history |> List.map createHistoryPath }
+            History = { testModel.History with Paths = history }
         }
 
     let actual = suggestPaths fs model
@@ -86,7 +89,7 @@ let ``Path suggestions cache folder listings`` () =
     let model =
         { testModel with
             LocationInput = "/c/"
-            PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map createPath))
+            PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map (fun hp -> hp.PathValue)))
         }
 
     let cacheHit = suggestPaths fs model

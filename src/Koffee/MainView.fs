@@ -190,12 +190,14 @@ module MainView =
         // bindings
         [
             Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
-            Bind.model(<@ model.PathSuggestions @>).toFunc(function
+            Bind.modelMulti(<@ model.PathSuggestions, model.PathFormat @>).toFunc(fun (paths, pathFormat) ->
+                match paths with
                 | Ok paths ->
+                    let paths = paths |> Seq.map (fun p -> p.Format pathFormat) |> Seq.toArray
                     window.PathSuggestions.ItemsSource <- paths
                     window.PathSuggestions.SelectedIndex <- if paths.Length = 1 then 0 else -1
                     window.PathSuggestions.IsEnabled <- true
-                    window.PathSuggestions.Visible <- window.PathBox.IsFocused && not paths.IsEmpty
+                    window.PathSuggestions.Visible <- window.PathBox.IsFocused && not (paths |> Array.isEmpty)
                 | Error error ->
                     window.PathSuggestions.ItemsSource <- ["Error: " + error]
                     window.PathSuggestions.IsEnabled <- false
@@ -443,7 +445,7 @@ module MainView =
                 | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
                 | (ModifierKeys.None, Key.Delete) ->
                     selectedPath
-                    |> Option.bind Path.Parse
+                    |> Option.bind HistoryPath.Parse
                     |> Option.map (tee (fun _ -> evt.Handled <- true) >> DeletePathSuggestion)
                 | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
                 | (modifier, _) when not (ignoreMods |> List.contains modifier) -> Some keyPress

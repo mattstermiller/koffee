@@ -63,11 +63,7 @@ module FSharpJsonConverters =
             override this.CanConvert typ = typ = typeof<HistoryPath>
 
             override this.ReadJson (reader, _, _, _) =
-                let str = reader.Value :?> string
-                {
-                    PathValue = str |> Path.Parse |> Option.get
-                    IsDirectory = str.EndsWith @"\"
-                } |> box
+                reader.Value :?> string |> HistoryPath.Parse |> Option.get |> box
 
             override this.WriteJson (writer, value, _) =
                 (value :?> HistoryPath).Format Windows |> writer.WriteValue

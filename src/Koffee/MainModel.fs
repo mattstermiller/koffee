@@ -586,6 +586,9 @@ with
 
     override this.GetHashCode () = this.PathValue.GetHashCode()
 
+    static member Parse str =
+        Path.Parse str |> Option.map (fun path -> { PathValue = path; IsDirectory = str.EndsWith @"\" })
+
 type History = {
     Paths: HistoryPath list
     Searches: Search list
@@ -656,7 +659,7 @@ type CancelToken() =
 type MainModel = {
     Location: Path
     LocationInput: string
-    PathSuggestions: Result<string list, string>
+    PathSuggestions: Result<HistoryPath list, string>
     PathSuggestCache: (Path * Result<Path list, string>) option
     Status: MainStatus.StatusType option
     StatusHistory: MainStatus.StatusType list
@@ -863,7 +866,7 @@ type MainEvents =
     | Back
     | Forward
     | Refresh
-    | DeletePathSuggestion of Path
+    | DeletePathSuggestion of HistoryPath
     | ShowHistory of HistoryDisplayType
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType

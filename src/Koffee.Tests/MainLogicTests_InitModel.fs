@@ -46,18 +46,18 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
 let openPathError p = MainStatus.ActionError ("open path", exn p)
 
 [<Test>]
-let ``When all paths are good then opens start and back is prev`` () =
-    test (Some "/c/start/") DefaultPath "/c/default" ["/c/prev"]
+let ``When all paths are good then opens start and back is prev folder`` () =
+    test (Some "/c/start/") DefaultPath "/c/default" ["/c/file"; "/c/prev/"]
     |> assertAreEqual { Start = "/c/start/"; Back = Some "/c/prev/"; Error = None }
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``When start path errors or is not provided then opens default and back is prev`` isStartError =
+let ``When start path errors or is not provided then opens default and back is prev folder`` isStartError =
     let start, expectedError =
         if isStartError
         then (Some "/c/error/", Some (openPathError "/c/error/"))
         else (None, None)
-    test start DefaultPath "/c/default" ["/c/prev"]
+    test start DefaultPath "/c/default" ["/c/file"; "/c/prev/"]
     |> assertAreEqual { Start = "/c/default/"; Back = Some "/c/prev/"; Error = expectedError }
 
 [<TestCase(false)>]
@@ -65,8 +65,8 @@ let ``When start path errors or is not provided then opens default and back is p
 let ``When start path errors with restore prev then opens prev if some else default and back is empty`` hasPrev =
     let history, expectedStart =
         if hasPrev
-        then (["/c/prev"], "/c/prev/")
-        else ([], "/c/default/")
+        then (["/c/file"; "/c/prev/"], "/c/prev/")
+        else (["/c/file"], "/c/default/")
     test (Some "/c/start error/") RestorePrevious "/c/default" history
     |> assertAreEqual { Start = expectedStart; Back = None; Error = Some (openPathError "/c/start error/") }
 
@@ -77,7 +77,7 @@ let ``When default path errors or is not configured then opens prev and back is 
         if isDefaultError
         then (DefaultPath, "/c/error/", Some (openPathError "/c/error/"))
         else (RestorePrevious, "/c/default", None)
-    test None configPath defaultPath ["/c/prev"; "/c/prev2"]
+    test None configPath defaultPath ["/c/prev/"; "/c/file"; "/c/prev2/"]
     |> assertAreEqual { Start = "/c/prev/"; Back = Some "/c/prev2/"; Error = expectedError }
 
 [<Test>]
@@ -87,20 +87,20 @@ let ``When default path errors and no history then opens root and back is empty`
 
 [<Test>]
 let ``When prev path errors then opens default and back is prev`` () =
-    test None RestorePrevious "/c/default/" ["/c/prev error"; "/c/prev2"]
-    |> assertAreEqual { Start = "/c/default/"; Back = Some "/c/prev error/"; Error = Some (openPathError "/c/prev error") }
+    test None RestorePrevious "/c/default/" ["/c/prev error/"; "/c/prev2/"]
+    |> assertAreEqual { Start = "/c/default/"; Back = Some "/c/prev error/"; Error = Some (openPathError "/c/prev error/") }
 
 [<Test>]
 let ``When all paths error then opens root and back is prev`` () =
-    test (Some "/c/start error/") DefaultPath "/c/default error" ["/c/prev error"; "/c/prev2"]
+    test (Some "/c/start error/") DefaultPath "/c/default error" ["/c/prev error/"; "/c/prev2/"]
     |> assertAreEqual { Start = "/"; Back = Some "/c/prev error/"; Error = Some (openPathError "/c/start error/") }
 
 [<Test>]
 let ``When start is same as prev path then opens start and back is prev2`` () =
-    test (Some "/c/start") DefaultPath "/c/default" ["/c/Start"; "/c/prev2/"]
+    test (Some "/c/start") DefaultPath "/c/default" ["/c/Start/"; "/c/prev2/"]
     |> assertAreEqual { Start = "/c/start/"; Back = Some "/c/prev2/"; Error = None }
 
 [<Test>]
 let ``When default is same as prev path then opens default and back is prev2`` () =
-    test None DefaultPath "/c/default" ["/c/Default"; "/c/prev2"]
+    test None DefaultPath "/c/default" ["/c/Default/"; "/c/prev2/"]
     |> assertAreEqual { Start = "/c/default/"; Back = Some "/c/prev2/"; Error = None }

@@ -178,12 +178,10 @@ let seqResult handler (model: MainModel) =
     ) |> Async.RunSynchronously
 
 let createPath pathStr =
-    match Path.Parse pathStr with
-    | Some p -> p
-    | None -> failwithf "Invalid path: %s" pathStr
+    Path.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
 
-let createHistoryPath p =
-    { PathValue = createPath p; IsDirectory = true }
+let createHistoryPath pathStr =
+    HistoryPath.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
 
 let createFile pathStr =
     let path = createPath pathStr

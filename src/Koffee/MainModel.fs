@@ -587,7 +587,8 @@ with
     override this.GetHashCode () = this.PathValue.GetHashCode()
 
     static member Parse str =
-        Path.Parse str |> Option.map (fun path -> { PathValue = path; IsDirectory = str.EndsWith @"\" })
+        Path.Parse str
+        |> Option.map (fun path -> { PathValue = path; IsDirectory = str.EndsWith @"\" || str.EndsWith "/" })
 
 type History = {
     Paths: HistoryPath list

@@ -1,0 +1,80 @@
+# Cases
+- cancel move or undo or redo move of enumerated folder, dest did not exist
+    this will result in both an undo and redo item with the same source and dest but different actual items
+    afterward, undo and redo should be able to resume moving one way or another
+    - undo would:
+        - check each item moved (actual) to see if original path is occupied and if so creates an error for that item only
+        - GOOD this should work fine without setting DestExists
+    - redo would (applies to cancelled redo and cancelled undo):
+        - top-level redo Put checks intent source path, returns CannotRedoPutToExisting if exists
+        - need to figure out strategy to avoid this error after cancelled operation...
+    strategy for redo:
+    1. set DestExists to true
+        - redo would overwrite when not originally intended
+            - for example, a program re-creates file that was moved. This new one would be lost if overwriting.
+            - this is an edge case, and chances are that it wouldn't be a big deal... but then again it might
+    2. for cancelled op, allow overwrite for cancelled operation
+        - detect cancelled operation: undo item has same path as redo item
+        - this is more elegant because we're not artificially modifying redo items
+        - but this has the same risk of data loss. Example: move folder, undo move and cancel. If a file that was
+            originally moved but not moved back is recreated, a redo would overwrite the original one - not good!
+    3. for cancelled op, allow merge but don't overwrite
+        - conflicts would result in individual item errors which would be good and consistent with undo
+        - this would stay closest to current behavior and be perhaps the most intuitive
+        - requires _another_ param or refactor?
+    4. for cancelled op, move actual items in redo item to properly resume original operation
+        - detect cancelled operation: undo item has same path as redo item
+        - if files were created in the source folder since cancellation, this would result in a non-empty source
+            folder... but that's okay and even desirable!
+            - test that the above situation does not result in an error
+        - should it overwrite?
+            - this would risk unintended overwrite when a file is created externally in a dest path that conflicts
+                - this seems _very_ unlikely and the file lost is the new one
+            - let's not. A little extra code to check paths like undoMove to avoid any unintended data loss would be better
+    5. change redo to always put items from actual instead of intent, give item errors instead of overwriting
+        - it could work similar to undoMove and check items, give enumErrors for moves that are blocked by existing
+        - overall, this might simplify the logic the most. The weirdness is coming from redo involving more files than
+            the original operation and basically re-performing the intent instead of actually redoing the exact same thing
+        - on the other hand, we could also get weirdness from using actual when those files are moved/renamed. This is
+            just the same problem that undo already has though
+        - this would affect redoing completed move/copy operations though which I expect to be far more common than
+            cancel or partial success. If a file is created in the source and I redo, I would be surprised if it's not
+            included. Especially since it would be if the folder is not enumerated
+    DECISION: #3
+    - what about partial success on undo??
+        - create split undo item like cancellation?
+            - should do this if move was partial success AND cancelled
+            - otherwise, can't do this because errors could be unavoidable which would block the undo stack
+        strategy for redo:
+        1. set DestExists to true
+            - redo would overwrite when not originally intended, but an overwrite would be a very rare edge case - it
+                would require partial failure on undo move, then a file externally created in source with same name as
+                item in dest before redoing, and even that might be an intended overwrite
+        DECISION: keep as is, setting DestExists to true. Can't think of a better way to solve
+
+- cancel move or redo move enumerated folder, dest existed
+    strategy for redo:
+    1. just overwrite - the intent was to merge and overwrite anyway
+    2. overwrite only items that originally existed?
+        - return item errors for conflicts when item DestExists = false
+    DECISION: #1
+
+- cancel copy or undo or redo copy of enumerated folder
+    - undo would just delete copies that hadn't been deleted yet
+    - redo would return CannotRedoPutToExisting error
+        it should be able to resume copying instead
+    strategy for redo:
+    1. set DestExists to true
+        - this would overwrite when not originally intended... but maybe it would be intended? The only case where
+            something would be overwritten is if an item with the same name was created in the dest externally, which
+            seems unlikely
+    2. for cancelled op, copy actual items in redo item to properly resume original operation
+        - check dest paths and return errors for those, same as undoMove
+    3. allow merge of folder, but don't overwrite - return individual error items like undoMove
+        - consistent with #3 for move
+    DECISION: #3
+
+These give errors:
+- undo move item, item exists in original location
+- redo move item, item exists in dest this time but not originally
+- redo copy item, item exists in dest this time but not originally

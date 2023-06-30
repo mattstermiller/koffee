@@ -587,9 +587,11 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         let model = { model with RedoStack = rest }
         if iter < model.RepeatCount then
             yield! redoIter (iter + 1) fs progress model
-        else
+        else if not model.IsStatusError then
             let redoneAction = model.UndoStack |> List.tryHead |? action
             yield model.WithMessage (MainStatus.RedoAction (redoneAction, model.PathFormat, model.RepeatCount))
+        else
+            yield model
     | [] -> return MainStatus.NoRedoActions
 }
 

@@ -147,6 +147,85 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
             createHistoryPath (string dest.Path)
     ])
 
+[<TestCase(false, false)>]
+[<TestCase(true, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, true)>]
+let ``Put or redo put folder handles partial success by updating undo and setting error message``
+        (copy: bool) (isRedo: bool) =
+    let fs = FakeFileSystem [
+        folder "dest" [
+            folder "other" []
+            folder "src" []
+        ]
+        folder "src" [
+            file "file"
+            file "unmovable"
+        ]
+    ]
+    let src = fs.Item "/c/src"
+    let dest = fs.Item "/c/dest"
+    let errorItem = createFile "/c/src/unmovable"
+    fs.AddExn true ex "/c/dest/src/unmovable"
+    let putType = if copy then Copy else Move
+    let putItem = { Item = src; Dest = dest.Path.Join src.Name; DestExists = true }
+    let model =
+        testModel
+        |> withLocation "/c/dest"
+        |> if isRedo
+            then pushRedo (PutItems (putType, putItem, []))
+            else withReg (Some (src.Path, src.Type, putType))
+        |> withPathHistory [
+            "/c/src/file"
+            "/c/dest2/unrelated"
+            "/c/src/unmovable"
+            "/c/src/"
+        ]
+    let testFunc =
+        if isRedo
+        then Action.redo fs progress
+        else Action.put fs progress true
+
+    let actual = seqResult testFunc model
+
+    let expectedPut = [{ Item = createFile "/c/src/file"; Dest = createPath "/c/dest/src/file"; DestExists = false }]
+    let expectedAction = PutItems (putType, putItem, expectedPut)
+    let expectedItems = [
+        createFolder "/c/dest/other"
+        createFolder "/c/dest/src"
+    ]
+    let expectedError = MainStatus.PutError (false, putType, [(errorItem, ex)], 2)
+    let expected =
+        { testModel with
+            Directory = expectedItems |> sortByPath
+            Items = expectedItems
+            Cursor = 1
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = if isRedo then testModel.RedoStack else []
+        }.WithLocation(dest.Path).WithError(expectedError)
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        folder "dest" [
+            folder "other" []
+            folder "src" [
+                file "file"
+            ]
+        ]
+        folder "src" [
+            if copy then
+                file "file"
+            file "unmovable"
+        ]
+    ]
+    actual |> assertPathHistoryEqual [
+        createHistoryPath "/c/dest/"
+        if copy then
+            model.History.Paths.[0]
+        else
+            createHistoryPath "/c/dest/src/file"
+        yield! model.History.Paths.[1..3]
+    ]
+
 [<Test>]
 let ``Put item to move in same folder returns error``() =
     let fs = FakeFileSystem [
@@ -310,69 +389,6 @@ let ``Put folder to move deletes source folder after enumerated move and updates
         model.History.Paths.[1]
         createHistoryPath "/c/dest/src/folder/"
         createHistoryPath "/c/dest/src/"
-    ]
-
-[<Test>]
-let ``Put folder to move handles partial success by updating undo and setting error message``() =
-    let fs = FakeFileSystem [
-        folder "dest" [
-            folder "other" []
-            folder "src" []
-        ]
-        folder "src" [
-            file "file"
-            file "unmovable"
-        ]
-    ]
-    let errorItem = createFile "/c/src/unmovable"
-    fs.AddExnPath true ex errorItem.Path
-    let src = fs.Item "/c/src"
-    let dest = fs.Item "/c/dest"
-    let model =
-        testModel
-        |> withLocation "/c/dest"
-        |> withReg (Some (src.Path, src.Type, Move))
-        |> withPathHistory [
-            "/c/src/file"
-            "/c/dest2/unrelated"
-            "/c/src/unmovable"
-            "/c/src/"
-        ]
-
-    let actual = seqResult (Action.put fs progress true) model
-
-    let intent = { Item = src; Dest = dest.Path.Join src.Name; DestExists = true }
-    let expectedPut = [{ Item = createFile "/c/src/file"; Dest = createPath "/c/dest/src/file"; DestExists = false }]
-    let expectedAction = PutItems (Move, intent, expectedPut)
-    let expectedItems = [
-        createFolder "/c/dest/other"
-        createFolder "/c/dest/src"
-    ]
-    let expectedError = MainStatus.PutError (false, Move, [(errorItem, ex)], 2)
-    let expected =
-        { testModel with
-            Directory = expectedItems |> sortByPath
-            Items = expectedItems
-            Cursor = 1
-            UndoStack = expectedAction :: testModel.UndoStack
-            RedoStack = []
-        }.WithLocation(dest.Path).WithError(expectedError)
-    assertAreEqual expected actual
-    fs.ItemsShouldEqual [
-        folder "dest" [
-            folder "other" []
-            folder "src" [
-                file "file"
-            ]
-        ]
-        folder "src" [
-            file "unmovable"
-        ]
-    ]
-    actual |> assertPathHistoryEqual [
-        createHistoryPath "/c/dest/"
-        createHistoryPath "/c/dest/src/file"
-        yield! model.History.Paths.[1..3]
     ]
 
 // undo move tests

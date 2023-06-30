@@ -109,6 +109,16 @@ type ItemComparer() as this =
         | _ ->
             comparer.CompareType parms
 
+type DifferentStatusTypeComparer() as this =
+    inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
+
+    override _.IsTypeMatch(type1, type2) =
+        [type1; type2] |> List.forall (fun t -> t.BaseType = typeof<MainStatus.StatusType>)
+        && type1 <> type2
+
+    override _.CompareType parms =
+        this.AddDifference parms
+
 let getNonFieldNames<'a> () =
     let t = typeof<'a>
     let props = t.GetProperties() |> Array.map (fun p -> p.Name)
@@ -129,6 +139,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
         FSharpListComparer()
         PathComparer()
         ItemComparer()
+        DifferentStatusTypeComparer()
     ])
     comparer.Config.MembersToIgnore.AddRange(seq {
         yield! getNonFieldNames<Item>()

@@ -567,18 +567,19 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                 yield! rename fs item newName model
             | PutItems (putType, intent, _) ->
                 let! model = goToPath intent.Dest
-                match! fs.GetItem intent.Dest |> actionError "check destination path" with
-                | Some existing when not intent.DestExists ->
-                    yield Nav.select (SelectItem (existing, true)) model
-                    return MainStatus.CannotRedoPutToExisting (putType, intent.Item, intent.Dest.Format model.PathFormat)
-                | _ ->
-                    match putType with
-                    | Move ->
-                        yield model.WithBusy (MainStatus.RedoingMovingItem (intent, model.PathFormat))
-                    | Copy ->
-                        yield model.WithBusy (MainStatus.RedoingCopyingItem (intent, model.PathFormat))
-                    | _ -> ()
-                    yield! putItem fs progress intent.DestExists intent.Item putType model
+                if not intent.DestExists then
+                    match! fs.GetItem intent.Dest |> actionError "check destination path" with
+                    | Some existing ->
+                        yield Nav.select (SelectItem (existing, true)) model
+                        return MainStatus.CannotRedoPutToExisting (putType, intent.Item, intent.Dest.Format model.PathFormat)
+                    | None -> ()
+                match putType with
+                | Move ->
+                    yield model.WithBusy (MainStatus.RedoingMovingItem (intent, model.PathFormat))
+                | Copy ->
+                    yield model.WithBusy (MainStatus.RedoingCopyingItem (intent, model.PathFormat))
+                | _ -> ()
+                yield! putItem fs progress intent.DestExists intent.Item putType model
             | DeletedItem (item, permanent) ->
                 let! model = goToPath item.Path
                 yield model.WithBusy (MainStatus.RedoingDeletingItem (item, permanent))

@@ -46,7 +46,7 @@ let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel
         | Some path ->
             match! fs.GetItem path |> actionError "drop item" with
             | Some item ->
-                yield! Action.putItem fs progress false item putType model
+                yield! Action.putInLocation fs progress false false putType item model
             | None -> ()
         | None -> ()
     | None -> ()

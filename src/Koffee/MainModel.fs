@@ -160,6 +160,9 @@ type PutItem = {
     DestExists: bool
 }
 with
+    static member intentEquals (a: PutItem) (b: PutItem) =
+        a.Item.Path = b.Item.Path && a.Dest = b.Dest
+
     static member reverse putItem =
         let newItem = { putItem.Item with Path = putItem.Dest; Name = putItem.Dest.Name }
         { Item = newItem; Dest = putItem.Item.Path; DestExists = putItem.DestExists }
@@ -175,14 +178,14 @@ with
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItems of PutType * intent: PutItem * actual: PutItem list
+    | PutItems of PutType * intent: PutItem * actual: PutItem list * cancelled: bool
     | DeletedItem of Item * permanent: bool
 with
     member this.Description pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Rename %s to %s" item.Description newName
-        | PutItems (putType, intent, actual) ->
+        | PutItems (putType, intent, actual, cancelled) ->
             let fileCountStr =
                 actual
                 |> Seq.filter (fun p -> p.Item.Type = File)
@@ -209,7 +212,10 @@ type InputError =
         | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
 
 type UndoMoveBlockedByExistingItemException() =
-    inherit exn("An item exists in the previous location")
+    inherit exn("An item already exists in the previous location")
+
+type RedoPutBlockedByExistingItemException() =
+    inherit exn("An item already exists in the destination")
 
 [<RequireQualifiedAccess>]
 module MainStatus =
@@ -219,11 +225,11 @@ module MainStatus =
             sprintf "Created %s" item.Description
         | RenamedItem (item, newName) ->
             sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItems (Move, item, _) ->
+        | PutItems (Move, item, _, _) ->
             sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, item, _) ->
+        | PutItems (Copy, item, _, _) ->
             sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Shortcut, {Item = item}, _) ->
+        | PutItems (Shortcut, {Item = item}, _, _) ->
             sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
         | DeletedItem (item, false) ->
             sprintf "Sent %s to Recycle Bin" item.Description
@@ -245,6 +251,7 @@ module MainStatus =
         | UndoAction of ItemAction * PathFormat * repeatCount: int
         | RedoAction of ItemAction * PathFormat * repeatCount: int
         | CancelledConfirm of ConfirmType
+        | CancelledPut of PutType * isUndo: bool * completed: int * total: int
         | CancelledDelete of permanent: bool * completed: int * total: int
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
@@ -302,6 +309,15 @@ module MainStatus =
                     | OverwriteBookmark _ -> sprintf "overwrite bookmark"
                     | OverwriteSavedSearch _ -> sprintf "overwrite saved search"
                 sprintf "Cancelled %s" action
+            | CancelledPut (putType, isUndo, completed, total) ->
+                let undo = if isUndo then "undo of " else ""
+                let putTypeName = string putType |> String.toLower
+                let action =
+                    match putType, isUndo with
+                    | Move, _ -> "moved"
+                    | _, false -> "copied"
+                    | _, true -> "deleted"
+                sprintf "Cancelled %s%s - %s" undo putTypeName (this.DescribeCancelledProgress action completed total)
             | CancelledDelete (permanent, completed, total) ->
                 let action = if permanent then "delete" else "recycle"
                 sprintf "Cancelled %s - %s" action (this.DescribeCancelledProgress (action+"d") completed total)
@@ -643,7 +659,10 @@ with
             match pathMap |> Map.tryPick (fun oldPath newPath -> hp.PathValue.TryReplace oldPath newPath) with
             | Some path -> { hp with PathValue = path }
             | None -> hp
-        { this with Paths = this.Paths |> List.map replaceOld }
+        { this with Paths = this.Paths |> List.map replaceOld |> List.distinct }
+
+    member this.WithPathsRemoved (paths: Path list) =
+        { this with Paths = this.Paths |> List.filter (fun hp -> not (paths |> List.exists hp.PathValue.IsWithin)) }
 
     member this.WithPathRemoved (path: Path) =
         if path.IsNetHost
@@ -733,7 +752,7 @@ type MainModel = {
             this.Location.Name |> String.ifEmpty this.LocationFormatted
 
     // TODO: refactor all "with" members to module functions
-    // Try using a pipeIf function when doing this, maybe |>? operator, or good ol if/else
+    // try using an "applyIf" function when doing this? Not sure if that has value
     member this.WithLocation path =
         { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
 
@@ -751,8 +770,24 @@ type MainModel = {
             }
         else this
 
+    static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
+        match actionStack with
+        | PutItems (putType1, intent1, actual1, cancelled1) ::
+          PutItems (putType2, intent2, actual2, true) :: tail
+                when putType1 = putType2 && PutItem.intentEquals intent1 intent2 ->
+            // take distinct items by path, keeping the newer items
+            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Item.Path) |> List.rev
+            PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
+        | DeletedItem (item1, true) :: DeletedItem (item2, true) :: _ when item1.Path = item2.Path ->
+            actionStack.Tail
+        | _ ->
+            actionStack
+
     member this.WithPushedUndo action =
-        { this with UndoStack = action :: this.UndoStack |> List.truncate this.Config.Limits.Undo }
+        { this with UndoStack = action :: this.UndoStack |> MainModel.mergeActionsWithSameIntent |> List.truncate this.Config.Limits.Undo }
+
+    member this.WithPushedRedo action =
+        { this with RedoStack = action :: this.RedoStack |> MainModel.mergeActionsWithSameIntent }
 
     member this.WithNewCancelToken () = { this with CancelToken = CancelToken() }
 
@@ -770,7 +805,7 @@ type MainModel = {
     member this.ItemsOrEmpty =
         Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
 
-    member private this.WithStatus status =
+    member this.WithStatus status =
         { this with
             Status = Some status
             StatusHistory =
@@ -803,6 +838,7 @@ type MainModel = {
 
     member this.IsStatusCancelled =
         match this.Status with
+        | Some (MainStatus.Message (MainStatus.CancelledPut _))
         | Some (MainStatus.Message (MainStatus.CancelledDelete _)) -> true
         | _ -> false
 

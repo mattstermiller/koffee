@@ -150,7 +150,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         | 'y' ->
             match confirmType with
             | Overwrite (putType, src, _) ->
-                let! model = Action.putItem fs progress true src putType model
+                let! model = Action.putInLocation fs progress false true putType src model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
                 yield! Action.delete fs progress model.SelectedItem model

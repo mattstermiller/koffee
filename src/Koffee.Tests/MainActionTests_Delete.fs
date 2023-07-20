@@ -1,4 +1,4 @@
-﻿module Koffee.MainActionTests_Delete
+module Koffee.MainActionTests_Delete
 
 open NUnit.Framework
 open FsUnitTyped
@@ -63,7 +63,12 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
         ]
     ]
     let item = fs.Item "/c/file"
-    let model = testModelFromFs fs |> withPathHistory ["/c/folder2/unrelated"; "/c/file"]
+    let model =
+        testModelFromFs fs
+        |> withHistoryPaths (historyPaths {
+            "/c/folder2/unrelated"
+            item
+        })
 
     let testFunc = if permanent then Action.delete fs progress else Action.recycle fs
     let actual = seqResult (testFunc item) model
@@ -79,13 +84,13 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             CancelToken = CancelToken()
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
+    actual |> assertHistoryPathsEqual (model.History.Paths |> List.take 1)
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [
             file "other"
         ]
     ]
     fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
-    actual |> assertPathHistoryEqual (model.History.Paths |> List.take 1)
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -103,12 +108,13 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
         ]
     ]
     let item = fs.Item "/c/folder"
-    let pathHistory = [
-        "/c/folder2/unrelated"
-        "/c/folder"
-        "/c/folder/sub/sub file"
-    ]
-    let model = testModelFromFs fs |> withPathHistory pathHistory
+    let model =
+        testModelFromFs fs
+        |> withHistoryPaths (historyPaths {
+            "/c/folder2/unrelated"
+            item
+            "/c/folder/sub/sub file"
+        })
 
     let testFunc = if permanent then Action.delete fs progress else Action.recycle fs
     let actual = seqResult (testFunc item) model
@@ -124,13 +130,13 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             CancelToken = CancelToken()
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
+    actual |> assertHistoryPathsEqual (model.History.Paths |> List.take 1)
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [
             file "other"
         ]
     ]
     fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
-    actual |> assertPathHistoryEqual (model.History.Paths |> List.take 1)
 
 // TODO: When implementing multi-select, extend or write similar test to cover canceling a recycle operation
 [<TestCase(false)>]

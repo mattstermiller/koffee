@@ -23,7 +23,10 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             Directory = items
             Items = items
             Cursor = 1
-        } |> withPathHistory ["/c/unrelated/file"; "/c/my file"]
+        } |> withHistoryPaths (historyPaths {
+            "/c/unrelated/file"
+            item
+        })
 
     let actual = Action.rename fs item renamed.Name model
                  |> assertOk
@@ -43,14 +46,14 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             RedoStack = []
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
+    actual |> assertHistoryPathsEqual (historyPaths {
+        model.History.Paths.[0]
+        newPath
+    })
     fs.ItemsShouldEqual [
         file "another"
         file renamed.Name
         file "nacho file"
-    ]
-    actual |> assertPathHistoryEqual [
-        model.History.Paths.[0]
-        createHistoryPath newPath
     ]
 
 [<Test>]
@@ -71,11 +74,11 @@ let ``Rename folder calls file sys move and updates history`` () =
             Directory = items
             Items = items
             Cursor = 1
-        } |> withPathHistory [
+        } |> withHistoryPaths (historyPaths {
             "/c/folder/your file"
             "/c/unrelated/file"
-            "/c/folder/"
-        ]
+            item
+        })
 
     let actual = Action.rename fs item renamed.Name model
                  |> assertOk
@@ -94,17 +97,17 @@ let ``Rename folder calls file sys move and updates history`` () =
             RedoStack = []
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
+    actual |> assertHistoryPathsEqual (historyPaths {
+        newPath + "your file"
+        model.History.Paths.[1]
+        newPath
+    })
     fs.ItemsShouldEqual [
         folder "another" []
         folder "renamed" [
             file "my file"
             file "your file"
         ]
-    ]
-    actual |> assertPathHistoryEqual [
-        createHistoryPath (newPath + "your file")
-        model.History.Paths.[1]
-        createHistoryPath newPath
     ]
 
 [<Test>]
@@ -199,7 +202,10 @@ let ``Undo rename file changes name back to original and updates history`` curPa
         testModel
         |> withLocation location
         |> pushUndo action
-        |> withPathHistory ["/c/unrelated/file"; string current.Path]
+        |> withHistoryPaths (historyPaths {
+            "/c/unrelated/file"
+            current
+        })
 
     let actual = seqResult (Action.undo fs progress) model
 
@@ -216,14 +222,14 @@ let ``Undo rename file changes name back to original and updates history`` curPa
         }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
         |> withBackIf curPathDifferent (model.Location, 0)
     assertAreEqual expected actual
+    actual |> assertHistoryPathsEqual (historyPaths {
+        previous.Path.Parent, true
+        model.History.Paths.[0]
+        previous
+    })
     fs.ItemsShouldEqual [
         file "another"
         file previous.Name
-    ]
-    actual |> assertPathHistoryEqual [
-        createHistoryPath "/c/"
-        model.History.Paths.[0]
-        createHistoryPath (string previous.Path)
     ]
 
 [<Test>]
@@ -238,11 +244,11 @@ let ``Undo rename folder changes name back to original and updates history`` () 
     let model =
         testModel
         |> pushUndo action
-        |> withPathHistory [
-            "/c/renamed/file"
+        |> withHistoryPaths (historyPaths {
+            current.Path.Join "file", false
             "/c/unrelated/file"
-            "/c/renamed/"
-        ]
+            current
+        })
 
     let actual = seqResult (Action.undo fs progress) model
 
@@ -258,15 +264,15 @@ let ``Undo rename folder changes name back to original and updates history`` () 
             RedoStack = action :: model.RedoStack
         }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
     assertAreEqual expected actual
+    actual |> assertHistoryPathsEqual (historyPaths {
+        previous.Path.Parent, true
+        previous.Path.Join "file", false
+        model.History.Paths.[1]
+        previous
+    })
     fs.ItemsShouldEqual [
         folder "another" []
         folder "folder" []
-    ]
-    actual |> assertPathHistoryEqual [
-        createHistoryPath "/c/"
-        createHistoryPath "/c/folder/file"
-        model.History.Paths.[1]
-        createHistoryPath "/c/folder/"
     ]
 
 [<TestCase(false)>]

@@ -35,6 +35,11 @@ module Result =
         | Error e, _ -> Error e
         | _, Error e -> Error e
 
+    let inline ofErrorOption opt =
+        match opt with
+        | Some a -> Error a
+        | None -> Ok ()
+
 module FormatString =
     let date = "yyyy-MM-dd"
     let time = "HH:mm:ss"

@@ -101,13 +101,16 @@ _A capital letter indicates that the letter key is combined with Shift._
     2. Navigate to the destination folder and press `p` to move, copy, or create a shortcut of the item there.
         - A copy to the same folder will append "(copy)" to the name.
         - If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
+    3. You can cancel a move or copy in progress by pressing `Esc`. Performing a Redo (see below) will resume the action.
 - **Delete**
     - Press `Delete` to send the currently selected item to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.
     - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
+    - You can cancel a delete in progress by pressing `Esc`.
 - **Undo / Redo Action**
     - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
     - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
     - Press `gu` to display undo / redo history.
+    - You can cancel an undo or redo in progress by pressing `Esc`. You can resume the undo or redo by invoking it again.
 
 - **Copy to Clipboard**: Press `Ctrl + c` to copy the selected item to the Windows Clipboard.
     - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.

@@ -38,20 +38,17 @@ module FakeFileSystemErrors =
     let pathIsNotExpectedType (path: Path) (expectedType: ItemType) (actualType: ItemType) =
         exn (sprintf "Item at path \"%O\" was expected to be type %O but was %O" path expectedType actualType)
 
-    let pathAlreadyUsed (path: Path) =
-        exn ("Path already used: " + string path)
-
     let notAShortcut =
         exn "Not a shortcut"
+
+    let itemAlreadyExistsOnPath (path: Path) =
+        exn ("Item already exists on path: " + string path)
 
     let destPathParentDoesNotExist (path: Path) =
         exn ("Destination folder does not exist: " + string path)
 
     let destPathParentIsNotFolder (path: Path) =
         exn ("Destination path is not a folder: " + string path)
-
-    let destPathIsFolder (path: Path) =
-        exn ("Folder exists at destination path: " + string path)
 
     let cannotMoveNonEmptyFolderAcrossDrives =
         exn "Folder is not empty and cannot be moved to a different drive"
@@ -77,7 +74,7 @@ type FakeFileSystem(treeItems) =
 
     let checkPathNotUsed path =
         if items |> List.exists (fun i -> i.Path = path) then
-            Error (pathAlreadyUsed path)
+            Error (itemAlreadyExistsOnPath path)
         else
             Ok ()
 
@@ -218,7 +215,10 @@ type FakeFileSystem(treeItems) =
                 return! Error cannotMoveNonEmptyFolderAcrossDrives
             do! this.CheckDestParent toPath
             do! checkExn true toPath
-            remove toPath
+            if item.Type = Folder then
+                do! checkPathNotUsed toPath
+            else
+                remove toPath
             substitute item { item with Path = toPath; Name = toPath.Name }
 
             match shortcuts.TryGetValue fromPath with
@@ -238,7 +238,10 @@ type FakeFileSystem(treeItems) =
         do! this.CheckDestParent toPath
         if item.Type = Folder && hasChildren item.Path then
             return! Error cannotCopyNonEmptyFolder
-        remove toPath
+        if item.Type = Folder then
+            do! checkPathNotUsed toPath
+        else
+            remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
         items <- newItem :: items
         match shortcuts.TryGetValue fromPath with

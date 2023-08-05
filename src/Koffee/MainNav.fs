@@ -11,7 +11,11 @@ let select selectType (model: MainModel) =
         | SelectNone -> model.Cursor
         | SelectIndex index -> index
         | SelectName name ->
-            model.Items |> List.tryFindIndex (fun i -> String.equalsIgnoreCase i.Name name) |? model.Cursor
+            let matchFunc =
+                if name.Length = 2 && name.[1] = ':'
+                then String.startsWithIgnoreCase // if name is drive, use "starts with" because drives have labels
+                else String.equalsIgnoreCase
+            model.Items |> List.tryFindIndex (fun i -> matchFunc name i.Name) |? model.Cursor
         | SelectItem (item, _) ->
             model.Items |> List.tryFindIndex (fun i -> i.Path = item.Path) |? model.Cursor
     )

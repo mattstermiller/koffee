@@ -4,32 +4,62 @@ open System.Collections.Generic
 open Acadian.FSharp
 
 type TreeItem =
-    | TreeFile of string * (Item -> Item)
-    | TreeFolder of string * TreeItem list
-    | TreeDrive of char * TreeItem list
-with
-    static member build items =
-        let rec build (path: Path) items =
-            items |> List.collect (fun item ->
-                match item with
-                | TreeFile (name, transform) ->
-                    Item.Basic (path.Join name) name File |> transform |> List.singleton
-                | TreeFolder (name, items) ->
-                    let folder = Item.Basic (path.Join name) name Folder
-                    folder :: build folder.Path items
-                | TreeDrive (name, _) when path <> Path.Root ->
-                    failwithf "Drive '%O' is invalid because it is not at root level" name
-                | TreeDrive (name, items) ->
-                    let name = string name |> String.toUpper
-                    let path = "/" + name |> Path.Parse |> Option.get
-                    let drive = Item.Basic path name Drive
-                    drive :: build drive.Path items
-            )
-        if items |> List.forall (function TreeDrive _ -> true | _ -> false) then
-            build Path.Root items
-        else
-            let path = Path.Parse "/c" |> Option.get
-            Item.Basic path "C" Drive :: build path items
+    | TreeFile of name: string * transform: (Item -> Item)
+    | TreeFolder of name: string * TreeItem list
+    | TreeDrive of driveLetter: char * TreeItem list
+
+[<AutoOpen>]
+module FakeFileSystem =
+    let createPath pathStr =
+        Path.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
+
+    let createFile pathStr =
+        let path = createPath pathStr
+        Item.Basic path path.Name File
+
+    let createFolder pathStr =
+        let path = createPath pathStr
+        let name = if path.Name |> String.isNotEmpty then path.Name else string path |> String.substring 0 1
+        Item.Basic path name Folder
+
+    let createDrive (driveLetter: char) =
+        let name = driveLetter |> string |> String.toUpper |> fun l -> l + ":"
+        Item.Basic (createPath name) (name + " Hard Drive") Drive
+
+    let file name = TreeFile (name, id)
+    let fileWith transform name = TreeFile (name, transform)
+    let folder name items = TreeFolder (name, items)
+    let drive name items = TreeDrive (name, items)
+
+    let size value (item: Item) = { item with Size = Some value }
+    let modifiedOpt opt (item: Item) = { item with Modified = opt }
+    let modified value item = modifiedOpt (Some value) item
+    let hide value item = { item with IsHidden = value }
+
+    let sortByPath items =
+        items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
+
+    type TreeItem with
+        static member build items =
+            let rec build (path: Path) items =
+                items |> List.collect (fun item ->
+                    match item with
+                    | TreeFile (name, transform) ->
+                        Item.Basic (path.Join name) name File |> transform |> List.singleton
+                    | TreeFolder (name, items) ->
+                        let folder = Item.Basic (path.Join name) name Folder
+                        folder :: build folder.Path items
+                    | TreeDrive (name, _) when path <> Path.Root ->
+                        failwithf "Drive '%O' is invalid because it is not at root level" name
+                    | TreeDrive (driveLetter, items) ->
+                        let drive = createDrive driveLetter
+                        drive :: build drive.Path items
+                )
+            if items |> List.forall (function TreeDrive _ -> true | _ -> false) then
+                build Path.Root items
+            else
+                let path = Path.Parse "/c" |> Option.get
+                Item.Basic path "C" Drive :: build path items
 
 module FakeFileSystemErrors =
     let pathDoesNotExist (path: Path) =
@@ -98,7 +128,7 @@ type FakeFileSystem(treeItems) =
     let hasChildren path =
         items |> List.exists (fun i -> i.Path.Parent = path)
 
-    member this.Items = items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
+    member this.Items = items |> sortByPath
 
     member this.ItemsIn path =
         items |> List.filter (fun i -> i.Path.Parent = path)
@@ -153,11 +183,8 @@ type FakeFileSystem(treeItems) =
 
     member this.GetItems path = result {
         callsToGetItems <- callsToGetItems + 1
-        if path = Path.Root then
-            return [Item.Basic (Path.Parse "C:").Value "C:" Drive]
-        else
-            do! checkExn false path
-            return this.Items |> List.filter (fun i -> i.Path.Parent = path)
+        do! checkExn false path
+        return this.Items |> List.filter (fun i -> i.Path.Parent = path)
     }
 
     member this.GetFolders path =

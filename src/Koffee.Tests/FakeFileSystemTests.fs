@@ -25,10 +25,10 @@ let ``Creating with drives creates correct paths`` () =
         ]
     ]
     fs.ItemsShouldEqualList [
-        Item.Basic (createPath "/c") "C" Drive
+        createDrive 'c'
         createFolder "/c/folder"
         createFile "/c/folder/file"
-        Item.Basic (createPath "/d") "D" Drive
+        createDrive 'd'
         createFolder "/d/backup"
     ]
 
@@ -63,6 +63,21 @@ let ``GetItems on folder returns items`` () =
     fs.GetItems (createPath "/c") |> shouldEqual (Ok [
         createFolder "/c/programs"
         createFile "/c/readme.md"
+    ])
+
+[<Test>]
+let ``GetItems on root returns drives`` () =
+    let fs = FakeFileSystem [
+        drive 'c' [
+            folder "folder" [
+                file "file"
+            ]
+        ]
+        drive 'd' []
+    ]
+    fs.GetItems Path.Root |> shouldEqual (Ok [
+        createDrive 'c'
+        createDrive 'd'
     ])
 
 [<Test>]

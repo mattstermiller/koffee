@@ -116,7 +116,9 @@ type Path private (path: string) =
         else (this.Format fmt |> String.replace (relativeTo.Format fmt) ".") + fmt.Separator
 
     member this.Name =
-        path |> IOPath.GetFileName
+        if path.Length = 3 && path.EndsWith @":\"
+        then path.Substring(0, 2)
+        else path |> IOPath.GetFileName
 
     member this.Extension =
         path |> IOPath.GetExtension |> String.trimStart [|'.'|]

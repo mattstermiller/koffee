@@ -90,3 +90,57 @@ let ``Opening a path that throws on GetItems sets error status only``() =
     test { GetPath = Inaccessible
            Select = SelectIndex 1
            ExpectedCursor = None }
+
+[<Test>]
+let ``Open Parent when in folder opens parent and selects folder that was open`` () =
+    let fs = FakeFileSystem [
+        folder "another" []
+        folder "folder" []
+    ]
+    let model =
+        { testModel with
+            Directory = []
+            Items = [Item.Empty]
+        }
+        |> withLocation "/c/folder"
+    let expectedItems = fs.ItemsIn "/c"
+
+    let actual = Nav.openParent fs model
+                 |> assertOk
+
+    let expected =
+        { testModel with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 1
+        }
+        |> withLocation "/c"
+        |> withBack (model.Location, 0)
+    assertAreEqual expected actual
+
+[<Test>]
+let ``Open Parent when in drive opens root and selects drive that was open`` () =
+    let fs = FakeFileSystem [
+        drive 'c' []
+        drive 'd' []
+    ]
+    let model =
+        { testModel with
+            Directory = []
+            Items = [Item.Empty]
+        }
+        |> withLocation "/d"
+    let expectedItems = fs.ItemsIn Path.Root
+
+    let actual = Nav.openParent fs model
+                 |> assertOk
+
+    let expected =
+        { testModel with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 1
+        }
+        |> withLocation "/"
+        |> withBack (model.Location, 0)
+    assertAreEqual expected actual

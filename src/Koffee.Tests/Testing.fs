@@ -192,37 +192,12 @@ let assertPathHistoryEqual (expectedHistoryPaths: HistoryPath list) model =
     let fmt (hp: HistoryPath) = hp.Format Unix
     model.History.Paths |> List.map fmt |> shouldEqual (expectedHistoryPaths |> List.map fmt)
 
-let createPath pathStr =
-    Path.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
-
 let createHistoryPath pathStr =
     HistoryPath.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
 
 let withPathHistory pathStrs model =
     let paths = pathStrs |> List.map createHistoryPath
     { model with History = { History.Default with Paths = paths } }
-
-let createFile pathStr =
-    let path = createPath pathStr
-    Item.Basic path path.Name File
-
-let createFolder pathStr =
-    let path = createPath pathStr
-    let name = if path.Name |> String.isNotEmpty then path.Name else string path |> String.substring 0 1
-    Item.Basic path name Folder
-
-let file name = TreeFile (name, id)
-let fileWith transform name = TreeFile (name, transform)
-let folder name items = TreeFolder (name, items)
-let drive name items = TreeDrive (name, items)
-
-let size value (item: Item) = { item with Size = Some value }
-let modifiedOpt opt (item: Item) = { item with Modified = opt }
-let modified value item = modifiedOpt (Some value) item
-let hide value item = { item with IsHidden = value }
-
-let sortByPath items =
-    items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
 
 type FakeFileSystem with
     member this.ItemsIn path =
@@ -240,12 +215,11 @@ type FakeFileSystem with
         let treeStr (items: Item list) =
             items
             |> List.map (fun item ->
-                let suffix =
+                let name =
                     match item.Type with
-                    | Folder -> @"\"
-                    | Drive -> @":\"
-                    | _ -> ""
-                String(' ', 2 * nestLevel 0 item.Path) + item.Name + suffix
+                    | Folder | Drive -> item.Name + @"\"
+                    | _ -> item.Name
+                String(' ', 2 * nestLevel 0 item.Path) + name
             )
             |> String.concat "\n"
             |> sprintf "\n%s\n"
@@ -261,6 +235,7 @@ let withBackIf condition (path, cursor) model =
         { model with BackStack = (path, cursor) :: model.BackStack; ForwardStack = [] }
     else
         model
+let withBack (path, cursor) model = withBackIf true (path, cursor) model
 let pushUndo action model = { model with UndoStack = action :: model.UndoStack }
 let pushRedo action model = { model with RedoStack = action :: model.RedoStack }
 let popUndo model = { model with UndoStack = model.UndoStack.Tail }

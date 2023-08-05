@@ -94,6 +94,12 @@ let ``Parse returns None for invalid paths`` input =
     input |> Path.Parse |> shouldEqual None
 
 
+[<TestCase("/c", "C:")>]
+[<TestCase("/c/file", "file")>]
+[<TestCase("/net", "Network")>]
+let ``Name returns expected value`` pathStr expected =
+    (createPath pathStr).Name |> shouldEqual expected
+
 [<TestCase("", "")>]
 [<TestCase(@"C:\", "")>]
 [<TestCase(@"C:\test", @"C:\")>]

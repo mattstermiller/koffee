@@ -28,6 +28,13 @@ module String =
     let readableIdentifier str =
         Regex.Replace(str, @"(?<=[a-z])(?=[A-Z\d])", " ")
 
+module Result =
+    let inline map2 f a b =
+        match a, b with
+        | Ok x, Ok y -> Ok (f x y)
+        | Error e, _ -> Error e
+        | _, Error e -> Error e
+
 module FormatString =
     let date = "yyyy-MM-dd"
     let time = "HH:mm:ss"

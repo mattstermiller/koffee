@@ -827,11 +827,13 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
     let sameTimestamp = sameTimestamp |> Option.ofNullable
     let copyTime = sameTimestamp |> Option.map (fun same -> if same then time else time.AddDays(1.0))
     let fs = FakeFileSystem [
-        folder "other" []
-        folder "src" [
-            fileWith (modified time) "file"
+        driveWithSize 'c' 100L [
+            folder "other" []
+            folder "src" [
+                fileWith (modified time) "file"
+            ]
+            fileWith (modifiedOpt copyTime >> size 1L) "file"
         ]
-        fileWith (modifiedOpt copyTime >> size 1L) "file"
     ]
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"
@@ -855,9 +857,11 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
         }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "other" []
-        folder "src" [
-            fileWith (modified time) "file"
+        driveWithSize 'c' 100L [
+            folder "other" []
+            folder "src" [
+                fileWith (modified time) "file"
+            ]
         ]
     ]
     fs.RecycleBin |> shouldEqual [
@@ -869,22 +873,24 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
 [<TestCase(true)>]
 let ``Undo copy folder deletes items that were copied and removes dest folders if empty`` hasNewItem =
     let fs = FakeFileSystem [
-        folder "copied" [
-            folder "folder" [
-                file "sub"
-            ]
-            file "file"
-            file "other"
-        ]
-        folder "dest" [
+        driveWithSize 'c' 100L [
             folder "copied" [
                 folder "folder" [
                     file "sub"
                 ]
                 file "file"
-                if hasNewItem then
-                    file "new"
                 file "other"
+            ]
+            folder "dest" [
+                folder "copied" [
+                    folder "folder" [
+                        file "sub"
+                    ]
+                    file "file"
+                    if hasNewItem then
+                        file "new"
+                    file "other"
+                ]
             ]
         ]
     ]
@@ -908,32 +914,36 @@ let ``Undo copy folder deletes items that were copied and removes dest folders i
         }.WithMessage (MainStatus.UndoAction (action, testModel.PathFormat, 1))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "copied" [
-            folder "folder" [
-                file "sub"
-            ]
-            file "file"
-            file "other"
-        ]
-        folder "dest" [
-            if hasNewItem then
-                folder "copied" [
-                    file "new"
+        driveWithSize 'c' 100L [
+            folder "copied" [
+                folder "folder" [
+                    file "sub"
                 ]
+                file "file"
+                file "other"
+            ]
+            folder "dest" [
+                if hasNewItem then
+                    folder "copied" [
+                        file "new"
+                    ]
+            ]
         ]
     ]
 
 [<Test>]
 let ``Undo copy does nothing for items that were overwrites`` () =
     let fs = FakeFileSystem [
-        folder "copied" [
-            file "file"
-            file "other"
-        ]
-        folder "dest" [
+        driveWithSize 'c' 100L [
             folder "copied" [
                 file "file"
                 file "other"
+            ]
+            folder "dest" [
+                folder "copied" [
+                    file "file"
+                    file "other"
+                ]
             ]
         ]
     ]
@@ -956,13 +966,15 @@ let ``Undo copy does nothing for items that were overwrites`` () =
         }.WithMessage (MainStatus.UndoAction (action, testModel.PathFormat, 1))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "copied" [
-            file "file"
-            file "other"
-        ]
-        folder "dest" [
+        driveWithSize 'c' 100L [
             folder "copied" [
                 file "file"
+                file "other"
+            ]
+            folder "dest" [
+                folder "copied" [
+                    file "file"
+                ]
             ]
         ]
     ]
@@ -971,14 +983,16 @@ let ``Undo copy does nothing for items that were overwrites`` () =
 [<TestCase(true)>] // error is during deleting empty original destination folder
 let ``Undo copy handles partial success by updating undo and setting error message`` errorIsDeleteDest =
     let fs = FakeFileSystem [
-        folder "copied" [
-            file "file"
-            file "other"
-        ]
-        folder "dest" [
+        driveWithSize 'c' 100L [
             folder "copied" [
                 file "file"
                 file "other"
+            ]
+            folder "dest" [
+                folder "copied" [
+                    file "file"
+                    file "other"
+                ]
             ]
         ]
     ]
@@ -1011,14 +1025,16 @@ let ``Undo copy handles partial success by updating undo and setting error messa
         }.WithError expectedError
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "copied" [
-            file "file"
-            file "other"
-        ]
-        folder "dest" [
+        driveWithSize 'c' 100L [
             folder "copied" [
-                if not errorIsDeleteDest then
-                    file "file"
+                file "file"
+                file "other"
+            ]
+            folder "dest" [
+                folder "copied" [
+                    if not errorIsDeleteDest then
+                        file "file"
+                ]
             ]
         ]
     ]
@@ -1026,10 +1042,12 @@ let ``Undo copy handles partial success by updating undo and setting error messa
 [<Test>]
 let ``Undo copy item handles errors by returning error and consuming action`` () =
     let fs = FakeFileSystem [
-        folder "src" [
+        driveWithSize 'c' 100L [
+            folder "src" [
+                file "file"
+            ]
             file "file"
         ]
-        file "file"
     ]
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"

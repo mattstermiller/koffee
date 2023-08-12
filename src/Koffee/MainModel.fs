@@ -200,7 +200,6 @@ type SelectType =
     | SelectName of string
     | SelectItem of Item * showHidden: bool
 
-
 type InputError =
     | FindFailure of prefix: string
     | InvalidRegex of error: string
@@ -245,6 +244,8 @@ module MainStatus =
         | ActionComplete of ItemAction * PathFormat
         | UndoAction of ItemAction * PathFormat * repeatCount: int
         | RedoAction of ItemAction * PathFormat * repeatCount: int
+        | CancelledConfirm of ConfirmType
+        | CancelledDelete of permanent: bool * completed: int * total: int
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
         | OpenFile of name: string
@@ -254,7 +255,11 @@ module MainStatus =
         | OpenTextEditor of name: string
         | ClipboardCopy of path: string
         | RemovedNetworkHost of name: string
-        | Cancelled
+
+        member private this.DescribeCancelledProgress action completed total =
+            if completed = 0
+            then "nothing done"
+            else sprintf "%i of %i already %s" completed total action
 
         member this.Message =
             match this with
@@ -289,6 +294,17 @@ module MainStatus =
                     then "Action redone: "
                     else sprintf "%i actions redone. Last: " repeatCount
                 prefix + actionCompleteMessage action pathFormat
+            | CancelledConfirm confirmType ->
+                let action =
+                    match confirmType with
+                    | Delete -> "delete"
+                    | Overwrite _ -> "overwrite item"
+                    | OverwriteBookmark _ -> sprintf "overwrite bookmark"
+                    | OverwriteSavedSearch _ -> sprintf "overwrite saved search"
+                sprintf "Cancelled %s" action
+            | CancelledDelete (permanent, completed, total) ->
+                let action = if permanent then "delete" else "recycle"
+                sprintf "Cancelled %s - %s" action (this.DescribeCancelledProgress (action+"d") completed total)
             | Sort (field, desc) ->
                 sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
             | ToggleHidden showing ->
@@ -307,8 +323,6 @@ module MainStatus =
                 sprintf "Copied to clipboard: %s" path
             | RemovedNetworkHost name ->
                 sprintf "Removed network host: %s" name
-            | Cancelled ->
-                "Cancelled"
 
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutItem * PathFormat
@@ -334,7 +348,7 @@ module MainStatus =
             | PreparingPut (putType, name) ->
                 sprintf "Preparing to %O %s..." putType name
             | CheckingIsRecyclable ->
-                "Calculating size..."
+                "Determining if items will fit in Recycle Bin..."
             | PreparingDelete name ->
                 sprintf "Preparing to delete %s..." name
             | UndoingCreate item ->
@@ -662,8 +676,8 @@ type HistoryDisplayType =
 
 type CancelToken() =
     let mutable cancelled = false
-    member this.IsCancelled = cancelled
-    member this.Cancel () = cancelled <- true
+    member _.IsCancelled = cancelled
+    member _.Cancel () = cancelled <- true
 
 type MainModel = {
     Location: Path
@@ -687,13 +701,13 @@ type MainModel = {
     SearchInput: Search
     SearchCurrent: Search option
     SubDirectories: Item list option
-    SubDirectoryCancel: CancelToken
     SearchHistoryIndex: int option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
     ShowHistoryType: HistoryDisplayType option
     UndoStack: ItemAction list
     RedoStack: ItemAction list
+    CancelToken: CancelToken
     WindowLocation: int * int
     WindowSize: int * int
     SaveWindowSettings: bool
@@ -718,6 +732,8 @@ type MainModel = {
         else
             this.Location.Name |> String.ifEmpty this.LocationFormatted
 
+    // TODO: refactor all "with" members to module functions
+    // Try using a pipeIf function when doing this, maybe |>? operator, or good ol if/else
     member this.WithLocation path =
         { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
 
@@ -734,6 +750,11 @@ type MainModel = {
                 Cursor = 0
             }
         else this
+
+    member this.WithPushedUndo action =
+        { this with UndoStack = action :: this.UndoStack |> List.truncate this.Config.Limits.Undo }
+
+    member this.WithNewCancelToken () = { this with CancelToken = CancelToken() }
 
     member this.WithoutKeyCombo () =
         { this with KeyCombo = []; RepeatCommand = None }
@@ -780,6 +801,11 @@ type MainModel = {
         | Some (MainStatus.Error _) -> true
         | _ -> false
 
+    member this.IsStatusCancelled =
+        match this.Status with
+        | Some (MainStatus.Message (MainStatus.CancelledDelete _)) -> true
+        | _ -> false
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
@@ -802,13 +828,13 @@ type MainModel = {
         SearchInput = Search.Default
         SearchCurrent = None
         SubDirectories = None
-        SubDirectoryCancel = CancelToken()
         SearchHistoryIndex = None
         BackStack = []
         ForwardStack = []
         ShowHistoryType = None
         UndoStack = []
         RedoStack = []
+        CancelToken = CancelToken()
         WindowLocation = 0, 0
         WindowSize = 800, 800
         SaveWindowSettings = true

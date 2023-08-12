@@ -28,8 +28,9 @@ let filterByTerms sortByStartsWith caseSensitive search projection items =
             matches
     | None -> items
 
-let clearSearchProps model =
-    model.SubDirectoryCancel.Cancel()
+let clearSearchProps (model: MainModel) =
+    if model.IsSearchingSubFolders then
+        model.CancelToken.Cancel()
     { model with
         SearchCurrent = None
         SearchInput = Search.Default

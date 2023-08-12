@@ -11,8 +11,9 @@ type IFileSystemReader =
     abstract member GetItem: Path -> Result<Item option, exn>
     abstract member GetItems: Path -> Result<Item list, exn>
     abstract member GetFolders: Path -> Result<Item list, exn>
-    abstract member IsEmpty: Path -> bool
     abstract member GetShortcutTarget: Path -> Result<string, exn>
+    abstract member IsEmpty: Path -> bool
+    abstract member IsPathRecyclable: Path -> bool
 
 type IFileSystemWriter =
     abstract member Create: ItemType -> Path -> Result<unit, exn>
@@ -24,8 +25,9 @@ type IFileSystemWriter =
     /// Copies a file or empty folder.
     abstract member Copy: ItemType -> fromPath: Path -> toPath: Path -> Result<unit, exn>
 
-    /// Sends a file or folder and its contents to the recycle bin
-    abstract member Recycle: ItemType -> Path -> Result<unit, exn>
+    /// Sends a file or folder and its contents to the recycle bin.
+    /// totalSize is the size of the file or sum of all items contained in the folder.
+    abstract member Recycle: totalSize: int64 -> ItemType -> Path -> Result<unit, exn>
 
     /// Deletes a file or empty folder.
     abstract member Delete: ItemType -> Path -> Result<unit, exn>
@@ -86,6 +88,12 @@ type FileSystem() =
             |> Seq.map (fun s -> s.["Name"] :?> string)
             |> Seq.map (fun n -> serverPath.Join n |> netShareItem)
 
+    let getDriveSize (path: Path) =
+        path.Drive
+        |> Option.filter ((<>) path)
+        |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
+        |> Option.filter (fun size -> size > 0L)
+
     let prepForOverwrite (file: FileInfo) =
         if file.Exists then
             if file.Attributes.HasFlag FileAttributes.System then
@@ -108,8 +116,9 @@ type FileSystem() =
         member this.GetItem path = this.GetItem path
         member this.GetItems path = this.GetItems false path
         member this.GetFolders path = this.GetItems true path
-        member this.IsEmpty path = this.IsEmpty path
         member this.GetShortcutTarget path = this.GetShortcutTarget path
+        member this.IsEmpty path = this.IsEmpty path
+        member this.IsPathRecyclable path = this.IsPathRecyclable path
 
     member this.GetItem path =
         tryResult <| fun () ->
@@ -155,6 +164,10 @@ type FileSystem() =
                         Error <| exn (sprintf "Path does not exist: %s" (wpath path))
         items |> Result.map Seq.toList
 
+    member this.GetShortcutTarget path =
+        tryResult <| fun () ->
+            LinkFile.getLinkTarget(wpath path)
+
     member this.IsEmpty path =
         let winPath = wpath path
         try
@@ -164,9 +177,8 @@ type FileSystem() =
                 FileInfo(winPath).Length = 0L
         with _ -> false
 
-    member this.GetShortcutTarget path =
-        tryResult <| fun () ->
-            LinkFile.getLinkTarget(wpath path)
+    member this.IsPathRecyclable path =
+        getDriveSize path |> Option.isSome
 
 
     interface IFileSystemWriter with
@@ -174,7 +186,7 @@ type FileSystem() =
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.Recycle itemType path = this.Recycle itemType path
+        member this.Recycle totalSize itemType path = this.Recycle totalSize itemType path
         member this.Delete itemType path = this.Delete itemType path
 
     member this.Create itemType path =
@@ -234,29 +246,23 @@ type FileSystem() =
                     copyFile source dest
         )
 
-    member this.Recycle itemType path =
+    member this.Recycle totalSize itemType path =
         ensureFileOrFolder itemType "recycle"
         |> Result.bind (fun () -> result {
-            let winPath = wpath path
-            let! driveSize =
-                path.Drive
-                |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
-                |> Option.filter (flip (>) 0L)
-                |> Result.ofOption (exn "This drive does not have a recycle bin.")
-            let! item = this.GetItem path
-            let! size =
-                match item with
-                | Some f when f.Type = File ->
-                    Ok f.Size.Value
-                | Some f when f.Type = Folder ->
-                    tryResult <| fun () ->
-                        DirectoryInfo(winPath).EnumerateFiles("*", SearchOption.AllDirectories)
-                        |> Seq.sumBy (fun fi -> fi.Length)
-                | _ -> Error <| exn "Cannot recycle this item."
-            let ratio = (double size) / (double driveSize)
-            if ratio > 0.03 then
-                return! Error <| exn "Item cannot fit in the recycle bin."
+            let! driveSize = getDriveSize path |> Result.ofOption (exn "This drive does not have a recycle bin.")
+            let ratio = (double totalSize) / (double driveSize)
+            // Check whether the item is within a reasonable ratio of the drive's size to try to make sure it will fit.
+            // The ratio is intentionally smaller than the default 5% size ratio of the recycle bin to be safe.
+            // The VB FileIO functions below will permanently delete items that don't fit without warning.
+            let safeRecycleItemToDriveRatio = 0.03
+            if ratio > safeRecycleItemToDriveRatio then
+                let msg =
+                    sprintf "Item size is %s of drive size which is greater than the safe %s and might not fit in the recycle bin."
+                        (ratio |> String.format "P1")
+                        (safeRecycleItemToDriveRatio |> String.format "P1")
+                return! Error <| exn msg
             else
+                let winPath = wpath path
                 return! tryResult <| fun () ->
                     if itemType = Folder then
                         FileSystem.DeleteDirectory(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)

@@ -6,7 +6,7 @@ open Acadian.FSharp
 type TreeItem =
     | TreeFile of name: string * transform: (Item -> Item)
     | TreeFolder of name: string * TreeItem list
-    | TreeDrive of driveLetter: char * TreeItem list
+    | TreeDrive of driveLetter: char * size: int64 option * TreeItem list
     | TreeNetHost of string * TreeItem list
     | TreeNetwork of TreeItem list
 
@@ -31,7 +31,8 @@ module FakeFileSystem =
     let file name = TreeFile (name, id)
     let fileWith transform name = TreeFile (name, transform)
     let folder name items = TreeFolder (name, items)
-    let drive name items = TreeDrive (name, items)
+    let drive name items = TreeDrive (name, None, items)
+    let driveWithSize name size items = TreeDrive (name, Some size, items)
     let netHost name items = TreeNetHost (name, items)
     let network items = TreeNetwork items
 
@@ -45,35 +46,35 @@ module FakeFileSystem =
 
     type TreeItem with
         static member build items =
-            let rec build (path: Path) items =
+            let rec buildIter (path: Path) items =
                 items |> List.collect (fun item ->
                     match item with
                     | TreeFile (name, transform) ->
                         Item.Basic (path.Join name) name File |> transform |> List.singleton
                     | TreeFolder (name, items) ->
                         let folder = Item.Basic (path.Join name) name Folder
-                        folder :: build folder.Path items
+                        folder :: buildIter folder.Path items
                     | TreeNetHost _ when path <> Path.Network ->
                         failwithf "Tree net host is invalid because it is not in Network: %O" item
                     | TreeNetHost (name, items) ->
                         let host = Item.Basic (path.Join name) name NetHost
-                        host :: build host.Path items
+                        host :: buildIter host.Path items
                     | TreeDrive _ | TreeNetwork _ when path <> Path.Root ->
                         failwithf "Tree item is invalid because it is not at root level: %O" item
-                    | TreeDrive (letter, items) ->
-                        let drive = createDrive letter
-                        drive :: build drive.Path items
+                    | TreeDrive (letter, size, items) ->
+                        let drive = { createDrive letter with Size = size }
+                        drive :: buildIter drive.Path items
                     | TreeNetwork items ->
                         if not (items |> List.forall (function TreeNetHost _ -> true | _ -> false)) then
                             failwithf "Network cannot contain items that are not NetHosts"
                         let net = Item.Basic Path.Network "Network" Drive
-                        net :: build net.Path items
+                        net :: buildIter net.Path items
                 )
             if items |> List.forall (function TreeDrive _ | TreeNetwork _ -> true | _ -> false) then
-                build Path.Root items
+                buildIter Path.Root items
             else
                 let drive = createDrive 'c'
-                drive :: build drive.Path items
+                drive :: buildIter drive.Path items
 
 module FakeFileSystemErrors =
     let pathDoesNotExist (path: Path) =
@@ -100,6 +101,12 @@ module FakeFileSystemErrors =
     let cannotCopyNonEmptyFolder =
         exn "Folder is not empty and cannot be copied"
 
+    let cannotRecycleItemOnDriveWithNoSize =
+        exn "Item is on drive with no Recycle Bin"
+
+    let cannotRecycleItemThatDoesNotFit (totalSize: int64) =
+        exn (sprintf "Item size of %O is too large to fit in the Recycle Bin" totalSize)
+
     let cannotDeleteNonEmptyFolder =
         exn "Folder is not empty and cannot be deleted"
 
@@ -111,6 +118,10 @@ type FakeFileSystem(treeItems) =
     let mutable recycleBin = []
     let exnPaths = Dictionary<Path, (exn * bool) list>()
     let mutable callsToGetItems = 0
+    let mutable tokenToCancelAfterWrites: (CancelToken * int) option = None
+
+    let tryFindItem path =
+        items |> List.tryFind (fun i -> i.Path = path)
 
     let remove path =
         items <- items |> List.filter (fun item -> not (item.Path.IsWithin path))
@@ -139,8 +150,23 @@ type FakeFileSystem(treeItems) =
         | _ ->
             Ok ()
 
+    let checkCancelToken () =
+        tokenToCancelAfterWrites |> Option.iter (fun (token, count) ->
+            if count > 1 then
+                tokenToCancelAfterWrites <- Some (token, count-1)
+            else
+                token.Cancel()
+                tokenToCancelAfterWrites <- None
+        )
+
     let hasChildren path =
         items |> List.exists (fun i -> i.Path.Parent = path)
+
+    let getDriveSize (path: Path) =
+        path.Drive
+        |> Option.filter ((<>) path)
+        |> Option.bind tryFindItem
+        |> Option.bind (fun drive -> drive.Size)
 
     member this.Items = items |> sortByPath
 
@@ -160,6 +186,9 @@ type FakeFileSystem(treeItems) =
         | _ ->
             exnPaths.Add(path, [exnItem])
 
+    member this.CancelAfterWriteCount writes cancelToken =
+        tokenToCancelAfterWrites <- Some (cancelToken, writes)
+
 
     member this.CallsToGetItems = callsToGetItems
 
@@ -169,20 +198,21 @@ type FakeFileSystem(treeItems) =
         member this.GetItem path = this.GetItem path
         member this.GetItems path = this.GetItems path
         member this.GetFolders path = this.GetFolders path
-        member this.IsEmpty path = this.IsEmpty path
         member this.GetShortcutTarget path = this.GetShortcutTarget path
+        member this.IsEmpty path = this.IsEmpty path
+        member this.IsPathRecyclable path = this.IsPathRecyclable path
 
     interface IFileSystemWriter with
         member this.Create itemType path = this.Create itemType path
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.Recycle itemType path = this.Recycle itemType path
+        member this.Recycle totalSize itemType path = this.Recycle totalSize itemType path
         member this.Delete itemType path = this.Delete itemType path
 
     member this.GetItem path = result {
         do! checkExn false path
-        return items |> List.tryFind (fun i -> i.Path = path)
+        return tryFindItem path
     }
 
     member private this.AssertItem itemType path =
@@ -207,18 +237,22 @@ type FakeFileSystem(treeItems) =
             >> List.sortBy (fun i -> i.Name.ToLower())
         )
 
-    member this.IsEmpty path =
-        match items |> List.tryFind (fun i -> i.Path = path) with
-        | Some i when i.Type = Folder -> not (hasChildren path)
-        | Some i when i.Type = File -> not (i.Size |> Option.exists (flip (>) 0L))
-        | _ -> false
-
     member this.GetShortcutTarget path = result {
         do! checkExn false path
         match shortcuts.TryGetValue path with
         | true, p -> return p
         | _ -> return! Error notAShortcut
     }
+
+    member this.IsEmpty path =
+        match tryFindItem path with
+        | Some i when i.Type = Folder -> not (hasChildren path)
+        | Some i when i.Type = File -> not (i.Size |> Option.exists (fun size -> size > 0L))
+        | _ -> false
+
+    member this.IsPathRecyclable (path: Path) =
+        getDriveSize path
+        |> Option.exists (fun size -> size > 0L)
 
 
     member this.Create itemType path = result {
@@ -271,6 +305,7 @@ type FakeFileSystem(treeItems) =
             if item.Type = Folder then
                 for item in this.ItemsIn fromPath do
                     do! this.Move item.Type item.Path (toPath.Join item.Name)
+        checkCancelToken ()
     }
 
     member this.Copy itemType fromPath toPath = result {
@@ -288,13 +323,19 @@ type FakeFileSystem(treeItems) =
         match shortcuts.TryGetValue fromPath with
         | true, target -> shortcuts.Add(toPath, target)
         | _ -> ()
+        checkCancelToken ()
     }
 
-    member this.Recycle itemType path = result {
+    member this.Recycle totalSize itemType path = result {
         let! item = this.AssertItem itemType path
         do! checkExn true path
+        let! driveSize = getDriveSize path |> Result.ofOption cannotRecycleItemOnDriveWithNoSize
+        let ratio = float totalSize / float driveSize
+        if ratio > 0.03 then
+            return! Error (cannotRecycleItemThatDoesNotFit totalSize)
         recycleBin <- item :: recycleBin
         remove path
+        checkCancelToken ()
     }
 
     member this.Delete itemType path = result {
@@ -303,4 +344,5 @@ type FakeFileSystem(treeItems) =
         if item.Type = Folder && hasChildren item.Path then
             return! Error cannotDeleteNonEmptyFolder
         remove path
+        checkCancelToken ()
     }

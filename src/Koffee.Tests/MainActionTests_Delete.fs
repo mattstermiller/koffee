@@ -4,12 +4,54 @@ open NUnit.Framework
 open FsUnitTyped
 open Koffee.Main
 
-let testModel (fs: FakeFileSystem)  =
+let testModelFromFs (fs: FakeFileSystem)  =
     let items = fs.ItemsIn "/c"
     { testModel with
         Directory = items
         Items = items
     }
+
+[<Test>]
+let ``Recycle NetHost path removes it from items and history`` () =
+    let fs = FakeFileSystem [
+        network [
+            netHost "host1" []
+            netHost "host2" []
+        ]
+    ]
+    let items = fs.ItemsIn "/net"
+    let model =
+        { testModel with
+            Directory = items
+            Items = items
+            Cursor = 1
+            History =
+                { testModel.History with
+                    NetHosts = ["host1"; "host2"]
+                    Paths = [
+                        createHistoryPath "/net/host1/share1"
+                        createHistoryPath "/net/host2/share2"
+                    ]
+                }
+        }
+
+    let actual = seqResult (Action.recycle fs progress model.SelectedItem) model
+
+    let expectedItems = items |> List.take 1
+    let expected =
+        { testModel with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 0
+            History =
+                { testModel.History with
+                    NetHosts = ["host1"]
+                    // currently expecting path history to be preserved, but we might want to remove sub-paths in the future
+                    Paths = model.History.Paths
+                }
+        }.WithMessage (MainStatus.RemovedNetworkHost "host2")
+    assertAreEqual expected actual
+    assertAreEqual expected.History actual.History
 
 [<TestCase(true)>]
 [<TestCase(false)>]
@@ -19,7 +61,7 @@ let ``Delete file deletes it and updates path history`` permanent =
         file "other"
     ]
     let item = fs.Item "/c/file"
-    let model = testModel fs |> withPathHistory ["/c/folder2/unrelated"; "/c/file"]
+    let model = testModelFromFs fs |> withPathHistory ["/c/folder2/unrelated"; "/c/file"]
 
     let actual = seqResult (Action.delete fs progress item permanent) model
 
@@ -54,7 +96,7 @@ let ``Recycle folder recycles it and updates path history`` () =
         "/c/folder"
         "/c/folder/sub/sub file"
     ]
-    let model = testModel fs |> withPathHistory pathHistory
+    let model = testModelFromFs fs |> withPathHistory pathHistory
 
     let actual = seqResult (Action.delete fs progress item false) model
 
@@ -90,7 +132,7 @@ let ``Delete folder deletes all items and updates path history`` () =
         "/c/folder/sub/sub file"
     ]
     let item = fs.Item "/c/folder"
-    let model = testModel fs |> withPathHistory pathHistory
+    let model = testModelFromFs fs |> withPathHistory pathHistory
 
     let actual = seqResult (Action.delete fs progress item true) model
 
@@ -122,7 +164,7 @@ let ``Delete folder handles individual error and deletes other items and returns
     ]
     fs.AddExn true ex "/c/folder/sub/sub file"
     let item = fs.Item "/c/folder"
-    let model = testModel fs
+    let model = testModelFromFs fs
 
     let actual = seqResult (Action.delete fs progress item true) model
 
@@ -151,7 +193,7 @@ let ``Recycle and Delete handle errors by returning error`` permanent =
     ]
     let item = fs.Item "/c/file"
     fs.AddExnPath false ex item.Path
-    let model = testModel fs
+    let model = testModelFromFs fs
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.delete fs progress item permanent) model

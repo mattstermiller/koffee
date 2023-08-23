@@ -146,6 +146,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
         yield! getNonFieldNames<MainModel>()
         "MainModel.History"
         "MainModel.StatusHistory"
+        "History.PathSort"
     })
     comparerSetup comparer
     let result = comparer.Compare(expected, actual)

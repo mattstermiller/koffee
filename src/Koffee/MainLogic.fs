@@ -402,7 +402,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
-            | Recycle -> AsyncResult (Action.recycle fs progress)
+            | Recycle -> AsyncResult (fun m -> Action.recycle fs progress m.SelectedItem m)
             | SortList field -> Sync (Nav.sortList field)
             | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)

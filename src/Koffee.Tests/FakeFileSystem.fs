@@ -7,6 +7,8 @@ type TreeItem =
     | TreeFile of name: string * transform: (Item -> Item)
     | TreeFolder of name: string * TreeItem list
     | TreeDrive of driveLetter: char * TreeItem list
+    | TreeNetHost of string * TreeItem list
+    | TreeNetwork of TreeItem list
 
 [<AutoOpen>]
 module FakeFileSystem =
@@ -30,6 +32,8 @@ module FakeFileSystem =
     let fileWith transform name = TreeFile (name, transform)
     let folder name items = TreeFolder (name, items)
     let drive name items = TreeDrive (name, items)
+    let netHost name items = TreeNetHost (name, items)
+    let network items = TreeNetwork items
 
     let size value (item: Item) = { item with Size = Some value }
     let modifiedOpt opt (item: Item) = { item with Modified = opt }
@@ -49,17 +53,27 @@ module FakeFileSystem =
                     | TreeFolder (name, items) ->
                         let folder = Item.Basic (path.Join name) name Folder
                         folder :: build folder.Path items
-                    | TreeDrive (name, _) when path <> Path.Root ->
-                        failwithf "Drive '%O' is invalid because it is not at root level" name
-                    | TreeDrive (driveLetter, items) ->
-                        let drive = createDrive driveLetter
+                    | TreeNetHost _ when path <> Path.Network ->
+                        failwithf "Tree net host is invalid because it is not in Network: %O" item
+                    | TreeNetHost (name, items) ->
+                        let host = Item.Basic (path.Join name) name NetHost
+                        host :: build host.Path items
+                    | TreeDrive _ | TreeNetwork _ when path <> Path.Root ->
+                        failwithf "Tree item is invalid because it is not at root level: %O" item
+                    | TreeDrive (letter, items) ->
+                        let drive = createDrive letter
                         drive :: build drive.Path items
+                    | TreeNetwork items ->
+                        if not (items |> List.forall (function TreeNetHost _ -> true | _ -> false)) then
+                            failwithf "Network cannot contain items that are not NetHosts"
+                        let net = Item.Basic Path.Network "Network" Drive
+                        net :: build net.Path items
                 )
-            if items |> List.forall (function TreeDrive _ -> true | _ -> false) then
+            if items |> List.forall (function TreeDrive _ | TreeNetwork _ -> true | _ -> false) then
                 build Path.Root items
             else
-                let path = Path.Parse "/c" |> Option.get
-                Item.Basic path "C" Drive :: build path items
+                let drive = createDrive 'c'
+                drive :: build drive.Path items
 
 module FakeFileSystemErrors =
     let pathDoesNotExist (path: Path) =

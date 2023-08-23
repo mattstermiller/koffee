@@ -455,6 +455,13 @@ let rec private enumerateDeleteItems (fsReader: IFileSystemReader) (items: Item 
         | _ -> ()
 }
 
+let private removeItem item (model: MainModel) =
+    { model with
+        Directory = model.Directory |> List.except [item]
+        Items = model.Items |> List.except [item] |> model.ItemsOrEmpty
+        History = model.History.WithPathRemoved item.Path
+    }.WithCursor model.Cursor
+
 let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (model: MainModel) = asyncSeqResult {
     if item.Type.CanModify then
         let action = DeletedItem (item, permanent)
@@ -481,27 +488,18 @@ let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (mod
             let! res = runAsync (fun () -> fs.Recycle item.Type item.Path)
             do! res |> itemActionError action model.PathFormat
         yield
-            { model with
-                Directory = model.Directory |> List.except [item]
-                Items = model.Items |> List.except [item] |> model.ItemsOrEmpty
-                History = model.History.WithPathRemoved item.Path
-            }.WithCursor model.Cursor
+            model
+            |> removeItem item
             |> performedAction action
 }
 
-let recycle fsWriter progress (model: MainModel) = asyncSeqResult {
-    if model.SelectedItem.Type = NetHost then
-        let host = model.SelectedItem.Name
+let recycle fsWriter progress item (model: MainModel) = asyncSeqResult {
+    if item.Type = NetHost then
         yield
-            { model with
-                Directory = model.Directory |> List.except [model.SelectedItem]
-                Items = model.Items |> List.except [model.SelectedItem] |> model.ItemsOrEmpty
-                History = model.History.WithoutNetHost host
-            }
-            |> fun m -> m.WithMessage (MainStatus.RemovedNetworkHost host)
-            |> fun m -> m.WithCursor model.Cursor
+            removeItem item model
+            |> fun m -> m.WithMessage (MainStatus.RemovedNetworkHost item.Name)
     else
-        yield! delete fsWriter progress model.SelectedItem false model
+        yield! delete fsWriter progress item false model
 }
 
 let rec private undoIter iter fs progress model = asyncSeqResult {
@@ -548,21 +546,20 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
     | action :: rest ->
         let model = { model with RedoStack = rest }
         yield model
-        let goToPath (itemPath: Path) =
-            let path = itemPath.Parent
-            if path <> model.Location then
-                Nav.openPath fs path SelectNone model
+        let openPath (path: Path) =
+            if path <> model.Location
+            then Nav.openPath fs path SelectNone model
             else Ok model
         let! model = asyncSeqResult {
             match action with
             | CreatedItem item ->
-                let! model = goToPath item.Path
+                let! model = openPath item.Path.Parent
                 yield! create fs item.Type item.Name model
             | RenamedItem (item, newName) ->
-                let! model = goToPath item.Path
+                let! model = openPath item.Path.Parent
                 yield! rename fs item newName model
             | PutItems (putType, intent, _) ->
-                let! model = goToPath intent.Dest
+                let! model = openPath intent.Dest.Parent
                 if not intent.DestExists then
                     match! fs.GetItem intent.Dest |> actionError "check destination path" with
                     | Some existing ->
@@ -573,7 +570,9 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                     yield model.WithBusy (MainStatus.PuttingItem ((putType = Copy), true, intent, model.PathFormat))
                 yield! putItem fs progress intent.DestExists intent.Item putType model
             | DeletedItem (item, permanent) ->
-                let! model = goToPath item.Path
+                let! model =
+                    openPath item.Path.Parent
+                    |> Result.map (Nav.select (SelectItem (item, true)))
                 yield model.WithBusy (MainStatus.RedoingDeletingItem (item, permanent))
                 yield! delete fs progress item permanent model
         }

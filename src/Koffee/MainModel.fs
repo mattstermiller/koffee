@@ -600,13 +600,13 @@ with
         let before, rest = this.Searches |> List.splitAt index
         { this with Searches = before @ rest.Tail }
 
-    member this.WithNetHost host =
+    member private this.WithNetHost host =
         if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
             this
         else
             { this with NetHosts = host :: this.NetHosts |> List.sortBy String.toLower }
 
-    member this.WithoutNetHost host =
+    member private this.WithoutNetHost host =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
     member private this.WithPath pathLimit isDirectory path =
@@ -631,8 +631,10 @@ with
             | None -> hp
         { this with Paths = this.Paths |> List.map replaceOld }
 
-    member this.WithPathRemoved path =
-        { this with Paths = this.Paths |> List.filter (fun hp -> not (hp.PathValue.IsWithin path)) }
+    member this.WithPathRemoved (path: Path) =
+        if path.IsNetHost
+        then this.WithoutNetHost path.Name
+        else { this with Paths = this.Paths |> List.filter (fun hp -> not (hp.PathValue.IsWithin path)) }
 
     member this.WithPathSort path sort =
         if sort = PathSort.Default then

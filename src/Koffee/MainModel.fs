@@ -311,25 +311,23 @@ module MainStatus =
                 "Cancelled"
 
     type Busy =
-        | MovingItem of PutItem * PathFormat
-        | CopyingItem of PutItem * PathFormat
+        | PuttingItem of isCopy: bool * isRedo: bool * PutItem * PathFormat
         | DeletingItem of Item * permanent: bool
         | PreparingPut of PutType * name: string
         | CheckingIsRecyclable
         | PreparingDelete of name: string
         | UndoingCreate of Item
-        | UndoingMove of Item
-        | UndoingCopy of Item
-        | RedoingMovingItem of PutItem * PathFormat
-        | RedoingCopyingItem of PutItem * PathFormat
+        | UndoingPut of isCopy: bool * Item
         | RedoingDeletingItem of Item * permanent: bool
 
         member this.Message =
             match this with
-            | MovingItem (putItem, pathFormat) ->
-                sprintf "Moving %s..." ([putItem] |> PutItem.describeList pathFormat)
-            | CopyingItem (putItem, pathFormat) ->
-                sprintf "Copying %s..." ([putItem] |> PutItem.describeList pathFormat)
+            | PuttingItem (isCopy, isRedo, putItem, pathFormat) ->
+                let action =
+                    if isRedo
+                    then sprintf "Redoing %s of" (if isCopy then "copy" else "move")
+                    else if isCopy then "Copying" else "Moving"
+                sprintf "%s %s..." action ([putItem] |> PutItem.describeList pathFormat)
             | DeletingItem (item, permanent) ->
                 let action = if permanent then "Deleting" else "Recycling"
                 sprintf "%s %s..." action item.Description
@@ -341,14 +339,9 @@ module MainStatus =
                 sprintf "Preparing to delete %s..." name
             | UndoingCreate item ->
                 sprintf "Undoing creation of %s - Deleting..." item.Description
-            | UndoingMove item ->
-                sprintf "Undoing move of %s..." item.Description
-            | UndoingCopy item ->
-                sprintf "Undoing copy of %s..." item.Description
-            | RedoingMovingItem (putItem, pathFormat) ->
-                sprintf "Redoing move of %s..." ([putItem] |> PutItem.describeList pathFormat)
-            | RedoingCopyingItem (putItem, pathFormat) ->
-                sprintf "Redoing copy of %s..." ([putItem] |> PutItem.describeList pathFormat)
+            | UndoingPut (isCopy, item) ->
+                let action = if isCopy then "copy" else "move"
+                sprintf "Undoing %s of %s..." action item.Description
             | RedoingDeletingItem (item, permanent) ->
                 let action = if permanent then "deletion" else "recycle"
                 sprintf "Redoing %s of %s..." action item.Description

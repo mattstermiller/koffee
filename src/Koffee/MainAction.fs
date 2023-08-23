@@ -325,12 +325,8 @@ let putItem (fs: IFileSystem) (progress: Event<float option>) overwrite item put
             | Move | Copy -> enumeratePutItems fs (putType = Copy) true newPath item |> AsyncSeq.toListAsync
         let items, enumErrors = enumerated |> Result.partition
         let putItem = { Item = item; Dest = newPath; DestExists = existing.IsSome }
-        match putType with
-        | Move ->
-            yield model.WithBusy (MainStatus.MovingItem (putItem, model.PathFormat))
-        | Copy ->
-            yield model.WithBusy (MainStatus.CopyingItem (putItem, model.PathFormat))
-        | _ -> ()
+        if putType = Move || putType = Copy then
+            yield model.WithBusy (MainStatus.PuttingItem ((putType = Copy), false, putItem, model.PathFormat))
         yield! performPut fs progress false enumErrors putType putItem items model
 }
 
@@ -350,7 +346,7 @@ let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult
 }
 
 let undoMove (fs: IFileSystem) progress (intent: PutItem) (moved: PutItem list) (model: MainModel) = asyncSeqResult {
-    yield model.WithBusy (MainStatus.UndoingMove intent.Item)
+    yield model.WithBusy (MainStatus.UndoingPut (false, intent.Item))
     let items, existErrors =
         moved
         |> List.map PutItem.reverse
@@ -394,7 +390,7 @@ let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
     )
 
 let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqResult {
-    yield model.WithBusy (MainStatus.UndoingCopy intent.Item)
+    yield model.WithBusy (MainStatus.UndoingPut (true, intent.Item))
     let! results = performUndoCopy fs progress copied
     match results |> Result.partition with
     | _, [] ->
@@ -573,12 +569,8 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                         yield Nav.select (SelectItem (existing, true)) model
                         return MainStatus.CannotRedoPutToExisting (putType, intent.Item, intent.Dest.Format model.PathFormat)
                     | None -> ()
-                match putType with
-                | Move ->
-                    yield model.WithBusy (MainStatus.RedoingMovingItem (intent, model.PathFormat))
-                | Copy ->
-                    yield model.WithBusy (MainStatus.RedoingCopyingItem (intent, model.PathFormat))
-                | _ -> ()
+                if putType = Move || putType = Copy then
+                    yield model.WithBusy (MainStatus.PuttingItem ((putType = Copy), true, intent, model.PathFormat))
                 yield! putItem fs progress intent.DestExists intent.Item putType model
             | DeletedItem (item, permanent) ->
                 let! model = goToPath item.Path

@@ -38,7 +38,8 @@ type Path private (path: string) =
                     if not <| prefix.EndsWith(@"\") && dirs <> "" then @"\"
                     else ""
                 Some (Path (prefix + join + dirs))
-            else None)
+            else None
+        )
 
     static let (|RootPath|_|) s =
         if Seq.exists (String.equalsIgnoreCase s) [root; rootUnix; rootWindows] then
@@ -154,7 +155,16 @@ type Path private (path: string) =
             IOPath.GetPathRoot(path) |> Path
 
     member this.Join name =
-        IOPath.Combine(path, name) |> Path
+        if path = root then
+            Path.Parse name
+            |> Option.orElseWith (fun () ->
+                Path.Parse ("/" + name)
+            )
+            |? Path.Root
+        else if path = net then
+            @"\\" + name |> Path.Parse |? Path.Network
+        else
+            IOPath.Combine(path, name) |> Path
 
     member this.IsWithin (otherPath: Path) =
         if otherPath = Path.Root || otherPath = this

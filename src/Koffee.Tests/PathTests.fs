@@ -125,6 +125,29 @@ let ``Base returns expected path`` path expected =
     let expected = createPath expected
     actual |> shouldEqual expected
 
+[<TestCase(@"", false)>]
+[<TestCase(@"Network", false)>]
+[<TestCase(@"\\server", true)>]
+[<TestCase(@"\\server\share", false)>]
+[<TestCase(@"C:\folder", false)>]
+let ``IsNetHost returns true for net hosts only`` path expected =
+    (createPath path).IsNetHost |> shouldEqual expected
+
+[<TestCase("", "c:", "c:")>]
+[<TestCase("C:", "folder", @"c:\folder")>]
+[<TestCase(@"C:\folder", "file", @"C:\folder\file")>]
+[<TestCase("", "Network", "Network")>]
+[<TestCase("Network", "host", @"\\host")>]
+[<TestCase(@"\\host", "share", @"\\host\share")>]
+[<TestCase("/", "c", "/c")>]
+[<TestCase("/c", "folder", "/c/folder")>]
+[<TestCase("/c/folder", "file", "/c/folder/file")>]
+[<TestCase("/", "net", "/net")>]
+[<TestCase("/net", "host", "/net/host")>]
+[<TestCase("/net/host", "share", "/net/host/share")>]
+let ``Join returns expected path`` path name expected =
+    (createPath path).Join name |> shouldEqual (createPath expected)
+
 [<TestCase(@"", "/")>]
 [<TestCase(@"C:\", "/c/")>]
 [<TestCase(@"C:\test", "/c/test")>]

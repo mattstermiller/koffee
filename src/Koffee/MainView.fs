@@ -433,6 +433,9 @@ module MainView =
 
     let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (window: MainWindow) =
         [
+            window.KeyDown
+                |> Obs.filter (fun evt -> evt.Chord = (ModifierKeys.None, Key.Escape))
+                |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
             window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
                 let keyPress = KeyPress (evt.Chord, evt.Handler)
                 let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
@@ -452,12 +455,14 @@ module MainView =
                 | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
                 | _ -> None
             )
-            window.PathBox.TextChanged |> Obs.filter (fun _ -> window.PathBox.IsFocused)
-                                    |> Obs.mapTo LocationInputChanged
+            window.PathBox.TextChanged
+                |> Obs.filter (fun _ -> window.PathBox.IsFocused)
+                |> Obs.mapTo LocationInputChanged
             window.SettingsButton.Click |> Obs.mapTo OpenSettings
 
-            window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier
-                                        |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
+            window.ItemGrid.PreviewKeyDown
+                |> Obs.filter isNotModifier
+                |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
             window.ItemGrid.PreviewKeyDown |> Obs.choose (fun evt ->
                 if evt.Chord = (ModifierKeys.Control, Key.C) then
                     evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
@@ -493,9 +498,10 @@ module MainView =
             window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
             window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
             window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
-            subDirResults |> Obs.buffer 0.3
-                        |> Obs.onCurrent
-                        |> Obs.map (List.concat >> SubDirectoryResults)
+            subDirResults
+                |> Obs.buffer 0.3
+                |> Obs.onCurrent
+                |> Obs.map (List.concat >> SubDirectoryResults)
             window.InputBox.LostFocus |> Obs.mapTo CancelInput
 
             window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated

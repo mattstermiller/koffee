@@ -150,10 +150,10 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         | 'y' ->
             match confirmType with
             | Overwrite (putType, src, _) ->
-                let! model = Action.putItem fs progress true src putType model
+                let! model = Action.putInLocation fs progress false true putType src model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fs progress model.SelectedItem true model
+                yield! Action.delete fs progress model.SelectedItem model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
             | OverwriteSavedSearch (char, _) ->
@@ -161,7 +161,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 | Some search -> yield withSavedSearch char search model
                 | None -> ()
         | 'n' ->
-            let model = model.WithMessage MainStatus.Cancelled
+            let model = model.WithMessage (MainStatus.CancelledConfirm confirmType)
             match confirmType with
             | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
                 // if we were temporarily showing a hidden file, refresh
@@ -260,21 +260,23 @@ let cancelInput model =
         | Some (Input Search) -> Search.clearSearch
         | _ -> id
 
+let escape model =
+    if model.InputMode.IsSome then
+        { model with InputMode = None }
+    else if not model.KeyCombo.IsEmpty || model.RepeatCommand.IsSome then
+        model.WithoutKeyCombo()
+    else if model.ShowHistoryType.IsSome then
+        { model with ShowHistoryType = None }
+    else
+        model.CancelToken.Cancel()
+        model.ClearStatus() |> Search.clearSearch
+
 let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handleKey model = asyncSeq {
-    let event, modelFunc =
+    let evt, modelFunc =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
-            let modelFunc m =
-                if m.InputMode.IsSome then
-                    { m with InputMode = None }
-                else if not m.KeyCombo.IsEmpty || m.RepeatCommand.IsSome then
-                    m.WithoutKeyCombo()
-                else if m.ShowHistoryType.IsSome then
-                    { m with ShowHistoryType = None }
-                else
-                    m.ClearStatus() |> Search.clearSearch
-            (None, modelFunc)
+            (None, escape)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
             (None, (fun m -> m.AppendRepeatDigit digit))
         | _ ->
@@ -293,7 +295,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
             | KeyBinding.NoMatch ->
                 (None, (fun m -> m.WithoutKeyCombo()))
-    match event with
+    match evt with
     | Some e ->
         match dispatcher e with
         | Sync handler ->
@@ -402,7 +404,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
-            | Recycle -> AsyncResult (fun m -> Action.recycle fs progress m.SelectedItem m)
+            | Recycle -> AsyncResult (fun m -> Action.recycle fs m.SelectedItem m)
             | SortList field -> Sync (Nav.sortList field)
             | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)
@@ -423,17 +425,18 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | WindowSizeChanged (w, h) -> Sync (windowSizeChanged (w, h))
             | WindowMaximizedChanged maximized -> Sync (windowMaximized maximized)
             | WindowActivated -> AsyncResult (windowActivated fs subDirResults progress)
-        match handler, evt with
-        | _, ConfigFileChanged _
-        | _, HistoryFileChanged _ -> handler
-        | Sync handler, _ ->
+        match evt, handler with
+        | KeyPress _, _
+        | ConfigFileChanged _, _
+        | HistoryFileChanged _, _ ->
+            handler
+        | _, Sync handler ->
             Sync (fun model ->
-                if not model.IsStatusBusy then
-                    handler model
-                else
-                    model
+                if not model.IsStatusBusy
+                then handler model
+                else model
             )
-        | Async handler, _ ->
+        | _, Async handler ->
             Async (fun model -> asyncSeq {
                 if not model.IsStatusBusy then
                     yield! handler model

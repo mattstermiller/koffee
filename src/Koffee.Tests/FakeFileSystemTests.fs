@@ -3,14 +3,19 @@ module Koffee.FakeFileSystemTests
 open NUnit.Framework
 open FsUnitTyped
 
-let createFs () =
+let createFsWith driveFunc =
     FakeFileSystem [
-        folder "programs" [
-            file "koffee.exe"
-            file "notepad.exe"
+        driveFunc [
+            folder "programs" [
+                file "koffee.exe"
+                file "notepad.exe"
+            ]
+            file "readme.md"
         ]
-        file "readme.md"
     ]
+
+let createFsWithDriveSize () = createFsWith (driveWithSize 'c' 100L)
+let createFs () = createFsWith (drive 'c')
 
 [<Test>]
 let ``Creating with drives creates correct paths`` () =
@@ -93,6 +98,33 @@ let ``GetFolders returns only folders`` () =
     fs.GetFolders (createPath "/c") |> shouldEqual (Ok [
         createFolder "/c/programs"
     ])
+
+[<TestCase("/")>]
+[<TestCase("/c")>]
+[<TestCase("/d")>]
+[<TestCase("/e")>]
+[<TestCase("/f")>]
+[<TestCase("/d/file")>]
+[<TestCase("/e/file")>]
+[<TestCase("/f/file")>]
+[<TestCase("/net")>]
+[<TestCase("/net/share")>]
+[<TestCase("/net/share/file")>]
+let ``IsPathRecyclable returns false for drives and paths not on local drive with size`` path =
+    let fs = FakeFileSystem [
+        driveWithSize 'c' 100L []
+        driveWithSize 'd' 0L []
+        drive 'e' []
+    ]
+    fs.IsPathRecyclable (createPath path) |> shouldEqual false
+
+[<TestCase("/c/file")>]
+[<TestCase("/c/folder/file")>]
+let ``IsPathRecyclable returns true for items on local drive with size`` path =
+    let fs = FakeFileSystem [
+        driveWithSize 'c' 100L []
+    ]
+    fs.IsPathRecyclable (createPath path) |> shouldEqual true
 
 [<Test>]
 let ``Create adds item`` () =
@@ -377,16 +409,52 @@ let ``Copy folder where dest exists returns error`` () =
     fs.Copy Folder src dest |> assertErrorExn (FakeFileSystemErrors.itemAlreadyExistsOnPath dest)
     fs.ItemsShouldEqualList expectedFs
 
-[<Test>]
-let ``Delete file removes it`` () =
-    let fs = createFs()
-    fs.Delete File (createPath "/c/programs/notepad.exe") |> shouldEqual (Ok ())
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Recycle or Delete file removes it`` isRecycle =
+    let fs = createFsWithDriveSize()
+    let path = "/c/programs/notepad.exe"
+    let testFunc = if isRecycle then fs.Recycle 2L else fs.Delete
+    testFunc File (createPath path) |> shouldEqual (Ok ())
     fs.ItemsShouldEqual [
-        folder "programs" [
-            file "koffee.exe"
+        driveWithSize 'c' 100L [
+            folder "programs" [
+                file "koffee.exe"
+            ]
+            file "readme.md"
         ]
-        file "readme.md"
     ]
+    fs.RecycleBin |> shouldEqual (if isRecycle then [createFile path] else [])
+
+[<Test>]
+let ``Recycle non-empty folder removes it`` () =
+    let fs = createFsWithDriveSize()
+    let path = "/c/programs"
+    fs.Recycle 2L Folder (createPath path) |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        driveWithSize 'c' 100L [
+            file "readme.md"
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual [createFolder path]
+
+[<Test>]
+let ``Recycle item on drive with no size returns error`` () =
+    let fs = createFs()
+    let path = createPath "/c/programs"
+    let expectedItems = fs.Items
+    fs.Recycle 10L Folder path |> assertErrorExn FakeFileSystemErrors.cannotRecycleItemOnDriveWithNoSize
+    fs.ItemsShouldEqualList expectedItems
+    fs.RecycleBin |> shouldEqual []
+
+[<Test>]
+let ``Recycle item that is too large returns error`` () =
+    let fs = createFsWithDriveSize()
+    let path = createPath "/c/programs"
+    let expectedItems = fs.Items
+    fs.Recycle 10L Folder path |> assertErrorExn (FakeFileSystemErrors.cannotRecycleItemThatDoesNotFit 10L)
+    fs.ItemsShouldEqualList expectedItems
+    fs.RecycleBin |> shouldEqual []
 
 [<Test>]
 let ``Delete empty folder removes it`` () =
@@ -409,20 +477,28 @@ let ``Delete non-empty folder returns error`` () =
     fs.Delete Folder (createPath "/c/folder") |> assertErrorExn FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     fs.ItemsShouldEqualList expectedFs
 
-[<Test>]
-let ``Delete path that does not exist returns error`` () =
-    let fs = createFs()
-    let path = createPath "/c/secrets"
-    fs.Delete File path |> assertErrorExn (FakeFileSystemErrors.pathDoesNotExist path)
-    fs.ItemsShouldEqualList (createFs().Items)
-
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Delete exn path throws once`` writeOnlyExn =
-    let fs = createFs()
+let ``Recycle or Delete path that does not exist returns error`` isRecycle =
+    let fs = createFsWithDriveSize()
+    let path = createPath "/c/secrets"
+    let expectedItems = fs.Items
+    let testFunc = if isRecycle then fs.Recycle 2L else fs.Delete
+    testFunc File path |> assertErrorExn (FakeFileSystemErrors.pathDoesNotExist path)
+    fs.ItemsShouldEqualList expectedItems
+    fs.RecycleBin |> shouldEqual []
+
+[<TestCase(false, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, false)>]
+[<TestCase(true, true)>]
+let ``Recycle or Delete exn path throws once`` isRecycle writeOnlyExn =
+    let fs = createFsWithDriveSize()
     let path = createPath "/c/readme.md"
     fs.AddExnPath writeOnlyExn ex path
-    [fs.Delete File path; fs.Delete File path] |> shouldEqual [Error ex; Ok ()]
+    let testFunc = if isRecycle then fs.Recycle 2L else fs.Delete
+    [testFunc File path; testFunc File path] |> shouldEqual [Error ex; Ok ()]
+    fs.RecycleBin |> shouldEqual (if isRecycle then [createFile (string path)] else [])
 
 [<Test>]
 let ``GetItem then Delete with writeOnly exn then read exn throws read exn then writeOnly exn`` () =
@@ -432,4 +508,4 @@ let ``GetItem then Delete with writeOnly exn then read exn throws read exn then 
     let writeExn = exn "write error"
     fs.AddExnPath true writeExn path
     fs.AddExnPath false readExn path
-    [fs.GetItem path |> Result.map ignore; fs.Delete File path] |> shouldEqual [Error readExn; Error writeExn]
+    (fs.GetItem path, fs.Delete File path) |> shouldEqual (Error readExn, Error writeExn)

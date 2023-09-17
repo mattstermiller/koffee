@@ -113,7 +113,7 @@ type DifferentStatusTypeComparer() as this =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
 
     override _.IsTypeMatch(type1, type2) =
-        [type1; type2] |> List.forall (fun t -> t.BaseType = typeof<MainStatus.StatusType>)
+        [type1; type2] |> List.forall (fun t -> t <> null && t.BaseType = typeof<MainStatus.StatusType>)
         && type1 <> type2
 
     override _.CompareType parms =
@@ -144,7 +144,7 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     comparer.Config.MembersToIgnore.AddRange(seq {
         yield! getNonFieldNames<Item>()
         yield! getNonFieldNames<MainModel>()
-        "MainModel.History"
+        "MainModel.History" // TODO: remove this, assert path history everywhere
         "MainModel.StatusHistory"
         "History.PathSort"
     })
@@ -182,23 +182,52 @@ let assertOk res =
     | Ok a -> a
     | Error e -> failwithf "%A" e
 
-let seqResult handler (model: MainModel) =
+let seqResultWithCallback callback handler (model: MainModel) =
     (model, handler model) ||> AsyncSeq.fold (fun m res ->
         match res with
-        | Ok m -> m
+        | Ok m -> callback m; m
         | Error e -> m.WithError e
     ) |> Async.RunSynchronously
 
-let assertPathHistoryEqual (expectedHistoryPaths: HistoryPath list) model =
-    let fmt (hp: HistoryPath) = hp.Format Unix
-    model.History.Paths |> List.map fmt |> shouldEqual (expectedHistoryPaths |> List.map fmt)
+let seqResult handler (model: MainModel) =
+    seqResultWithCallback ignore handler model
+
+let seqResultWithCancelTokenCallback callback handler (model: MainModel) =
+    let mutable callbackCalled = false
+    let modelCallback newModel =
+        if not callbackCalled && newModel.CancelToken <> model.CancelToken then
+            callback newModel.CancelToken
+            callbackCalled <- true
+    seqResultWithCallback modelCallback handler model
 
 let createHistoryPath pathStr =
     HistoryPath.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
 
-let withPathHistory pathStrs model =
-    let paths = pathStrs |> List.map createHistoryPath
-    { model with History = { History.Default with Paths = paths } }
+let itemHistoryPath (item: Item) =
+    { PathValue = item.Path; IsDirectory = item.Type |> Seq.containedIn [Folder; Drive; NetHost; NetShare] }
+
+type HistoryPathsBuilder() =
+    member _.Yield(hp: HistoryPath) = [hp]
+    member _.Yield(pathStr) = [createHistoryPath pathStr]
+    member _.Yield(item) = [itemHistoryPath item]
+    member _.Yield((path, isDirectory)) = [{ PathValue = path; IsDirectory = isDirectory }]
+    member _.YieldFrom(hps: HistoryPath seq) = hps |> Seq.toList
+    member _.YieldFrom(items: Item seq) = items |> Seq.map itemHistoryPath |> Seq.toList
+    member _.Zero() = []
+    member _.Delay(f) = f()
+    member _.Combine(hps1: HistoryPath list, hps2: HistoryPath list) = List.append hps1 hps2
+
+let historyPaths = HistoryPathsBuilder()
+
+let assertHistoryPathsEqual (expectedHistoryPaths: HistoryPath list) model =
+    let fmt (hp: HistoryPath) = hp.Format Unix
+    model.History.Paths |> List.map fmt |> shouldEqual (expectedHistoryPaths |> List.map fmt)
+
+let withHistoryPaths historyPaths model =
+    { model with History = { model.History with Paths = historyPaths } }
+
+let withLocationOnHistory model =
+    { model with History = model.History.WithFolderPath model.Config.Limits.PathHistory model.Location }
 
 type FakeFileSystem with
     member this.ItemsIn path =
@@ -218,7 +247,8 @@ type FakeFileSystem with
             |> List.map (fun item ->
                 let name =
                     match item.Type with
-                    | Folder | Drive -> item.Name + @"\"
+                    | Folder -> item.Name + @"\"
+                    | Drive -> item.Name.Substring(0, 2) + @"\"
                     | _ -> item.Name
                 String(' ', 2 * nestLevel 0 item.Path) + name
             )
@@ -241,17 +271,25 @@ let pushUndo action model = { model with UndoStack = action :: model.UndoStack }
 let pushRedo action model = { model with RedoStack = action :: model.RedoStack }
 let popUndo model = { model with UndoStack = model.UndoStack.Tail }
 let popRedo model = { model with RedoStack = model.RedoStack.Tail }
+let withNewCancelToken model = { model with CancelToken = CancelToken() }
+
+let pathReplace oldPath newPath (path: Path) =
+    path.TryReplace oldPath newPath
+    |> Option.defaultWith (fun () -> failwithf "Problem with test: expected \"%O\" to be within path: %O" oldPath path)
+
+let createPutItem src dest item = { Item = item; Dest = item.Path |> pathReplace src dest; DestExists = false }
+let withDestExists putItem = { putItem with DestExists = true }
 
 let testModel =
     let items = [ createFile "/c/default item" ]
-    let undoRedo = createFile "/c/default-undo-redo"
     { MainModel.Default with
         Directory = items
         Items = items
         BackStack = [createPath "/c/back", 8]
         ForwardStack = [createPath "/c/fwd", 9]
-        UndoStack = [CreatedItem undoRedo]
-        RedoStack = [RenamedItem (undoRedo, "item")]
+        UndoStack = [CreatedItem (createFile "/c/default-undo")]
+        RedoStack = [RenamedItem (createFile "/c/default-redo", "item")]
+        CancelToken = CancelToken() |>! fun ct -> ct.Cancel()
         Config = { Config.Default with PathFormat = Unix }
     } |> withLocation "/c"
 

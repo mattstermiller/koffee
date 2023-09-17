@@ -105,7 +105,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                 yield
                     { model with
                         SubDirectories = Some []
-                        SubDirectoryCancel = cancelToken
+                        CancelToken = cancelToken
                         Sort = None
                     } |> withItems items
                 let exclusions = model.Config.SearchExclusions |> List.filter (not << String.startsWith "/")
@@ -114,7 +114,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
             | Some subDirs ->
                 yield model |> withItems (items @ filter subDirs)
         else
-            model.SubDirectoryCancel.Cancel()
+            model.CancelToken.Cancel()
             yield { model with SubDirectories = None } |> withItems items
     | Some (Error e) ->
         yield { model with InputError = Some e }

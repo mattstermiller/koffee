@@ -10,10 +10,10 @@ let private progressIncrementer (progress: Event<float option>) total =
     fun _ -> progress.Trigger (Some incr)
 
 let private performedAction action (model: MainModel) =
-    { model with
-        UndoStack = action :: model.UndoStack |> List.truncate model.Config.Limits.Undo
+    { model.WithMessage(MainStatus.ActionComplete (action, model.PathFormat))
+           .WithPushedUndo(action) with
         RedoStack = []
-    } |> fun m -> m.WithMessage (MainStatus.ActionComplete (action, model.PathFormat))
+    }
 
 let private setInputSelection cursorPos model =
     let fullLen = model.InputText.Length
@@ -155,31 +155,35 @@ let getCopyName name i =
     let number = if i = 0 then "" else string (i+1)
     sprintf "%s copy%s%s" nameNoExt number ext
 
-let rec private enumeratePutItems (fsReader: IFileSystemReader) copy checkExists (dest: Path) (item: Item) = asyncSeq {
-    let destExists =
-        if not checkExists then
-            false
-        else
-            match fsReader.GetItem dest with
-            | Ok (Some _) -> true
-            | _ -> false
-    let sameBase = item.Path.Base = dest.Base
-    match item.Type with
-    | Folder when copy || not sameBase || destExists ->
-        let! itemsResult = runAsync (fun () -> fsReader.GetItems item.Path)
-        match itemsResult with
-        | Ok [] -> yield Ok { Item = item; Dest = dest; DestExists = destExists }
-        | Ok items ->
-            for item in items do
-                let dest = dest.Join item.Name
-                yield! enumeratePutItems fsReader copy destExists dest item
-        | Error error -> yield Error (item, error)
-    | Folder | File ->
-        yield Ok { Item = item; Dest = dest; DestExists = destExists }
-    | _ -> ()
+let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) copy checkExists
+                                  (dest: Path) (item: Item) = asyncSeq {
+    if not cancelToken.IsCancelled then
+        let destExists =
+            if not checkExists then
+                false
+            else
+                match fsReader.GetItem dest with
+                | Ok (Some _) -> true
+                | _ -> false
+        let sameBase = item.Path.Base = dest.Base
+        match item.Type with
+        | Folder when copy || not sameBase || destExists ->
+            let! itemsResult = runAsync (fun () -> fsReader.GetItems item.Path)
+            match itemsResult with
+            | Ok [] ->
+                yield Ok { Item = item; Dest = dest; DestExists = destExists }
+            | Ok items ->
+                for item in items do
+                    let dest = dest.Join item.Name
+                    yield! enumeratePutItems fsReader cancelToken copy destExists dest item
+            | Error error ->
+                yield Error (item, error)
+        | Folder | File ->
+            yield Ok { Item = item; Dest = dest; DestExists = destExists }
+        | _ -> ()
 }
 
-let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutItem) list) =
+let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken) (items: (PutType * PutItem) list) =
     let incrementProgress = progressIncrementer progress items.Length
     let fileSysAction putType itemType =
         match putType with
@@ -196,102 +200,187 @@ let private performPutItems (fs: IFileSystem) progress (items: (PutType * PutIte
     }
     runAsync (fun () ->
         items
-        |> List.map (fun (putType, putItem) ->
+        |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
+        |> Seq.map (fun (putType, putItem) ->
             ensureFolderExists putItem.Dest.Parent
             |> Result.bind (fun () ->
                 fileSysAction putType putItem.Item.Type putItem.Item.Path putItem.Dest
-                |> Result.map (fun () -> putItem)
             )
+            |> Result.map (fun () -> putItem)
             |> Result.mapError (fun e -> (putItem.Item, e))
             |>! incrementProgress
         )
+        |> Seq.toList
         |>! (fun _ -> progress.Trigger None)
     )
 
-let rec private deleteEmptyFolders (fs: IFileSystem) path : Async<Result<unit, Path * exn>> = asyncResult {
-    match fs.GetItems path with
-    | Ok items ->
-        let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
-        for folder in folders do
-            let! res = deleteEmptyFolders fs folder.Path
-            do! res
-        if files |> List.isEmpty then
-            return! runAsync (fun () ->
-                fs.Delete Folder path |> Result.mapError (fun ex -> (path, ex))
-            )
-    | Error ex ->
-        return! Error (path, ex)
-}
+let private deleteEmptyFolders (fs: IFileSystem) path =
+    let rec iter path = seq {
+        match fs.GetItems path with
+        | Ok items ->
+            let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
+            yield! folders |> Seq.collect (fun folder -> iter folder.Path)
+            if files |> List.isEmpty then
+                yield
+                    fs.Delete Folder path
+                    |> Result.map (cnst path)
+                    |> Result.mapError (fun ex -> (path, ex))
+        | Error ex ->
+            yield Error (path, ex)
+    }
+    runAsync (fun () -> iter path |> Result.partition)
 
 let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors putType intent items (model: MainModel) = asyncSeqResult {
-    let getItemAction putItem = if isUndo && putItem.DestExists then Copy else putType
+    let getItemAction putItem =
+        // when undoing a move that was an overwrite, copy it back since a version of the item was there before
+        if isUndo && putItem.DestExists then Copy else putType
     let! results =
         items
         |> List.map (fun item -> (getItemAction item, item))
-        |> performPutItems fs progress
+        |> performPutItems fs progress model.CancelToken
     let succeeded, putErrors = results |> Result.partition
-    let action = PutItems (putType, intent, items)
-    let openDest model = Nav.openPath fs intent.Dest.Parent (SelectName intent.Dest.Name) model
-    match enumErrors @ putErrors with
-    | [] ->
-        let model =
-            if not isUndo then
-                model |> performedAction action
-            else
-                model
-        let! deleteRes = asyncResult {
-            // if folder was enumerated and its contents were moved, delete empty source folders
-            if putType = Move && intent.Item.Type = Folder
-                && not (items |> List.exists (fun i -> i.Item = intent.Item))
-            then
-                let! res = deleteEmptyFolders fs intent.Item.Path
-                return! res |> Result.mapError (fun (path, ex) -> MainStatus.CouldNotDeleteMoveSource (path.Name, ex))
-        }
-        let model =
-            if putType = Move then
-                { model with History = model.History.WithPathReplaced intent.Item.Path intent.Dest }
-            else
-                model
-        yield! model.WithResult deleteRes |> openDest
-    | errorItems when succeeded |> List.isEmpty ->
-        // if nothing succeeded, return error
+    let errorItems = enumErrors @ putErrors
+
+    // if nothing succeeded, return error
+    if succeeded |> List.isEmpty then
         return MainStatus.PutError (isUndo, putType, errorItems, items.Length + enumErrors.Length)
-    | errorItems ->
-        // if partial success, update undo stack with successes
-        // set error message instead of returning Error so that the caller flow is not short-circuited
-        let model =
-            if putType = Move then
-                let pathReplacements = succeeded |> List.map (fun putItem -> putItem.Item.Path, putItem.Dest) |> Map
-                { model with History = model.History.WithPathsReplaced pathReplacements }
-            else
-                model
-        let model = openDest model |> Result.toOption |? model
-        let error = MainStatus.PutError (isUndo, putType, errorItems, items.Length + enumErrors.Length)
-        if isUndo then
-            let undoIntent = { (intent |> PutItem.reverse) with DestExists = true }
-            let action = PutItems (putType, undoIntent, succeeded |> List.map PutItem.reverse)
-            yield
-                { model.WithError error with
-                    RedoStack = action :: model.RedoStack
-                }
+
+    let! deletedFolders, deleteFolderErrors = async {
+        // if folder was enumerated and its contents were moved, delete empty source folders
+        if putType = Move && intent.Item.Type = Folder
+            && not (items |> List.exists (fun i -> i.Item = intent.Item))
+        then
+            return! deleteEmptyFolders fs intent.Item.Path
         else
-            let action = PutItems (putType, intent, succeeded)
-            yield
-                { model.WithError error with
-                    UndoStack = action :: model.UndoStack |> List.truncate model.Config.Limits.Undo
-                    RedoStack = []
-                }
+            return ([], [])
+    }
+
+    let getReversedAction intent actual cancelled =
+        PutItems (putType, intent |> PutItem.reverse, actual |> List.map PutItem.reverse, cancelled)
+    let cancelledAction reverse =
+        if model.CancelToken.IsCancelled then
+            let unsuccessful = items |> List.except succeeded
+            if reverse
+            then Some (getReversedAction intent unsuccessful true)
+            else Some (PutItems (putType, intent, unsuccessful, true))
+        else
+            None
+    let action = PutItems (putType, intent, succeeded, model.CancelToken.IsCancelled)
+
+    let updateUndoRedo (model: MainModel) =
+        if isUndo then
+            // if there were errors, destination folder still exists so set DestExists to allow redo to merge
+            let redoIntent = if not errorItems.IsEmpty then { intent with DestExists = true } else intent
+            model
+            |> Option.foldBack (fun action model -> model.WithPushedUndo action) (cancelledAction true)
+            |> fun model -> model.WithPushedRedo (getReversedAction redoIntent succeeded model.CancelToken.IsCancelled)
+        else
+            model.WithPushedUndo action
+            |> fun model -> { model with RedoStack = cancelledAction false |> Option.toList }
+    let updateHistory model =
+        if putType = Move then
+            let isCompleted = errorItems.IsEmpty && not model.CancelToken.IsCancelled
+            let pathReplacements =
+                if isCompleted
+                then Map [intent.Item.Path, intent.Dest]
+                else succeeded |> List.map (fun putItem -> putItem.Item.Path, putItem.Dest) |> Map
+            { model with History = model.History.WithPathsReplaced(pathReplacements).WithPathsRemoved(deletedFolders) }
+        else
+            model
+    let openDest model =
+        model
+        |> Nav.openPath fs intent.Dest.Parent (SelectName intent.Dest.Name)
+        |> Result.toOption |? model // ignore error opening destination
+    let status =
+        option {
+            // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
+            if not errorItems.IsEmpty then
+                return MainStatus.Error (MainStatus.PutError (isUndo, putType, errorItems, items.Length + enumErrors.Length))
+            if model.CancelToken.IsCancelled then
+                return MainStatus.Message (MainStatus.CancelledPut (putType, isUndo, succeeded.Length, items.Length))
+            return!
+                deleteFolderErrors
+                |> List.tryHead
+                |> Option.map (fun (path, ex) -> MainStatus.Error (MainStatus.CouldNotDeleteMoveSource (path.Name, ex)))
+            if not isUndo then
+                return MainStatus.Message (MainStatus.ActionComplete (action, model.PathFormat))
+        }
+    yield
+        model
+        |> updateUndoRedo
+        |> updateHistory
+        |> Option.foldBack (fun s model -> model.WithStatus s) status
+        |> openDest
 }
 
-let putItem (fs: IFileSystem) (progress: Event<float option>) overwrite item putType model = asyncSeqResult {
-    let sameFolder = item.Path.Parent = model.Location
-    match! fs.GetItem model.Location |> actionError "put item" with
-    | Some container when container.Type.CanCreateIn ->
-        if putType = Move && sameFolder then
-            return MainStatus.CannotMoveToSameFolder
+let putToDestination (fs: IFileSystem) (progress: Event<float option>) isRedo overwrite putType item destPath model = asyncSeqResult {
+    let! existing = fs.GetItem destPath |> actionError "check destination path"
+    match existing with
+    | Some existing when not overwrite && not isRedo ->
+        // refresh item list to make sure we can see the existing file
+        let! model = Nav.openPath fs model.Location (SelectItem (existing, true)) model
+        yield
+            { model with
+                InputMode = Some (Confirm (Overwrite (putType, item, existing)))
+                InputText = ""
+            }
     | _ ->
-        return MainStatus.CannotPutHere
-    let! newName =
+        let model = { model with CancelToken = CancelToken() }
+        let putItem = { Item = item; Dest = destPath; DestExists = existing.IsSome }
+        yield model.WithBusy (MainStatus.PreparingPut (putType, item.Name))
+        progress.Trigger (Some 0.0)
+        let! enumerated =
+            match putType with
+            | Shortcut ->
+                async { return [Ok putItem] }
+            | Move | Copy ->
+                enumeratePutItems fs model.CancelToken (putType = Copy) true destPath item |> AsyncSeq.toListAsync
+        if model.CancelToken.IsCancelled then
+            yield model.WithMessage (MainStatus.CancelledPut (putType, false, 0, enumerated.Length))
+        else
+            let itemsToSkip =
+                if isRedo && putType = Copy then
+                    // if resuming cancelled copy, skip items already copied
+                    model.UndoStack |> List.tryHead |> Option.bind (function
+                        | PutItems (Copy, intent, actual, true) when PutItem.intentEquals intent putItem ->
+                            Some (actual |> List.map (fun putItem -> putItem.Item))
+                        | _ -> None
+                    )
+                else
+                    None
+            let filterItemsToSkip =
+                match itemsToSkip with
+                | Some itemsToSkip ->
+                    List.filter (fun res ->
+                        let item = res |> Result.toOption |> Option.map (fun putItem -> putItem.Item)
+                        not (item |> Option.exists (Seq.containedIn itemsToSkip))
+                    )
+                | None -> id
+            let errorOnExisting putResult =
+                putResult |> Result.bind (fun putItem ->
+                    if putItem.DestExists
+                    then Error (putItem.Item, RedoPutBlockedByExistingItemException() :> exn)
+                    else Ok putItem
+                )
+            let items, enumErrors =
+                enumerated
+                |> filterItemsToSkip
+                |> if isRedo && not overwrite then List.map errorOnExisting else id
+                |> Result.partition
+            if putType = Move || putType = Copy then
+                yield model.WithBusy (MainStatus.PuttingItem ((putType = Copy), isRedo, putItem, model.PathFormat))
+            yield! performPut fs progress false enumErrors putType putItem items model
+}
+
+let putInLocation (fs: IFileSystem) progress isRedo overwrite putType item model = asyncSeqResult {
+    let sameFolder = item.Path.Parent = model.Location
+    if putType = Move && sameFolder then
+        return MainStatus.CannotMoveToSameFolder
+    do! fs.GetItem model.Location
+        |> actionError "read put location"
+        |> Result.okIf (Option.exists (fun l -> l.Type.CanCreateIn)) MainStatus.CannotPutHere
+        |> Result.map ignore
+    let! destName =
         match putType with
         | Copy when sameFolder ->
             let unused name =
@@ -305,29 +394,8 @@ let putItem (fs: IFileSystem) (progress: Event<float option>) overwrite item put
             Ok (item.Name + ".lnk")
         | _ ->
             Ok item.Name
-    let newPath = model.Location.Join newName
-    let! existing = fs.GetItem newPath |> actionError "check destination path"
-    match existing with
-    | Some existing when not overwrite ->
-        // refresh item list to make sure we can see the existing file
-        let! model = Nav.openPath fs model.Location (SelectItem (existing, true)) model
-        yield
-            { model with
-                InputMode = Some (Confirm (Overwrite (putType, item, existing)))
-                InputText = ""
-            }
-    | _ ->
-        yield model.WithBusy (MainStatus.PreparingPut (putType, item.Name))
-        progress.Trigger (Some 0.0)
-        let! enumerated =
-            match putType with
-            | Shortcut -> async { return [Ok { Item = item; Dest = newPath; DestExists = existing.IsSome }] }
-            | Move | Copy -> enumeratePutItems fs (putType = Copy) true newPath item |> AsyncSeq.toListAsync
-        let items, enumErrors = enumerated |> Result.partition
-        let putItem = { Item = item; Dest = newPath; DestExists = existing.IsSome }
-        if putType = Move || putType = Copy then
-            yield model.WithBusy (MainStatus.PuttingItem ((putType = Copy), false, putItem, model.PathFormat))
-        yield! performPut fs progress false enumErrors putType putItem items model
+    let destPath = model.Location.Join destName
+    yield! putToDestination fs progress isRedo overwrite putType item destPath model
 }
 
 let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult {
@@ -338,92 +406,111 @@ let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult
             return MainStatus.CannotPutHere
         match! fs.GetItem path |> actionError "read yank register item" with
         | Some item ->
-            let! model = putItem fs progress overwrite item putType model
-            if model.InputMode.IsNone then
+            let! model = putInLocation fs progress false overwrite putType item model
+            let wasImmediatelyCanceled =
+                match model.Status with Some (MainStatus.Message (MainStatus.CancelledPut (_, _, 0, _))) -> true | _ -> false
+            // if not cancelled or opened input for confirmation, clear yank register
+            if not wasImmediatelyCanceled && model.InputMode.IsNone then
                 yield { model with Config = { model.Config with YankRegister = None } }
         | None ->
             return MainStatus.YankRegisterItemMissing (path.Format model.PathFormat)
 }
 
 let undoMove (fs: IFileSystem) progress (intent: PutItem) (moved: PutItem list) (model: MainModel) = asyncSeqResult {
+    let model = { model with CancelToken = CancelToken() }
     yield model.WithBusy (MainStatus.UndoingPut (false, intent.Item))
-    let items, existErrors =
+    let! items, existErrors = runAsync (fun () ->
         moved
-        |> List.map PutItem.reverse
-        |> List.map (fun putItem ->
+        |> Seq.takeWhile (fun _ -> not model.CancelToken.IsCancelled)
+        |> Seq.map PutItem.reverse
+        |> Seq.map (fun putItem ->
             match fs.GetItem putItem.Dest with
             | Ok None -> Ok putItem
             | Ok (Some _) -> Error (putItem.Item, UndoMoveBlockedByExistingItemException() :> exn)
             | Error e -> Error (putItem.Item, e)
         )
         |> Result.partition
-    let putItem = intent |> PutItem.reverse
-    yield! performPut fs progress true existErrors Move putItem items model
+    )
+    if not model.CancelToken.IsCancelled then
+        let putItem = intent |> PutItem.reverse
+        yield! performPut fs progress true existErrors Move putItem items model
 }
 
-let private performUndoCopy (fs: IFileSystem) progress (items: PutItem list) =
+let private performUndoCopy (fs: IFileSystem) progress (cancelToken: CancelToken) (items: PutItem list) =
     let incrementProgress = progressIncrementer progress items.Length
     let shouldDelete putItem =
-        let copyModified =
-            match fs.GetItem putItem.Dest with
-            | Ok (Some copy) -> copy.Modified
-            | _ -> None
+        let copyModified = fs.GetItem putItem.Dest |> Result.map (Option.bind (fun copiedItem -> copiedItem.Modified))
         match putItem.Item.Modified, copyModified with
-        | Some orig, Some copy when orig = copy -> true
+        | origTime, Ok copyTime when origTime = copyTime -> true
         | _ -> false
     runAsync (fun () ->
         items
-        |> List.map (fun putItem ->
+        |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
+        |> Seq.map (fun putItem ->
             (
-                if putItem.DestExists then
-                    Ok () // don't remove items that existed before the copy
-                else if shouldDelete putItem then
-                    fs.Delete putItem.Item.Type putItem.Dest
-                else
-                    fs.Recycle putItem.Item.Type putItem.Dest
+                if shouldDelete putItem
+                then fs.Delete putItem.Item.Type putItem.Dest
+                else fs.Recycle (putItem.Item.Size |? 0L) putItem.Item.Type putItem.Dest
             )
             |> Result.map (cnst putItem)
             |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
             |>! incrementProgress
         )
+        |> Seq.toList
         |>! (fun _ -> progress.Trigger None)
     )
 
 let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqResult {
+    let model = { model with CancelToken = CancelToken() }
     yield model.WithBusy (MainStatus.UndoingPut (true, intent.Item))
-    let! results = performUndoCopy fs progress copied
-    match results |> Result.partition with
-    | _, [] ->
-        let! deleteRes = asyncResult {
-            // delete empty copied folders
-            if intent.Item.Type = Folder then
-                let! res = deleteEmptyFolders fs intent.Dest
-                return! res |> Result.mapError (fun (path, ex) -> MainStatus.CouldNotDeleteCopyDest (path.Name, ex))
-        }
-        let model = model.WithResult deleteRes
-        if model.Location = intent.Dest.Parent then
-            yield! Nav.refresh fs model
-        else
-            yield model
-    | [], errors ->
+    let! results = performUndoCopy fs progress model.CancelToken copied
+    let succeeded, errors = results |> Result.partition
+
+    if not errors.IsEmpty && succeeded.IsEmpty then
         return MainStatus.PutError (true, Copy, errors, copied.Length)
-    | succeeded, errors ->
-        // if partial success, update undo stack with successes
-        // set error message instead of returning Error so that the caller flow is not short-circuited
-        let action = PutItems (Copy, intent, succeeded)
-        let model =
-            { model.WithError (MainStatus.PutError (true, Copy, errors, copied.Length)) with
-                RedoStack = action :: model.RedoStack
-            }
-        if model.Location = intent.Dest.Parent then
-            yield Nav.refresh fs model |> Result.toOption |? model
+
+    let! deletedFolders, deleteFolderErrors = async {
+        // delete empty copied folders
+        if intent.Item.Type = Folder then
+            return! deleteEmptyFolders fs intent.Dest
         else
-            yield model
+            return ([], [])
+    }
+
+    let cancelledUndo =
+        if model.CancelToken.IsCancelled
+        then Some (PutItems (Copy, intent, (copied |> List.except succeeded), true))
+        else None
+    let status = option {
+        if not errors.IsEmpty then
+            return MainStatus.Error (MainStatus.PutError (true, Copy, errors, copied.Length))
+        return!
+            deleteFolderErrors
+            |> List.tryHead
+            |> Option.map (fun (path, ex) -> MainStatus.Error (MainStatus.CouldNotDeleteCopyDest (path.Name, ex)))
+        if model.CancelToken.IsCancelled then
+            return MainStatus.Message (MainStatus.CancelledPut (Copy, true, succeeded.Length, copied.Length))
+    }
+    let refreshIfAtDest model =
+        if model.Location = intent.Dest.Parent
+        then Nav.refresh fs model |> Result.toOption |? model
+        else model
+    yield
+        model
+        |> Option.foldBack (fun a model -> model.WithPushedUndo a) cancelledUndo
+        |> fun model -> model.WithPushedRedo (PutItems (Copy, intent, succeeded, model.CancelToken.IsCancelled))
+        |> fun model ->
+            { model with
+                History = model.History.WithPathsRemoved ((succeeded |> List.map (fun pi -> pi.Dest)) @ deletedFolders)
+            }
+        |> Option.foldBack (fun s model -> model.WithStatus s) status
+        |> refreshIfAtDest
 }
 
 let undoShortcut (fs: IFileSystem) shortcutPath (model: MainModel) = result {
     let action = DeletedItem ({ Item.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
     do! fs.Delete File shortcutPath |> itemActionError action model.PathFormat
+    let model = { model with History = model.History.WithPathRemoved shortcutPath }
     if model.Location = shortcutPath.Parent then
         return! Nav.refresh fs model
     else
@@ -439,20 +526,20 @@ let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
         return model
 }
 
-let rec private enumerateDeleteItems (fsReader: IFileSystemReader) (items: Item seq) = asyncSeq {
+let rec private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) = asyncSeq {
     for item in items do
-        match item.Type with
-        | Folder ->
-            let! subItems = runAsync (fun () -> fsReader.GetItems item.Path)
-            match subItems with
-            | Ok subItems when not subItems.IsEmpty ->
-                yield! enumerateDeleteItems fsReader subItems
+        if not cancelToken.IsCancelled then
+            match item.Type with
+            | Folder ->
+                let! subItems = runAsync (fun () -> fsReader.GetItems item.Path)
+                match subItems with
+                | Ok subItems when not subItems.IsEmpty ->
+                    yield! enumerateDeleteItems fsReader cancelToken subItems
+                | _ -> ()
                 yield item
-            | _ ->
+            | File ->
                 yield item
-        | File ->
-            yield item
-        | _ -> ()
+            | _ -> ()
 }
 
 let private removeItem item (model: MainModel) =
@@ -462,44 +549,79 @@ let private removeItem item (model: MainModel) =
         History = model.History.WithPathRemoved item.Path
     }.WithCursor model.Cursor
 
-let delete (fs: IFileSystem) (progress: Event<float option>) item permanent (model: MainModel) = asyncSeqResult {
+let delete (fs: IFileSystem) (progress: Event<float option>) item (model: MainModel) = asyncSeqResult {
     if item.Type.CanModify then
-        let action = DeletedItem (item, permanent)
-        if permanent then
-            yield model.WithBusy (MainStatus.PreparingDelete item.Name)
-            progress.Trigger (Some 0.0)
-            let! items = enumerateDeleteItems fs [item] |> AsyncSeq.toListAsync
-            let incrementProgress = progressIncrementer progress items.Length
-            yield model.WithBusy (MainStatus.DeletingItem (item, permanent))
-            let! res = runAsync (fun () ->
-                items
-                |> Seq.map (fun i ->
-                    fs.Delete i.Type i.Path
-                    |> Result.mapError(fun ex -> (i, ex))
-                    |>! incrementProgress
-                )
-                |> Result.accumulate
-                |> Result.map ignore
+        let action = DeletedItem (item, true)
+        let model = model.WithNewCancelToken()
+        yield model.WithBusy (MainStatus.PreparingDelete item.Name)
+        progress.Trigger (Some 0.0)
+        let! items = enumerateDeleteItems fs model.CancelToken [item] |> AsyncSeq.toListAsync
+        let incrementProgress = progressIncrementer progress items.Length
+        yield model.WithBusy (MainStatus.DeletingItem (item, true))
+        let! deleteResult = runAsync (fun () ->
+            items
+            |> Seq.takeWhile (fun _ -> not model.CancelToken.IsCancelled)
+            |> Seq.map (fun i ->
+                fs.Delete i.Type i.Path
+                |> Result.mapError(fun ex -> (i, ex))
+                |>! incrementProgress
             )
-            progress.Trigger None
-            do! res |> Result.mapError (fun errors -> MainStatus.DeleteError (errors, items.Length))
+            |> Result.accumulate
+            |> Result.map List.length
+            |> Result.mapError (fun errors -> MainStatus.DeleteError (errors, items.Length))
+        )
+        progress.Trigger None
+        let! deletedCount = deleteResult
+        yield
+            if model.CancelToken.IsCancelled then
+                let model = model.WithMessage(MainStatus.CancelledDelete (true, deletedCount, items.Length))
+                if deletedCount > 0 then
+                    model.WithPushedUndo action
+                    |> fun m -> { m with RedoStack = [action] }
+                else
+                    model
+            else
+                model
+                |> removeItem item
+                |> performedAction action
+}
+
+let private calculateTotalSize (fsReader: IFileSystemReader) (cancelToken: CancelToken) items =
+    let rec iter (items: Item seq) =
+        if cancelToken.IsCancelled then
+            Ok 0L
         else
-            yield model.WithBusy (MainStatus.DeletingItem (item, permanent))
-            let! res = runAsync (fun () -> fs.Recycle item.Type item.Path)
-            do! res |> itemActionError action model.PathFormat
+            items
+            |> Seq.map (fun item ->
+                match item.Type with
+                | Folder -> fsReader.GetItems item.Path |> Result.bind iter
+                | _ -> Ok (item.Size |? 0L)
+            )
+            |> Seq.fold (Result.map2 (+)) (Ok 0L)
+    runAsync (fun () -> iter items)
+
+let recycle (fs: IFileSystem) item (model: MainModel) = asyncSeqResult {
+    if item.Type = NetHost then
         yield
             model
             |> removeItem item
-            |> performedAction action
-}
-
-let recycle fsWriter progress item (model: MainModel) = asyncSeqResult {
-    if item.Type = NetHost then
-        yield
-            removeItem item model
             |> fun m -> m.WithMessage (MainStatus.RemovedNetworkHost item.Name)
-    else
-        yield! delete fsWriter progress item false model
+    else if item.Type.CanModify then
+        let action = DeletedItem (item, false)
+        let model = model.WithNewCancelToken()
+        yield model.WithBusy MainStatus.CheckingIsRecyclable
+        let! sizeRes = calculateTotalSize fs model.CancelToken [item]
+        let! size = sizeRes |> actionError "check folder content size"
+        if model.CancelToken.IsCancelled then
+            yield model.WithMessage (MainStatus.CancelledDelete (false, 0, 1))
+        else
+            yield model.WithBusy (MainStatus.DeletingItem (item, false))
+            let! res = runAsync (fun () -> fs.Recycle size item.Type item.Path)
+            do! res |> itemActionError action model.PathFormat
+            yield
+                model
+                |> removeItem item
+                |> performedAction action
 }
 
 let rec private undoIter iter fs progress model = asyncSeqResult {
@@ -508,6 +630,14 @@ let rec private undoIter iter fs progress model = asyncSeqResult {
         let oldRedoHead = model.RedoStack |> List.tryHead
         let model = { model.ClearStatus () with UndoStack = rest }
         yield model
+        let action =
+            match action with
+            | PutItems (Copy, intent, actual, _) ->
+                // skip items that existed before the copy
+                PutItems (Copy, intent, actual |> List.filter (fun pi -> not pi.DestExists), false)
+            | PutItems (putType, intent, actual, true) ->
+                PutItems (putType, intent, actual, false)
+            | _ -> action
         let! model =
             match action with
             | CreatedItem item ->
@@ -515,24 +645,23 @@ let rec private undoIter iter fs progress model = asyncSeqResult {
             | RenamedItem (oldItem, curName) ->
                 undoRename fs oldItem curName model
                 |> AsyncSeq.singleton
-            | PutItems (Move, intent, actual) ->
+            | PutItems (Move, intent, actual, _) ->
                 undoMove fs progress intent actual model
-            | PutItems (Copy, intent, actual) ->
+            | PutItems (Copy, intent, actual, _) ->
                 undoCopy fs progress intent actual model
-            | PutItems (Shortcut, intent, _) ->
+            | PutItems (Shortcut, intent, _, _) ->
                 undoShortcut fs intent.Dest model
                 |> AsyncSeq.singleton
             | DeletedItem (item, permanent) ->
                 Error (MainStatus.CannotUndoDelete (permanent, item))
                 |> AsyncSeq.singleton
         let model =
-            if model.RedoStack |> List.tryHead = oldRedoHead then
-                { model with RedoStack = action :: model.RedoStack }
-            else
-                model
+            if model.RedoStack |> List.tryHead = oldRedoHead
+            then { model with RedoStack = action :: model.RedoStack }
+            else model
         if iter < model.RepeatCount then
             yield! undoIter (iter + 1) fs progress model
-        else if not model.IsStatusError then
+        else if not model.IsStatusError && not model.IsStatusCancelled then
             yield model.WithMessage (MainStatus.UndoAction (action, model.PathFormat, model.RepeatCount))
         else
             yield model
@@ -545,6 +674,7 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
     match model.RedoStack with
     | action :: rest ->
         let model = { model with RedoStack = rest }
+        let redoHead = model.RedoStack |> List.tryHead
         yield model
         let openPath (path: Path) =
             if path <> model.Location
@@ -558,32 +688,35 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
             | RenamedItem (item, newName) ->
                 let! model = openPath item.Path.Parent
                 yield! rename fs item newName model
-            | PutItems (putType, intent, _) ->
+            | PutItems (putType, intent, _, cancelled) ->
                 let! model = openPath intent.Dest.Parent
-                if not intent.DestExists then
+                let overwrite = intent.DestExists
+                if not overwrite && not cancelled then
                     match! fs.GetItem intent.Dest |> actionError "check destination path" with
                     | Some existing ->
                         yield Nav.select (SelectItem (existing, true)) model
                         return MainStatus.CannotRedoPutToExisting (putType, intent.Item, intent.Dest.Format model.PathFormat)
                     | None -> ()
-                if putType = Move || putType = Copy then
-                    yield model.WithBusy (MainStatus.PuttingItem ((putType = Copy), true, intent, model.PathFormat))
-                yield! putItem fs progress intent.DestExists intent.Item putType model
+                yield! putToDestination fs progress true overwrite putType intent.Item intent.Dest model
             | DeletedItem (item, permanent) ->
                 let! model =
                     openPath item.Path.Parent
                     |> Result.map (Nav.select (SelectItem (item, true)))
                 yield model.WithBusy (MainStatus.RedoingDeletingItem (item, permanent))
-                yield! delete fs progress item permanent model
+                let deleteFunc = if permanent then delete fs progress else recycle fs
+                yield! deleteFunc item model
         }
-        let model = { model with RedoStack = rest }
+        // restore redo stack after operation with new item if present
+        let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
+        let model = { model with RedoStack = (newRedoItem |> Option.toList) @ rest }
         if iter < model.RepeatCount then
             yield! redoIter (iter + 1) fs progress model
-        else if not model.IsStatusError then
-            let redoneAction = model.UndoStack |> List.tryHead |? action
-            yield model.WithMessage (MainStatus.RedoAction (redoneAction, model.PathFormat, model.RepeatCount))
         else
-            yield model
+            match model.Status with
+            | Some (MainStatus.Message (MainStatus.ActionComplete (action, _))) ->
+                yield model.WithMessage (MainStatus.RedoAction (action, model.PathFormat, model.RepeatCount))
+            | _ ->
+                yield model
     | [] -> return MainStatus.NoRedoActions
 }
 

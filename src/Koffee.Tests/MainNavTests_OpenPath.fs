@@ -116,6 +116,7 @@ let ``Open Parent when in folder opens parent and selects folder that was open``
         }
         |> withLocation "/c"
         |> withBack (model.Location, 0)
+        |> withLocationOnHistory
     assertAreEqual expected actual
 
 [<Test>]
@@ -143,4 +144,5 @@ let ``Open Parent when in drive opens root and selects drive that was open`` () 
         }
         |> withLocation "/"
         |> withBack (model.Location, 0)
+        |> withLocationOnHistory
     assertAreEqual expected actual

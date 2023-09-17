@@ -84,14 +84,16 @@ let create (fs: IFileSystem) itemType name model = asyncSeqResult {
 }
 
 let undoCreate (fs: IFileSystem) item (model: MainModel) = asyncSeqResult {
-    if fs.IsEmpty item.Path then
-        yield model.WithBusy (MainStatus.UndoingCreate item)
-        let! res = runAsync (fun () -> fs.Delete item.Type item.Path)
-        do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
-        if model.Location = item.Path.Parent then
-            yield! Nav.refresh fs model
-    else
+    if not (fs.IsEmpty item.Path) then
         return MainStatus.CannotUndoNonEmptyCreated item
+    yield model.WithBusy (MainStatus.UndoingCreate item)
+    let! res = runAsync (fun () -> fs.Delete item.Type item.Path)
+    do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
+    let model = { model with History = model.History.WithPathRemoved item.Path }
+    if model.Location = item.Path.Parent then
+        yield! Nav.refresh fs model
+    else
+        yield model
 }
 
 let rename (fs: IFileSystem) item newName (model: MainModel) = result {

@@ -29,6 +29,7 @@ let ``Create calls file sys create and openPath and sets status``() =
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -57,6 +58,7 @@ let ``Create returns error when item already exists at path`` existingHidden =
             Items = expectedItems
             Cursor = 1
         }.WithError (MainStatus.CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
+        |> withLocationOnHistory
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -95,7 +97,13 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model =
         testModel.WithError MainStatus.NoPreviousSearch
-        |> withLocation location |> pushUndo action
+        |> withLocation location
+        |> pushUndo action
+        |> withHistoryPaths (historyPaths {
+            itemHistoryPath createdItem
+            if isFolder then
+                createdItem.Path.Join "file", false
+        })
 
     let actual = seqResult (Action.undo fs progress) model
 
@@ -111,6 +119,8 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
         }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        |> withHistoryPaths []
+        |> if curPathDifferent then id else withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -178,6 +188,7 @@ let ``Redo create creates item again`` () =
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = model.RedoStack.Tail
         }.WithMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1))
+        |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"

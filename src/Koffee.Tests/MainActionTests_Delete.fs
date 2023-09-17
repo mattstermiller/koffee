@@ -83,8 +83,8 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             RedoStack = []
             CancelToken = CancelToken()
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
-    actual |> assertHistoryPathsEqual (model.History.Paths |> List.take 1)
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [
             file "other"
@@ -129,8 +129,8 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             RedoStack = []
             CancelToken = CancelToken()
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
-    actual |> assertHistoryPathsEqual (model.History.Paths |> List.take 1)
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [
             file "other"

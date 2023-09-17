@@ -144,7 +144,6 @@ let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     comparer.Config.MembersToIgnore.AddRange(seq {
         yield! getNonFieldNames<Item>()
         yield! getNonFieldNames<MainModel>()
-        "MainModel.History" // TODO: remove this, assert path history everywhere
         "MainModel.StatusHistory"
         "History.PathSort"
     })
@@ -218,10 +217,6 @@ type HistoryPathsBuilder() =
     member _.Combine(hps1: HistoryPath list, hps2: HistoryPath list) = List.append hps1 hps2
 
 let historyPaths = HistoryPathsBuilder()
-
-let assertHistoryPathsEqual (expectedHistoryPaths: HistoryPath list) model =
-    let fmt (hp: HistoryPath) = hp.Format Unix
-    model.History.Paths |> List.map fmt |> shouldEqual (expectedHistoryPaths |> List.map fmt)
 
 let withHistoryPaths historyPaths model =
     { model with History = { model.History with Paths = historyPaths } }

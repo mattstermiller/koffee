@@ -45,11 +45,11 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withHistoryPaths (historyPaths {
+            model.History.Paths.[0]
+            newPath
+        })
     assertAreEqual expected actual
-    actual |> assertHistoryPathsEqual (historyPaths {
-        model.History.Paths.[0]
-        newPath
-    })
     fs.ItemsShouldEqual [
         file "another"
         file renamed.Name
@@ -96,12 +96,12 @@ let ``Rename folder calls file sys move and updates history`` () =
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
         }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withHistoryPaths (historyPaths {
+            newPath + "your file"
+            model.History.Paths.[1]
+            newPath
+        })
     assertAreEqual expected actual
-    actual |> assertHistoryPathsEqual (historyPaths {
-        newPath + "your file"
-        model.History.Paths.[1]
-        newPath
-    })
     fs.ItemsShouldEqual [
         folder "another" []
         folder "renamed" [
@@ -221,12 +221,12 @@ let ``Undo rename file changes name back to original and updates history`` curPa
             RedoStack = action :: model.RedoStack
         }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
         |> withBackIf curPathDifferent (model.Location, 0)
+        |> withHistoryPaths (historyPaths {
+            previous.Path.Parent, true
+            model.History.Paths.[0]
+            previous
+        })
     assertAreEqual expected actual
-    actual |> assertHistoryPathsEqual (historyPaths {
-        previous.Path.Parent, true
-        model.History.Paths.[0]
-        previous
-    })
     fs.ItemsShouldEqual [
         file "another"
         file previous.Name
@@ -263,13 +263,13 @@ let ``Undo rename folder changes name back to original and updates history`` () 
             Cursor = 1
             RedoStack = action :: model.RedoStack
         }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        |> withHistoryPaths (historyPaths {
+            previous.Path.Parent, true
+            previous.Path.Join "file", false
+            model.History.Paths.[1]
+            previous
+        })
     assertAreEqual expected actual
-    actual |> assertHistoryPathsEqual (historyPaths {
-        previous.Path.Parent, true
-        previous.Path.Join "file", false
-        model.History.Paths.[1]
-        previous
-    })
     fs.ItemsShouldEqual [
         folder "another" []
         folder "folder" []

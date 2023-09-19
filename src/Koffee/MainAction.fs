@@ -157,33 +157,34 @@ let getCopyName name i =
     let number = if i = 0 then "" else string (i+1)
     sprintf "%s copy%s%s" nameNoExt number ext
 
-let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) copy checkExists
-                                  (dest: Path) (item: Item) = asyncSeq {
-    if not cancelToken.IsCancelled then
-        let destExists =
-            if not checkExists then
-                false
-            else
-                match fsReader.GetItem dest with
-                | Ok (Some _) -> true
-                | _ -> false
-        let sameBase = item.Path.Base = dest.Base
-        match item.Type with
-        | Folder when copy || not sameBase || destExists ->
-            let! itemsResult = runAsync (fun () -> fsReader.GetItems item.Path)
-            match itemsResult with
-            | Ok [] ->
+let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) copy (dest: Path) (item: Item) =
+    let rec iter checkExists dest item = asyncSeq {
+        if not cancelToken.IsCancelled then
+            let destExists =
+                if not checkExists then
+                    false
+                else
+                    match fsReader.GetItem dest with
+                    | Ok (Some _) -> true
+                    | _ -> false
+            let sameBase = item.Path.Base = dest.Base
+            match item.Type with
+            | Folder when copy || not sameBase || destExists ->
+                let! itemsResult = runAsync (fun () -> fsReader.GetItems item.Path)
+                match itemsResult with
+                | Ok [] ->
+                    yield Ok { Item = item; Dest = dest; DestExists = destExists }
+                | Ok items ->
+                    for item in items do
+                        let dest = dest.Join item.Name
+                        yield! iter destExists dest item
+                | Error error ->
+                    yield Error (item, error)
+            | Folder | File ->
                 yield Ok { Item = item; Dest = dest; DestExists = destExists }
-            | Ok items ->
-                for item in items do
-                    let dest = dest.Join item.Name
-                    yield! enumeratePutItems fsReader cancelToken copy destExists dest item
-            | Error error ->
-                yield Error (item, error)
-        | Folder | File ->
-            yield Ok { Item = item; Dest = dest; DestExists = destExists }
-        | _ -> ()
-}
+            | _ -> ()
+    }
+    iter true dest item
 
 let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken) isUndo putType (items: PutItem list) =
     let incrementProgress = progressIncrementer progress items.Length
@@ -341,7 +342,7 @@ let putToDestination (fs: IFileSystem) (progress: Event<float option>) isRedo ov
             | Shortcut ->
                 async { return [Ok putItem] }
             | Move | Copy ->
-                enumeratePutItems fs model.CancelToken (putType = Copy) true destPath item |> AsyncSeq.toListAsync
+                enumeratePutItems fs model.CancelToken (putType = Copy) destPath item |> AsyncSeq.toListAsync
         if model.CancelToken.IsCancelled then
             yield model.WithMessage (MainStatus.CancelledPut (putType, false, 0, enumerated.Length))
         else

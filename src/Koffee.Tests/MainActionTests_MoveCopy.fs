@@ -1749,6 +1749,45 @@ let ``Undo copy empty folder deletes it`` () =
     ]
     fs.RecycleBin |> shouldEqual []
 
+[<Test>]
+let ``Undo copy empty folder that has new items in it returns error`` () =
+    let fs = FakeFileSystem [
+        drive 'c' [
+            folder "dest" [
+                folder "folder" [
+                    file "new" // simulate externally-created file after folder copy
+                ]
+            ]
+            folder "folder" []
+        ]
+    ]
+    let original = fs.Item "/c/folder"
+    let copied = fs.Item "/c/dest/folder"
+    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
+    let action = PutItems (Copy, putItem, [putItem], false)
+    let model = testModel |> pushUndo action
+
+    let actual = seqResult (Action.undo fs progress) model
+
+    let expectedExn = FakeFileSystemErrors.cannotDeleteNonEmptyFolder
+    let expected =
+        { model with
+            UndoStack = model.UndoStack.Tail
+            CancelToken = CancelToken()
+        }.WithError (MainStatus.PutError (true, Copy, [copied, expectedExn], 1))
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        drive 'c' [
+            folder "dest" [
+                folder "folder" [
+                    file "new"
+                ]
+            ]
+            folder "folder" []
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual []
+
 [<TestCase(false, false)>]
 [<TestCase(false, true)>]
 [<TestCase(true, false)>]

@@ -7,6 +7,7 @@
 - #9 Changes Delete to enumerate and work on single items
 - #130 Closes Find prompt when opening a file
 - #129 Fixes FileSystem Move and Copy to handle empty folders
+- #135 Fixes put merge error on empty folder when it exists in destination
 - Fixes Find input error not going away after using Go To Next Find Match
 - Fixes drive not being selected when opening parent
 - Various optimizations for file write operations

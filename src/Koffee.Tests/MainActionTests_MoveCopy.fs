@@ -601,6 +601,7 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
                 fileWith (size 7L) "apple"
                 file "banana"
             ]
+            folder "vines" []
             file "tomato"
         ]
     let fs = FakeFileSystem [
@@ -610,6 +611,9 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
                 folder "trees" [
                     file "apple"
                     file "orange"
+                ]
+                folder "vines" [
+                    file "grapes"
                 ]
             ]
         ]
@@ -631,6 +635,7 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
         createPutItem (createFile "/c/fruit/tomato")
         createPutItem (createFile "/c/fruit/trees/apple" |> size 7L) |> withDestExists
         createPutItem (createFile "/c/fruit/trees/banana")
+        createPutItem (createFolder "/c/fruit/vines") |> withDestExists
     ]
     let expectedAction = PutItems (putType, intent, expectedPut, false)
     let expectedItems = [dest]
@@ -657,6 +662,9 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
                     fileWith (size 7L) "apple"
                     file "banana"
                     file "orange"
+                ]
+                folder "vines" [
+                    file "grapes"
                 ]
                 file "tomato"
             ]
@@ -1248,10 +1256,13 @@ let ``Undo move of enumerated folder deletes original dest folder when empty aft
     ]
 
 [<Test>]
-let ``Undo move copies back items that were overwrites`` () =
+let ``Undo move copies back items that were overwrites and recreates empty folders`` () =
     let fs = FakeFileSystem [
         folder "dest" [
             folder "moved" [
+                folder "folder" [
+                    file "sub"
+                ]
                 file "file"
                 file "other"
             ]
@@ -1262,6 +1273,7 @@ let ``Undo move copies back items that were overwrites`` () =
     let putItem = { Item = original; Dest = moved.Path; DestExists = true }
     let createPutItem = createPutItem original.Path moved.Path
     let actualMoved = [
+        createFolder "/c/moved/folder" |> createPutItem |> withDestExists
         createFile "/c/moved/file" |> createPutItem |> withDestExists
         createFile "/c/moved/other" |> createPutItem
     ]
@@ -1273,6 +1285,7 @@ let ``Undo move copies back items that were overwrites`` () =
             moved
             actualMoved.[0].Dest, false
             actualMoved.[1].Dest, false
+            actualMoved.[2].Dest, false
         })
 
     let actual = seqResult (Action.undo fs progress) model
@@ -1291,19 +1304,24 @@ let ``Undo move copies back items that were overwrites`` () =
             CancelToken = CancelToken()
         }.WithMessage (MainStatus.UndoAction (action, testModel.PathFormat, 1))
         |> withHistoryPaths (historyPaths {
-            original
-            actualMoved.[0].Item
-            actualMoved.[1].Item
+            moved
+            actualMoved.[0].Dest, false
+            actualMoved.[1].Dest, false
+            actualMoved.[2].Item
         })
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "dest" [
             folder "moved" [
+                folder "folder" [
+                    file "sub"
+                ]
                 file "file"
             ]
         ]
         folder "moved" [
+            folder "folder" []
             file "file"
             file "other"
         ]

@@ -185,29 +185,35 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
         | _ -> ()
 }
 
-let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken) (items: (PutType * PutItem) list) =
+let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken) isUndo putType (items: PutItem list) =
     let incrementProgress = progressIncrementer progress items.Length
-    let fileSysAction putType itemType =
-        match putType with
-        | Move -> fs.Move itemType
-        | Copy -> fs.Copy itemType
-        | Shortcut -> fs.CreateShortcut
+    let fileSysAction putItem =
+        // when undoing a move that was an overwrite, copy it back since a version of the item was there before
+        let putType = if isUndo && putItem.DestExists then Copy else putType
+        let itemType, src, dest = putItem.Item.Type, putItem.Item.Path, putItem.Dest
+        if not isUndo && itemType = Folder && putItem.DestExists then
+            Ok () // skip if folder already exists
+        else
+            match putType with
+            | Move -> fs.Move itemType src dest
+            | Copy when itemType = Folder -> fs.Create itemType dest
+            | Copy -> fs.Copy itemType src dest
+            | Shortcut -> fs.CreateShortcut src dest
     let mutable foldersChecked = Set []
-    let ensureFolderExists (path: Path) = result {
+    let ensureFolderExists destExists (path: Path) = result {
         if not (foldersChecked |> Set.contains path) then
             foldersChecked <- foldersChecked.Add path
-            match! fs.GetItem path with
-            | None -> return! fs.Create Folder path
-            | Some _ -> ()
+            if not destExists || isUndo then
+                match! fs.GetItem path with
+                | None -> return! fs.Create Folder path
+                | Some _ -> ()
     }
     runAsync (fun () ->
         items
         |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
-        |> Seq.map (fun (putType, putItem) ->
-            ensureFolderExists putItem.Dest.Parent
-            |> Result.bind (fun () ->
-                fileSysAction putType putItem.Item.Type putItem.Item.Path putItem.Dest
-            )
+        |> Seq.map (fun putItem ->
+            ensureFolderExists putItem.DestExists putItem.Dest.Parent
+            |> Result.bind (fun () -> fileSysAction putItem)
             |> Result.map (fun () -> putItem)
             |> Result.mapError (fun e -> (putItem.Item, e))
             |>! incrementProgress
@@ -233,13 +239,7 @@ let private deleteEmptyFolders (fs: IFileSystem) path =
     runAsync (fun () -> iter path |> Result.partition)
 
 let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors putType intent items (model: MainModel) = asyncSeqResult {
-    let getItemAction putItem =
-        // when undoing a move that was an overwrite, copy it back since a version of the item was there before
-        if isUndo && putItem.DestExists then Copy else putType
-    let! results =
-        items
-        |> List.map (fun item -> (getItemAction item, item))
-        |> performPutItems fs progress model.CancelToken
+    let! results = items |> performPutItems fs progress model.CancelToken isUndo putType
     let succeeded, putErrors = results |> Result.partition
     let errorItems = enumErrors @ putErrors
 
@@ -281,11 +281,16 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) isUndo enumErrors 
             |> fun model -> { model with RedoStack = cancelledAction false |> Option.toList }
     let updateHistory model =
         if putType = Move then
+            let shouldReplaceHistory putItem = not (isUndo && putItem.DestExists)
             let isCompleted = errorItems.IsEmpty && not model.CancelToken.IsCancelled
             let pathReplacements =
-                if isCompleted
-                then Map [intent.Item.Path, intent.Dest]
-                else succeeded |> List.map (fun putItem -> putItem.Item.Path, putItem.Dest) |> Map
+                if isCompleted && shouldReplaceHistory intent then
+                    Map [intent.Item.Path, intent.Dest]
+                else
+                    succeeded
+                    |> List.filter shouldReplaceHistory
+                    |> List.map (fun putItem -> putItem.Item.Path, putItem.Dest)
+                    |> Map
             { model with History = model.History.WithPathsReplaced(pathReplacements).WithPathsRemoved(deletedFolders) }
         else
             model

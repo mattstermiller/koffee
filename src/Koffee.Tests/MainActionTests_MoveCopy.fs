@@ -1716,6 +1716,39 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
             copied
     ]
 
+[<Test>]
+let ``Undo copy empty folder deletes it`` () =
+    let fs = FakeFileSystem [
+        drive 'c' [
+            folder "dest" [
+                folder "folder" []
+            ]
+            folder "folder" []
+        ]
+    ]
+    let original = fs.Item "/c/folder"
+    let copied = fs.Item "/c/dest/folder"
+    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
+    let action = PutItems (Copy, putItem, [putItem], false)
+    let model = testModel |> pushUndo action
+
+    let actual = seqResult (Action.undo fs progress) model
+
+    let expected =
+        { model with
+            UndoStack = model.UndoStack.Tail
+            RedoStack = action :: model.RedoStack
+            CancelToken = CancelToken()
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        drive 'c' [
+            folder "dest" []
+            folder "folder" []
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual []
+
 [<TestCase(false, false)>]
 [<TestCase(false, true)>]
 [<TestCase(true, false)>]

@@ -478,7 +478,7 @@ let undoCopy fs progress (intent: PutItem) copied (model: MainModel) = asyncSeqR
 
     let! deletedFolders, deleteFolderErrors = async {
         // delete empty copied folders
-        if intent.Item.Type = Folder then
+        if intent.Item.Type = Folder && not (copied |> List.contains intent) then
             return! deleteEmptyFolders fs intent.Dest
         else
             return ([], [])

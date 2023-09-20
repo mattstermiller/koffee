@@ -2095,33 +2095,47 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
 [<TestCase(true)>]
 let ``Undo create shortcut deletes shortcut`` curPathDifferent =
     let fs = FakeFileSystem [
-        folder "other" []
+        folder "folder" [
+            file "file"
+        ]
         file "file.lnk"
     ]
+    let target = fs.Item "/c/folder/file"
     let shortcut = fs.Item "/c/file.lnk"
+    let putItem = { Item = target; Dest = shortcut.Path; DestExists = false }
+    let action = PutItems (Shortcut, putItem, [putItem], false)
     let location = if curPathDifferent then "/c/other" else "/c"
-    let model = testModel |> withLocation location |> withHistoryPaths [itemHistoryPath shortcut]
+    let model =
+        testModel
+        |> withLocation location
+        |> pushUndo action
+        |> withHistoryPaths [itemHistoryPath shortcut]
 
-    let actual = Action.undoShortcut fs shortcut.Path model
-                 |> assertOk
+    let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
-        createFolder "/c/other"
+        createFolder "/c/folder"
     ]
     let expected =
-        if curPathDifferent then
-            model |> withHistoryPaths []
-        else
-            { model with
-                Directory = expectedItems |> sortByPath
-                Items = expectedItems
-                Cursor = 0
-            }
-            |> withHistoryPaths []
-            |> withLocationOnHistory
+        model.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        |> popUndo
+        |> pushRedo action
+        |> withHistoryPaths []
+        |> fun model ->
+            if curPathDifferent then
+                model
+            else
+                { model with
+                    Directory = expectedItems |> sortByPath
+                    Items = expectedItems
+                    Cursor = 0
+                }
+                |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "other" []
+        folder "folder" [
+            file "file"
+        ]
     ]
     fs.RecycleBin |> shouldEqual []
 
@@ -2130,14 +2144,23 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
     let fs = FakeFileSystem [
         file "file.lnk"
     ]
+    let target = createFile "/c/folder/file"
     let shortcut = fs.Item "/c/file.lnk"
     fs.AddExnPath false ex shortcut.Path
-    let model = testModel
+    let putItem = { Item = target; Dest = shortcut.Path; DestExists = false }
+    let action = PutItems (Shortcut, putItem, [putItem], false)
+    let model =
+        testModel
+        |> pushUndo action
+        |> withHistoryPaths [itemHistoryPath shortcut]
 
-    let actual = Action.undoShortcut fs shortcut.Path model
+    let actual = seqResult (Action.undo fs progress) model
 
-    let action = DeletedItem (shortcut, true)
-    let expected = Error (MainStatus.ItemActionError (action, model.PathFormat, ex))
+    let statusAction = DeletedItem (shortcut, true)
+    let expected =
+        model
+        |> popUndo
+        |> fun model -> model.WithError (MainStatus.ItemActionError (statusAction, model.PathFormat, ex))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "file.lnk"

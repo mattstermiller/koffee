@@ -266,6 +266,7 @@ let pushUndo action model = { model with UndoStack = action :: model.UndoStack }
 let pushRedo action model = { model with RedoStack = action :: model.RedoStack }
 let popUndo model = { model with UndoStack = model.UndoStack.Tail }
 let popRedo model = { model with RedoStack = model.RedoStack.Tail }
+let withRepeat count model = { model with RepeatCommand = Some count }
 let withNewCancelToken model = { model with CancelToken = CancelToken() }
 
 let pathReplace oldPath newPath (path: Path) =

@@ -288,7 +288,8 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         |> withLocation "/d"
         |> withReg regItem
         |> if isRedo
-            then pushRedo (PutItems (putType, putItem, actualPut, false))
+            // add repeat to make sure redoIter stops when action is cancelled
+            then pushRedo (PutItems (putType, putItem, actualPut, false)) >> withRepeat 2
             else id
         |> withHistoryPaths (historyPaths {
             "/d/"
@@ -320,6 +321,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
                 Cursor = 0
                 UndoStack = expectedAction :: testModel.UndoStack
                 RedoStack = expectedRedo
+                RepeatCommand = None
             }.WithMessage (MainStatus.CancelledPut (putType, false, 2, 4))
             |> withReg None
             |> withHistoryPaths (
@@ -391,6 +393,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
             Cursor = 0
             UndoStack = expectedMergedAction :: testModel.UndoStack
             RedoStack = if isRedo then testModel.RedoStack else []
+            RepeatCommand = None
             CancelToken = CancelToken()
         }
         |> withReg None
@@ -705,6 +708,7 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
     let model =
         testModel
         |> pushUndo action
+        |> withRepeat 2 // make sure undoIter stops when action is cancelled
         |> withHistoryPaths (historyPaths {
             dest
             actualPut.[0].Dest, false
@@ -733,6 +737,7 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
                 Cursor = 0
                 UndoStack = expectedUndoAction :: testModel.UndoStack
                 RedoStack = expectedRedoAction :: testModel.RedoStack
+                RepeatCommand = None
             }.WithMessage (MainStatus.CancelledPut (putType, true, 2, 3))
             |> fun model ->
                 if wasCopy
@@ -785,6 +790,7 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
             Cursor = 0
             UndoStack = model.UndoStack.Tail
             RedoStack = expectedRedoAction :: model.RedoStack
+            RepeatCommand = None
             CancelToken = CancelToken()
         }.WithMessage (MainStatus.UndoAction (expectedStatusAction, model.PathFormat, 1))
         |> fun model ->

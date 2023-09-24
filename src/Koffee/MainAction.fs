@@ -674,10 +674,10 @@ let rec private undoIter iter fs progress model = asyncSeqResult {
             | DeletedItem (item, permanent) ->
                 Error (MainStatus.CannotUndoDelete (permanent, item))
                 |> AsyncSeq.singleton
-        if iter < model.RepeatCount then
+        if iter < model.RepeatCount && not model.IsStatusCancelled then
             yield! undoIter (iter + 1) fs progress model
         else
-            yield model
+            yield { model with RepeatCommand = None }
     | [] ->
         return MainStatus.NoUndoActions
 }
@@ -723,9 +723,10 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         // restore redo stack after operation with new item if present
         let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
         let model = { model with RedoStack = (newRedoItem |> Option.toList) @ rest }
-        if iter < model.RepeatCount then
+        if iter < model.RepeatCount && not model.IsStatusCancelled then
             yield! redoIter (iter + 1) fs progress model
         else
+            let model = { model with RepeatCommand = None }
             match model.Status with
             | Some (MainStatus.Message (MainStatus.ActionComplete (action, _))) ->
                 yield model.WithMessage (MainStatus.RedoAction (action, model.PathFormat, model.RepeatCount))

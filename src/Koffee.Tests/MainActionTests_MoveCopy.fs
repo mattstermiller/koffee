@@ -321,7 +321,6 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
                 Cursor = 0
                 UndoStack = expectedAction :: testModel.UndoStack
                 RedoStack = expectedRedo
-                RepeatCommand = None
             }.WithMessage (MainStatus.CancelledPut (putType, false, 2, 4))
             |> withReg None
             |> withHistoryPaths (
@@ -370,7 +369,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
     // - redo should return partial success with error on new item since original operation was not an overwrite
     // - redo copy should not copy completed items again
     let actual =
-        modelAfterCancel
+        { modelAfterCancel with RepeatCommand = None }
         |> withReg regItem
         |> seqResult (testFunc true)
 
@@ -737,7 +736,6 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
                 Cursor = 0
                 UndoStack = expectedUndoAction :: testModel.UndoStack
                 RedoStack = expectedRedoAction :: testModel.RedoStack
-                RepeatCommand = None
             }.WithMessage (MainStatus.CancelledPut (putType, true, 2, 3))
             |> fun model ->
                 if wasCopy
@@ -775,7 +773,9 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
     )
 
     // part two: undo again resumes and completes the operation
-    let actual = seqResult (Action.undo fs progress) modelAfterCancel
+    let actual =
+        { modelAfterCancel with RepeatCommand = None }
+        |> seqResult (Action.undo fs progress)
 
     let expectedStatusAction = PutItems (putType, putItem, actualPut |> List.skip 2, false)
     let expectedRedoAction = PutItems (putType, putItem, actualPut, false)
@@ -2170,4 +2170,114 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "file.lnk"
+    ]
+
+// undo/redo multiple action tests
+
+[<Test>]
+let ``Undo multiple actions using repeat count does each action and updates status each time`` () =
+    let fs = FakeFileSystem [
+        folder "folder" [
+            file "renamed"
+        ]
+        file "created"
+    ]
+    let moved = createFile "/c/moved" |> createPutItem (createPath "/c") (createPath "/c/folder")
+    let actions = [
+        PutItems (Move, moved, [moved], false)
+        CreatedItem (createFile "/c/created")
+        RenamedItem (createFile "/c/folder/moved", "renamed")
+    ]
+    let model =
+        { testModel with UndoStack = (actions |> List.rev) @ testModel.UndoStack }
+        |> withRepeat 3
+
+    let actual = seqResult (Action.undo fs progress) model
+
+    let undoStatus action =
+        MainStatus.Message (MainStatus.UndoAction (action, model.PathFormat, actions.Length))
+    let expectedItems = [
+        createFolder "/c/folder"
+        createFile "/c/moved"
+    ]
+    let expectedBack = [
+        (createPath "/c/folder", 0)
+        (createPath "/c", testModel.Cursor)
+    ]
+    let expected =
+        { testModel with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = 1
+            BackStack = expectedBack @ testModel.BackStack
+            ForwardStack = []
+            RedoStack = actions @ testModel.RedoStack
+            RepeatCommand = model.RepeatCommand // this is cleared later by MainLogic.keyPress
+            CancelToken = CancelToken()
+        }
+        |> fun model -> model.WithStatus (actions |> List.head |> undoStatus)
+        |> withHistoryPaths [
+            createHistoryPath "/c/"
+            createHistoryPath "/c/folder/"
+        ]
+    assertAreEqual expected actual
+    actual.StatusHistory |> shouldEqual (actions |> List.map undoStatus)
+    fs.ItemsShouldEqual [
+        folder "folder" []
+        file "moved"
+    ]
+
+[<Test>]
+let ``Redo multiple actions using repeat count does each action and updates status each time`` () =
+    let fs = FakeFileSystem [
+        folder "folder" []
+        file "moved"
+    ]
+    let moved = createFile "/c/moved" |> createPutItem (createPath "/c") (createPath "/c/folder")
+    let actions = [
+        PutItems (Move, moved, [moved], false)
+        CreatedItem (createFile "/c/created")
+        RenamedItem (createFile "/c/folder/moved", "renamed")
+    ]
+    let model =
+        { testModel with RedoStack = actions @ testModel.RedoStack }
+        |> withRepeat 3
+
+    let actual = seqResult (Action.redo fs progress) model
+
+    let redoStatus action =
+        MainStatus.Message (MainStatus.RedoAction (action, model.PathFormat, actions.Length))
+    let expectedItems = [
+        createFile "/c/folder/renamed"
+    ]
+    let expectedBack = [
+        (createPath "/c", 1)
+        (createPath "/c/folder", 0)
+        (createPath "/c", testModel.Cursor)
+    ]
+    let expected =
+        { testModel with
+            Location = createPath "/c/folder"
+            LocationInput = "/c/folder/"
+            Cursor = 0
+            Directory = expectedItems
+            Items = expectedItems
+            BackStack = expectedBack @ testModel.BackStack
+            ForwardStack = []
+            UndoStack = (actions |> List.rev) @ testModel.UndoStack
+            RepeatCommand = model.RepeatCommand // this is cleared later by MainLogic.keyPress
+            CancelToken = CancelToken()
+        }
+        |> fun model -> model.WithStatus (actions |> List.last |> redoStatus)
+        |> withHistoryPaths [
+            createHistoryPath "/c/folder/"
+            createHistoryPath "/c/"
+        ]
+    assertAreEqual expected actual
+    // TODO actual.StatusHistory |> shouldEqual (actions |> List.map redoStatus)
+    fs.ItemsShouldEqual [
+        folder "folder" [
+            file "renamed"
+        ]
+        file "created"
     ]

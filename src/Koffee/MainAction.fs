@@ -677,7 +677,7 @@ let rec private undoIter iter fs progress model = asyncSeqResult {
         if iter < model.RepeatCount && not model.IsStatusCancelled then
             yield! undoIter (iter + 1) fs progress model
         else
-            yield { model with RepeatCommand = None }
+            yield model
     | [] ->
         return MainStatus.NoUndoActions
 }
@@ -726,7 +726,6 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         if iter < model.RepeatCount && not model.IsStatusCancelled then
             yield! redoIter (iter + 1) fs progress model
         else
-            let model = { model with RepeatCommand = None }
             match model.Status with
             | Some (MainStatus.Message (MainStatus.ActionComplete (action, _))) ->
                 yield model.WithMessage (MainStatus.RedoAction (action, model.PathFormat, model.RepeatCount))

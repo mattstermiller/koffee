@@ -118,7 +118,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
             Items = expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
         |> withHistoryPaths []
         |> if curPathDifferent then id else withLocationOnHistory
     assertAreEqual expected actual
@@ -187,7 +187,7 @@ let ``Redo create creates item again`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = model.RedoStack.Tail
-        }.WithMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1))
+        }.WithMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1, 1))
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

@@ -201,7 +201,7 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
         }
         |> fun m ->
             if isRedo
-            then m.WithMessage (MainStatus.RedoAction (action, model.PathFormat, 1))
+            then m.WithMessage (MainStatus.RedoAction (action, model.PathFormat, 1, 1))
             else m.WithMessage (MainStatus.ActionComplete (action, model.PathFormat))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

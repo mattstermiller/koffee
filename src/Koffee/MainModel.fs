@@ -248,8 +248,8 @@ module MainStatus =
 
         // Actions
         | ActionComplete of ItemAction * PathFormat
-        | UndoAction of ItemAction * PathFormat * repeatCount: int
-        | RedoAction of ItemAction * PathFormat * repeatCount: int
+        | UndoAction of ItemAction * PathFormat * repeatIter: int * repeatCount: int
+        | RedoAction of ItemAction * PathFormat * repeatIter: int * repeatCount: int
         | CancelledConfirm of ConfirmType
         | CancelledPut of PutType * isUndo: bool * completed: int * total: int
         | CancelledDelete of permanent: bool * completed: int * total: int
@@ -289,17 +289,17 @@ module MainStatus =
 
             | ActionComplete (action, pathFormat) ->
                 actionCompleteMessage action pathFormat
-            | UndoAction (action, pathFormat, repeatCount) ->
+            | UndoAction (action, pathFormat, repeatIter, repeatCount) ->
                 let prefix =
                     if repeatCount = 1
                     then "Action undone: "
-                    else sprintf "%i actions undone. Last: " repeatCount
+                    else sprintf "Action %i of %i undone: " repeatIter repeatCount
                 prefix + actionCompleteMessage action pathFormat
-            | RedoAction (action, pathFormat, repeatCount) ->
+            | RedoAction (action, pathFormat, repeatIter, repeatCount) ->
                 let prefix =
                     if repeatCount = 1
                     then "Action redone: "
-                    else sprintf "%i actions redone. Last: " repeatCount
+                    else sprintf "Action %i of %i redone: " repeatIter repeatCount
                 prefix + actionCompleteMessage action pathFormat
             | CancelledConfirm confirmType ->
                 let action =

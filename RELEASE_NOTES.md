@@ -11,6 +11,7 @@
 - Fixes error message when undoing copy of empty folder
 - Fixes Find input error not going away after using Go To Next Find Match
 - Fixes drive not being selected when opening parent
+- Undo/redo now reports status for each iteration so they can be seen in history
 - Various optimizations for file write operations
 
 ### 0.6.2  (2022-12-23)

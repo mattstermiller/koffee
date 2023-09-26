@@ -219,7 +219,7 @@ let ``Undo rename file changes name back to original and updates history`` curPa
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
         |> withBackIf curPathDifferent (model.Location, 0)
         |> withHistoryPaths (historyPaths {
             previous.Path.Parent, true
@@ -262,7 +262,7 @@ let ``Undo rename folder changes name back to original and updates history`` () 
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1))
+        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
         |> withHistoryPaths (historyPaths {
             previous.Path.Parent, true
             previous.Path.Join "file", false

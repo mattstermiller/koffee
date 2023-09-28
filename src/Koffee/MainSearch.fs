@@ -67,7 +67,7 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) 
             if not <| isCancelled () then
                 let! subItemsRes = runAsync (fun () -> fsReader.GetItems dir.Path)
                 if not <| isCancelled () then
-                    let subItems = subItemsRes |> Result.toOption |? []
+                    let subItems = subItemsRes |> Result.defaultValue []
                     let subDirs = getDirs subItems
                     yield subItems
                     let progressFactor = progressFactor / float (subDirs.Length + 1)

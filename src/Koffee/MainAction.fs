@@ -19,6 +19,9 @@ let private performedUndo undoIter action (model: MainModel) =
     model.WithPushedRedo action
     |> fun model -> model.WithMessage (MainStatus.UndoAction (action, model.PathFormat, undoIter, model.RepeatCount))
 
+let private ignoreError f model =
+    f model |> Result.defaultValue model
+
 let private setInputSelection cursorPos model =
     let fullLen = model.InputText.Length
     let nameLen =
@@ -96,9 +99,10 @@ let undoCreate (fs: IFileSystem) undoIter item (model: MainModel) = asyncSeqResu
     let model =
         { model with History = model.History.WithPathRemoved item.Path }
         |> performedUndo undoIter (CreatedItem item)
-    yield model
     if model.Location = item.Path.Parent then
-        yield! Nav.refresh fs model
+        yield model |> ignoreError (Nav.refresh fs)
+    else
+        yield model
 }
 
 let rename (fs: IFileSystem) item newName (model: MainModel) = result {
@@ -141,12 +145,10 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
     match existing with
     | None ->
         do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action model.PathFormat
-        return!
+        return
             { model with History = model.History.WithPathReplaced item.Path oldItem.Path }
             |> performedUndo undoIter (RenamedItem (oldItem, currentName))
-            // TODO: openPath failure should not prevent history and redo from being updated
-            // introduce helper to ignore failure? tryModelFunc
-            |> Nav.openPath fs parentPath (SelectName oldItem.Name)
+            |> ignoreError (Nav.openPath fs parentPath (SelectName oldItem.Name))
     | Some existingItem ->
         return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
 }
@@ -312,9 +314,7 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) (undoIter: int opt
             else
                 model
         let openDest model =
-            model
-            |> Nav.openPath fs intent.Dest.Parent (SelectName intent.Dest.Name)
-            |> Result.toOption |? model // ignore error opening destination
+            model |> ignoreError (Nav.openPath fs intent.Dest.Parent (SelectName intent.Dest.Name))
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errorItems.IsEmpty then
@@ -527,7 +527,7 @@ let undoCopy fs progress undoIter (intent: PutItem) copied (model: MainModel) = 
     let pathHistoryToRemove = (succeeded |> List.map (fun pi -> pi.Dest)) @ deletedFolders
     let refreshIfAtDest model =
         if model.Location = intent.Dest.Parent
-        then Nav.refresh fs model |> Result.toOption |? model
+        then model |> ignoreError (Nav.refresh fs)
         else model
     yield
         model
@@ -545,8 +545,7 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
         { model with History = model.History.WithPathRemoved shortcutPath }
         |> performedUndo undoIter oldAction
     if model.Location = shortcutPath.Parent then
-        // TODO: openPath failure should not prevent history and redo from being updated
-        return! Nav.refresh fs model
+        return model |> ignoreError (Nav.refresh fs)
     else
         return model
 }

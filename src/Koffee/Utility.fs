@@ -35,6 +35,11 @@ module Result =
         | Error e, _ -> Error e
         | _, Error e -> Error e
 
+    let inline defaultValue value res =
+        match res with
+        | Ok a -> a
+        | Error _ -> value
+
     let inline ofErrorOption opt =
         match opt with
         | Some a -> Error a

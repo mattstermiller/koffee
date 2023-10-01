@@ -307,7 +307,7 @@ module MainView =
                         | Prompt DeleteSavedSearch ->
                             let searches =
                                 searches
-                                |> List.map (sndf string)
+                                |> List.map (mapSnd string)
                                 |> Seq.ifEmpty [(' ', "No searches saved")]
                             window.Bookmarks.ItemsSource <- searches
                             window.BookmarksHeader.Text <- "Saved Searches"

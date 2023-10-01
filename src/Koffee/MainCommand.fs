@@ -60,12 +60,12 @@ let dropOut (fsReader: IFileSystemReader) putType (model: MainModel) =
         model
 
 let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
-    let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> fstf ((*) 2))
+    let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
                   |> Rect.fit (getScreenBounds())
     let model =
         { model with
             WindowLocation = fitRect.Location
-            WindowSize = fitRect.Size |> fstf (flip (/) 2)
+            WindowSize = fitRect.Size |> mapFst (flip (/) 2)
         }
 
     let left, top = model.WindowLocation

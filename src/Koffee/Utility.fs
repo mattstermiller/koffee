@@ -9,8 +9,8 @@ open System.Reactive.Concurrency
 open FSharp.Control
 open Acadian.FSharp
 
-let inline fstf f (a, b) = (f a, b)
-let inline sndf f (a, b) = (a, f b)
+let inline mapFst f (a, b) = (f a, b)
+let inline mapSnd f (a, b) = (a, f b)
 
 let runAsync (f: unit -> 'a) = async {
     let ctx = System.Threading.SynchronizationContext.Current

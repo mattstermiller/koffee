@@ -121,9 +121,8 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         do! os.LaunchApp model.Config.TextEditor model.Location args
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text Editor", e))
         return
-            { model with
-                History = model.History.WithFilePath model.Config.Limits.PathHistory model.SelectedItem.Path
-            }
+            model
+            |> MainModel.mapHistory (History.withFilePath model.Config.Limits.PathHistory model.SelectedItem.Path)
             |> MainModel.withMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
     | _ -> return model
 }

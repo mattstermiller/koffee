@@ -218,11 +218,11 @@ type HistoryPathsBuilder() =
 
 let historyPaths = HistoryPathsBuilder()
 
-let withHistoryPaths historyPaths model =
-    { model with History = { model.History with Paths = historyPaths } }
+let withHistoryPaths historyPaths =
+    MainModel.mapHistory (fun hist -> { hist with Paths = historyPaths })
 
 let withLocationOnHistory model =
-    { model with History = model.History.WithFolderPath model.Config.Limits.PathHistory model.Location }
+    model |> MainModel.mapHistory (History.withFolderPath model.Config.Limits.PathHistory model.Location)
 
 type FakeFileSystem with
     member this.ItemsIn path =

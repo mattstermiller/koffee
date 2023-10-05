@@ -97,7 +97,8 @@ let undoCreate (fs: IFileSystem) undoIter item (model: MainModel) = asyncSeqResu
     let! res = runAsync (fun () -> fs.Delete item.Type item.Path)
     do! res |> itemActionError (DeletedItem (item, true)) model.PathFormat
     let model =
-        { model with History = model.History.WithPathRemoved item.Path }
+        model
+        |> MainModel.mapHistory (History.withPathRemoved item.Path)
         |> performedUndo undoIter (CreatedItem item)
     if model.Location = item.Path.Parent then
         yield model |> ignoreError (Nav.refresh fs)
@@ -121,13 +122,12 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
             return
                 { model with
                     Directory = model.Directory |> substitute
-                    History = model.History.WithPathReplaced item.Path newPath
+                    History = model.History |> History.withPathReplaced item.Path newPath
                 }
-                |> (fun model ->
+                |> fun model ->
                     if model.SearchCurrent.IsSome
                     then { model with Items = model.Items |> substitute }
                     else Nav.listDirectory (SelectName newName) model
-                )
                 |> performedAction action
         | Some existingItem ->
             return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)
@@ -146,7 +146,8 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
     | None ->
         do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action model.PathFormat
         return
-            { model with History = model.History.WithPathReplaced item.Path oldItem.Path }
+            model
+            |> MainModel.mapHistory (History.withPathReplaced item.Path oldItem.Path)
             |> performedUndo undoIter (RenamedItem (oldItem, currentName))
             |> ignoreError (Nav.openPath fs parentPath (SelectName oldItem.Name))
     | Some existingItem ->
@@ -311,7 +312,10 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) (undoIter: int opt
                         |> List.filter shouldReplaceHistory
                         |> List.map (fun putItem -> putItem.Item.Path, putItem.Dest)
                         |> Map
-                { model with History = model.History.WithPathsReplaced(pathReplacements).WithPathsRemoved(deletedFolders) }
+                model |> MainModel.mapHistory (
+                    History.withPathsReplaced pathReplacements
+                    >> History.withPathsRemoved deletedFolders
+                )
             else
                 model
         let openDest model =
@@ -535,7 +539,7 @@ let undoCopy fs progress undoIter (intent: PutItem) copied (model: MainModel) = 
         |> Option.foldBack MainModel.pushUndo cancelledUndo
         |> MainModel.pushRedo action
         |> MainModel.withStatus status
-        |> fun model -> { model with History = model.History.WithPathsRemoved pathHistoryToRemove }
+        |> MainModel.mapHistory (History.withPathsRemoved pathHistoryToRemove)
         |> refreshIfAtDest
 }
 
@@ -543,7 +547,8 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
     let action = DeletedItem ({ Item.Empty with Path = shortcutPath; Name = shortcutPath.Name; Type = File }, true)
     do! fs.Delete File shortcutPath |> itemActionError action model.PathFormat
     let model =
-        { model with History = model.History.WithPathRemoved shortcutPath }
+        model
+        |> MainModel.mapHistory (History.withPathRemoved shortcutPath)
         |> performedUndo undoIter oldAction
     if model.Location = shortcutPath.Parent then
         return model |> ignoreError (Nav.refresh fs)
@@ -580,7 +585,7 @@ let private removeItem item (model: MainModel) =
     { model with
         Directory = model.Directory |> List.except [item]
         Items = model.Items |> List.except [item] |> model.ItemsOrEmpty
-        History = model.History.WithPathRemoved item.Path
+        History = model.History |> History.withPathRemoved item.Path
     }
     |> MainModel.withCursor model.Cursor
 

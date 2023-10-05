@@ -51,7 +51,7 @@ let ``With new PathSort it adds it to the list`` () =
             PathSort = Map.empty
     }
 
-    let result = history.WithPathSort path sort
+    let result = history |> History.withPathSort path sort
 
     let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldContain path
@@ -66,7 +66,7 @@ let ``With same path in PathSort it overrides the existing`` () =
     }
     let newSort = { Sort = SortField.Size; Descending = true }
 
-    let result = history.WithPathSort path newSort
+    let result = history |> History.withPathSort path newSort
 
     let resultSort = result.PathSort.[path]
     resultSort |> shouldEqual newSort
@@ -78,7 +78,7 @@ let ``With default sort it omits it`` () =
     let sort = PathSort.Default
     let history = History.Default
 
-    let result = history.WithPathSort path sort
+    let result = history |> History.withPathSort path sort
 
     let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldNotContain path
@@ -93,7 +93,7 @@ let ``With default sort it removes the existing`` () =
     }
     let newSort = PathSort.Default
 
-    let result = history.WithPathSort path newSort
+    let result = history |> History.withPathSort path newSort
 
     let pathsInHistory = seqSortPathsInHistory result
     pathsInHistory |> shouldNotContain path

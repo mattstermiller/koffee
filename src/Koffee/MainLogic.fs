@@ -57,13 +57,13 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
 
 let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqResult {
     let withBookmark char model =
-        { model with
-            Config = model.Config.WithBookmark char model.Location
-        } |> MainModel.withMessage (MainStatus.SetBookmark (char, model.LocationFormatted))
+        model
+        |> MainModel.mapConfig (Config.withBookmark char model.Location)
+        |> MainModel.withMessage (MainStatus.SetBookmark (char, model.LocationFormatted))
     let withSavedSearch char search model =
-        { model with
-            Config = model.Config.WithSavedSearch char search
-        } |> MainModel.withMessage (MainStatus.SetSavedSearch (char, search))
+        model
+        |> MainModel.mapConfig (Config.withSavedSearch char search)
+        |> MainModel.withMessage (MainStatus.SetSavedSearch (char, search))
     match model.InputMode with
     | Some (Input (CreateFile _))
     | Some (Input (CreateFolder _))
@@ -103,7 +103,8 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetBookmark char with
             | Some path ->
                 yield
-                    { model with Config = model.Config.WithoutBookmark char }
+                    model
+                    |> MainModel.mapConfig (Config.withoutBookmark char)
                     |> MainModel.withMessage (MainStatus.DeletedBookmark (char, (path.Format model.PathFormat)))
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
@@ -115,7 +116,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                         InputText = search.Terms
                         SearchInput = search
                         SearchHistoryIndex = Some 0
-                        History = model.History.WithSearch model.Config.Limits.PathHistory search
+                        History = model.History |> History.withSearch model.Config.Limits.PathHistory search
                     }
                     |> Search.search fs subDirResults progress
                     |> AsyncSeq.map Ok
@@ -136,7 +137,8 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetSavedSearch char with
             | Some search ->
                 yield
-                    { model with Config = model.Config.WithoutSavedSearch char }
+                    model
+                    |> MainModel.mapConfig (Config.withoutSavedSearch char)
                     |> MainModel.withMessage (MainStatus.DeletedSavedSearch (char, search))
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
@@ -211,7 +213,8 @@ let inputDelete isShifted cancelInput model =
     | Some (Input Search) when isShifted && model.ShowHistoryType = Some SearchHistory ->
         match model.SearchHistoryIndex with
         | Some index ->
-            { model with History = model.History.WithoutSearchIndex index }
+            model
+            |> MainModel.mapHistory (History.withoutSearchIndex index)
             |> inputHistory 0
         | None -> model
     | _ -> model
@@ -233,7 +236,7 @@ let submitInput fs os model = asyncSeqResult {
                 InputMode = None
                 SearchCurrent = if search.IsNone then None else model.SearchCurrent
                 SearchHistoryIndex = Some 0
-                History = search |> Option.map (model.History.WithSearch model.Config.Limits.SearchHistory) |? model.History
+                History = model.History |> Option.foldBack (History.withSearch model.Config.Limits.SearchHistory) search
                 ShowHistoryType = None
             }
     | Some (Input CreateFile) ->

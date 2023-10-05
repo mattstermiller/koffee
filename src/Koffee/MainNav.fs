@@ -45,7 +45,7 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = resu
     return
         { model with
             Directory = directory
-            History = model.History.WithFolderPath model.Config.Limits.PathHistory path
+            History = model.History |> History.withFolderPath model.Config.Limits.PathHistory path
             Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
         }
         |> MainModel.withPushedLocation path
@@ -104,9 +104,8 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
                 os.OpenFile item.Path |> openError
                 |> Result.map (fun () ->
                     fnAfterOpen |> Option.iter (fun f -> f())
-                    { model with
-                        History = model.History.WithFilePath model.Config.Limits.PathHistory item.Path
-                    }
+                    model
+                    |> MainModel.mapHistory (History.withFilePath model.Config.Limits.PathHistory item.Path)
                     |> MainModel.withMessage (MainStatus.OpenFile item.Name)
                 )
         )
@@ -166,7 +165,7 @@ let sortList field model =
     { model with
         Sort = Some (field, desc)
         Items = model.Items |> SortField.SortByTypeThen (field, desc)
-        History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
+        History = model.History |> History.withPathSort model.Location { Sort = field; Descending = desc }
     }
     |> MainModel.withMessage (MainStatus.Sort (field, desc))
     |> select selectType

@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -526,20 +526,19 @@ with
     member this.GetBookmark char =
         this.Bookmarks |> List.tryFind (fst >> (=) char) |> Option.map snd
 
-    // TODO: refactor members to module
-    member this.WithBookmark char path =
-        { this with Bookmarks = (char, path) |> Config.addRegister this.Bookmarks }
-
-    member this.WithoutBookmark char =
-        { this with Bookmarks = this.Bookmarks |> List.filter (fst >> (<>) char) }
-
     member this.GetSavedSearch char =
         this.SavedSearches |> List.tryFind (fst >> (=) char) |> Option.map snd
 
-    member this.WithSavedSearch char path =
+    static member withBookmark char path (this: Config) =
+        { this with Bookmarks = (char, path) |> Config.addRegister this.Bookmarks }
+
+    static member withoutBookmark char (this: Config) =
+        { this with Bookmarks = this.Bookmarks |> List.filter (fst >> (<>) char) }
+
+    static member withSavedSearch char path (this: Config) =
         { this with SavedSearches = (char, path) |> Config.addRegister this.SavedSearches }
 
-    member this.WithoutSavedSearch char =
+    static member withoutSavedSearch char (this: Config) =
         { this with SavedSearches = this.SavedSearches |> List.filter (fst >> (<>) char) }
 
     static member Default = {
@@ -621,66 +620,63 @@ type History = {
     PathSort: Map<Path, PathSort>
 }
 with
+    member this.FindSortOrDefault path =
+        match this.PathSort.TryFind path with
+        | Some sort -> sort
+        | None -> PathSort.Default
+
     static member private pushDistinct max list item =
         item :: (list |> List.filter ((<>) item)) |> List.truncate max
 
-    // TODO: refactor members to module
-    member this.WithSearch searchLimit search =
+    static member withSearch searchLimit search (this: History) =
         { this with Searches = History.pushDistinct searchLimit this.Searches search }
 
-    member this.WithoutSearchIndex index =
+    static member withoutSearchIndex index (this: History) =
         let before, rest = this.Searches |> List.splitAt index
         { this with Searches = before @ rest.Tail }
 
-    member private this.WithNetHost host =
+    static member private withNetHost host (this: History) =
         if this.NetHosts |> Seq.exists (String.equalsIgnoreCase host) then
             this
         else
             { this with NetHosts = host :: this.NetHosts |> List.sortBy String.toLower }
 
-    member private this.WithoutNetHost host =
+    static member private withoutNetHost host (this: History) =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
-    member private this.WithPath pathLimit isDirectory path =
+    static member private withPath pathLimit isDirectory path (this: History) =
         let histPath = { PathValue = path; IsDirectory = isDirectory }
         { this with Paths = History.pushDistinct pathLimit this.Paths histPath }
 
-    member this.WithFilePath pathLimit path = this.WithPath pathLimit false path
+    static member withFilePath pathLimit path = History.withPath pathLimit false path
 
-    member this.WithFolderPath pathLimit path =
-        let hist = this.WithPath pathLimit true path
-        match path.NetHost with
-        | Some host -> hist.WithNetHost host
-        | None -> hist
+    static member withFolderPath pathLimit path =
+        History.withPath pathLimit true path
+        >> Option.foldBack History.withNetHost path.NetHost
 
-    member this.WithPathReplaced oldPath newPath =
-        this.WithPathsReplaced (Map [oldPath, newPath])
+    static member withPathReplaced oldPath newPath =
+        History.withPathsReplaced (Map [oldPath, newPath])
 
-    member this.WithPathsReplaced pathMap =
+    static member withPathsReplaced pathMap (this: History) =
         let replaceOld hp =
             match pathMap |> Map.tryPick (fun oldPath newPath -> hp.PathValue.TryReplace oldPath newPath) with
             | Some path -> { hp with PathValue = path }
             | None -> hp
         { this with Paths = this.Paths |> List.map replaceOld |> List.distinct }
 
-    member this.WithPathsRemoved (paths: Path list) =
+    static member withPathsRemoved (paths: Path list) (this: History) =
         { this with Paths = this.Paths |> List.filter (fun hp -> not (paths |> List.exists hp.PathValue.IsWithin)) }
 
-    member this.WithPathRemoved (path: Path) =
+    static member withPathRemoved (path: Path) (this: History) =
         if path.IsNetHost
-        then this.WithoutNetHost path.Name
+        then this |> History.withoutNetHost path.Name
         else { this with Paths = this.Paths |> List.filter (fun hp -> not (hp.PathValue.IsWithin path)) }
 
-    member this.WithPathSort path sort =
+    static member withPathSort path sort (this: History) =
         if sort = PathSort.Default then
             { this with PathSort = this.PathSort.Remove path }
         else
             { this with PathSort = this.PathSort.Add(path, sort) }
-
-    member this.FindSortOrDefault path =
-        match this.PathSort.TryFind path with
-        | Some sort -> sort
-        | None -> PathSort.Default
 
     static member Default = {
         Paths = []
@@ -882,6 +878,12 @@ type MainModel = {
 
     static member clearStatus (this: MainModel) =
         { this with Status = None; InputError = None }
+
+    static member mapConfig f (this: MainModel) =
+        { this with Config = f this.Config }
+
+    static member mapHistory f (this: MainModel) =
+        { this with History = f this.History }
 
 module DragDropEffects =
     let toPutTypes effects =

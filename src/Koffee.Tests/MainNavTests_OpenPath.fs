@@ -24,7 +24,7 @@ let model =
         ]
         Location = createPath "/c"
         Cursor = 2
-        History = testModel.History.WithFolderPath 9 (createPath "/c")
+        History = testModel.History |> History.withFolderPath 9 (createPath "/c")
     }
 
 let test case =
@@ -68,7 +68,7 @@ let test case =
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []
-                    History = model.History.WithFolderPath 9 path
+                    History = model.History |> History.withFolderPath 9 path
                 }
                 |> MainModel.withLocation path
             )

@@ -35,10 +35,7 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
         | DefaultPath -> [config.DefaultPath] @ prevPath
     let paths = (startOptions.StartPath |> Option.toList) @ (configPaths @ [Path.Root] |> List.map string)
     let rec openPath error (paths: string list) =
-        let withError (m: MainModel) =
-            match error with
-            | Some e -> m.WithError e
-            | None -> m
+        let withError = Option.foldBack MainModel.withError error
         match paths with
         | [] -> model |> withError
         | start :: paths ->
@@ -62,11 +59,11 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
     let withBookmark char model =
         { model with
             Config = model.Config.WithBookmark char model.Location
-        } |> fun m -> m.WithMessage (MainStatus.SetBookmark (char, model.LocationFormatted))
+        } |> MainModel.withMessage (MainStatus.SetBookmark (char, model.LocationFormatted))
     let withSavedSearch char search model =
         { model with
             Config = model.Config.WithSavedSearch char search
-        } |> fun m -> m.WithMessage (MainStatus.SetSavedSearch (char, search))
+        } |> MainModel.withMessage (MainStatus.SetSavedSearch (char, search))
     match model.InputMode with
     | Some (Input (CreateFile _))
     | Some (Input (CreateFolder _))
@@ -89,9 +86,9 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! Nav.openPath fs path SelectNone (model.ClearStatus())
+                yield! model |> MainModel.clearStatus |> Nav.openPath fs path SelectNone
             | None ->
-                yield model.WithMessage (MainStatus.NoBookmark char)
+                yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
         | SetBookmark ->
             match model.Config.GetBookmark char with
             | Some existingPath ->
@@ -107,9 +104,9 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             | Some path ->
                 yield
                     { model with Config = model.Config.WithoutBookmark char }
-                    |> fun m -> m.WithMessage (MainStatus.DeletedBookmark (char, (path.Format model.PathFormat)))
+                    |> MainModel.withMessage (MainStatus.DeletedBookmark (char, (path.Format model.PathFormat)))
             | None ->
-                yield model.WithMessage (MainStatus.NoBookmark char)
+                yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
         | GoToSavedSearch ->
             match model.Config.GetSavedSearch char with
             | Some search ->
@@ -123,7 +120,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                     |> Search.search fs subDirResults progress
                     |> AsyncSeq.map Ok
             | None ->
-                yield model.WithMessage (MainStatus.NoSavedSearch char)
+                yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
         | SetSavedSearch ->
             match model.SearchCurrent, model.Config.GetSavedSearch char with
             | Some _, Some existingSearch ->
@@ -140,9 +137,9 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             | Some search ->
                 yield
                     { model with Config = model.Config.WithoutSavedSearch char }
-                    |> fun m -> m.WithMessage (MainStatus.DeletedSavedSearch (char, search))
+                    |> MainModel.withMessage (MainStatus.DeletedSavedSearch (char, search))
             | None ->
-                yield model.WithMessage (MainStatus.NoSavedSearch char)
+                yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
     | Some (Confirm confirmType) ->
         cancelInput ()
         let model = { model with InputMode = None }
@@ -161,7 +158,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 | Some search -> yield withSavedSearch char search model
                 | None -> ()
         | 'n' ->
-            let model = model.WithMessage (MainStatus.CancelledConfirm confirmType)
+            let model = model |> MainModel.withMessage (MainStatus.CancelledConfirm confirmType)
             match confirmType with
             | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
                 // if we were temporarily showing a hidden file, refresh
@@ -264,12 +261,12 @@ let escape model =
     if model.InputMode.IsSome then
         { model with InputMode = None }
     else if not model.KeyCombo.IsEmpty || model.RepeatCommand.IsSome then
-        model.WithoutKeyCombo()
+        model |> MainModel.withoutKeyCombo
     else if model.ShowHistoryType.IsSome then
         { model with ShowHistoryType = None }
     else
         model.CancelToken.Cancel()
-        model.ClearStatus() |> Search.clearSearch
+        model |> MainModel.clearStatus |> Search.clearSearch
 
 let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handleKey model = asyncSeq {
     let evt, modelFunc =
@@ -278,23 +275,23 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             handleKey ()
             (None, escape)
         | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
-            (None, (fun m -> m.AppendRepeatDigit digit))
+            (None, MainModel.appendRepeatDigit digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                let modelFunc (m: MainModel) =
-                    { m.WithoutKeyCombo() with
-                        // hide history if input prompt is opened
-                        ShowHistoryType = if m.InputMode.IsSome then None else m.ShowHistoryType
-                    }
+                let modelFunc (model: MainModel) =
+                    model
+                    |> MainModel.withoutKeyCombo
+                    // hide history if input prompt is opened
+                    |> applyIf model.InputMode.IsSome (fun m -> { m with ShowHistoryType = None })
                 (Some newEvent, modelFunc)
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
             | KeyBinding.NoMatch ->
-                (None, (fun m -> m.WithoutKeyCombo()))
+                (None, MainModel.withoutKeyCombo)
     match evt with
     | Some e ->
         match dispatcher e with
@@ -340,8 +337,8 @@ let windowActivated fsReader subDirResults progress model = asyncSeqResult {
 let SyncResult handler =
     Sync (fun (model: MainModel) ->
         match handler model with
-        | Ok m -> m
-        | Error e -> model.WithError e
+        | Ok newModel -> newModel
+        | Error e -> model |> MainModel.withError e
     )
 
 let AsyncResult handler =
@@ -349,11 +346,11 @@ let AsyncResult handler =
         let mutable last = model
         for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
             match r with
-            | Ok m ->
-                last <- m
-                yield m
+            | Ok newModel ->
+                last <- newModel
+                yield newModel
             | Error e ->
-                yield last.WithError e
+                yield last |> MainModel.withError e
     })
 
 type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
@@ -365,12 +362,12 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp -> Sync (fun m -> m.WithCursorRel (-1 * m.RepeatCount))
-            | CursorUpHalfPage -> Sync (fun m -> m.WithCursorRel (-m.PageSize/2 * m.RepeatCount))
-            | CursorDown -> Sync (fun m -> m.WithCursorRel (1 * m.RepeatCount))
-            | CursorDownHalfPage -> Sync (fun m -> m.WithCursorRel (m.PageSize/2 * m.RepeatCount))
-            | CursorToFirst -> Sync (fun m -> m.WithCursor 0)
-            | CursorToLast -> Sync (fun m -> m.WithCursor (m.Items.Length - 1))
+            | CursorUp -> Sync (fun m -> m |> MainModel.withCursorRel (-1 * m.RepeatCount))
+            | CursorUpHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (-m.PageSize/2 * m.RepeatCount))
+            | CursorDown -> Sync (fun m -> m |> MainModel.withCursorRel (1 * m.RepeatCount))
+            | CursorDownHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (m.PageSize/2 * m.RepeatCount))
+            | CursorToFirst -> Sync (fun m -> m |> MainModel.withCursor 0)
+            | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
             | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
             | OpenSelected -> SyncResult (Nav.openSelected fs os None)

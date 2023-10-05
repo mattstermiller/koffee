@@ -28,7 +28,8 @@ let ``Create calls file sys create and openPath and sets status``() =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -57,7 +58,8 @@ let ``Create returns error when item already exists at path`` existingHidden =
             Directory = expectedItems
             Items = expectedItems
             Cursor = 1
-        }.WithError (MainStatus.CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
+        }
+        |> MainModel.withError (MainStatus.CannotUseNameAlreadyExists ("create", Folder, existing.Name, existingHidden))
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -74,7 +76,7 @@ let ``Create handles error by returning error``() =
 
     let actual = seqResult (Action.create fs File createItem.Name) model
 
-    let expected = model.WithError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
+    let expected = model |> MainModel.withError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -96,7 +98,8 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     let action = CreatedItem createdItem
     let location = if curPathDifferent then "/c/other" else "/c"
     let model =
-        testModel.WithError MainStatus.NoPreviousSearch
+        testModel
+        |> MainModel.withError MainStatus.NoPreviousSearch
         |> withLocation location
         |> pushUndo action
         |> withHistoryPaths (historyPaths {
@@ -118,9 +121,10 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
             Items = expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
+        }
+        |> MainModel.withMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
         |> withHistoryPaths []
-        |> if curPathDifferent then id else withLocationOnHistory
+        |> applyIf (not curPathDifferent) withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -145,7 +149,7 @@ let ``Undo create non empty item returns error`` isFolder =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expected = model.WithError (MainStatus.CannotUndoNonEmptyCreated createdItem) |> popUndo
+    let expected = model |> MainModel.withError (MainStatus.CannotUndoNonEmptyCreated createdItem) |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -162,7 +166,7 @@ let ``Undo create handles delete error by returning error`` () =
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedError = MainStatus.ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)
-    let expected = model.WithError expectedError |> popUndo
+    let expected = model |> MainModel.withError expectedError |> popUndo
     assertAreEqual expected actual
 
 [<Test>]
@@ -187,7 +191,8 @@ let ``Redo create creates item again`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = model.RedoStack.Tail
-        }.WithMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1, 1))
+        }
+        |> MainModel.withMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1, 1))
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -208,7 +213,7 @@ let ``Redo create handles error by returning error``() =
     let actual = seqResult (Action.redo fs progress) model
 
     let expected =
-        model.WithError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
+        model |> MainModel.withError (MainStatus.ItemActionError ((CreatedItem createItem), model.PathFormat, ex))
         |> popRedo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

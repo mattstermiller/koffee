@@ -23,7 +23,7 @@ let private performFind next reverse prefix model =
         |> List.tryHead
         |> Option.map fst
     match index with
-    | Some index -> { (model.WithCursor index) with InputError = None }
+    | Some index -> { model with InputError = None } |> MainModel.withCursor index
     | None -> { model with InputError = Some (FindFailure prefix) }
 
 let find model =
@@ -36,7 +36,8 @@ let find model =
 let findNext model =
     match model.LastFind with
     | Some prefix ->
-        model.WithMessage (MainStatus.Find (prefix, model.RepeatCount))
+        model
+        |> MainModel.withMessage (MainStatus.Find (prefix, model.RepeatCount))
         |> performFind true false prefix
     | None -> model
 
@@ -148,7 +149,7 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
                 }
                 |> search fsReader subDirResults progress
         | None ->
-            yield model.WithError MainStatus.NoPreviousSearch
+            yield model |> MainModel.withError MainStatus.NoPreviousSearch
 }
 
 let clearSearch (model: MainModel) =

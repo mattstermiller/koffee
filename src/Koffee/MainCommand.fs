@@ -9,7 +9,7 @@ let toggleHidden (model: MainModel) =
     let model =
         { model with
             Config = { model.Config with ShowHidden = show }
-        } |> fun m -> m.WithMessage (MainStatus.ToggleHidden show)
+        } |> MainModel.withMessage (MainStatus.ToggleHidden show)
     let select = SelectItem (model.SelectedItem, false)
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
@@ -84,14 +84,14 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
 
 let openExplorer (os: IOperatingSystem) (model: MainModel) =
     os.OpenExplorer model.SelectedItem
-    model.WithMessage MainStatus.OpenExplorer
+    model |> MainModel.withMessage MainStatus.OpenExplorer
 
 let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
     let item = model.SelectedItem
     match item.Type with
     | File ->
         do! os.OpenFileWith item.Path |> actionError "open file with"
-        return model.WithMessage (MainStatus.OpenFile item.Name)
+        return model |> MainModel.withMessage (MainStatus.OpenFile item.Name)
     | _ ->
         return model
 }
@@ -101,7 +101,7 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
     match item.Type with
     | File | Folder ->
         do! os.OpenProperties item.Path |> actionError "open properties"
-        return model.WithMessage (MainStatus.OpenProperties item.Name)
+        return model |> MainModel.withMessage (MainStatus.OpenProperties item.Name)
     | _ ->
         return model
 }
@@ -110,7 +110,7 @@ let openCommandLine (os: IOperatingSystem) model = result {
     if model.Location <> Path.Root then
         do! os.LaunchApp model.Config.CommandlinePath model.Location ""
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Commandline tool", e))
-        return model.WithMessage (MainStatus.OpenCommandLine model.LocationFormatted)
+        return model |> MainModel.withMessage (MainStatus.OpenCommandLine model.LocationFormatted)
     else return model
 }
 
@@ -123,7 +123,8 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         return
             { model with
                 History = model.History.WithFilePath model.Config.Limits.PathHistory model.SelectedItem.Path
-            }.WithMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
+            }
+            |> MainModel.withMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
     | _ -> return model
 }
 

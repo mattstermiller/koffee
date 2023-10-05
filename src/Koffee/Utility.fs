@@ -9,6 +9,12 @@ open System.Reactive.Concurrency
 open FSharp.Control
 open Acadian.FSharp
 
+let clamp minVal maxVal value =
+    value |> max minVal |> min maxVal
+
+let inline applyIf cond f value =
+    if cond then f value else value
+
 let inline mapFst f (a, b) = (f a, b)
 let inline mapSnd f (a, b) = (a, f b)
 

@@ -182,10 +182,10 @@ let assertOk res =
     | Error e -> failwithf "%A" e
 
 let seqResultWithCallback callback handler (model: MainModel) =
-    (model, handler model) ||> AsyncSeq.fold (fun m res ->
+    (model, handler model) ||> AsyncSeq.fold (fun modelIter res ->
         match res with
-        | Ok m -> callback m; m
-        | Error e -> m.WithError e
+        | Ok newModel -> newModel |>! callback
+        | Error e -> modelIter |> MainModel.withError e
     ) |> Async.RunSynchronously
 
 let seqResult handler (model: MainModel) =
@@ -255,7 +255,7 @@ type FakeFileSystem with
     member this.ItemsShouldEqual expectedTree =
         expectedTree |> TreeItem.build |> sortByPath |> this.ItemsShouldEqualList
 
-let withLocation path (model: MainModel) = model.WithLocation (createPath path)
+let withLocation path = MainModel.withLocation (createPath path)
 let withBackIf condition (path, cursor) model =
     if condition then
         { model with BackStack = (path, cursor) :: model.BackStack; ForwardStack = [] }

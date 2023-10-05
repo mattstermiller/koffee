@@ -51,21 +51,27 @@ let test case =
         match case.GetPath with
         | Same ->
             let items = fs.ItemsIn "/c"
-            Ok { model.WithLocation path with
+            Ok (
+                { model with
                     Directory = items |> sortByPath
                     Items = items
                     Cursor = case.ExpectedCursor |? model.Cursor
-               }
+                }
+                |> MainModel.withLocation path
+            )
         | Different ->
             let items = fs.ItemsIn "/c/different"
-            Ok { model.WithLocation path with
+            Ok (
+                { model with
                     Directory = items |> sortByPath
                     Items = items
                     Cursor = case.ExpectedCursor |? model.Cursor
                     BackStack = (model.Location, model.Cursor) :: model.BackStack
                     ForwardStack = []
                     History = model.History.WithFolderPath 9 path
-               }
+                }
+                |> MainModel.withLocation path
+            )
         | Inaccessible ->
             Error (MainStatus.ActionError ("open path", ex))
 

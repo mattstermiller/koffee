@@ -49,7 +49,8 @@ let ``Recycle NetHost path removes it from items and history`` () =
                     // currently expecting path history to be preserved, but we might want to remove sub-paths in the future
                     Paths = model.History.Paths
                 }
-        }.WithMessage (MainStatus.RemovedNetworkHost "host2")
+        }
+        |> MainModel.withMessage (MainStatus.RemovedNetworkHost "host2")
     assertAreEqual expected actual
     assertAreEqual expected.History actual.History
 
@@ -82,7 +83,8 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
             CancelToken = CancelToken()
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
         |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -128,7 +130,8 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
             CancelToken = CancelToken()
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
         |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -172,7 +175,8 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
             { model with
                 UndoStack = action :: testModel.UndoStack
                 RedoStack = action :: if isRedo then testModel.RedoStack else []
-            }.WithMessage (MainStatus.CancelledDelete (true, 2, 5))
+            }
+            |> MainModel.withMessage (MainStatus.CancelledDelete (true, 2, 5))
         assertAreEqual expected modelAfterCancel
         fs.ItemsShouldEqual [
             folder "folder" [
@@ -199,10 +203,11 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
             RedoStack = if isRedo then testModel.RedoStack else []
             CancelToken = CancelToken()
         }
-        |> fun m ->
+        |> MainModel.withMessage (
             if isRedo
-            then m.WithMessage (MainStatus.RedoAction (action, model.PathFormat, 1, 1))
-            else m.WithMessage (MainStatus.ActionComplete (action, model.PathFormat))
+            then MainStatus.RedoAction (action, model.PathFormat, 1, 1)
+            else MainStatus.ActionComplete (action, model.PathFormat)
+        )
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "other"
@@ -232,7 +237,7 @@ let ``Recycle or Delete folder does nothing when canceled immediately`` permanen
     let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (testFunc item) model
 
     let expectedTotal = if permanent then 0 else 1
-    let expected = model.WithMessage (MainStatus.CancelledDelete (permanent, 0, expectedTotal))
+    let expected = model |> MainModel.withMessage (MainStatus.CancelledDelete (permanent, 0, expectedTotal))
     assertAreEqual expected actual
     fs.ItemsShouldEqualList expectedFs
 
@@ -265,7 +270,7 @@ let ``Recycle file or folder that does not fit in the Recycle Bin returns error`
 
     let expectedEx = FakeFileSystemErrors.cannotRecycleItemThatDoesNotFit 4L
     let expectedError = MainStatus.ItemActionError (DeletedItem (item, false), model.PathFormat, expectedEx)
-    let expected = model.WithError expectedError |> withNewCancelToken
+    let expected = model |> MainModel.withError expectedError |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -291,7 +296,7 @@ let ``Recycle folder that contains folder that cannot be read returns error`` ()
     let actual = seqResult (Action.recycle fs item) model
 
     let expectedError = MainStatus.ActionError ("check folder content size", ex)
-    let expected = model.WithError expectedError |> withNewCancelToken
+    let expected = model |> MainModel.withError expectedError |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -319,7 +324,7 @@ let ``Delete folder handles individual error and deletes other items and returns
         createFolder "/c/folder/sub", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
         createFolder "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     ]
-    let expected = model.WithError (MainStatus.DeleteError (expectedErrorItems, 5)) |> withNewCancelToken
+    let expected = model |> MainModel.withError (MainStatus.DeleteError (expectedErrorItems, 5)) |> withNewCancelToken
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "folder" [
@@ -351,6 +356,6 @@ let ``Recycle or Delete item handles error by returning error`` permanent =
             MainStatus.DeleteError ([item, ex], 1)
         else
             MainStatus.ItemActionError (DeletedItem (item, false), model.PathFormat, ex)
-    let expected = model.WithError expectedError |> withNewCancelToken
+    let expected = model |> MainModel.withError expectedError |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

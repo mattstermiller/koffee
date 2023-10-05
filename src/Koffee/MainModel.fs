@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -526,6 +526,7 @@ with
     member this.GetBookmark char =
         this.Bookmarks |> List.tryFind (fst >> (=) char) |> Option.map snd
 
+    // TODO: refactor members to module
     member this.WithBookmark char path =
         { this with Bookmarks = (char, path) |> Config.addRegister this.Bookmarks }
 
@@ -623,6 +624,7 @@ with
     static member private pushDistinct max list item =
         item :: (list |> List.filter ((<>) item)) |> List.truncate max
 
+    // TODO: refactor members to module
     member this.WithSearch searchLimit search =
         { this with Searches = History.pushDistinct searchLimit this.Searches search }
 
@@ -734,7 +736,7 @@ type MainModel = {
     History: History
 } with
     member private this.ClampCursor index =
-         index |> max 0 |> min (this.Items.Length - 1)
+        index |> clamp 0 (this.Items.Length - 1)
 
     member this.SelectedItem =
         this.Items.[this.Cursor |> this.ClampCursor]
@@ -751,80 +753,10 @@ type MainModel = {
         else
             this.Location.Name |> String.ifEmpty this.LocationFormatted
 
-    // TODO: refactor all "with" members to module functions
-    // try using an "applyIf" function when doing this? Not sure if that has value
-    member this.WithLocation path =
-        { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
-
-    member this.WithCursor index =
-        { this with Cursor = index |> this.ClampCursor }
-
-    member this.WithCursorRel move = this.WithCursor (this.Cursor + move)
-
-    member this.WithPushedLocation path =
-        if path <> this.Location then
-            { this.WithLocation path with
-                BackStack = (this.Location, this.Cursor) :: this.BackStack |> List.truncate this.Config.Limits.Back
-                ForwardStack = []
-                Cursor = 0
-            }
-        else this
-
-    static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
-        match actionStack with
-        | PutItems (putType1, intent1, actual1, cancelled1) ::
-          PutItems (putType2, intent2, actual2, true) :: tail
-                when putType1 = putType2 && PutItem.intentEquals intent1 intent2 ->
-            // take distinct items by path, keeping the newer items
-            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Item.Path) |> List.rev
-            PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
-        | DeletedItem (item1, true) :: DeletedItem (item2, true) :: _ when item1.Path = item2.Path ->
-            actionStack.Tail
-        | _ ->
-            actionStack
-
-    member this.WithPushedUndo action =
-        { this with UndoStack = action :: this.UndoStack |> MainModel.mergeActionsWithSameIntent |> List.truncate this.Config.Limits.Undo }
-
-    member this.WithPushedRedo action =
-        { this with RedoStack = action :: this.RedoStack |> MainModel.mergeActionsWithSameIntent }
-
-    member this.WithNewCancelToken () = { this with CancelToken = CancelToken() }
-
-    member this.WithoutKeyCombo () =
-        { this with KeyCombo = []; RepeatCommand = None }
-
-    member this.AppendRepeatDigit digit =
-        match this.RepeatCommand with
-        | None when digit = 0 -> this
-        | Some count -> { this with RepeatCommand = Some (count * 10 + digit) }
-        | None -> { this with RepeatCommand = Some digit }
-
     member this.RepeatCount = this.RepeatCommand |? 1
 
     member this.ItemsOrEmpty =
         Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
-
-    member this.WithStatus status =
-        { this with
-            Status = Some status
-            StatusHistory =
-                match status with
-                | MainStatus.Busy _ -> this.StatusHistory
-                | s -> s :: this.StatusHistory |> List.truncate this.Config.Limits.StatusHistory
-        }
-
-    member this.WithMessage message = this.WithStatus (MainStatus.Message message)
-    member this.WithBusy busy = this.WithStatus (MainStatus.Busy busy)
-    member this.WithError error = this.WithStatus (MainStatus.Error error)
-
-    member this.WithResult (res: Result<unit, MainStatus.Error>) =
-        match res with
-        | Ok () -> this
-        | Error e -> this.WithError e
-
-    member this.ClearStatus () =
-        { this with Status = None; InputError = None }
 
     member this.IsStatusBusy =
         match this.Status with
@@ -877,6 +809,79 @@ type MainModel = {
         Config = Config.Default
         History = History.Default
     }
+
+    static member withLocation path (this: MainModel) =
+        { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
+
+    static member withCursor index (this: MainModel) =
+        { this with Cursor = index |> this.ClampCursor }
+
+    static member withCursorRel move (this: MainModel) =
+        MainModel.withCursor (this.Cursor + move) this
+
+    static member withPushedLocation path (this: MainModel) =
+        if path <> this.Location then
+            { this with
+                BackStack = (this.Location, this.Cursor) :: this.BackStack |> List.truncate this.Config.Limits.Back
+                ForwardStack = []
+                Cursor = 0
+            }
+            |> MainModel.withLocation path
+        else this
+
+    static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
+        match actionStack with
+        | PutItems (putType1, intent1, actual1, cancelled1) ::
+          PutItems (putType2, intent2, actual2, true) :: tail
+                when putType1 = putType2 && PutItem.intentEquals intent1 intent2 ->
+            // take distinct items by path, keeping the newer items
+            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Item.Path) |> List.rev
+            PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
+        | DeletedItem (item1, true) :: DeletedItem (item2, true) :: _ when item1.Path = item2.Path ->
+            actionStack.Tail
+        | _ ->
+            actionStack
+
+    static member pushUndo action (this: MainModel) =
+        let undoStack =
+            action :: this.UndoStack
+            |> MainModel.mergeActionsWithSameIntent
+            |> List.truncate this.Config.Limits.Undo
+        { this with UndoStack = undoStack }
+
+    static member pushRedo action (this: MainModel) =
+        { this with RedoStack = action :: this.RedoStack |> MainModel.mergeActionsWithSameIntent }
+
+    static member withNewCancelToken (this: MainModel) = { this with CancelToken = CancelToken() }
+
+    static member withoutKeyCombo (this: MainModel) = { this with KeyCombo = []; RepeatCommand = None }
+
+    static member appendRepeatDigit digit (this: MainModel) =
+        match this.RepeatCommand with
+        | None when digit = 0 -> this
+        | Some count -> { this with RepeatCommand = Some (count * 10 + digit) }
+        | None -> { this with RepeatCommand = Some digit }
+
+    static member withStatus status (this: MainModel) =
+        { this with
+            Status = Some status
+            StatusHistory =
+                match status with
+                | MainStatus.Busy _ -> this.StatusHistory
+                | s -> s :: this.StatusHistory |> List.truncate this.Config.Limits.StatusHistory
+        }
+
+    static member withMessage = MainStatus.Message >> MainModel.withStatus
+    static member withBusy = MainStatus.Busy >> MainModel.withStatus
+    static member withError = MainStatus.Error >> MainModel.withStatus
+
+    static member withResult res (this: MainModel) =
+        match res with
+        | Ok () -> this
+        | Error e -> this |> MainModel.withError e
+
+    static member clearStatus (this: MainModel) =
+        { this with Status = None; InputError = None }
 
 module DragDropEffects =
     let toPutTypes effects =

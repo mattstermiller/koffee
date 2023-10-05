@@ -44,7 +44,8 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             Cursor = if diffCaseOnly then 1 else 2
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
         |> withHistoryPaths (historyPaths {
             model.History.Paths.[0]
             newPath
@@ -95,7 +96,8 @@ let ``Rename folder calls file sys move and updates history`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
         |> withHistoryPaths (historyPaths {
             newPath + "your file"
             model.History.Paths.[1]
@@ -146,7 +148,8 @@ let ``Rename in search result calls file sys move and sets status`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
-        }.WithMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
     assertAreEqual expected actual
 
 [<TestCase(false)>]
@@ -219,7 +222,8 @@ let ``Undo rename file changes name back to original and updates history`` curPa
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
+        }
+        |> MainModel.withMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
         |> withBackIf curPathDifferent (model.Location, 0)
         |> withHistoryPaths (historyPaths {
             previous.Path.Parent, true
@@ -262,7 +266,8 @@ let ``Undo rename folder changes name back to original and updates history`` () 
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
-        }.WithMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
+        }
+        |> MainModel.withMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
         |> withHistoryPaths (historyPaths {
             previous.Path.Parent, true
             previous.Path.Join "file", false
@@ -292,7 +297,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedError = MainStatus.CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
-    let expected = model.WithError expectedError |> popUndo
+    let expected = model |> MainModel.withError expectedError |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -311,7 +316,7 @@ let ``Undo rename item handles move error by returning error``() =
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedError = MainStatus.ItemActionError (RenamedItem (current, previous.Name), model.PathFormat, ex)
-    let expected = model.WithError expectedError |> popUndo
+    let expected = model |> MainModel.withError expectedError |> popUndo
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 

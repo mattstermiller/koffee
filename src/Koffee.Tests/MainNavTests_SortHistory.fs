@@ -17,7 +17,8 @@ let ``Sorting changes stored sort`` () =
         { MainModel.Default with
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
             History = historyWithPathSort location originalPathSort
-        }.WithLocation location
+        }
+        |> MainModel.withLocation location
 
     let resultModel = Nav.sortList Name model
 
@@ -33,7 +34,8 @@ let ``Sorting on different folder leaves stored sort unchanged`` () =
         { MainModel.Default with
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
             History = historyWithPathSort pathSortLocation originalPathSort
-        }.WithLocation modelLocation
+        }
+        |> MainModel.withLocation modelLocation
 
     let resultModel = Nav.sortList Name model
 
@@ -49,7 +51,8 @@ let ``Toggling sort into default removes it from history`` () =
         { MainModel.Default with
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
             History = historyWithPathSort location originalPathSort
-        }.WithLocation location
+        }
+        |> MainModel.withLocation location
 
     let resultModel = Nav.sortList PathSort.Default.Sort model
 
@@ -76,7 +79,8 @@ let ``openPath uses stored sort`` () =
         { MainModel.Default with
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
             History = historyWithPathSort storedLocation storedPathSort
-        }.WithLocation location
+        }
+        |> MainModel.withLocation location
     let fs = createFs()
 
     let result = Nav.openPath fs storedLocation SelectNone model
@@ -94,7 +98,8 @@ let ``openPath uses default sort when no stored sort`` () =
         { MainModel.Default with
             Sort = Some (originalPathSort.Sort, originalPathSort.Descending)
             History = History.Default
-        }.WithLocation location
+        }
+        |> MainModel.withLocation location
     let fs = createFs()
 
     let result = Nav.openPath fs newLocation SelectNone model

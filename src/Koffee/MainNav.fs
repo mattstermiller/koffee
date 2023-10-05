@@ -6,7 +6,7 @@ open Koffee
 open Koffee.Main.Util
 
 let select selectType (model: MainModel) =
-    model.WithCursor (
+    model |> MainModel.withCursor (
         match selectType with
         | SelectNone -> model.Cursor
         | SelectIndex index -> index
@@ -43,11 +43,12 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = resu
         else
             fsReader.GetItems path |> actionError "open path"
     return
-        { model.WithPushedLocation path with
+        { model with
             Directory = directory
             History = model.History.WithFolderPath model.Config.Limits.PathHistory path
             Sort = Some (model.History.FindSortOrDefault path |> PathSort.toTuple)
         }
+        |> MainModel.withPushedLocation path
         |> clearSearchProps
         |> listDirectory select
 }
@@ -57,11 +58,13 @@ let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     | Some path ->
         match fsReader.GetItem path with
         | Ok (Some item) when item.Type = File ->
-            openPath fsReader path.Parent (SelectItem (item, true)) (model.ClearStatus())
+            model |> MainModel.clearStatus |> openPath fsReader path.Parent (SelectItem (item, true))
         | Ok _ ->
-            openPath fsReader path SelectNone (model.ClearStatus())
-        | Error e -> Error <| MainStatus.ActionError ("open path", e)
-    | None -> Error <| MainStatus.InvalidPath pathStr
+            model |> MainModel.clearStatus |> openPath fsReader path SelectNone
+        | Error e ->
+            Error <| MainStatus.ActionError ("open path", e)
+    | None ->
+        Error <| MainStatus.InvalidPath pathStr
 
 let openInputPath fsReader os pathStr (evtHandler: EvtHandler) model = result {
     let pathStr = OsUtility.subEnvVars os pathStr
@@ -74,7 +77,7 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
     let item = model.SelectedItem
     match item.Type with
     | Folder | Drive | NetHost | NetShare ->
-        openPath fsReader item.Path SelectNone (model.ClearStatus())
+        model |> MainModel.clearStatus |> openPath fsReader item.Path SelectNone
     | File ->
         let openError e = e |> actionError (sprintf "open '%s'" item.Name)
         let shortcutFolder = result {
@@ -96,14 +99,15 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
         shortcutFolder
         |> Result.bind (function
             | Some shortcutFolder ->
-                openPath fsReader shortcutFolder SelectNone (model.ClearStatus())
+                model |> MainModel.clearStatus |> openPath fsReader shortcutFolder SelectNone
             | None ->
                 os.OpenFile item.Path |> openError
                 |> Result.map (fun () ->
                     fnAfterOpen |> Option.iter (fun f -> f())
                     { model with
                         History = model.History.WithFilePath model.Config.Limits.PathHistory item.Path
-                    }.WithMessage (MainStatus.OpenFile item.Name)
+                    }
+                    |> MainModel.withMessage (MainStatus.OpenFile item.Name)
                 )
         )
     | Empty -> Ok model
@@ -113,13 +117,15 @@ let openParent fsReader (model: MainModel) =
         if model.SelectedItem.Type = Empty then
             Ok (model |> clearSearchProps |> listDirectory SelectNone)
         else
-            openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false)) (model.ClearStatus())
+            model
+            |> MainModel.clearStatus
+            |> openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false))
     else
         let rec getParent n (path: Path) (currentName: string) =
             if n < 1 || path = Path.Root then (path, currentName)
             else getParent (n-1) path.Parent path.Name
         let path, selectName = getParent model.RepeatCount model.Location model.Location.Name
-        openPath fsReader path (SelectName selectName) (model.ClearStatus())
+        model |> MainModel.clearStatus |> openPath fsReader path (SelectName selectName)
 
 let refresh fsReader (model: MainModel) =
     openPath fsReader model.Location (SelectItem (model.SelectedItem, false)) model
@@ -137,7 +143,7 @@ let back fsReader model = result {
     else
         let (path, cursor), fromStack, toStack =
             shiftStacks (model.Location, model.Cursor) model.RepeatCount model.BackStack model.ForwardStack
-        let! model = openPath fsReader path (SelectIndex cursor) (model.ClearStatus())
+        let! model = model |> MainModel.clearStatus |> openPath fsReader path (SelectIndex cursor)
         return { model with BackStack = fromStack; ForwardStack = toStack }
 }
 
@@ -147,7 +153,7 @@ let forward fsReader model = result {
     else
         let (path, cursor), fromStack, toStack =
             shiftStacks (model.Location, model.Cursor) model.RepeatCount model.ForwardStack model.BackStack
-        let! model = openPath fsReader path (SelectIndex cursor) (model.ClearStatus())
+        let! model = model |> MainModel.clearStatus |> openPath fsReader path (SelectIndex cursor)
         return { model with BackStack = toStack; ForwardStack = fromStack }
 }
 
@@ -162,7 +168,7 @@ let sortList field model =
         Items = model.Items |> SortField.SortByTypeThen (field, desc)
         History = model.History.WithPathSort model.Location { Sort = field; Descending = desc }
     }
-    |> fun m -> m.WithMessage (MainStatus.Sort (field, desc))
+    |> MainModel.withMessage (MainStatus.Sort (field, desc))
     |> select selectType
 
 let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {

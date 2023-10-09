@@ -32,16 +32,18 @@ let listDirectory selectType model =
         |> model.ItemsOrEmpty
     { model with Items = items } |> select selectType
 
+let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
+    if path = Path.Network then
+        model.History.NetHosts
+        |> List.map (sprintf @"\\%s")
+        |> List.choose Path.Parse
+        |> List.map (fun path -> Item.Basic path path.Name NetHost)
+        |> Ok
+    else
+        fsReader.GetItems path |> actionError "open path"
+
 let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-    let! directory =
-        if path = Path.Network then
-            model.History.NetHosts
-            |> List.map (sprintf @"\\%s")
-            |> List.choose Path.Parse
-            |> List.map (fun path -> Item.Basic path path.Name NetHost)
-            |> Ok
-        else
-            fsReader.GetItems path |> actionError "open path"
+    let! directory = getDirectory fsReader model path
     return
         { model with
             Directory = directory
@@ -128,6 +130,12 @@ let openParent fsReader (model: MainModel) =
 
 let refresh fsReader (model: MainModel) =
     openPath fsReader model.Location (SelectItem (model.SelectedItem, false)) model
+
+let refreshDirectory fsReader (model: MainModel) =
+    getDirectory fsReader model model.Location
+    |> function
+        | Ok dir -> { model with Directory = dir }
+        | _ -> model
 
 let rec private shiftStacks current n fromStack toStack =
     match fromStack with

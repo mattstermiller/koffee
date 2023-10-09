@@ -11,6 +11,7 @@
 - Fixes error message when undoing copy of empty folder
 - Fixes Find input error not going away after using Go To Next Find Match
 - Fixes drive not being selected when opening parent
+- Fixes Refresh window on focus with recursive search to refresh current directory
 - Undo/redo now reports status for each iteration so they can be seen in history
 - Various optimizations for file write operations
 

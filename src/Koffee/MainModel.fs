@@ -2,7 +2,10 @@
 
 open System
 open System.Windows
+open System.Windows.Controls
 open System.Windows.Input
+open System.Windows.Media
+open System.Windows.Media.Imaging
 open Acadian.FSharp
 
 type ItemType =
@@ -55,6 +58,19 @@ with
     member this.TypeName = this.Type.ToString()
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
+        
+    member this.Image =
+        match this.Type with
+        | File -> 
+            let x = System.Drawing.Icon.ExtractAssociatedIcon(this.Path.ToString())
+            System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                x.ToBitmap().GetHbitmap(),
+                IntPtr.Zero,
+                Int32Rect.Empty,
+                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions())
+        | _ ->
+            null
+            
 
     static member Empty =
         { Path = Path.Root; Name = ""; Type = Empty

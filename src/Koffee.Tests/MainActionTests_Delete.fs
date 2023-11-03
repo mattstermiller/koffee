@@ -35,7 +35,7 @@ let ``Recycle NetHost path removes it from items and history`` () =
                 }
         }
 
-    let actual = seqResult (Action.recycle fs model.SelectedItem) model
+    let actual = seqResult (Action.recycle fs model.ActionItems.Head) model
 
     let expectedItems = items |> List.take 1
     let expected =

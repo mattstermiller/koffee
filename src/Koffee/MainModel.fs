@@ -78,6 +78,8 @@ with
             Type = itemType
         }
 
+    static member paths (items: Item list) = items |> List.map (fun i -> i.Path)
+
 type SortField =
     | Name
     | Type
@@ -207,11 +209,11 @@ with
         | DeletedItem (item, false) -> sprintf "Recycle %s" item.Description
         | DeletedItem (item, true) -> sprintf "Delete %s" item.Description
 
-type SelectType =
-    | SelectNone
-    | SelectIndex of int
-    | SelectName of string
-    | SelectItem of Item * showHidden: bool
+type CursorMoveType =
+    | CursorStay
+    | CursorToIndex of int
+    | CursorToName of string
+    | CursorToItem of Item * showHidden: bool
 
 type InputError =
     | FindFailure of prefix: string
@@ -265,7 +267,7 @@ module MainStatus =
         | CancelledDelete of permanent: bool * completed: int * total: int
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
-        | OpenFile of name: string
+        | OpenFiles of names: string list
         | OpenProperties of name: string
         | OpenExplorer
         | OpenCommandLine of path: string
@@ -335,8 +337,10 @@ module MainStatus =
                 sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
             | ToggleHidden showing ->
                 sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
-            | OpenFile name ->
-                sprintf "Opened File: %s" name
+            | OpenFiles names ->
+                match names with
+                | [name] -> sprintf "Opened File: %s" name
+                | _ -> sprintf "Opened %i Files" names.Length
             | OpenProperties name ->
                 sprintf "Opened Properties: %s" name
             | OpenExplorer ->
@@ -391,7 +395,6 @@ module MainStatus =
         | ItemActionError of ItemAction * PathFormat * exn
         | InvalidPath of string
         | CouldNotOpenPath of Path * PathFormat * exn
-        | CouldNotOpenFile of string * exn
         | NoPreviousSearch
         | ShortcutTargetMissing of string
         | YankRegisterItemMissing of string
@@ -408,6 +411,9 @@ module MainStatus =
         | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
         | NoUndoActions
         | NoRedoActions
+        | NoFilesSelected
+        | CannotOpenWithMultiple
+        | CouldNotOpenFiles of nameErrorPairs: (string * exn) list
         | CouldNotOpenApp of app: string * exn
         | CouldNotFindKoffeeExe
 
@@ -435,8 +441,6 @@ module MainStatus =
                 "Path format is invalid: " + path
             | CouldNotOpenPath (path, pathFormat, ex) ->
                 sprintf "Could not open %s: %s" (path.Format pathFormat) ex.Message
-            | CouldNotOpenFile (name, ex) ->
-                sprintf "Could not open %s: %s" name ex.Message
             | NoPreviousSearch ->
                 "No previous search to repeat"
             | ShortcutTargetMissing path ->
@@ -477,6 +481,18 @@ module MainStatus =
                 "No more actions to undo"
             | NoRedoActions ->
                 "No more actions to redo"
+            | NoFilesSelected ->
+                "No files selected"
+            | CannotOpenWithMultiple ->
+                "Cannot use Open File With on multiple items"
+            | CouldNotOpenFiles nameErrorPairs ->
+                match nameErrorPairs with
+                | [name, ex] ->
+                    sprintf "Could not open file '%s': %s" name ex.Message
+                | (name, ex) :: _ ->
+                    sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
+                | _ ->
+                    "Could not open files"
             | CouldNotOpenApp (app, e) ->
                 sprintf "Could not open app %s: %s" app e.Message
             | CouldNotFindKoffeeExe ->
@@ -641,11 +657,11 @@ with
         | Some sort -> sort
         | None -> PathSort.Default
 
-    static member private pushDistinct max list item =
-        item :: (list |> List.filter ((<>) item)) |> List.truncate max
+    static member private pushDistinct max list items =
+        (items |> List.rev) @ (list |> List.except items) |> List.truncate max
 
     static member withSearch searchLimit search (this: History) =
-        { this with Searches = History.pushDistinct searchLimit this.Searches search }
+        { this with Searches = History.pushDistinct searchLimit this.Searches [search] }
 
     static member withoutSearchIndex index (this: History) =
         let before, rest = this.Searches |> List.splitAt index
@@ -660,14 +676,18 @@ with
     static member private withoutNetHost host (this: History) =
         { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
 
-    static member private withPath pathLimit isDirectory path (this: History) =
-        let histPath = { PathValue = path; IsDirectory = isDirectory }
-        { this with Paths = History.pushDistinct pathLimit this.Paths histPath }
+    static member private withPaths pathLimit isDirectories paths (this: History) =
+        if paths |> List.isEmpty then
+            this
+        else
+            let histPaths = paths |> List.map (fun path -> { PathValue = path; IsDirectory = isDirectories })
+            { this with Paths = History.pushDistinct pathLimit this.Paths histPaths }
 
-    static member withFilePath pathLimit path = History.withPath pathLimit false path
+    static member withFilePaths pathLimit paths =
+        History.withPaths pathLimit false paths
 
     static member withFolderPath pathLimit path =
-        History.withPath pathLimit true path
+        History.withPaths pathLimit true [path]
         >> Option.foldBack History.withNetHost path.NetHost
 
     static member withPathReplaced oldPath newPath =
@@ -723,6 +743,7 @@ type MainModel = {
     Items: Item list
     Sort: (SortField * bool) option
     Cursor: int
+    SelectedItems: Item list
     PageSize: int
     KeyCombo: KeyCombo
     RepeatCommand: int option
@@ -750,8 +771,11 @@ type MainModel = {
     member private this.ClampCursor index =
         index |> clamp 0 (this.Items.Length - 1)
 
-    member this.SelectedItem =
+    member this.CursorItem =
         this.Items.[this.Cursor |> this.ClampCursor]
+
+    member this.ActionItems =
+        if not this.SelectedItems.IsEmpty then this.SelectedItems else [this.CursorItem]
 
     member this.PathFormat = this.Config.PathFormat
 
@@ -797,6 +821,7 @@ type MainModel = {
         Items = [ Item.Empty ]
         Sort = Some (Name, false)
         Cursor = 0
+        SelectedItems = []
         PageSize = 30
         KeyCombo = []
         RepeatCommand = None

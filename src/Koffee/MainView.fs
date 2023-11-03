@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -30,7 +30,7 @@ module MainView =
         ]
         not <| List.contains evt.RealKey modifierKeys
 
-    let getPrompt pathFormat (item: Item) inputMode =
+    let getPrompt pathFormat inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
         | Confirm (Overwrite (putType, src, dest)) ->
@@ -51,7 +51,7 @@ module MainView =
                 | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
             | _ -> ""
         | Confirm Delete ->
-            sprintf "Permanently delete %s y/n ?" item.Description
+            "Permanently delete selected item(s) y/n ?"
         | Confirm (OverwriteBookmark (char, existingPath)) ->
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
@@ -287,8 +287,8 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.Config.SavedSearches @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, searches) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.PathFormat, model.Config.Bookmarks, model.Config.SavedSearches @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), pathFormat, bookmarks, searches) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -315,7 +315,7 @@ module MainView =
                         | _ ->
                             window.BookmarkPanel.Collapsed <- true
                         window.SearchOptions.Collapsed <- inputMode <> Input Search
-                        window.InputText.Text <- getPrompt pathFormat selected inputMode
+                        window.InputText.Text <- getPrompt pathFormat inputMode
                         if not window.InputPanel.Visible then
                             window.InputPanel.Visible <- true
                             window.InputBox.Select(selectStart, selectLen)

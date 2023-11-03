@@ -22,22 +22,18 @@ let private performedUndo undoIter action (model: MainModel) =
 let private ignoreError f model =
     f model |> Result.defaultValue model
 
-let private setInputSelection cursorPos model =
-    let fullLen = model.InputText.Length
+let private getInputSelection renamePart itemType (input: string) =
+    let fullLen = input.Length
     let nameLen =
-        if model.SelectedItem.Type = File then
-            Path.SplitName model.InputText |> fst |> String.length
-        else
-            fullLen
-    { model with
-        InputTextSelection =
-            match cursorPos with
-            | Begin -> (0, 0)
-            | EndName -> (nameLen, 0)
-            | End -> (fullLen, 0)
-            | ReplaceName -> (0, nameLen)
-            | ReplaceAll -> (0, fullLen)
-    }
+        if itemType = File
+        then Path.SplitName input |> fst |> String.length
+        else fullLen
+    match renamePart with
+    | Begin -> (0, 0)
+    | EndName -> (nameLen, 0)
+    | End -> (fullLen, 0)
+    | ReplaceName -> (0, nameLen)
+    | ReplaceAll -> (0, fullLen)
 
 let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = result {
     let inputMode =
@@ -57,18 +53,21 @@ let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = resu
                 | Ok _ -> Error <| MainStatus.CannotPutHere
                 | Error e -> Error <| MainStatus.ActionError ("create item", e)
         | Input (Rename _)
-        | Confirm Delete -> Ok model.SelectedItem.Type.CanModify
+        | Confirm Delete -> Ok (model.ActionItems |> List.exists (fun item -> item.Type.CanModify))
         | _ -> Ok true
     if allowed then
         let model = { model with InputMode = Some inputMode }
+        let setInputText renamePart itemType input model =
+            { model with
+                InputText = input
+                InputTextSelection = getInputSelection renamePart itemType input
+            }
         match inputMode with
         | Input Search ->
             let input = model.SearchCurrent |> Option.map (fun s -> s.Terms) |? ""
-            return { model with InputText = input }
-                   |> setInputSelection ReplaceAll
-        | Input (Rename pos) ->
-            return { model with InputText = model.SelectedItem.Name }
-                   |> setInputSelection pos
+            return model |> setInputText ReplaceAll Empty input
+        | Input (Rename part) ->
+            return model |> setInputText part model.CursorItem.Type model.CursorItem.Name
         | _ ->
             return { model with InputText = "" }
     else
@@ -84,9 +83,9 @@ let create (fs: IFileSystem) itemType name model = asyncSeqResult {
         do! fs.Create itemType itemPath |> itemActionError action model.PathFormat
         let model = model |> performedAction action
         yield model
-        yield! Nav.openPath fs model.Location (SelectName name) model
+        yield! Nav.openPath fs model.Location (CursorToName name) model
     | Some existing ->
-        yield! Nav.openPath fs model.Location (SelectItem (existing, true)) model
+        yield! Nav.openPath fs model.Location (CursorToItem (existing, true)) model
         return MainStatus.CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
 }
 
@@ -127,7 +126,7 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
                 |> fun model ->
                     if model.SearchCurrent.IsSome
                     then { model with Items = model.Items |> substitute }
-                    else Nav.listDirectory (SelectName newName) model
+                    else Nav.listDirectory (CursorToName newName) model
                 |> performedAction action
         | Some existingItem ->
             return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)
@@ -149,19 +148,25 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
             model
             |> MainModel.mapHistory (History.withPathReplaced item.Path oldItem.Path)
             |> performedUndo undoIter (RenamedItem (oldItem, currentName))
-            |> ignoreError (Nav.openPath fs parentPath (SelectName oldItem.Name))
+            |> ignoreError (Nav.openPath fs parentPath (CursorToName oldItem.Name))
     | Some existingItem ->
         return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
 }
 
-let registerItem putType (model: MainModel) =
-    if model.SelectedItem.Type.CanModify then
-        let reg = Some (model.SelectedItem.Path, model.SelectedItem.Type, putType)
+let registerSelectedItems putType (model: MainModel) =
+    let regItems =
+        model.ActionItems |> List.choose (fun item ->
+            if item.Type.CanModify
+            then Some (item.Path, item.Type)
+            else None
+        )
+    match regItems |> List.tryHead with
+    | Some (path, itemType) ->
         { model with
-            Config = { model.Config with YankRegister = reg }
+            Config = { model.Config with YankRegister = Some (path, itemType, putType) }
             Status = None
         }
-    else model
+    | None -> model
 
 let getCopyName name i =
     let (nameNoExt, ext) = Path.SplitName name
@@ -319,7 +324,7 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) (undoIter: int opt
             else
                 model
         let openDest model =
-            model |> ignoreError (Nav.openPath fs intent.Dest.Parent (SelectName intent.Dest.Name))
+            model |> ignoreError (Nav.openPath fs intent.Dest.Parent (CursorToName intent.Dest.Name))
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errorItems.IsEmpty then
@@ -350,7 +355,7 @@ let putToDestination (fs: IFileSystem) (progress: Event<float option>) isRedo ov
     match existing with
     | Some existing when not overwrite && not isRedo ->
         // refresh item list to make sure we can see the existing file
-        let! model = Nav.openPath fs model.Location (SelectItem (existing, true)) model
+        let! model = Nav.openPath fs model.Location (CursorToItem (existing, true)) model
         yield
             { model with
                 InputMode = Some (Confirm (Overwrite (putType, item, existing)))
@@ -557,12 +562,14 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
 }
 
 let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
-    let item = model.SelectedItem
-    if item.Type <> Empty then
+    let items = model.ActionItems |> List.filter (fun item -> item.Type <> Empty)
+    match items with
+    | [] ->
+        return model
+    // TODO: support multiple items
+    | item :: _ ->
         do! os.CopyToClipboard item.Path |> actionError "copy to clipboard"
         return model |> MainModel.withMessage (MainStatus.ClipboardCopy (item.Path.Format model.PathFormat))
-    else
-        return model
 }
 
 let rec private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) = asyncSeq {
@@ -704,7 +711,7 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         let redoHead = model.RedoStack |> List.tryHead
         let openPath (path: Path) =
             if path <> model.Location
-            then Nav.openPath fs path SelectNone model
+            then Nav.openPath fs path CursorStay model
             else Ok model
         let! model = asyncSeqResult {
             match action with
@@ -720,14 +727,14 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                 if not overwrite && not cancelled then
                     match! fs.GetItem intent.Dest |> actionError "check destination path" with
                     | Some existing ->
-                        yield Nav.select (SelectItem (existing, true)) model
+                        yield Nav.moveCursor (CursorToItem (existing, true)) model
                         return MainStatus.CannotRedoPutToExisting (putType, intent.Item, intent.Dest.Format model.PathFormat)
                     | None -> ()
                 yield! putToDestination fs progress true overwrite putType intent.Item intent.Dest model
             | DeletedItem (item, permanent) ->
                 let! model =
                     openPath item.Path.Parent
-                    |> Result.map (Nav.select (SelectItem (item, true)))
+                    |> Result.map (Nav.moveCursor (CursorToItem (item, true)))
                 yield model |> MainModel.withBusy (MainStatus.RedoingDeletingItem (item, permanent))
                 let deleteFunc = if permanent then delete fs progress else recycle fs
                 yield! deleteFunc item model

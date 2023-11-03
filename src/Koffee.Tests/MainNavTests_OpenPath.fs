@@ -15,10 +15,10 @@ let ``Opening a valid path updates model correctly`` setCursor =
         file "file"
     ]
     let path = createPath "/c/different"
-    let select = if setCursor then SelectIndex 2 else SelectNone
+    let cursor = if setCursor then CursorToIndex 2 else CursorStay
     let model = testModel
 
-    let actual = Nav.openPath fs path select model |> assertOk
+    let actual = Nav.openPath fs path cursor model |> assertOk
 
     let expectedItems = fs.ItemsIn (string path)
     let expected =
@@ -42,10 +42,10 @@ let ``Opening same path does not modify navigation history`` setCursor =
         file "file2"
     ]
     let path = createPath "/c"
-    let select = if setCursor then SelectIndex 2 else SelectNone
+    let cursor = if setCursor then CursorToIndex 2 else CursorStay
     let model = testModel
 
-    let actual = Nav.openPath fs path select model |> assertOk
+    let actual = Nav.openPath fs path cursor model |> assertOk
 
     let expectedItems = fs.ItemsIn "/c"
     let expected =
@@ -69,7 +69,7 @@ let ``Opening a path that throws on GetItems sets error status only``() =
     fs.AddExnPath false ex path
     let model = testModel
 
-    let res = Nav.openPath fs path SelectNone model
+    let res = Nav.openPath fs path CursorStay model
 
     let expected = Error (MainStatus.CouldNotOpenPath (path, model.PathFormat, ex))
     assertAreEqual expected res
@@ -84,7 +84,7 @@ let ``Opening same path that throws on GetItems sets empty item and error status
     fs.AddExnPath false ex path
     let model = testModel
 
-    let actual = Nav.openPath fs path SelectNone model |> assertOk
+    let actual = Nav.openPath fs path CursorStay model |> assertOk
 
     let expectedError = MainStatus.CouldNotOpenPath (path, model.PathFormat, ex)
     let expectedItems = Item.EmptyFolderWithMessage expectedError.Message path
@@ -94,7 +94,7 @@ let ``Opening same path that throws on GetItems sets empty item and error status
     assertAreEqual expected actual
 
 [<Test>]
-let ``Open Parent when in folder opens parent and selects folder that was open`` () =
+let ``Open Parent when in folder opens parent and moves cursor to folder that was open`` () =
     let fs = FakeFileSystem [
         folder "another" []
         folder "folder" []
@@ -122,7 +122,7 @@ let ``Open Parent when in folder opens parent and selects folder that was open``
     assertAreEqual expected actual
 
 [<Test>]
-let ``Open Parent when in drive opens root and selects drive that was open`` () =
+let ``Open Parent when in drive opens root and moves cursor to drive that was open`` () =
     let fs = FakeFileSystem [
         drive 'c' []
         drive 'd' []

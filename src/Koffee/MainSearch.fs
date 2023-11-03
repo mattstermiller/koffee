@@ -97,7 +97,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                     |> model.ItemsOrEmpty
                     |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                 Cursor = 0
-            } |> Nav.select (SelectItem (model.SelectedItem, false))
+            } |> Nav.moveCursor (CursorToItem (model.CursorItem, false))
         let items = model.Directory |> filter
         if model.SearchInput.SubFolders then
             match model.SubDirectories with
@@ -120,7 +120,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
     | Some (Error e) ->
         yield { model with InputError = Some e }
     | None ->
-        yield model |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
+        yield model |> Nav.listDirectory (CursorToItem (model.CursorItem, false))
 }
 
 let addSubDirResults newItems model =
@@ -155,13 +155,13 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
 let clearSearch (model: MainModel) =
     { model with ShowHistoryType = None }
     |> clearSearchProps
-    |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
+    |> Nav.listDirectory (CursorToItem (model.CursorItem, false))
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.SearchCurrent with
     | Some current ->
-        let selectItem = SelectItem (model.SelectedItem, false)
-        let! newModel = model |> Nav.openPath fsReader model.Location selectItem
+        let cursor = CursorToItem (model.CursorItem, false)
+        let! newModel = model |> Nav.openPath fsReader model.Location cursor
         let searchModels =
             { newModel with
                 InputText = current.Terms
@@ -175,7 +175,7 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         match! searchModels |> AsyncSeq.tryLast with
         | Some newModel ->
             let items = newModel.Items |> (newModel.Sort |> Option.map SortField.SortByTypeThen |? id)
-            yield { newModel with Items = items } |> Nav.select selectItem
+            yield { newModel with Items = items } |> Nav.moveCursor cursor
         | None -> ()
     | None ->
         yield! Nav.refresh fsReader model

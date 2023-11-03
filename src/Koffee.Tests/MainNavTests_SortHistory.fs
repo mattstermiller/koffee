@@ -83,7 +83,7 @@ let ``openPath uses stored sort`` () =
         |> MainModel.withLocation location
     let fs = createFs()
 
-    let result = Nav.openPath fs storedLocation SelectNone model
+    let result = Nav.openPath fs storedLocation CursorStay model
 
     let resultModel = assertOk result
     resultModel.Sort |> shouldEqual (Some expected)
@@ -102,7 +102,7 @@ let ``openPath uses default sort when no stored sort`` () =
         |> MainModel.withLocation location
     let fs = createFs()
 
-    let result = Nav.openPath fs newLocation SelectNone model
+    let result = Nav.openPath fs newLocation CursorStay model
 
     let resultModel = assertOk result
     resultModel.Sort |> shouldEqual (Some expected)

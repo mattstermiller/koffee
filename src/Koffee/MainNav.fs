@@ -5,32 +5,35 @@ open Acadian.FSharp
 open Koffee
 open Koffee.Main.Util
 
-let select selectType (model: MainModel) =
+type ShortcutTargetMissingException(itemName, targetPath) =
+    inherit exn(sprintf "Shortcut target for %s does not exist: %s" itemName targetPath)
+
+let moveCursor cursor (model: MainModel) =
     model |> MainModel.withCursor (
-        match selectType with
-        | SelectNone -> model.Cursor
-        | SelectIndex index -> index
-        | SelectName name ->
+        match cursor with
+        | CursorStay -> model.Cursor
+        | CursorToIndex index -> index
+        | CursorToName name ->
             let matchFunc =
                 if name.Length = 2 && name.[1] = ':'
                 then String.startsWithIgnoreCase // if name is drive, use "starts with" because drives have labels
                 else String.equalsIgnoreCase
             model.Items |> List.tryFindIndex (fun i -> matchFunc name i.Name) |? model.Cursor
-        | SelectItem (item, _) ->
+        | CursorToItem (item, _) ->
             model.Items |> List.tryFindIndex (fun i -> i.Path = item.Path) |? model.Cursor
     )
 
-let listDirectory selectType model =
-    let selectHiddenItem =
-        match selectType with
-        | SelectItem (item, true) -> Some item
+let listDirectory cursor model =
+    let hiddenCursorItem =
+        match cursor with
+        | CursorToItem (item, true) -> Some item
         | _ -> None
     let items =
         model.Directory
-        |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = selectHiddenItem)
+        |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = hiddenCursorItem)
         |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
         |> model.ItemsOrEmpty
-    { model with Items = items } |> select selectType
+    { model with Items = items } |> moveCursor cursor
 
 let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
     if path = Path.Network then
@@ -43,7 +46,7 @@ let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
         fsReader.GetItems path
         |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, model.PathFormat, e))
 
-let openPath (fsReader: IFileSystemReader) path select (model: MainModel) =
+let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
     match getDirectory fsReader model path with
     | Ok directory ->
         { model with
@@ -53,7 +56,7 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) =
         }
         |> MainModel.withPushedLocation path
         |> clearSearchProps
-        |> listDirectory select
+        |> listDirectory cursor
         |> Ok
     | Error e when path = model.Location ->
         let items = Item.EmptyFolderWithMessage e.Message path
@@ -68,9 +71,9 @@ let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     | Some path ->
         match fsReader.GetItem path with
         | Ok (Some item) when item.Type = File ->
-            model |> MainModel.clearStatus |> openPath fsReader path.Parent (SelectItem (item, true))
+            model |> MainModel.clearStatus |> openPath fsReader path.Parent (CursorToItem (item, true))
         | Ok _ ->
-            model |> MainModel.clearStatus |> openPath fsReader path SelectNone
+            model |> MainModel.clearStatus |> openPath fsReader path CursorStay
         | Error e ->
             Error <| MainStatus.ActionError ("open path", e)
     | None ->
@@ -83,63 +86,91 @@ let openInputPath fsReader os pathStr (evtHandler: EvtHandler) model = result {
     return model
 }
 
-let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) =
-    let item = model.SelectedItem
+let getOpenTarget (fsReader: IFileSystemReader) pathFormat (item: Item) =
     match item.Type with
-    | Folder | Drive | NetHost | NetShare ->
-        model |> MainModel.clearStatus |> openPath fsReader item.Path SelectNone
     | File ->
-        let mapOpenError res = res |> Result.mapError (fun e -> MainStatus.CouldNotOpenFile (item.Name, e))
         let shortcutFolder = result {
             let! targetPath =
                 if item.Path.Extension |> String.equalsIgnoreCase "lnk" then
-                    fsReader.GetShortcutTarget item.Path |> mapOpenError
+                    fsReader.GetShortcutTarget item.Path
                     |> Result.map Path.Parse
                 else
                     Ok None
             match targetPath with
             | Some targetPath ->
+                let! targetOpt = fsReader.GetItem targetPath
                 let! target =
-                    fsReader.GetItem targetPath
-                    |> mapOpenError
-                    |> Result.bind (Result.ofOption (MainStatus.ShortcutTargetMissing (targetPath.Format model.PathFormat)))
-                return if target.Type = Folder then Some target.Path else None
+                    targetOpt |> Result.ofOption (
+                        ShortcutTargetMissingException(item.Name, targetPath.Format pathFormat) :> exn
+                    )
+                return if target.Type = Folder then Some (Folder, target.Path) else None
             | None ->
                 return None
         }
-        shortcutFolder
-        |> Result.bind (function
-            | Some shortcutFolder ->
-                model |> MainModel.clearStatus |> openPath fsReader shortcutFolder SelectNone
-            | None ->
-                os.OpenFile item.Path
-                |> mapOpenError
-                |> Result.map (fun () ->
-                    fnAfterOpen |> Option.iter (fun f -> f())
-                    model
-                    |> MainModel.mapHistory (History.withFilePath model.Config.Limits.PathHistory item.Path)
-                    |> MainModel.withMessage (MainStatus.OpenFile item.Name)
-                )
-        )
-    | Empty -> Ok model
+        shortcutFolder |> Result.map (Option.defaultValue (item.Type, item.Path))
+    | _ ->
+        Ok (item.Type, item.Path)
+
+let openSelected fsReader (os: IOperatingSystem) (model: MainModel) = asyncSeqResult {
+    let getOpenTarget item =
+        getOpenTarget fsReader model.PathFormat item |> Result.mapError (fun ex -> item.Name, ex)
+    let openFile path =
+        os.OpenFile path
+        |> Result.map (fun () -> path)
+        |> Result.mapError (fun ex -> path.Name, ex)
+    match model.ActionItems with
+    | [item] ->
+        let mapError res = res |> Result.mapError (fun (name, ex) -> MainStatus.CouldNotOpenFiles [name, ex])
+        let! itemType, path = getOpenTarget item |> mapError
+        match itemType with
+        | Folder | Drive | NetHost | NetShare ->
+            yield! model |> MainModel.clearStatus |> openPath fsReader path CursorStay
+        | File ->
+            do! openFile item.Path |> mapError |> Result.map ignore
+            yield
+                model
+                |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory [item.Path])
+                |> MainModel.withMessage (MainStatus.OpenFiles [item.Name])
+        | Empty -> ()
+    | items ->
+        let targets, targetErrors =
+            items
+            |> List.map getOpenTarget
+            |> Result.partition
+        let opened, openErrors =
+            targets
+            |> Seq.filter (fst >> (=) File)
+            |> Seq.map (snd >> openFile)
+            |> Result.partition
+        let model = model |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory opened)
+        match targetErrors @ openErrors with
+        | [] ->
+            if opened.IsEmpty then
+                return MainStatus.NoFilesSelected
+            else
+                yield model |> MainModel.withMessage (MainStatus.OpenFiles (opened |> List.map (fun p -> p.Name)))
+        | errors ->
+            yield model
+            return MainStatus.CouldNotOpenFiles errors
+}
 
 let openParent fsReader (model: MainModel) =
     if model.SearchCurrent.IsSome then
-        if model.SelectedItem.Type = Empty then
-            Ok (model |> clearSearchProps |> listDirectory SelectNone)
+        if model.CursorItem.Type = Empty then
+            Ok (model |> clearSearchProps |> listDirectory CursorStay)
         else
             model
             |> MainModel.clearStatus
-            |> openPath fsReader model.SelectedItem.Path.Parent (SelectItem (model.SelectedItem, false))
+            |> openPath fsReader model.CursorItem.Path.Parent (CursorToItem (model.CursorItem, false))
     else
         let rec getParent n (path: Path) (currentName: string) =
             if n < 1 || path = Path.Root then (path, currentName)
             else getParent (n-1) path.Parent path.Name
-        let path, selectName = getParent model.RepeatCount model.Location model.Location.Name
-        model |> MainModel.clearStatus |> openPath fsReader path (SelectName selectName)
+        let path, cursorName = getParent model.RepeatCount model.Location model.Location.Name
+        model |> MainModel.clearStatus |> openPath fsReader path (CursorToName cursorName)
 
 let refresh fsReader (model: MainModel) =
-    openPath fsReader model.Location (SelectItem (model.SelectedItem, false)) model
+    openPath fsReader model.Location (CursorToItem (model.CursorItem, false)) model
 
 let refreshDirectory fsReader (model: MainModel) =
     getDirectory fsReader model model.Location
@@ -167,7 +198,7 @@ let back fsReader model =
             shiftStacks model.RepeatCount (model.Location, model.Cursor) model.BackStack model.ForwardStack
         model
         |> MainModel.clearStatus
-        |> openPath fsReader path (SelectIndex cursor)
+        |> openPath fsReader path (CursorToIndex cursor)
         |> function
             | Ok model ->
                 { model with BackStack = fromStack; ForwardStack = toStack }
@@ -183,7 +214,7 @@ let forward fsReader model =
             shiftStacks model.RepeatCount (model.Location, model.Cursor) model.ForwardStack model.BackStack
         model
         |> MainModel.clearStatus
-        |> openPath fsReader path (SelectIndex cursor)
+        |> openPath fsReader path (CursorToIndex cursor)
         |> function
             | Ok model -> { model with BackStack = toStack; ForwardStack = fromStack }
             | Error e ->
@@ -195,14 +226,14 @@ let sortList field model =
         match model.Sort with
         | Some (f, desc) when f = field -> not desc
         | _ -> field = Modified
-    let selectType = if model.Cursor = 0 then SelectNone else SelectItem (model.SelectedItem, false)
+    let cursor = if model.Cursor = 0 then CursorStay else CursorToItem (model.CursorItem, false)
     { model with
         Sort = Some (field, desc)
         Items = model.Items |> SortField.SortByTypeThen (field, desc)
         History = model.History |> History.withPathSort model.Location { Sort = field; Descending = desc }
     }
     |> MainModel.withMessage (MainStatus.Sort (field, desc))
-    |> select selectType
+    |> moveCursor cursor
 
 let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
     let getSuggestions search (paths: HistoryPath list) =
@@ -226,7 +257,7 @@ let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
                 | Some (cachePath, cache) when cachePath = dir -> async { return cache }
                 | _ -> runAsync (fun () ->
                     fsReader.GetFolders dir
-                    |> Result.map (List.map (fun i -> i.Path))
+                    |> Result.map Item.paths
                     |> Result.mapError (fun e -> e.Message)
                 )
             let toHistory p = { PathValue = p; IsDirectory = true }

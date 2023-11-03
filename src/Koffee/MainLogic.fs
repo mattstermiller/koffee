@@ -86,7 +86,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! model |> MainModel.clearStatus |> Nav.openPath fs path SelectNone
+                yield! model |> MainModel.clearStatus |> Nav.openPath fs path CursorStay
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
         | SetBookmark ->
@@ -152,7 +152,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 let! model = Action.putInLocation fs progress false true putType src model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fs progress model.SelectedItem model
+                yield! Action.delete fs progress model.ActionItems.Head model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
             | OverwriteSavedSearch (char, _) ->
@@ -162,7 +162,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         | 'n' ->
             let model = model |> MainModel.withMessage (MainStatus.CancelledConfirm confirmType)
             match confirmType with
-            | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
+            | Overwrite _ when not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) ->
                 // if we were temporarily showing a hidden file, refresh
                 yield! Nav.refresh fs model
             | _ ->
@@ -225,10 +225,10 @@ let submitInput fs os model = asyncSeqResult {
         let model =
             { model with
                 InputText = ""
-                InputMode = if not multi || model.SelectedItem.Type = File then None else model.InputMode
+                InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
             }
         yield model
-        yield! Nav.openSelected fs os None model
+        yield! Nav.openSelected fs os model
     | Some (Input Search) ->
         let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
         yield
@@ -250,7 +250,7 @@ let submitInput fs os model = asyncSeqResult {
     | Some (Input (Rename _)) ->
         let model = { model with InputMode = None }
         yield model
-        yield! Action.rename fs model.SelectedItem model.InputText model
+        yield! Action.rename fs model.CursorItem model.InputText model
     | _ -> ()
 }
 
@@ -374,13 +374,13 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
             | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
-            | OpenSelected -> SyncResult (Nav.openSelected fs os None)
+            | OpenSelected -> AsyncResult (Nav.openSelected fs os)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
-            | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
+            | OpenFileAndExit -> AsyncResult (fun m -> asyncSeqResult { yield! Nav.openSelected fs os m; closeWindow(); })
             | OpenProperties -> SyncResult (Command.openProperties os)
             | OpenParent -> SyncResult (Nav.openParent fs)
-            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root SelectNone)
-            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath SelectNone m)
+            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root CursorStay)
+            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath CursorStay m)
             | Back -> Sync (Nav.back fs)
             | Forward -> Sync (Nav.forward fs)
             | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
@@ -401,11 +401,11 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CancelInput -> Sync cancelInput
             | FindNext -> Sync Search.findNext
             | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
-            | StartPut putType -> Sync (Action.registerItem putType)
+            | StartPut putType -> Sync (Action.registerSelectedItems putType)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
-            | Recycle -> AsyncResult (fun m -> Action.recycle fs m.SelectedItem m)
+            | Recycle -> AsyncResult (fun m -> Action.recycle fs m.ActionItems.Head m)
             | SortList field -> Sync (Nav.sortList field)
             | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)

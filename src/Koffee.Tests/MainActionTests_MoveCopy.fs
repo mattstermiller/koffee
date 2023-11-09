@@ -2072,8 +2072,8 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"
     let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    fs.AddExnPath false (exn "GetItem error") copied.Path
     fs.AddExnPath false ex copied.Path
+    fs.AddExnPath true (exn "Write error") copied.Path
     let action = PutItems (Copy, putItem, [putItem], false)
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
@@ -2192,7 +2192,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let statusAction = DeletedItem (shortcut, true)
+    let statusAction = DeletedItems (true, [shortcut], false)
     let expected =
         model
         |> popUndo

@@ -176,7 +176,7 @@ type FakeFileSystem(treeItems) =
     member this.Item path =
         items |> List.find (fun i -> i.Path = path)
 
-    member this.RecycleBin = recycleBin
+    member this.RecycleBin = recycleBin |> List.rev
 
     member this.AddExnPath writeOnly e path =
         let exnItem = (e, writeOnly)
@@ -207,7 +207,8 @@ type FakeFileSystem(treeItems) =
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.Recycle totalSize itemType path = this.Recycle totalSize itemType path
+        member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
+        member this.Recycle itemType path = this.Recycle itemType path
         member this.Delete itemType path = this.Delete itemType path
 
     member this.GetItem path = result {
@@ -326,13 +327,18 @@ type FakeFileSystem(treeItems) =
         checkCancelToken ()
     }
 
-    member this.Recycle totalSize itemType path = result {
+    member this.CheckRecyclable (totalSize: int64) path =
+        getDriveSize path |> Result.ofOption cannotRecycleItemOnDriveWithNoSize
+        |> Result.bind (fun driveSize ->
+            let ratio = float totalSize / float driveSize
+            if ratio > 0.03
+            then Error (cannotRecycleItemThatDoesNotFit totalSize)
+            else Ok ()
+        )
+
+    member this.Recycle itemType path = result {
         let! item = this.AssertItem itemType path
         do! checkExn true path
-        let! driveSize = getDriveSize path |> Result.ofOption cannotRecycleItemOnDriveWithNoSize
-        let ratio = float totalSize / float driveSize
-        if ratio > 0.03 then
-            return! Error (cannotRecycleItemThatDoesNotFit totalSize)
         recycleBin <- item :: recycleBin
         remove path
         checkCancelToken ()

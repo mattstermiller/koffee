@@ -25,9 +25,13 @@ type IFileSystemWriter =
     /// Copies a file or empty folder.
     abstract member Copy: ItemType -> fromPath: Path -> toPath: Path -> Result<unit, exn>
 
+    /// Checks whether items at a given path can fit in the Recycle Bin.
+    /// totalSize should be the size of all files to be recycled, including those inside folder trees.
+    abstract member CheckRecyclable: totalSize: int64 -> Path -> Result<unit, exn>
+
     /// Sends a file or folder and its contents to the recycle bin.
-    /// totalSize is the size of the file or sum of all items contained in the folder.
-    abstract member Recycle: totalSize: int64 -> ItemType -> Path -> Result<unit, exn>
+    /// NOTE: Can permanently delete items if they won't fit in Recycle Bin. Call CheckRecyclable() first.
+    abstract member Recycle: ItemType -> Path -> Result<unit, exn>
 
     /// Deletes a file or empty folder.
     abstract member Delete: ItemType -> Path -> Result<unit, exn>
@@ -90,7 +94,6 @@ type FileSystem() =
 
     let getDriveSize (path: Path) =
         path.Drive
-        |> Option.filter ((<>) path)
         |> Option.map (fun d -> DriveInfo(wpath d).TotalSize)
         |> Option.filter (fun size -> size > 0L)
 
@@ -186,7 +189,8 @@ type FileSystem() =
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.Recycle totalSize itemType path = this.Recycle totalSize itemType path
+        member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
+        member this.Recycle itemType path = this.Recycle itemType path
         member this.Delete itemType path = this.Delete itemType path
 
     member this.Create itemType path =
@@ -246,29 +250,34 @@ type FileSystem() =
                     copyFile source dest
         )
 
-    member this.Recycle totalSize itemType path =
-        ensureFileOrFolder itemType "recycle"
-        |> Result.bind (fun () -> result {
-            let! driveSize = getDriveSize path |> Result.ofOption (exn "This drive does not have a recycle bin.")
+    member this.CheckRecyclable (totalSize: int64) path =
+        getDriveSize path
+        |> Result.ofOption (exn "This drive does not have a recycle bin.")
+        |> Result.bind (fun driveSize ->
             let ratio = (double totalSize) / (double driveSize)
             // Check whether the item is within a reasonable ratio of the drive's size to try to make sure it will fit.
             // The ratio is intentionally smaller than the default 5% size ratio of the recycle bin to be safe.
             // The VB FileIO functions below will permanently delete items that don't fit without warning.
             let safeRecycleItemToDriveRatio = 0.03
             if ratio > safeRecycleItemToDriveRatio then
-                let msg =
-                    sprintf "Item size is %s of drive size which is greater than the safe %s and might not fit in the recycle bin."
+                Error (exn (sprintf
+                    "Item size is %s of drive size which is greater than the safe %s and might not fit in the recycle bin."
                         (ratio |> String.format "P1")
                         (safeRecycleItemToDriveRatio |> String.format "P1")
-                return! Error <| exn msg
+                ))
             else
-                let winPath = wpath path
-                return! tryResult <| fun () ->
-                    if itemType = Folder then
-                        FileSystem.DeleteDirectory(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-                    else
-                        FileSystem.DeleteFile(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
-        })
+                Ok ()
+        )
+
+    member this.Recycle itemType path =
+        ensureFileOrFolder itemType "recycle"
+        |> Result.bind (fun () ->
+            let winPath = wpath path
+            tryResult <| fun () ->
+                if itemType = Folder
+                then FileSystem.DeleteDirectory(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+                else FileSystem.DeleteFile(winPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin)
+        )
 
     member this.Delete itemType path =
         ensureFileOrFolder itemType "delete"

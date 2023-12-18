@@ -5,11 +5,6 @@ open Acadian.FSharp
 open Koffee
 open Koffee.Main.Util
 
-// TODO: refactor to Progress class with Start(total), Increment, Finish
-let private progressIncrementer (progress: Event<float option>) total =
-    let incr = 1.0 / float total
-    fun _ -> progress.Trigger (Some incr)
-
 let private performedAction action (model: MainModel) =
     model
     |> MainModel.pushUndo action
@@ -204,8 +199,7 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
     }
     iter true dest item
 
-let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken) isUndo putType (items: PutItem list) =
-    let incrementProgress = progressIncrementer progress items.Length
+let private performPutItems (fs: IFileSystem) (progress: Progress) (cancelToken: CancelToken) isUndo putType (items: PutItem list) =
     let fileSysAction putItem =
         // when undoing a move that was an overwrite, copy it back since a version of the item was there before
         let putType = if isUndo && putItem.DestExists then Copy else putType
@@ -227,6 +221,7 @@ let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken
                 | None -> return! fs.Create Folder path
                 | Some _ -> ()
     }
+    let incrementProgress = progress.GetIncrementer items.Length
     runAsync (fun () ->
         items
         |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
@@ -238,7 +233,7 @@ let private performPutItems (fs: IFileSystem) progress (cancelToken: CancelToken
             |>! incrementProgress
         )
         |> Seq.toList
-        |>! (fun _ -> progress.Trigger None)
+        |>! progress.Finish
     )
 
 let private deleteEmptyFolders (fs: IFileSystem) path =
@@ -257,7 +252,7 @@ let private deleteEmptyFolders (fs: IFileSystem) path =
     }
     runAsync (fun () -> iter path |> Result.partition)
 
-let private performPut (fs: IFileSystem) (progress: Event<_>) (undoIter: int option) enumErrors putType intent items
+let private performPut (fs: IFileSystem) progress (undoIter: int option) enumErrors putType intent items
         (model: MainModel) =
     asyncSeqResult {
         let isUndo = undoIter.IsSome
@@ -352,7 +347,7 @@ let private performPut (fs: IFileSystem) (progress: Event<_>) (undoIter: int opt
             |> openDest
     }
 
-let putToDestination (fs: IFileSystem) (progress: Event<float option>) isRedo overwrite putType item destPath model = asyncSeqResult {
+let putToDestination (fs: IFileSystem) (progress: Progress) isRedo overwrite putType item destPath model = asyncSeqResult {
     let! existing = fs.GetItem destPath |> actionError "check destination path"
     match existing with
     | Some existing when not overwrite && not isRedo ->
@@ -367,7 +362,7 @@ let putToDestination (fs: IFileSystem) (progress: Event<float option>) isRedo ov
         let model = { model with CancelToken = CancelToken() }
         let putItem = { Item = item; Dest = destPath; DestExists = existing.IsSome }
         yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, item.Name))
-        progress.Trigger (Some 0.0)
+        progress.Start ()
         let! enumerated =
             match putType with
             | Shortcut ->
@@ -476,13 +471,13 @@ let undoMove (fs: IFileSystem) progress undoIter (intent: PutItem) (moved: PutIt
             yield! performPut fs progress (Some undoIter) existErrors Move putItem items model
     }
 
-let private performUndoCopy (fs: IFileSystem) progress (cancelToken: CancelToken) (putItems: PutItem list) =
-    let incrementProgress = progressIncrementer progress putItems.Length
+let private performUndoCopy (fs: IFileSystem) (progress: Progress) (cancelToken: CancelToken) (putItems: PutItem list) =
     let shouldDelete (putItem, currentItem) =
         let copyModified = currentItem |> Result.map (Option.bind (fun copiedItem -> copiedItem.Modified))
         match putItem.Item.Modified, copyModified with
         | origTime, Ok copyTime when origTime = copyTime -> true
         | _ -> false
+    let incrementProgress = progress.GetIncrementer putItems.Length
     runAsync (fun () ->
         let deleteItems, recycleItemsAndSizes =
             putItems
@@ -527,7 +522,7 @@ let private performUndoCopy (fs: IFileSystem) progress (cancelToken: CancelToken
                 )
         }
         |> Seq.toList
-        |>! (fun _ -> progress.Trigger None)
+        |>! progress.Finish
     )
 
 let undoCopy fs progress undoIter (intent: PutItem) copied (model: MainModel) = asyncSeqResult {
@@ -634,10 +629,10 @@ let private removeItems (items: Item list) (model: MainModel) =
         }
         |> MainModel.withCursor model.Cursor
 
-let private performDelete (fs: IFileSystem) progress permanent items (enumerated: Item list) (model: MainModel) = asyncSeqResult {
-    let totalCount = enumerated.Length
-    let incrementProgress = progressIncrementer progress totalCount
+let private performDelete (fs: IFileSystem) (progress: Progress) permanent items (enumerated: Item list) (model: MainModel) = asyncSeqResult {
     yield model |> MainModel.withBusy (MainStatus.DeletingItems (permanent, items))
+    let totalCount = enumerated.Length
+    let incrementProgress = progress.GetIncrementer totalCount
     let deleteFunc = if permanent then fs.Delete else fs.Recycle
     let! results = runAsync (fun () ->
         enumerated
@@ -649,7 +644,7 @@ let private performDelete (fs: IFileSystem) progress permanent items (enumerated
             |>! incrementProgress
         )
     )
-    progress.Trigger None
+
     let actualDeleted, errors = results |> Result.partition
     let deletedCount = actualDeleted.Length
     let basePath = items.Head.Path.Parent
@@ -672,6 +667,7 @@ let private performDelete (fs: IFileSystem) progress permanent items (enumerated
         else
             MainStatus.Message (MainStatus.ActionComplete (DeletedItems (permanent, items, false), model.PathFormat))
 
+    progress.Finish ()
     yield
         model
         |> applyIf (deletedCount > 0) (
@@ -682,10 +678,10 @@ let private performDelete (fs: IFileSystem) progress permanent items (enumerated
         |> MainModel.withStatus status
 }
 
-let delete (fs: IFileSystem) (progress: Event<float option>) items (model: MainModel) = asyncSeqResult {
+let delete (fs: IFileSystem) (progress: Progress) items (model: MainModel) = asyncSeqResult {
     let model = model |> MainModel.withNewCancelToken
     yield model |> MainModel.withBusy (MainStatus.PreparingDelete items)
-    progress.Trigger (Some 0.0)
+    progress.Start ()
     let! enumerated = enumerateDeleteItems fs model.CancelToken items |> AsyncSeq.toListAsync
     yield! performDelete fs progress true items enumerated model
 }
@@ -704,7 +700,7 @@ let private calculateTotalSize (fsReader: IFileSystemReader) (cancelToken: Cance
             |> Seq.fold (Result.map2 (+)) (Ok 0L)
     runAsync (fun () -> iter items)
 
-let recycle (fs: IFileSystem) (progress: Event<float option>) (items: Item list) (model: MainModel) = asyncSeqResult {
+let recycle (fs: IFileSystem) (progress: Progress) (items: Item list) (model: MainModel) = asyncSeqResult {
     if items.Head.Type = NetHost then
         yield
             model
@@ -714,7 +710,7 @@ let recycle (fs: IFileSystem) (progress: Event<float option>) (items: Item list)
         let items = items |> List.filter (fun i -> i.Type.CanModify)
         let model = model |> MainModel.withNewCancelToken
         yield model |> MainModel.withBusy MainStatus.CheckingIsRecyclable
-        progress.Trigger (Some 0.0)
+        progress.Start ()
         let! totalSizeRes = calculateTotalSize fs model.CancelToken items
         let! totalSize = totalSizeRes |> actionError "check folder content size"
         do! fs.CheckRecyclable totalSize items.Head.Path |> actionError "recycle"

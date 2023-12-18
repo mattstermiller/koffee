@@ -297,4 +297,4 @@ let testModel =
 
 let ex = System.UnauthorizedAccessException() :> exn
 
-let progress = Event<float option>()
+let progress = Progress (Event<float option>())

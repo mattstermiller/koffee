@@ -57,7 +57,7 @@ let getFilter showHidden searchInput =
             filter
     )
 
-let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) isCancelled
+let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) isCancelled
                              (searchExclusions: string list) items = asyncSeq {
     let getDirs =
         List.filter (fun i ->
@@ -72,13 +72,13 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) 
                     let subDirs = getDirs subItems
                     yield subItems
                     let progressFactor = progressFactor / float (subDirs.Length + 1)
-                    progress.Trigger (Some progressFactor)
+                    progress.Add progressFactor
                     yield! enumerate progressFactor subDirs
     }
     let dirs = getDirs items
-    progress.Trigger (Some 0.0)
+    progress.Start ()
     yield! enumerate (1.0 / float dirs.Length) dirs
-    progress.Trigger None
+    progress.Finish ()
 }
 
 let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyncSeq {

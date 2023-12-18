@@ -1117,3 +1117,17 @@ type MainEvents =
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"
     ]
+
+type Progress(evt: Event<float option>) =
+    member _.Start () =
+        evt.Trigger (Some 0.0)
+
+    member _.GetIncrementer (goalCount: int) =
+        let increment = 1.0 / float goalCount
+        fun _ -> evt.Trigger (Some increment)
+
+    member _.Add progressAmount =
+        evt.Trigger (Some progressAmount)
+
+    member _.Finish _ =
+        evt.Trigger None

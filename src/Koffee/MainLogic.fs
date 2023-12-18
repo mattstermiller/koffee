@@ -360,7 +360,8 @@ let AsyncResult handler =
 type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
                 gridScroller, openSettings, closeWindow, startOptions) =
     let subDirResults = Event<_>()
-    let progress = Event<_>()
+    let progressEvt = Event<_>()
+    let progress = Progress progressEvt
 
     let rec dispatcher evt =
         let handler =
@@ -447,6 +448,6 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let model =
             { MainModel.Default with Config = config.Value; History = history.Value }
             |> initModel fs (getScreenBounds ()) startOptions
-        let binder = MainView.binder config history progress.Publish
+        let binder = MainView.binder config history progressEvt.Publish
         let events = MainView.events config history subDirResults.Publish
         Framework.start binder events dispatcher view model

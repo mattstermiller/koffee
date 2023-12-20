@@ -155,7 +155,6 @@ module MainView =
                 | _ -> ()
         )
 
-        window.Progress.Collapsed <- true
         progress
             |> Obs.buffer 0.3
             |> Obs.onCurrent

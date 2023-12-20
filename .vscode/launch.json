@@ -5,15 +5,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": ".NET Launch (console)",
+      "name": "Debug",
       "type": "clr",
       "request": "launch",
       "preLaunchTask": "build app",
       "program": "${workspaceFolder}/src/Koffee/bin/Debug/net451/Koffee.exe",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "stopAtEntry": false,
       "console": "internalConsole"
+    },
+    {
+      "name": "UI Manual Test",
+      "type": "clr",
+      "request": "launch",
+      "preLaunchTask": "build ui test",
+      "program": "${workspaceFolder}/src/KoffeeUI.Test/bin/Debug/net451/KoffeeUI.Test.exe",
+      "internalConsoleOptions": "neverOpen"
     }
   ]
 }

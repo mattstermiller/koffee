@@ -1,7 +1,7 @@
 ﻿<Window x:Class="KoffeeUI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Koffee" Width="800" Height="800" FontSize="15">
+        Title="Koffee" Width="800" Height="600" FontSize="15">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -24,7 +24,7 @@
         </Border>
         <Border Name="RegisterPanel" x:FieldModifier="public" DockPanel.Dock="Right" BorderThickness="2,0,0,0"
                 Visibility="Hidden">
-          <TextBlock Name="RegisterText" x:FieldModifier="public" Text="register" Height="20" Margin="6,2,6,2"
+          <TextBlock Name="RegisterText" x:FieldModifier="public" Text="Copy: file name" Height="20" Margin="6,2,6,2"
                      VerticalAlignment="Center"/>
         </Border>
         <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Height="20" Margin="6,2"
@@ -55,13 +55,15 @@
         <CheckBox Name="SearchSubFolders" x:FieldModifier="public" Content="Sub-Folders (Ctrl+s)" Margin="0,0,8,0"
                   Foreground="{DynamicResource PanelTextBrush}"/>
       </StackPanel>
-      <TextBox Name="InputBox" x:FieldModifier="public" TextWrapping="NoWrap" Margin="6"/>
+      <TextBox Name="InputBox" x:FieldModifier="public" TextWrapping="NoWrap" Margin="6" Text="file name"/>
     </DockPanel>
-    <ProgressBar DockPanel.Dock="Bottom" Name="Progress" x:FieldModifier="public" Maximum="1.0" Height="12"/>
+    <ProgressBar DockPanel.Dock="Bottom" Name="Progress" x:FieldModifier="public" Maximum="1.0" Height="12"
+                 Visibility="Collapsed"/>
     <Grid>
       <!-- Path suggestions -->
       <ListBox Name="PathSuggestions" x:FieldModifier="public" HorizontalAlignment="Left" VerticalAlignment="Top"
-               Panel.ZIndex="1" Background="{DynamicResource PopupBrush}" Foreground="{DynamicResource PopupTextBrush}">
+               Background="{DynamicResource PopupBrush}" Foreground="{DynamicResource PopupTextBrush}"
+               Panel.ZIndex="1" Visibility="Collapsed">
         <ListBox.Resources>
           <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
                                StartPoint="0,0" EndPoint="0,1"
@@ -134,7 +136,7 @@
         <!-- Bookmarks panel -->
         <StackPanel Name="BookmarkPanel" x:FieldModifier="public" Visibility="Collapsed"
                     Background="{DynamicResource PopupBrush}">
-          <TextBlock Name="BookmarksHeader" x:FieldModifier="public" Margin="8,4,8,8"
+          <TextBlock Name="BookmarksHeader" Text="Bookmarks" x:FieldModifier="public" Margin="8,4,8,8"
                     Foreground="{DynamicResource PopupTextBrush}" FontWeight="Bold"/>
           <ItemsControl Name="Bookmarks" x:FieldModifier="public" Foreground="{DynamicResource PopupTextBrush}">
             <ItemsControl.ItemTemplate>

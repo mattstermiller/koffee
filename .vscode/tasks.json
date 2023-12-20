@@ -40,6 +40,17 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "build ui test",
+      "type": "shell",
+      "command": "dotnet",
+      "args": ["build", "src/KoffeeUI.Test"],
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "test all",
       "type": "shell",
       "command": "dotnet",

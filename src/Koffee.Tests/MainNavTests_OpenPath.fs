@@ -73,7 +73,7 @@ let test case =
                 |> MainModel.withLocation path
             )
         | Inaccessible ->
-            Error (MainStatus.ActionError ("open path", ex))
+            Error (MainStatus.CouldNotOpenPath (path, model.PathFormat, ex))
 
     assertAreEqual expected res
 

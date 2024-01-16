@@ -40,7 +40,8 @@ let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
         |> List.map (fun path -> Item.Basic path path.Name NetHost)
         |> Ok
     else
-        fsReader.GetItems path |> actionError "open path"
+        fsReader.GetItems path
+        |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, model.PathFormat, e))
 
 let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
     let! directory = getDirectory fsReader model path
@@ -81,18 +82,19 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
     | Folder | Drive | NetHost | NetShare ->
         model |> MainModel.clearStatus |> openPath fsReader item.Path SelectNone
     | File ->
-        let openError e = e |> actionError (sprintf "open '%s'" item.Name)
+        let mapOpenError res = res |> Result.mapError (fun e -> MainStatus.CouldNotOpenFile (item.Name, e))
         let shortcutFolder = result {
             let! targetPath =
                 if item.Path.Extension |> String.equalsIgnoreCase "lnk" then
-                    fsReader.GetShortcutTarget item.Path |> openError
+                    fsReader.GetShortcutTarget item.Path |> mapOpenError
                     |> Result.map Path.Parse
                 else
                     Ok None
             match targetPath with
             | Some targetPath ->
                 let! target =
-                    fsReader.GetItem targetPath |> openError
+                    fsReader.GetItem targetPath
+                    |> mapOpenError
                     |> Result.bind (Result.ofOption (MainStatus.ShortcutTargetMissing (targetPath.Format model.PathFormat)))
                 return if target.Type = Folder then Some target.Path else None
             | None ->
@@ -103,7 +105,8 @@ let openSelected fsReader (os: IOperatingSystem) fnAfterOpen (model: MainModel) 
             | Some shortcutFolder ->
                 model |> MainModel.clearStatus |> openPath fsReader shortcutFolder SelectNone
             | None ->
-                os.OpenFile item.Path |> openError
+                os.OpenFile item.Path
+                |> mapOpenError
                 |> Result.map (fun () ->
                     fnAfterOpen |> Option.iter (fun f -> f())
                     model
@@ -137,32 +140,47 @@ let refreshDirectory fsReader (model: MainModel) =
         | Ok dir -> { model with Directory = dir }
         | _ -> model
 
-let rec private shiftStacks current n fromStack toStack =
+let rec private shiftStacks n current fromStack toStack =
     match fromStack with
     | newCurrent :: fromStack when n > 0 ->
-        shiftStacks newCurrent (n-1) fromStack (current :: toStack)
+        shiftStacks (n-1) newCurrent fromStack (current :: toStack)
     | _ ->
         (current, fromStack, toStack)
 
-let back fsReader model = result {
-    if model.BackStack = [] then
-        return model
-    else
-        let (path, cursor), fromStack, toStack =
-            shiftStacks (model.Location, model.Cursor) model.RepeatCount model.BackStack model.ForwardStack
-        let! model = model |> MainModel.clearStatus |> openPath fsReader path (SelectIndex cursor)
-        return { model with BackStack = fromStack; ForwardStack = toStack }
-}
+let private removeIndexOrLast index list =
+    let index = min index (List.length list - 1)
+    list |> Seq.indexed |> Seq.filter (fst >> (<>) index) |> Seq.map snd |> Seq.toList
 
-let forward fsReader model = result {
-    if model.ForwardStack = [] then
-        return model
+let back fsReader model =
+    if model.BackStack = [] then
+        model
     else
         let (path, cursor), fromStack, toStack =
-            shiftStacks (model.Location, model.Cursor) model.RepeatCount model.ForwardStack model.BackStack
-        let! model = model |> MainModel.clearStatus |> openPath fsReader path (SelectIndex cursor)
-        return { model with BackStack = toStack; ForwardStack = fromStack }
-}
+            shiftStacks model.RepeatCount (model.Location, model.Cursor) model.BackStack model.ForwardStack
+        model
+        |> MainModel.clearStatus
+        |> openPath fsReader path (SelectIndex cursor)
+        |> function
+            | Ok model ->
+                { model with BackStack = fromStack; ForwardStack = toStack }
+            | Error e ->
+                { model with BackStack = model.BackStack |> removeIndexOrLast (model.RepeatCount-1) }
+                |> MainModel.withError e
+
+let forward fsReader model =
+    if model.ForwardStack = [] then
+        model
+    else
+        let (path, cursor), fromStack, toStack =
+            shiftStacks model.RepeatCount (model.Location, model.Cursor) model.ForwardStack model.BackStack
+        model
+        |> MainModel.clearStatus
+        |> openPath fsReader path (SelectIndex cursor)
+        |> function
+            | Ok model -> { model with BackStack = toStack; ForwardStack = fromStack }
+            | Error e ->
+                { model with ForwardStack = model.ForwardStack |> removeIndexOrLast (model.RepeatCount-1) }
+                |> MainModel.withError e
 
 let sortList field model =
     let desc =

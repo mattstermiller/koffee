@@ -380,6 +380,8 @@ module MainStatus =
         | ActionError of actionName: string * exn
         | ItemActionError of ItemAction * PathFormat * exn
         | InvalidPath of string
+        | CouldNotOpenPath of Path * PathFormat * exn
+        | CouldNotOpenFile of string * exn
         | NoPreviousSearch
         | ShortcutTargetMissing of string
         | YankRegisterItemMissing of string
@@ -421,6 +423,10 @@ module MainStatus =
                 (ActionError (action.Description pathFormat, e)).Message
             | InvalidPath path ->
                 "Path format is invalid: " + path
+            | CouldNotOpenPath (path, pathFormat, ex) ->
+                sprintf "Could not open %s: %s" (path.Format pathFormat) ex.Message
+            | CouldNotOpenFile (name, ex) ->
+                sprintf "Could not open %s: %s" name ex.Message
             | NoPreviousSearch ->
                 "No previous search to repeat"
             | ShortcutTargetMissing path ->

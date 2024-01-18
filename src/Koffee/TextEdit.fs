@@ -1,6 +1,7 @@
 module Koffee.TextEdit
 
 open System.Windows.Input
+open UIHelpers
 
 let showDialog (title: string) (header: string) (text: string) =
     let win = KoffeeUI.TextEditWindow()

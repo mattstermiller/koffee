@@ -4,6 +4,7 @@ open FSharp.Control
 open Acadian.FSharp
 open Koffee
 open Koffee.Main.Util
+open UIHelpers
 
 type ShortcutTargetMissingException(itemName, targetPath) =
     inherit exn(sprintf "Shortcut target for %s does not exist: %s" itemName targetPath)

@@ -1,4 +1,3 @@
-[<AutoOpen>]
 module UIHelpers
 
 open System
@@ -12,26 +11,11 @@ open System.Reactive.Linq
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
 
-let onKey key action (evt: KeyEventArgs) =
-    if evt.Key = key then
-        evt.Handled <- true
-        action() |> ignore
-
-let onKeyCombo mods key action (evt: KeyEventArgs) =
-    if Keyboard.Modifiers = mods && evt.Key = key then
-        evt.Handled <- true
-        action() |> ignore
-
 let (|DigitKey|_|) (key: Key) =
     if key >= Key.D0 && key <= Key.D9 then
         Some (int key - int Key.D0)
     else
         None
-
-type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
-    member this.Handle () =
-        evt.Handled <- true
-        effect |> Option.iter (fun f -> f ())
 
 type RoutedEventArgs with
     member this.Handler = EvtHandler(this)
@@ -42,11 +26,11 @@ type KeyEventArgs with
     member this.Chord = (Keyboard.Modifiers, this.RealKey)
 
 type UIElement with
-    member this.Visible
-        with get () = this.Visibility = Visibility.Visible
-        and set value = this.Visibility <- if value then Visibility.Visible else Visibility.Hidden
+    member this.IsHidden
+        with get () = this.Visibility = Visibility.Hidden
+        and set value = this.Visibility <- if value then Visibility.Hidden else Visibility.Visible
 
-    member this.Collapsed
+    member this.IsCollapsed
         with get () = this.Visibility = Visibility.Collapsed
         and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
 
@@ -102,7 +86,7 @@ type DataGrid with
         this.FindVisualChild<DataGridColumnHeadersPresenter>() |> Option.map (fun h -> h.ActualHeight) |? 0.0
 
 type DataGridColumn with
-    member this.Collapsed
+    member this.IsCollapsed
         with get () = this.Visibility = Visibility.Collapsed
         and set value = this.Visibility <- if value then Visibility.Collapsed else Visibility.Visible
 
@@ -124,3 +108,29 @@ type DataGridScroller(grid: DataGrid) =
         if scrollViewer.IsNone then
             scrollViewer <- grid.FindVisualChild<ScrollViewer>()
         scrollViewer |> Option.iter (fun sv -> sv.ScrollToVerticalOffset (float topIndex))
+
+let onKey key action (evt: KeyEventArgs) =
+    if evt.Key = key then
+        evt.Handled <- true
+        action() |> ignore
+
+let onKeyCombo mods key action (evt: KeyEventArgs) =
+    if Keyboard.Modifiers = mods && evt.Key = key then
+        evt.Handled <- true
+        action() |> ignore
+
+let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
+    keyEvent |> Observable.choose (fun evt ->
+        if evt.Key = key then
+            evt.Handled <- true
+            Some <| resultFunc()
+        else
+            None
+    )
+
+let isNotModifier (evt: KeyEventArgs) =
+    let modifierKeys = [
+        Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
+        Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
+    ]
+    not <| List.contains evt.RealKey modifierKeys

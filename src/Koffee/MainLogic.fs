@@ -5,6 +5,7 @@ open VinylUI
 open Acadian.FSharp
 open Koffee.Main
 open Koffee.Main.Util
+open UIHelpers
 
 let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptions model =
     let config = model.Config

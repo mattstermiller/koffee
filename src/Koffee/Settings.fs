@@ -6,6 +6,7 @@ open System.Windows.Controls.Primitives
 open VinylUI
 open VinylUI.Wpf
 open Acadian.FSharp
+open UIHelpers
 
 type KeyBind = {
     EventName: string

@@ -17,12 +17,12 @@
     <Content Include="paket.references" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
-    <Compile Include="UIHelpers.fs" />
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="MainModel.fs" />
     <Compile Include="PersistFile.fs" />
     <Compile Include="KeyBinding.fs" />
+    <Compile Include="UIHelpers.fs" />
     <Compile Include="TextEdit.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="OperatingSystem.fs" />

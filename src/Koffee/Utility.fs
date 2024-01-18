@@ -8,6 +8,7 @@ open System.Reactive.Linq
 open System.Reactive.Concurrency
 open FSharp.Control
 open Acadian.FSharp
+open System.Windows
 
 let clamp minVal maxVal value =
     value |> max minVal |> min maxVal
@@ -143,3 +144,8 @@ module Rect =
           Top = top
           Width = width
           Height = height }
+
+type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
+    member this.Handle () =
+        evt.Handled <- true
+        effect |> Option.iter (fun f -> f ())

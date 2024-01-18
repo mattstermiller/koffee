@@ -8,28 +8,14 @@ open System.ComponentModel
 open System.Reactive.Subjects
 open VinylUI
 open VinylUI.Wpf
-open Reflection
 open Acadian.FSharp
+open Reflection
+open UIHelpers
 open KoffeeUI
 
 module Obs = Observable
 
 module MainView =
-    let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
-        keyEvent |> Obs.choose (fun evt ->
-            if evt.Key = key then
-                evt.Handled <- true
-                Some <| resultFunc()
-            else
-                None)
-
-    let isNotModifier (evt: KeyEventArgs) =
-        let modifierKeys = [
-            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
-            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
-        ]
-        not <| List.contains evt.RealKey modifierKeys
-
     let getPrompt pathFormat inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
@@ -89,13 +75,13 @@ module MainView =
                 paths.SelectedIndex <- if paths.SelectedIndex < items - 1 then paths.SelectedIndex + 1 else 0
                 e.Handled <- true
             | Key.Tab ->
-                if paths.Visible then
+                if paths.IsVisible then
                     selectedPath |> Option.iter window.PathBox.set_Text
                 window.PathBox.Select(window.PathBox.Text.Length, 0)
                 e.Handled <- true
             | _ -> ()
         )
-        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
+        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.IsHidden <- true)
 
         // scroll path to show the end when it overflows
         window.PathBox.TextChanged.Add (fun _ ->
@@ -124,7 +110,7 @@ module MainView =
                 match relInfo with
                 | Some (path, fmt) -> (fun p -> p.FormatRelativeFolder fmt path)
                 | None -> string
-            window.ItemGrid.Columns.[2].Collapsed <- relInfo.IsNone
+            window.ItemGrid.Columns.[2].IsCollapsed <- relInfo.IsNone
 
         // bind Tab key to switch focus
         window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
@@ -166,7 +152,7 @@ module MainView =
             ))
             |> Obs.add (fun incr ->
                 window.Progress.Value <- incr |> Option.map ((+) window.Progress.Value) |? 0.0
-                window.Progress.Collapsed <- incr.IsNone
+                window.Progress.IsCollapsed <- incr.IsNone
             )
 
         if model.Config.Window.IsMaximized then
@@ -196,11 +182,11 @@ module MainView =
                     window.PathSuggestions.ItemsSource <- paths
                     window.PathSuggestions.SelectedIndex <- if paths.Length = 1 then 0 else -1
                     window.PathSuggestions.IsEnabled <- true
-                    window.PathSuggestions.Visible <- window.PathBox.IsFocused && not (paths |> Array.isEmpty)
+                    window.PathSuggestions.IsHidden <- not window.PathBox.IsFocused || (paths |> Array.isEmpty)
                 | Error error ->
                     window.PathSuggestions.ItemsSource <- ["Error: " + error]
                     window.PathSuggestions.IsEnabled <- false
-                    window.PathSuggestions.Visible <- window.PathBox.IsFocused
+                    window.PathSuggestions.IsHidden <- not window.PathBox.IsFocused
             )
 
             Bind.modelMulti(<@ model.Items, model.Cursor, model.Sort @>).toFunc(fun (items, cursor, sort) ->
@@ -242,7 +228,7 @@ module MainView =
                     register |> Option.map (fun (path, itemType, putType) ->
                         sprintf "%A: %s %s" putType itemType.Symbol path.Name)
                 window.RegisterText.Text <- text |? ""
-                window.RegisterPanel.Visible <- text.IsSome
+                window.RegisterPanel.IsCollapsed <- text.IsNone
             )
 
             // update UI for status
@@ -266,9 +252,9 @@ module MainView =
                         | Some (MainStatus.Error error) -> ("", error.Message)
                         | None -> ("", "")
                 window.StatusText.Text <- statusText
-                window.StatusText.Collapsed <- statusText |> String.isEmpty
+                window.StatusText.IsCollapsed <- statusText |> String.isEmpty
                 window.ErrorText.Text <- errorText
-                window.ErrorText.Collapsed <- errorText |> String.isEmpty
+                window.ErrorText.IsCollapsed <- errorText |> String.isEmpty
                 let isBusy =
                     match status with
                     | Some (MainStatus.Busy _) -> true
@@ -300,7 +286,7 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarksHeader.Text <- "Bookmarks"
-                            window.BookmarkPanel.Collapsed <- false
+                            window.BookmarkPanel.IsCollapsed <- false
                         | Prompt GoToSavedSearch
                         | Prompt SetSavedSearch
                         | Prompt DeleteSavedSearch ->
@@ -310,19 +296,19 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No searches saved")]
                             window.Bookmarks.ItemsSource <- searches
                             window.BookmarksHeader.Text <- "Saved Searches"
-                            window.BookmarkPanel.Collapsed <- false
+                            window.BookmarkPanel.IsCollapsed <- false
                         | _ ->
-                            window.BookmarkPanel.Collapsed <- true
-                        window.SearchOptions.Collapsed <- inputMode <> Input Search
+                            window.BookmarkPanel.IsCollapsed <- true
+                        window.SearchOptions.IsCollapsed <- inputMode <> Input Search
                         window.InputText.Text <- getPrompt pathFormat inputMode
-                        if not window.InputPanel.Visible then
-                            window.InputPanel.Visible <- true
+                        if window.InputPanel.IsCollapsed then
+                            window.InputPanel.IsCollapsed <- false
                             window.InputBox.Select(selectStart, selectLen)
                             window.InputBox.Focus() |> ignore
                     | None ->
-                        if window.InputPanel.Visible then
-                            window.InputPanel.Collapsed <- true
-                            window.BookmarkPanel.Collapsed <- true
+                        if not window.InputPanel.IsCollapsed then
+                            window.InputPanel.IsCollapsed <- true
+                            window.BookmarkPanel.IsCollapsed <- true
                             window.ItemGrid.Focus() |> ignore
                 )
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
@@ -331,14 +317,14 @@ module MainView =
             Bind.model(<@ model.InputError @>).toFunc(function
                 | Some error ->
                     window.InputError.Text <- error.Message
-                    window.InputErrorPanel.Collapsed <- false
+                    window.InputErrorPanel.IsCollapsed <- false
                 | None ->
-                    window.InputErrorPanel.Collapsed <- true
+                    window.InputErrorPanel.IsCollapsed <- true
             )
             Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
                 | None, _
                 | Some _, Some (Input Search) ->
-                    window.SearchPanel.Collapsed <- true
+                    window.SearchPanel.IsCollapsed <- true
                 | Some search, _ ->
                     window.SearchStatus.Text <-
                         [   sprintf "Search results for \"%s\"" search.Terms
@@ -346,7 +332,7 @@ module MainView =
                             (if search.Regex then "Regular Expression" else "")
                             (if search.SubFolders then "Sub-Folders" else "")
                         ] |> List.filter String.isNotEmpty |> String.concat ", "
-                    window.SearchPanel.Visible <- true
+                    window.SearchPanel.IsCollapsed <- false
             )
             Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
@@ -402,12 +388,12 @@ module MainView =
                         window.HistoryHeader.Text <- header
                         window.HistoryBack.ItemsSource <- prev |> List.rev
                         window.HistoryCurrentLabel.Text <- current |? ""
-                        window.HistoryCurrent.Collapsed <- current.IsNone || isEmpty
+                        window.HistoryCurrent.IsCollapsed <- current.IsNone || isEmpty
                         window.HistoryForward.ItemsSource <- next
-                        window.HistoryEmpty.Collapsed <- not isEmpty
-                        window.HistoryPanel.Collapsed <- false
+                        window.HistoryEmpty.IsCollapsed <- not isEmpty
+                        window.HistoryPanel.IsCollapsed <- false
                     | None ->
-                        window.HistoryPanel.Collapsed <- true
+                        window.HistoryPanel.IsCollapsed <- true
                 )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->

@@ -6,6 +6,7 @@ open VinylUI.Wpf
 open ProgramOptions
 open Acadian.FSharp
 open Koffee
+open UIHelpers
 
 let logError isCrash (e: exn) =
     let typ = if isCrash then "crash" else "error"

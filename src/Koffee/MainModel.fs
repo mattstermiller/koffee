@@ -147,7 +147,7 @@ type PromptType =
     | DeleteSavedSearch
 
 type ConfirmType =
-    | Overwrite of PutType * src: Item * dest: Item
+    | Overwrite of PutType * srcDestPairs: (Item * Item) list
     | Delete
     | OverwriteBookmark of char * existingPath: Path
     | OverwriteSavedSearch of char * existingSearch: Search
@@ -170,8 +170,12 @@ type PutItem = {
     DestExists: bool
 }
 with
-    static member intentEquals (a: PutItem) (b: PutItem) =
-        a.Item.Path = b.Item.Path && a.Dest = b.Dest
+    static member intentEquals (a: PutItem list) (b: PutItem list) =
+        if a.Length = b.Length then
+            let pathDestPairs putItems = putItems |> Seq.map (fun pi -> pi.Item.Path, pi.Dest)
+            Seq.forall2 (=) (pathDestPairs a) (pathDestPairs b)
+        else
+            false
 
     static member reverse putItem =
         let newItem = { putItem.Item with Path = putItem.Dest; Name = putItem.Dest.Name }
@@ -188,7 +192,7 @@ with
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItems of PutType * intent: PutItem * actual: PutItem list * cancelled: bool
+    | PutItems of PutType * intent: PutItem list * actual: PutItem list * cancelled: bool
     | DeletedItems of permanent: bool * Item list * cancelled: bool
 with
     member this.Description pathFormat =
@@ -203,7 +207,7 @@ with
                 |> function
                     | 0 -> ""
                     | count -> sprintf " (%i files)" count
-            sprintf "%O %s%s" putType ([intent] |> PutItem.describeList pathFormat) fileCountStr
+            sprintf "%O %s%s" putType (intent |> PutItem.describeList pathFormat) fileCountStr
         | DeletedItems (permanent, items, _) ->
             match items with
             | item :: rest ->
@@ -246,12 +250,19 @@ module MainStatus =
             sprintf "Created %s" item.Description
         | RenamedItem (item, newName) ->
             sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItems (Move, item, _, _) ->
-            sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, item, _, _) ->
-            sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Shortcut, {Item = item}, _, _) ->
-            sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
+        | PutItems (Move, putItems, _, _) ->
+            sprintf "Moved %s" (putItems |> PutItem.describeList pathFormat)
+        | PutItems (Copy, putItems, _, _) ->
+            sprintf "Copied %s" (putItems |> PutItem.describeList pathFormat)
+        | PutItems (Shortcut, putItems, _, _) ->
+            let plural = if putItems.Length = 1 then "" else "s"
+            let itemsDescr =
+                match putItems with
+                | [{ Item = item }] ->
+                    sprintf "%s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
+                | _ ->
+                    sprintf "%i items" putItems.Length
+            sprintf "Created shortcut%s to %s" plural itemsDescr
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
@@ -365,9 +376,9 @@ module MainStatus =
                 sprintf "Removed network host%s: %s" plural (names |> String.concat ", ")
 
     type Busy =
-        | PuttingItem of isCopy: bool * isRedo: bool * PutItem * PathFormat
+        | PuttingItem of isCopy: bool * isRedo: bool * PutItem list * PathFormat
         | DeletingItems of permanent: bool * Item list
-        | PreparingPut of PutType * name: string
+        | PreparingPut of PutType * Item list
         | CheckingIsRecyclable
         | PreparingDelete of Item list
         | UndoingCreate of Item
@@ -376,17 +387,21 @@ module MainStatus =
 
         member this.Message =
             match this with
-            | PuttingItem (isCopy, isRedo, putItem, pathFormat) ->
+            | PuttingItem (isCopy, isRedo, putItems, pathFormat) ->
                 let action =
                     if isRedo
                     then sprintf "Redoing %s of" (if isCopy then "copy" else "move")
                     else if isCopy then "Copying" else "Moving"
-                sprintf "%s %s..." action ([putItem] |> PutItem.describeList pathFormat)
+                sprintf "%s %s..." action (putItems |> PutItem.describeList pathFormat)
             | DeletingItems (permanent, items) ->
                 let action = if permanent then "Deleting" else "Recycling"
                 sprintf "%s %s..." action (Item.describeList items)
-            | PreparingPut (putType, name) ->
-                sprintf "Preparing to %O %s..." putType name
+            | PreparingPut (putType, items) ->
+                let itemsDescr =
+                    match items with
+                    | [item] -> item.Name
+                    | _ -> sprintf "%i items" items.Length
+                sprintf "Preparing to %O %s..." putType itemsDescr
             | CheckingIsRecyclable ->
                 "Determining if items will fit in Recycle Bin..."
             | PreparingDelete items ->
@@ -553,7 +568,7 @@ type Config = {
     TextEditor: string
     CommandlinePath: string
     SearchExclusions: string list
-    YankRegister: (Path * ItemType * PutType) option
+    YankRegister: (PutType * (Path * ItemType) list) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list

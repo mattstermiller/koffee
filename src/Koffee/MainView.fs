@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -28,23 +28,30 @@ module MainView =
     let getPrompt pathFormat inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
-        | Confirm (Overwrite (putType, src, dest)) ->
-            match dest.Type with
-            | Folder ->
-                sprintf "Folder \"%s\" already exists. %A anyway and merge files y/n ?" dest.Name putType
-            | File ->
-                match src.Modified, src.Size, dest.Modified, dest.Size with
-                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                    let compare a b less greater =
-                        if a = b then "same"
-                        else if a < b then less
-                        else greater
-                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                        dest.Name
-                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
-            | _ -> ""
+        | Confirm (Overwrite (putType, srcDestPairs)) ->
+            match srcDestPairs with
+            | [(src, dest)] ->
+                match dest.Type with
+                | Folder ->
+                    sprintf "Folder \"%s\" already exists. %A anyway and overwrite files y/n ?" dest.Name putType
+                | File ->
+                    match src.Modified, src.Size, dest.Modified, dest.Size with
+                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                        let compare a b less greater =
+                            if a = b then "same"
+                            else if a < b then less
+                            else greater
+                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                            dest.Name
+                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
+                | _ -> ""
+            | _ when srcDestPairs |> List.exists (fun (_, dest) -> dest.Type = Folder) ->
+                sprintf "%i files and folders already exist. %A anyway, merge folders and overwrite files y/n ?"
+                    srcDestPairs.Length putType
+            | _ ->
+                sprintf "%i files already exist. Overwrite y/n ?" srcDestPairs.Length
         | Confirm Delete ->
             "Permanently delete selected item(s) y/n ?"
         | Confirm (OverwriteBookmark (char, existingPath)) ->
@@ -234,8 +241,13 @@ module MainView =
             // display yank register
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
-                    register |> Option.map (fun (path, itemType, putType) ->
-                        sprintf "%A: %s %s" putType itemType.Symbol path.Name)
+                    register |> Option.bind (fun (putType, items) ->
+                        match items with
+                        | (path, itemType) :: rest ->
+                            let restDescr = if rest.IsEmpty then "" else sprintf " and %i more" rest.Length
+                            Some (sprintf "%A: %s %s%s" putType itemType.Symbol path.Name restDescr)
+                        | [] -> None
+                    )
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.IsCollapsed <- text.IsNone
             )

@@ -61,12 +61,15 @@ with
           Modified = None; Size = None; IsHidden = false
         }
 
+    static member EmptyFolderWithMessage message path =
+        [ { Item.Empty with Name = sprintf "<%s>" message; Path = path } ]
+
     static member EmptyFolder isSearching path =
-        let text =
+        let message =
             if isSearching then "No search results"
             else if path = Path.Network then "Remote hosts that you visit will appear here"
             else "Empty folder"
-        [ { Item.Empty with Name = sprintf "<%s>" text; Path = path } ]
+        Item.EmptyFolderWithMessage message path
 
     static member Basic path name itemType =
         { Item.Empty with

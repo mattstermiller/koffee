@@ -332,10 +332,10 @@ let windowMaximized maximized model =
 
 let windowActivated fsReader subDirResults progress model = asyncSeqResult {
     if model.Config.Window.RefreshOnActivate then
-        if not model.IsSearchingSubFolders then
-            yield! model |> Search.refreshOrResearch fsReader subDirResults progress
-        else
+        if model.IsSearchingSubFolders then
             yield model |> Nav.refreshDirectory fsReader
+        else
+            yield! model |> Search.refreshOrResearch fsReader subDirResults progress
 }
 
 let SyncResult handler =

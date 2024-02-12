@@ -75,6 +75,25 @@ let ``Opening a path that throws on GetItems sets error status only``() =
     assertAreEqual expected res
 
 [<Test>]
+let ``Opening same path that throws on GetItems sets empty item and error status``() =
+    let fs = FakeFileSystem [
+        folder "folder" []
+        file "file"
+    ]
+    let path = createPath "/c"
+    fs.AddExnPath false ex path
+    let model = testModel
+
+    let actual = Nav.openPath fs path SelectNone model |> assertOk
+
+    let expectedError = MainStatus.CouldNotOpenPath (path, model.PathFormat, ex)
+    let expectedItems = Item.EmptyFolderWithMessage expectedError.Message path
+    let expected =
+        { model with Directory = expectedItems; Items = expectedItems }
+        |> MainModel.withError expectedError
+    assertAreEqual expected actual
+
+[<Test>]
 let ``Open Parent when in folder opens parent and selects folder that was open`` () =
     let fs = FakeFileSystem [
         folder "another" []

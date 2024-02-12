@@ -43,9 +43,9 @@ let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
         fsReader.GetItems path
         |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, model.PathFormat, e))
 
-let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = result {
-    let! directory = getDirectory fsReader model path
-    return
+let openPath (fsReader: IFileSystemReader) path select (model: MainModel) =
+    match getDirectory fsReader model path with
+    | Ok directory ->
         { model with
             Directory = directory
             History = model.History |> History.withFolderPath model.Config.Limits.PathHistory path
@@ -54,7 +54,14 @@ let openPath (fsReader: IFileSystemReader) path select (model: MainModel) = resu
         |> MainModel.withPushedLocation path
         |> clearSearchProps
         |> listDirectory select
-}
+        |> Ok
+    | Error e when path = model.Location ->
+        let items = Item.EmptyFolderWithMessage e.Message path
+        { model with Directory = items; Items = items }
+        |> MainModel.withError e
+        |> Ok
+    | Error e ->
+        Error e
 
 let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     match Path.Parse pathStr with
@@ -137,8 +144,9 @@ let refresh fsReader (model: MainModel) =
 let refreshDirectory fsReader (model: MainModel) =
     getDirectory fsReader model model.Location
     |> function
-        | Ok dir -> { model with Directory = dir }
-        | _ -> model
+        | Ok items -> items
+        | Error e -> Item.EmptyFolderWithMessage e.Message model.Location
+    |> fun items -> { model with Directory = items }
 
 let rec private shiftStacks n current fromStack toStack =
     match fromStack with

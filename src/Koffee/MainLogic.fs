@@ -65,8 +65,8 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         |> MainModel.mapConfig (Config.withSavedSearch char search)
         |> MainModel.withMessage (MainStatus.SetSavedSearch (char, search))
     match model.InputMode with
-    | Some (Input (CreateFile _))
-    | Some (Input (CreateFolder _))
+    | Some (Input CreateFile)
+    | Some (Input CreateFolder)
     | Some (Input (Rename _)) ->
         if Path.InvalidNameChars |> String.contains (string char) then
             cancelInput()

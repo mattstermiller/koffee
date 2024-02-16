@@ -16,6 +16,15 @@ open KoffeeUI
 module Obs = Observable
 
 module MainView =
+    let private itemCountAndSize name items =
+        let sizeStr =
+            items
+            |> List.choose (fun n -> if n.Type = File then n.Size else None)
+            |> Option.ofCond (not << List.isEmpty)
+            |> Option.map (List.sum >> Format.fileSize >> sprintf ", %s")
+            |> Option.toString
+        sprintf "%i %s%s" items.Length name sizeStr
+
     let getPrompt pathFormat inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
@@ -205,15 +214,15 @@ module MainView =
                     c.SortDirection <- if Some i = sortIndex then sortDir |> Option.toNullable else Nullable()
                 )
             )
+            Bind.model(<@ model.SelectedItems @>).toFunc(fun selected ->
+                window.ItemGrid.Tag <- selected
+                if not selected.IsEmpty then
+                    window.SelectedStatus.Text <- itemCountAndSize "selected" selected
+                window.SelectedStatusPanel.IsCollapsed <- selected.IsEmpty
+            )
             Bind.model(<@ model.Items @>).toFunc(fun items ->
-                // directory status
-                window.DirectoryStatus.Text <-
-                    let fileSizes = items |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                    let fileStr =
-                        match fileSizes with
-                        | [] -> ""
-                        | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                    sprintf "%i item%s%s" items.Length (if items.Length = 1 then "" else "s") fileStr
+                let name = (if items.Length = 1 then "item" else "items")
+                window.DirectoryStatus.Text <- itemCountAndSize name items
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 

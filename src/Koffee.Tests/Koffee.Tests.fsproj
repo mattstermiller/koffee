@@ -28,6 +28,7 @@
     <Compile Include="MainNavTests_SuggestPaths.fs" />
     <Compile Include="MainSearchTests_Find.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
+    <Compile Include="MainActionTests_Select.fs" />
     <Compile Include="MainActionTests_Create.fs" />
     <Compile Include="MainActionTests_Rename.fs" />
     <Compile Include="MainActionTests_Delete.fs" />

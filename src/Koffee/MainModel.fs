@@ -762,6 +762,7 @@ type MainModel = {
     Sort: (SortField * bool) option
     Cursor: int
     SelectedItems: Item list
+    PreviousSelectIndexAndToggle: (int * bool) option
     PageSize: int
     KeyCombo: KeyCombo
     RepeatCommand: int option
@@ -840,6 +841,7 @@ type MainModel = {
         Sort = Some (Name, false)
         Cursor = 0
         SelectedItems = []
+        PreviousSelectIndexAndToggle = None
         PageSize = 30
         KeyCombo = []
         RepeatCommand = None
@@ -868,16 +870,6 @@ type MainModel = {
     static member withLocation path (this: MainModel) =
         { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
 
-    static member withCursor index (this: MainModel) =
-        { this with Cursor = index |> this.ClampCursor }
-
-    static member withCursorRel move (this: MainModel) =
-        MainModel.withCursor (this.Cursor + move) this
-
-    static member selectItems items (this: MainModel) =
-        let itemSet = items |> Set
-        { this with SelectedItems = this.Items |> List.filter itemSet.Contains }
-
     static member withPushedLocation path (this: MainModel) =
         if path <> this.Location then
             { this with
@@ -887,6 +879,24 @@ type MainModel = {
             }
             |> MainModel.withLocation path
         else this
+
+    static member withCursor index (this: MainModel) =
+        { this with Cursor = index |> this.ClampCursor }
+
+    static member withCursorRel move (this: MainModel) =
+        MainModel.withCursor (this.Cursor + move) this
+
+    static member selectItems pathsToSelect (this: MainModel) =
+        let selected =
+            if pathsToSelect |> Seq.isEmpty then
+                []
+            else
+                let itemMap = this.Items |> Seq.map (fun item -> (item.Path, item)) |> Map
+                pathsToSelect |> Seq.choose itemMap.TryFind |> Seq.toList
+        { this with SelectedItems = selected }
+
+    static member clearSelection (this: MainModel) =
+        { this with SelectedItems = []; PreviousSelectIndexAndToggle = None }
 
     static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
         match actionStack with
@@ -1003,6 +1013,9 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
+    | SelectToggle
+    | SelectRange
+    | SelectAll
     | Scroll of ScrollType
     | OpenPath of string * EvtHandler
     | OpenSelected
@@ -1065,6 +1078,9 @@ type MainEvents =
         CursorDownHalfPage, "Move Cursor Down Half Page"
         CursorToFirst, "Move Cursor to First Item"
         CursorToLast, "Move Cursor to Last Item"
+        SelectToggle, "Select/Unselect Item Under Cursor"
+        SelectRange, "Select/Unselect Range (Between Cursor and Last Selection)"
+        SelectAll, "Select All"
         Scroll CursorTop, "Scroll View to Put Cursor at the Top"
         Scroll CursorMiddle, "Scroll View to Put Cursor at the Middle"
         Scroll CursorBottom, "Scroll View to Put Cursor at the Bottom"

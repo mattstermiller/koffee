@@ -1,6 +1,7 @@
 # Release Notes
 
 ### 0.7.0  Multi-Select (WIP)
+- #14 Adds multi-selection with toggle select, select range and select all commands
 - #131 Adds ability to cancel Put and Delete operations
 - #132 Adds opened files to path history and shows in path suggestions
 - #133 Renaming, moving or deleting items updates path history

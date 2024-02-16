@@ -34,7 +34,9 @@ let listDirectory cursor model =
         |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = hiddenCursorItem)
         |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
         |> model.ItemsOrEmpty
-    { model with Items = items } |> moveCursor cursor
+    { model with Items = items }
+    |> moveCursor cursor
+    |> MainModel.selectItems (model.SelectedItems |> Seq.map (fun i -> i.Path))
 
 let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
     if path = Path.Network then
@@ -57,11 +59,15 @@ let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
         }
         |> MainModel.withPushedLocation path
         |> clearSearchProps
+        |> applyIf (path <> model.Location) MainModel.clearSelection
         |> listDirectory cursor
         |> Ok
     | Error e when path = model.Location ->
-        let items = Item.EmptyFolderWithMessage e.Message path
-        { model with Directory = items; Items = items }
+        { model with
+            Directory = []
+            Items = Item.EmptyFolderWithMessage e.Message path
+            SelectedItems = []
+        }
         |> MainModel.withError e
         |> Ok
     | Error e ->

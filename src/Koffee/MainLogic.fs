@@ -268,6 +268,8 @@ let escape model =
         model |> MainModel.withoutKeyCombo
     else if model.ShowHistoryType.IsSome then
         { model with ShowHistoryType = None }
+    else if not model.SelectedItems.IsEmpty then
+        model |> MainModel.clearSelection
     else
         model.CancelToken.Cancel()
         model |> MainModel.clearStatus |> Search.clearSearch
@@ -374,6 +376,9 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CursorDownHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (m.PageSize/2 * m.RepeatCount))
             | CursorToFirst -> Sync (fun m -> m |> MainModel.withCursor 0)
             | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
+            | SelectToggle -> Sync Action.selectToggle
+            | SelectRange -> Sync Action.selectRange
+            | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
             | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
             | OpenSelected -> AsyncResult (Nav.openSelected fs os)

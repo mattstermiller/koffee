@@ -19,6 +19,37 @@ let private performedUndo undoIter action (model: MainModel) =
 let private ignoreError f model =
     f model |> Result.defaultValue model
 
+let selectToggle (model: MainModel) =
+    let cursorItem = model.CursorItem
+    let toggle, selectedItems =
+        match model.SelectedItems |> List.partition ((=) cursorItem) with
+        | [], _ -> (true, model.SelectedItems @ [cursorItem])
+        | _, withoutCursorItem -> (false, withoutCursorItem)
+    { model with
+        SelectedItems = selectedItems
+        PreviousSelectIndexAndToggle = Some (model.Cursor, toggle)
+    }
+
+let selectRange (model: MainModel) =
+    let items = model.Items |> List.toArray
+    match model.PreviousSelectIndexAndToggle with
+    | Some (prevIndex, toggle) ->
+        let rangeItems =
+            [prevIndex; model.Cursor]
+            |> List.sort
+            |> fun indexes -> items.[indexes.[0]..indexes.[1]]
+            |> Seq.toList
+        let selectedItems =
+            if toggle
+            then model.SelectedItems @ rangeItems |> List.distinct
+            else model.SelectedItems |> List.except rangeItems
+        { model with
+            SelectedItems = selectedItems
+            PreviousSelectIndexAndToggle = Some (model.Cursor, toggle)
+        }
+    | None ->
+        selectToggle model
+
 let private getInputSelection renamePart itemType (input: string) =
     let fullLen = input.Length
     let nameLen =
@@ -782,7 +813,7 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                     openPath items.Head.Path.Parent
                     |> Result.map (
                         Nav.moveCursor (CursorToItem (items.Head, true))
-                        >> applyIf (not items.Tail.IsEmpty) (MainModel.selectItems items)
+                        >> applyIf (not items.Tail.IsEmpty) (MainModel.selectItems (items |> Seq.map (fun i -> i.Path)))
                     )
                 yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))
                 let deleteFunc = if permanent then delete else recycle

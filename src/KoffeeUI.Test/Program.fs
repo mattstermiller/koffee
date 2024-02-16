@@ -47,35 +47,44 @@ let setupWindow (window: MainWindow) =
     addColumn "Modified" true
     addColumn "Size" true
 
-    let items =
-        [
-            yield! Array.init 4 (fun i ->
-                let n = i + 1
-                {
-                    Name = sprintf "Folder %i" n
-                    TypeName = "Folder"
-                    Modified = ""
-                    Size = ""
-                    IsHidden = n = 4
-                }
-            )
-            yield! Array.init 10 (fun i ->
-                let n = i + 1
-                {
-                    Name = sprintf "File %i" n
-                    TypeName = "File"
-                    Modified = sprintf "2000/1/%i" (10 + n)
-                    Size = sprintf "%i KB" (n * 10)
-                    IsHidden = n = 10
-                }
-            )
-        ]
-    grid.ItemsSource <- items
+    let folders =
+        List.init 4 (fun i ->
+            let n = i + 1
+            {
+                Name = sprintf "Folder %i" n
+                TypeName = "Folder"
+                Modified = ""
+                Size = ""
+                IsHidden = n = 4
+            }
+        )
+    let files =
+        List.init 10 (fun i ->
+            let n = i + 1
+            {
+                Name = sprintf "File %i" n
+                TypeName = "File"
+                Modified = sprintf "2000/1/%i" (10 + n)
+                Size = sprintf "%i KB" (n * 10)
+                IsHidden = n = 10
+            }
+        )
+    grid.ItemsSource <- folders @ files
+    grid.SelectedIndex <- 4
+    let mutable selectedItems = files.[4..7]
+    grid.Tag <- selectedItems
 
     grid.PreviewKeyDown.Add (fun e ->
         match e.Chord with
-        | ModifierKeys.None, Key.J -> grid.SelectedIndex <- grid.SelectedIndex + 1
-        | ModifierKeys.None, Key.K -> grid.SelectedIndex <- grid.SelectedIndex - 1
+        | ModifierKeys.None, Key.J -> grid.SelectedIndex <- grid.SelectedIndex + 1 |> min grid.Items.Count
+        | ModifierKeys.None, Key.K -> grid.SelectedIndex <- grid.SelectedIndex - 1 |> max 0
+        | ModifierKeys.None, Key.Space ->
+            let cursorItem = unbox grid.SelectedItem
+            if selectedItems |> List.contains cursorItem then
+                selectedItems <- selectedItems |> List.except [cursorItem]
+            else
+                selectedItems <- selectedItems @ [cursorItem]
+            grid.Tag <- selectedItems
         | _ -> ()
     )
 
@@ -92,7 +101,6 @@ let setupWindow (window: MainWindow) =
     show window.RegisterPanel
 
     grid.Focus() |> ignore
-    grid.SelectedIndex <- 4
 
     window |> addCloseHotKey
     window.WindowStartupLocation <- WindowStartupLocation.CenterScreen
@@ -120,7 +128,10 @@ type ResourceButton(resourceName, initialColor) as this =
                 TextBlock(Text = resourceName)
             ]
         button.Click.Add (fun _ -> selected.Trigger swatchBrush.Color)
-        button.MouseRightButtonDown.Add (fun _ -> selected.Trigger initialColor)
+        button.MouseRightButtonDown.Add (fun _ ->
+            button.IsChecked <- true
+            selected.Trigger initialColor
+        )
 
     member _.ResourceName = resourceName
     member _.Button = button
@@ -200,6 +211,7 @@ let main args =
         theme.Left <- main.Left + main.Width
         theme.Top <- main.Top
         theme.Show()
+        main.Focus() |> ignore
     )
     theme.Closed.Add (fun _ -> main.Close())
 

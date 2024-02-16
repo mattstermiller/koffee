@@ -7,16 +7,22 @@ open Koffee.Main
 [<TestCase(true)>]
 let ``Opening a valid path updates model correctly`` setCursor =
     let fs = FakeFileSystem [
-        folder "different" [
-            file "diff1"
-            file "diff2"
-            file "diff3"
+        folder "folder" [
+            file "file 1"
+            file "file 2"
+            file "file 3"
         ]
-        file "file"
+        file "file 1"
     ]
-    let path = createPath "/c/different"
+    let path = createPath "/c/folder"
     let cursor = if setCursor then CursorToIndex 2 else CursorStay
-    let model = testModel
+    let items = ["/c/file 1"; "/c/file 2"] |> List.map createFile
+    let model =
+        { testModel with
+            Directory = items
+            Items = items
+            SelectedItems = [items.[1]]
+        }
 
     let actual = Nav.openPath fs path cursor model |> assertOk
 
@@ -25,6 +31,7 @@ let ``Opening a valid path updates model correctly`` setCursor =
         { model with
             Directory = expectedItems |> sortByPath
             Items = expectedItems
+            SelectedItems = []
             Cursor = if setCursor then 2 else 0
             BackStack = (model.Location, model.Cursor) :: model.BackStack
             ForwardStack = []
@@ -35,15 +42,21 @@ let ``Opening a valid path updates model correctly`` setCursor =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Opening same path does not modify navigation history`` setCursor =
+let ``Opening same path does not modify navigation history or selected items`` setCursor =
     let fs = FakeFileSystem [
-        folder "different" []
-        file "file1"
-        file "file2"
+        folder "folder" []
+        file "file 1"
+        file "file 2"
     ]
     let path = createPath "/c"
     let cursor = if setCursor then CursorToIndex 2 else CursorStay
-    let model = testModel
+    let items = ["/c/file 1"; "/c/file 2"] |> List.map createFile
+    let model =
+        { testModel with
+            Directory = items
+            Items = items
+            SelectedItems = [items.[1]]
+        }
 
     let actual = Nav.openPath fs path cursor model |> assertOk
 
@@ -58,9 +71,8 @@ let ``Opening same path does not modify navigation history`` setCursor =
         |> withLocationOnHistory
     assertAreEqual expected actual
 
-
 [<Test>]
-let ``Opening a path that throws on GetItems sets error status only``() =
+let ``Opening a path that throws on GetItems returns error``() =
     let fs = FakeFileSystem [
         folder "inaccessible" []
         file "file"
@@ -82,14 +94,23 @@ let ``Opening same path that throws on GetItems sets empty item and error status
     ]
     let path = createPath "/c"
     fs.AddExnPath false ex path
-    let model = testModel
+    let items = fs.ItemsIn "/c"
+    let model =
+        { testModel with
+            Directory = items
+            Items = items
+            SelectedItems = [items.[1]]
+        }
 
     let actual = Nav.openPath fs path CursorStay model |> assertOk
 
     let expectedError = MainStatus.CouldNotOpenPath (path, model.PathFormat, ex)
-    let expectedItems = Item.EmptyFolderWithMessage expectedError.Message path
     let expected =
-        { model with Directory = expectedItems; Items = expectedItems }
+        { model with
+            Directory = []
+            Items = Item.EmptyFolderWithMessage expectedError.Message path
+            SelectedItems = []
+        }
         |> MainModel.withError expectedError
     assertAreEqual expected actual
 

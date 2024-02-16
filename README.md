@@ -88,6 +88,11 @@ _A capital letter indicates that the letter key is combined with Shift._
     - When suggestions from history are shown, pressing `Delete` will remove it from the list and history.
 
 #### File & Folder Manipulation
+- **Selecting**
+    - If there is no selection, actions apply to the item under the cursor
+    - Press `Space` to toggle whether the item under the cursor is selected
+    - Press `Shift + Space` to select or unselect the range of items between the previously toggled item and the cursor, inclusive
+    - Press `Ctrl + a` to select all items in the current location
 - **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `Enter`.
 - **Rename**: There are several ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
@@ -128,7 +133,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Open the currently selected file with your text editor (configured in the Settings window) with `Ctrl + Shift + t`
 - Show/hide hidden files and folders with `F9`
 
-There are more commands at your disposal. Open the Settings window with `?` for the full list of commands and their key bindings!
+To see the full list of commands and their key bindings, open the Settings window with `?`.
 
 ## Contributing
 If you want to contribute to Koffee, thank you! Head to the [issues page](https://github.com/mattstermiller/koffee/issues).
@@ -142,7 +147,6 @@ If you want to contribute to Koffee, thank you! Head to the [issues page](https:
 Please read the [Development Guide](DEVGUIDE.md) to get started on Koffee code.
 
 ## Future Planned Features
-- Select multiple items
 - Configurable hotkeys
 - Theme selection and editor
 - And more... check out the [issues list](https://github.com/mattstermiller/koffee/issues) and please add your own ideas and contributions!

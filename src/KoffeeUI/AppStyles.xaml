@@ -1,45 +1,62 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <Color x:Key="Background">#150e0a</Color>
-  <Color x:Key="Text">#b39d86</Color>
-  <Color x:Key="Border">#965725</Color>
-  <Color x:Key="ActiveBorder">#e1deda</Color>
-  <Color x:Key="Control">#532a0e</Color>
-  <Color x:Key="AlternatingRow">#20150f</Color>
-  <Color x:Key="Highlight">#965725</Color>
-  <Color x:Key="Highlight2">#532a0e</Color>
-  <Color x:Key="HighlightText">#e1deda</Color>
-  <Color x:Key="Error">#f33</Color>
+  <Color x:Key="AlternatingRow">#FF20150F</Color>
+  <Color x:Key="Background">#FF150E0A</Color>
+  <Color x:Key="Border">#FF965725</Color>
+  <Color x:Key="BorderActive">#FFE1DEDA</Color>
+  <Color x:Key="Control">#FF532A0E</Color>
+  <Color x:Key="Cursor1">#FFD1905D</Color>
+  <Color x:Key="Cursor2">#00D1905D</Color>
+  <Color x:Key="Cursor3">#FF855028</Color>
+  <Color x:Key="Error">#FFFF3333</Color>
+  <Color x:Key="Highlight1">#FF965725</Color>
+  <Color x:Key="Highlight2">#FF532A0E</Color>
+  <Color x:Key="HighlightText">#FFE1DEDA</Color>
+  <Color x:Key="Selection">#FF52331B</Color>
+  <Color x:Key="SelectionText">#FFEEE2D6</Color>
+  <Color x:Key="Text">#FFB39D86</Color>
+  <Color x:Key="TextDimmed">#FFA9A9A9</Color>
 
-  <SolidColorBrush x:Key="BackgroundBrush" Color="{DynamicResource Background}"/>
-  <SolidColorBrush x:Key="TextBrush" Color="{DynamicResource Text}"/>
-  <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource Border}"/>
-  <SolidColorBrush x:Key="ActiveBorderBrush" Color="{DynamicResource ActiveBorder}"/>
-  <SolidColorBrush x:Key="ControlBrush" Color="{DynamicResource Control}"/>
   <SolidColorBrush x:Key="AlternatingRowBrush" Color="{DynamicResource AlternatingRow}"/>
+  <SolidColorBrush x:Key="BackgroundBrush" Color="{DynamicResource Background}"/>
+  <SolidColorBrush x:Key="BorderActiveBrush" Color="{DynamicResource BorderActive}"/>
+  <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource Border}"/>
+  <SolidColorBrush x:Key="ControlBrush" Color="{DynamicResource Control}"/>
+  <LinearGradientBrush x:Key="CursorBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="{DynamicResource Cursor1}" Offset="0"/>
+    <GradientStop Color="{DynamicResource Cursor2}" Offset="0.45"/>
+    <GradientStop Color="{DynamicResource Cursor2}" Offset="0.55"/>
+    <GradientStop Color="{DynamicResource Cursor3}" Offset="1"/>
+  </LinearGradientBrush>
+  <SolidColorBrush x:Key="ErrorBrush" Color="{DynamicResource Error}"/>
   <LinearGradientBrush x:Key="HighlightBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource Highlight}" Offset="0"/>
+    <GradientStop Color="{DynamicResource Highlight1}" Offset="0"/>
     <GradientStop Color="{DynamicResource Highlight2}" Offset="1"/>
   </LinearGradientBrush>
-  <SolidColorBrush x:Key="PopupBrush" Color="{DynamicResource Control}"/>
-  <SolidColorBrush x:Key="PopupTextBrush" Color="{DynamicResource Text}"/>
+  <SolidColorBrush x:Key="HighlightFlatBrush" Color="{DynamicResource Highlight1}"/>
+  <SolidColorBrush x:Key="HighlightTextBrush" Color="{DynamicResource HighlightText}"/>
   <LinearGradientBrush x:Key="PanelBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="{DynamicResource Highlight}" Offset="0"/>
+    <GradientStop Color="{DynamicResource Highlight1}" Offset="0"/>
     <GradientStop Color="{DynamicResource Highlight2}" Offset="1"/>
   </LinearGradientBrush>
   <SolidColorBrush x:Key="PanelTextBrush" Color="{DynamicResource HighlightText}"/>
-  <SolidColorBrush x:Key="ErrorBrush" Color="{DynamicResource Error}"/>
+  <SolidColorBrush x:Key="PopupBrush" Color="{DynamicResource Control}"/>
+  <SolidColorBrush x:Key="PopupTextBrush" Color="{DynamicResource Text}"/>
+  <SolidColorBrush x:Key="SelectionBrush" Color="{DynamicResource Selection}"/>
+  <SolidColorBrush x:Key="SelectionTextBrush" Color="{DynamicResource SelectionText}"/>
+  <SolidColorBrush x:Key="TextBrush" Color="{DynamicResource Text}"/>
+  <SolidColorBrush x:Key="TextDimmedBrush" Color="{DynamicResource TextDimmed}"/>
 
   <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="{DynamicResource Background}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="{DynamicResource Text}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="{DynamicResource Text}"/>
-  <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                        StartPoint="0,0" EndPoint="0,1"
-                        GradientStops="{Binding GradientStops, Source={StaticResource HighlightBrush}}"/>
+  <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" StartPoint="0,0" EndPoint="0,1"
+                       GradientStops="{Binding GradientStops, Source={StaticResource HighlightBrush}}"/>
+  <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource HighlightText}"/>
   <LinearGradientBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
-                        StartPoint="0,0" EndPoint="0,1" Opacity="0.5"
-                        GradientStops="{Binding GradientStops, Source={StaticResource HighlightBrush}}"/>
+                       StartPoint="0,0" EndPoint="0,1" Opacity="0.5"
+                       GradientStops="{Binding GradientStops, Source={StaticResource HighlightBrush}}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource Text}"/>
 
   <Style TargetType="Window">
@@ -48,6 +65,12 @@
   </Style>
   <Style TargetType="Border">
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+  </Style>
+  <Style x:Key="HighlightBorder" TargetType="Border" BasedOn="{StaticResource {x:Type Border}}">
+    <Setter Property="Background" Value="{DynamicResource HighlightBrush}"/>
+  </Style>
+  <Style x:Key="HighlightTextBlock" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource HighlightTextBrush}"/>
   </Style>
   <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
@@ -65,10 +88,10 @@
               <Setter TargetName="TextBoxBorder" Property="Opacity" Value="0.5"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="true">
-              <Setter TargetName="TextBoxBorder" Property="BorderBrush" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="TextBoxBorder" Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
             <Trigger Property="IsFocused" Value="true">
-              <Setter TargetName="TextBoxBorder" Property="BorderBrush" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="TextBoxBorder" Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -76,7 +99,7 @@
     </Setter>
   </Style>
   <Style TargetType="Button">
-    <Setter Property="Background" Value="{DynamicResource ControlBrush}"/>
+    <Setter Property="Background" Value="{StaticResource ControlBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="Template">
       <Setter.Value>
@@ -92,10 +115,10 @@
               <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.5"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="true">
-              <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
             <Trigger Property="IsFocused" Value="true">
-              <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -109,7 +132,7 @@
           <BulletDecorator>
             <BulletDecorator.Bullet>
               <Border x:Name="Border" Width="15" Height="15" BorderThickness="1" SnapsToDevicePixels="true"
-                      BorderBrush="{DynamicResource BorderBrush}" Background="{DynamicResource ControlBrush}">
+                      BorderBrush="{DynamicResource BorderBrush}" Background="{StaticResource ControlBrush}">
                 <Grid>
                   <Path x:Name="CheckMark" Visibility="Collapsed" Width="11" Height="11" StrokeThickness="2"
                         SnapsToDevicePixels="true" Data="M 0,7 L 4,10 L 10,1">
@@ -130,10 +153,10 @@
               <Setter TargetName="CheckMark" Property="Visibility" Value="Collapsed"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="true">
-              <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
             <Trigger Property="IsFocused" Value="true">
-              <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -143,16 +166,15 @@
   <Style x:Key="{x:Type RadioButton}" TargetType="{x:Type RadioButton}">
     <Setter Property="SnapsToDevicePixels" Value="true"/>
     <Setter Property="OverridesDefaultStyle" Value="true"/>
-    <Setter Property="FocusVisualStyle" Value="{DynamicResource RadioButtonFocusVisual}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="{x:Type RadioButton}">
           <BulletDecorator Background="Transparent">
             <BulletDecorator.Bullet>
               <Grid Width="15" Height="15">
-                <Ellipse x:Name="Border" Fill="{DynamicResource ControlBrush}"
+                <Ellipse x:Name="Border" Fill="{StaticResource ControlBrush}"
                          StrokeThickness="1" Stroke="{DynamicResource BorderBrush}"/>
-                <Ellipse x:Name="CheckMark" Margin="4" Visibility="Collapsed" Fill="{DynamicResource TextBrush}"/>
+                <Ellipse x:Name="CheckMark" Margin="4" Visibility="Collapsed" Fill="{StaticResource TextBrush}"/>
               </Grid>
             </BulletDecorator.Bullet>
             <ContentPresenter Margin="4,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
@@ -166,10 +188,10 @@
               <Setter TargetName="CheckMark" Property="Visibility" Value="Collapsed"/>
             </Trigger>
             <Trigger Property="IsMouseOver" Value="true">
-              <Setter TargetName="Border" Property="Stroke" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="Border" Property="Stroke" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
             <Trigger Property="IsFocused" Value="true">
-              <Setter TargetName="Border" Property="Stroke" Value="{DynamicResource ActiveBorderBrush}"/>
+              <Setter TargetName="Border" Property="Stroke" Value="{DynamicResource BorderActiveBrush}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -177,7 +199,7 @@
     </Setter>
   </Style>
   <Style TargetType="ListBox">
-    <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
+    <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
   </Style>
   <Style TargetType="DataGrid">
@@ -185,11 +207,12 @@
     <Setter Property="RowBackground" Value="#00000000"/>
     <Setter Property="AlternatingRowBackground" Value="{DynamicResource AlternatingRowBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
   </Style>
 
   <!-- Override DataGridColumnHeader to restore sort arrows and column grips when using custom colors -->
   <Style TargetType="{x:Type DataGridColumnHeader}">
-    <Setter Property="Background" Value="{DynamicResource ControlBrush}"/>
+    <Setter Property="Background" Value="{StaticResource ControlBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="Template">
       <Setter.Value>
@@ -239,21 +262,11 @@
     </Setter>
   </Style>
 
-  <Style x:Key="{x:Static SystemParameters.FocusVisualStyleKey}">
-    <Setter Property="Control.Template">
-      <Setter.Value>
-        <ControlTemplate>
-          <Rectangle StrokeThickness="1" Stroke="Red" StrokeDashArray="1 2" SnapsToDevicePixels="true"/>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
-
   <ControlTemplate x:Key="ValidationTemplate">
     <Grid>
       <Grid HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,5,0"
             Opacity="0.7" ToolTip="{Binding Path=/ErrorContent}">
-        <Ellipse Width="16" Height="16" Fill="{DynamicResource ErrorBrush}"/>
+        <Ellipse Width="16" Height="16" Fill="{StaticResource ErrorBrush}"/>
         <TextBlock Foreground="White" FontWeight="Bold" FontSize="10" TextAlignment="Center"
                    HorizontalAlignment="Center" VerticalAlignment="Center">X</TextBlock>
       </Grid>
@@ -276,18 +289,22 @@
     </Setter>
   </Style>
   <ControlTemplate x:Key="VerticalScrollBar" TargetType="{x:Type ScrollBar}">
-    <Track Name="PART_Track" IsDirectionReversed="true">
-      <Track.Thumb>
-        <Thumb Style="{StaticResource ScrollBarThumb}" Background="{StaticResource ControlBrush}"/>
-      </Track.Thumb>
-    </Track>
+    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1 1 1 0">
+      <Track Name="PART_Track" IsDirectionReversed="true">
+        <Track.Thumb>
+          <Thumb Style="{StaticResource ScrollBarThumb}" Background="{StaticResource HighlightFlatBrush}"/>
+        </Track.Thumb>
+      </Track>
+    </Border>
   </ControlTemplate>
   <ControlTemplate x:Key="HorizontalScrollBar" TargetType="{x:Type ScrollBar}">
-    <Track Name="PART_Track">
-      <Track.Thumb>
-        <Thumb Style="{StaticResource ScrollBarThumb}" Background="{StaticResource ControlBrush}"/>
-      </Track.Thumb>
-    </Track>
+    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+      <Track Name="PART_Track">
+        <Track.Thumb>
+          <Thumb Style="{StaticResource ScrollBarThumb}" Background="{StaticResource HighlightFlatBrush}"/>
+        </Track.Thumb>
+      </Track>
+    </Border>
   </ControlTemplate>
   <Style x:Key="{x:Type ScrollBar}" TargetType="{x:Type ScrollBar}">
     <Setter Property="SnapsToDevicePixels" Value="True"/>

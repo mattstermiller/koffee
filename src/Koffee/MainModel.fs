@@ -85,16 +85,23 @@ type SortField =
     | Size
 
     static member SortByTypeThen (field, desc) (list: Item list) =
-        let orderBy, thenBy =
-            if desc then Order.by, Order.thenByDesc
-            else Order.byDesc, Order.thenBy
-        let selector =
-            match field with
-            | Name -> (fun i -> i.Name.ToLower() :> obj)
-            | Type -> (fun i -> i.Type :> obj)
-            | Modified -> (fun i -> i.Modified :> obj)
-            | Size -> (fun i -> i.Size :> obj)
-        list |> orderBy (fun i -> i.Type) |> thenBy selector |> Seq.toList
+        let comparer selector desc a b =
+            let aVal, bVal = selector a, selector b
+            if aVal = bVal then 0
+            else if aVal < bVal = not desc then -1
+            else 1
+        list |> List.sortWith (fun a b ->
+            match comparer (fun i -> i.Type) (not desc) a b with
+            | 0 ->
+                let compare =
+                    match field with
+                    | Name -> comparer (fun i -> i.Name.ToLower())
+                    | Type -> comparer (fun i -> i.Type)
+                    | Modified -> comparer (fun i -> i.Modified)
+                    | Size -> comparer (fun i -> i.Size)
+                compare desc a b
+            | res -> res
+        )
 
 type RenamePart =
     | Begin

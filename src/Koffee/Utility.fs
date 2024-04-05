@@ -116,12 +116,6 @@ type AsyncSeqResultBuilder() =
 
 let asyncSeqResult = AsyncSeqResultBuilder()
 
-module Order =
-    let by f s = Enumerable.OrderBy(s, (fun x -> f x))
-    let byDesc f s = Enumerable.OrderByDescending(s, (fun x -> f x))
-    let thenBy f s = Enumerable.ThenBy(s, (fun x -> f x))
-    let thenByDesc f s = Enumerable.ThenByDescending(s, (fun x -> f x))
-
 type Rectangle = {
     Left: int
     Top: int

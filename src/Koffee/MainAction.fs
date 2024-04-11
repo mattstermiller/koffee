@@ -503,55 +503,16 @@ let undoMove (fs: IFileSystem) progress undoIter (intent: PutItem) (moved: PutIt
     }
 
 let private performUndoCopy (fs: IFileSystem) (progress: Progress) (cancelToken: CancelToken) (putItems: PutItem list) =
-    let shouldDelete (putItem, currentItem) =
-        let copyModified = currentItem |> Result.map (Option.bind (fun copiedItem -> copiedItem.Modified))
-        match putItem.Item.Modified, copyModified with
-        | origTime, Ok copyTime when origTime = copyTime -> true
-        | _ -> false
     let incrementProgress = progress.GetIncrementer putItems.Length
     runAsync (fun () ->
-        let deleteItems, recycleItemsAndSizes =
-            putItems
-            |> List.map (fun putItem -> (putItem, fs.GetItem putItem.Dest))
-            |> List.partition shouldDelete
-            |> fun (delete, recycle) ->
-                let getSize (itemRes: Result<Item option, _>) =
-                    itemRes |> Result.map (Option.bind (fun item -> item.Size) >> Option.defaultValue 0L)
-                (delete |> List.map fst
-                ,recycle |> List.map (mapSnd getSize))
-        // TODO: when implementing multi-select for move and copy, write tests for:
-        // total recycle limit reached should error on recycle items, deletes should proceed
-        // error getting size for item should error on that item only, recycle should proceed if under limit
-        let totalRecycleSizeResult =
-            match recycleItemsAndSizes with
-            | [] -> Ok ()
-            | (firstItem, _) :: _ ->
-                let totalSize = recycleItemsAndSizes |> List.choose (snd >> Result.toOption) |> List.sum
-                fs.CheckRecyclable totalSize firstItem.Dest
-        let processItems f items =
-            items
-            |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
-            |> Seq.map f
-            |> Seq.map (fun (putItem, res) ->
-                res
-                |> Result.map (fun () -> putItem)
-                |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
-                |>! incrementProgress
-            )
-        seq {
-            yield!
-                deleteItems |> processItems (fun putItem ->
-                    (putItem, fs.Delete putItem.Item.Type putItem.Dest)
-                )
-            yield!
-                recycleItemsAndSizes |> processItems (fun (putItem, sizeRes) ->
-                    let processRes =
-                        sizeRes
-                        |> Result.bind (cnst totalRecycleSizeResult)
-                        |> Result.bind (fun () -> fs.Recycle putItem.Item.Type putItem.Dest)
-                    (putItem, processRes)
-                )
-        }
+        putItems
+        |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
+        |> Seq.map (fun putItem ->
+            fs.Delete putItem.Item.Type putItem.Dest
+            |> Result.map (fun () -> putItem)
+            |> Result.mapError (fun e -> ({ putItem.Item with Path = putItem.Dest }, e))
+            |>! incrementProgress
+        )
         |> Seq.toList
         |>! progress.Finish
     )

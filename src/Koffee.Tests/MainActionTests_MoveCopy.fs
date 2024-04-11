@@ -1689,23 +1689,16 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
 
 // undo copy tests
 
-[<TestCase(false, true)>]
-[<TestCase(false, false)>]
-[<TestCase(false, null)>]
-[<TestCase(true, true)>]
-[<TestCase(true, false)>]
-[<TestCase(true, null)>]
-let ``Undo copy file deletes when it has the same timestamp or recycles otherwise`` curPathDifferent (sameTimestamp: bool Nullable) =
-    let time = DateTime(2000, 1, 1)
-    let sameTimestamp = sameTimestamp |> Option.ofNullable
-    let copyTime = sameTimestamp |> Option.map (fun same -> if same then time else time.AddDays(1.0))
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo copy file deletes it`` curPathDifferent =
     let fs = FakeFileSystem [
-        driveWithSize 'c' 100L [
+        drive 'c' [
             folder "other" []
             folder "src" [
-                fileWith (modified time) "file"
+                file "file"
             ]
-            fileWith (modifiedOpt copyTime >> size 1L) "file"
+            file "file"
         ]
     ]
     let original = fs.Item "/c/src/file"
@@ -1733,17 +1726,14 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
         |> if not curPathDifferent then withLocationOnHistory else id
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        driveWithSize 'c' 100L [
+        drive 'c' [
             folder "other" []
             folder "src" [
-                fileWith (modified time) "file"
+                file "file"
             ]
         ]
     ]
-    fs.RecycleBin |> shouldEqual [
-        if sameTimestamp <> Some true then
-            copied
-    ]
+    fs.RecycleBin |> shouldEqual []
 
 [<Test>]
 let ``Undo copy empty folder deletes it`` () =

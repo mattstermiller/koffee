@@ -422,9 +422,9 @@ let ``Delete folder handles individual error and deletes other items and returns
     let actual = seqResult (Action.delete fs progress [item]) model
 
     let expectedErrorItems = [
-        createFile "/c/folder/sub/sub file", ex
-        createFolder "/c/folder/sub", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
-        createFolder "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
+        createPath "/c/folder/sub/sub file", ex
+        createPath "/c/folder/sub", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
+        createPath "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     ]
     let expected =
         { model with
@@ -463,7 +463,7 @@ let ``Recycle or Delete item handles error by returning error`` permanent =
 
     let expected =
         model
-        |> MainModel.withError (MainStatus.DeleteError (permanent, [item, ex], 1))
+        |> MainModel.withError (MainStatus.DeleteError (permanent, [item.Path, ex], 1))
         |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -501,7 +501,7 @@ let ``Recycle or Delete multiple items handles individual error and recycles or 
         createFile "/c/other"
     ]
     let expectedDeletedItems = items |> List.except [errorItem]
-    let expectedErrorItems = [errorItem, ex]
+    let expectedErrorItems = [errorItem.Path, ex]
     let expectedTotal = items.Length + if permanent then 1 else 0 // permanent delete enumerates items
     let expectedError = MainStatus.DeleteError (permanent, expectedErrorItems, expectedTotal)
     let expected =

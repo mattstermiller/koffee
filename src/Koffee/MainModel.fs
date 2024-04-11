@@ -30,6 +30,8 @@ type ItemType =
         | Empty -> ""
         | _ -> sprintf "%A" this
 
+    member this.ToLowerString() = this.ToString().ToLower()
+
     member this.Symbol =
         match this with
         | File -> "📄"
@@ -37,6 +39,10 @@ type ItemType =
         | Drive -> "💿"
         | NetHost -> "💻"
         | Empty -> ""
+
+module ItemRef =
+    let describe (typ: ItemType) (path: Path) =
+        sprintf "%s \"%s\"" (typ.ToLowerString()) path.Name
 
 type Item = {
     Path: Path
@@ -49,8 +55,7 @@ type Item = {
 with
     override this.ToString() = sprintf "%O at %O" this.Type this.Path
 
-    member this.Description =
-        sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
+    member this.Description = ItemRef.describe this.Type this.Path
 
     member this.TypeName = this.Type.ToString()
 
@@ -121,6 +126,8 @@ type PutType =
     | Move
     | Copy
     | Shortcut
+with
+    member this.ToLowerString() = this.ToString().ToLower()
 
 type Search = {
     Terms: string
@@ -172,22 +179,24 @@ type InputMode =
     | Input of InputType
 
 type PutItem = {
-    Item: Item
+    ItemType: ItemType
+    Source: Path
     Dest: Path
     DestExists: bool
 }
 with
     static member intentEquals (a: PutItem) (b: PutItem) =
-        a.Item.Path = b.Item.Path && a.Dest = b.Dest
+        a.Source = b.Source &&
+        a.Dest = b.Dest &&
+        a.ItemType = b.ItemType
 
     static member reverse putItem =
-        let newItem = { putItem.Item with Path = putItem.Dest; Name = putItem.Dest.Name }
-        { Item = newItem; Dest = putItem.Item.Path; DestExists = putItem.DestExists }
+        { putItem with Source = putItem.Dest; Dest = putItem.Source }
 
     static member describeList pathFormat putItems =
         match putItems with
-        | [{Item = item; Dest = dest}] ->
-            sprintf "%s to \"%s\"" item.Description (dest.Format pathFormat)
+        | [putItem] ->
+            sprintf "%s to \"%s\"" (ItemRef.describe putItem.ItemType putItem.Source) (putItem.Dest.Format pathFormat)
         | {Dest = dest} :: _ ->
             sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
         | [] -> "0 items"
@@ -205,7 +214,7 @@ with
         | PutItems (putType, intent, actual, _) ->
             let fileCountStr =
                 actual
-                |> Seq.filter (fun p -> p.Item.Type = File)
+                |> Seq.filter (fun pi -> pi.ItemType = File)
                 |> Seq.length
                 |> function
                     | 0 -> ""
@@ -242,6 +251,9 @@ type InputError =
 type UndoMoveBlockedByExistingItemException() =
     inherit exn("An item already exists in the previous location")
 
+type RedoPutItemMissingException() =
+    inherit exn("The item no longer exists")
+
 type RedoPutBlockedByExistingItemException() =
     inherit exn("An item already exists in the destination")
 
@@ -257,8 +269,8 @@ module MainStatus =
             sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
         | PutItems (Copy, item, _, _) ->
             sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Shortcut, {Item = item}, _, _) ->
-            sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
+        | PutItems (Shortcut, {ItemType = typ; Source = src}, _, _) ->
+            sprintf "Created shortcut to %s \"%s\"" (typ.ToLowerString()) (src.Format pathFormat)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
@@ -339,13 +351,13 @@ module MainStatus =
                 sprintf "Cancelled %s" action
             | CancelledPut (putType, isUndo, completed, total) ->
                 let undo = if isUndo then "undo of " else ""
-                let putTypeName = string putType |> String.toLower
                 let action =
                     match putType, isUndo with
                     | Move, _ -> "moved"
                     | _, false -> "copied"
                     | _, true -> "deleted"
-                sprintf "Cancelled %s%s - %s" undo putTypeName (this.DescribeCancelledProgress action completed total)
+                sprintf "Cancelled %s%s - %s" undo (putType.ToLowerString())
+                    (this.DescribeCancelledProgress action completed total)
             | CancelledDelete (permanent, completed, total) ->
                 let action = if permanent then "delete" else "recycle"
                 sprintf "Cancelled %s - %s" action (this.DescribeCancelledProgress (action+"d") completed total)
@@ -378,7 +390,7 @@ module MainStatus =
         | CheckingIsRecyclable
         | PreparingDelete of Item list
         | UndoingCreate of Item
-        | UndoingPut of isCopy: bool * Item
+        | UndoingPut of isCopy: bool * PutItem * PathFormat
         | RedoingDeleting of permanent: bool * Item list
 
         member this.Message =
@@ -404,9 +416,9 @@ module MainStatus =
                 sprintf "Preparing to delete %s..." descr
             | UndoingCreate item ->
                 sprintf "Undoing creation of %s - Deleting..." item.Description
-            | UndoingPut (isCopy, item) ->
+            | UndoingPut (isCopy, putItem, pathFormat) ->
                 let action = if isCopy then "copy" else "move"
-                sprintf "Undoing %s of %s..." action item.Description
+                sprintf "Undoing %s of %s..." action (PutItem.describeList pathFormat [putItem])
             | RedoingDeleting (permanent, items) ->
                 let action = if permanent then "deletion" else "recycle"
                 sprintf "Redoing %s of %s..." action (Item.describeList items)
@@ -419,8 +431,8 @@ module MainStatus =
         | NoPreviousSearch
         | ShortcutTargetMissing of string
         | YankRegisterItemMissing of string
-        | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
-        | DeleteError of permanent: bool * errorItems: (Item * exn) list * totalItems: int
+        | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
+        | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotPutHere
         | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
         | CannotMoveToSameFolder
@@ -429,7 +441,7 @@ module MainStatus =
         | CouldNotDeleteCopyDest of name: string * exn
         | CannotUndoNonEmptyCreated of Item
         | CannotUndoDelete of permanent: bool * items: Item list
-        | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
+        | CannotRedoPutToExisting of putType: PutType * PutItem * PathFormat
         | NoUndoActions
         | NoRedoActions
         | NoFilesSelected
@@ -438,13 +450,13 @@ module MainStatus =
         | CouldNotOpenApp of app: string * exn
         | CouldNotFindKoffeeExe
 
-        member private this.ItemErrorsDescription actionName (errorItems: (Item * exn) list) totalItemCount =
+        member private this.ItemErrorsDescription actionName (errorPaths: (Path * exn) list) totalItemCount =
             let actionMsg = "Could not " + actionName
-            match errorItems with
-            | [(item, ex)] ->
-                sprintf "%s %s: %s" actionMsg item.Description ex.Message
+            match errorPaths with
+            | [(path, ex)] ->
+                sprintf "%s %s: %s" actionMsg path.Name ex.Message
             | (_, ex) :: _ ->
-                sprintf "%s %i of %i total items. First error: %s" actionMsg errorItems.Length totalItemCount ex.Message
+                sprintf "%s %i of %i total items. First error: %s" actionMsg errorPaths.Length totalItemCount ex.Message
             | [] ->
                 actionMsg
 
@@ -468,13 +480,12 @@ module MainStatus =
                 "Shortcut target does not exist: " + path
             | YankRegisterItemMissing path ->
                 "Item in yank register no longer exists: " + path
-            | PutError (isUndo, putType, errorItems, totalItems) ->
+            | PutError (isUndo, putType, errorPaths, totalItems) ->
                 let undo = if isUndo then "undo " else ""
-                let putType = putType |> string |> String.toLower
-                this.ItemErrorsDescription (undo + putType) errorItems totalItems
-            | DeleteError (permanent, errorItems, totalItems) ->
+                this.ItemErrorsDescription (undo + putType.ToLowerString()) errorPaths totalItems
+            | DeleteError (permanent, errorPaths, totalItems) ->
                 let action = if permanent then "delete"  else "recycle"
-                this.ItemErrorsDescription action errorItems totalItems
+                this.ItemErrorsDescription action errorPaths totalItems
             | CannotPutHere ->
                 "Cannot put items here"
             | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
@@ -495,9 +506,9 @@ module MainStatus =
                 if permanent
                 then sprintf "Cannot undo deletion of %s" (Item.describeList items)
                 else sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore items" (Item.describeList items)
-            | CannotRedoPutToExisting (putType, item, destPath) ->
-                let putType = putType |> string |> String.toLower
-                sprintf "Could not redo %s of %s because an item already exists at %s" putType item.Description destPath
+            | CannotRedoPutToExisting (putType, putItem, pathFormat) ->
+                sprintf "Could not redo %s of %s because an item already exists at %s"
+                    (putType.ToLowerString()) putItem.Source.Name (putItem.Dest.Format pathFormat)
             | NoUndoActions ->
                 "No more actions to undo"
             | NoRedoActions ->
@@ -904,7 +915,7 @@ type MainModel = {
           PutItems (putType2, intent2, actual2, true) :: tail
                 when putType1 = putType2 && PutItem.intentEquals intent1 intent2 ->
             // take distinct items by path, keeping the newer items
-            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Item.Path) |> List.rev
+            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Source) |> List.rev
             PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
         | DeletedItems (permanent1, items1, cancelled1) ::
           DeletedItems (permanent2, items2, true) :: tail

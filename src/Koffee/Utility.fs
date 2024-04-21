@@ -2,6 +2,7 @@
 module Utility
 
 open System
+open System.Collections.Generic
 open System.Text.RegularExpressions
 open System.Linq
 open System.Reactive.Linq
@@ -51,6 +52,12 @@ module Result =
         match opt with
         | Some a -> Error a
         | None -> Ok ()
+
+type Dictionary<'K, 'V> with
+    member this.TryGetValueOption key =
+        match this.TryGetValue key with
+        | true, value -> Some value
+        | _ -> None
 
 module FormatString =
     let date = "yyyy-MM-dd"

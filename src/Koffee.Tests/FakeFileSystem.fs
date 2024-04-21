@@ -134,8 +134,8 @@ type FakeFileSystem(treeItems) =
             Ok ()
 
     let checkExn isWrite path =
-        match exnPaths.TryGetValue path with
-        | true, exns ->
+        match exnPaths.TryGetValueOption path with
+        | Some exns ->
             let rec popWhere pred skipped lst =
                 match lst with
                 | [] -> (None, skipped)
@@ -147,7 +147,7 @@ type FakeFileSystem(treeItems) =
             else
                 exnPaths.[path] <- rest
             exnItem |> Option.map (fst >> Error) |? Ok ()
-        | _ ->
+        | None ->
             Ok ()
 
     let checkCancelToken () =
@@ -180,10 +180,10 @@ type FakeFileSystem(treeItems) =
 
     member this.AddExnPath writeOnly e path =
         let exnItem = (e, writeOnly)
-        match exnPaths.TryGetValue path with
-        | true, exns ->
+        match exnPaths.TryGetValueOption path with
+        | Some exns ->
             exnPaths.[path] <- exns @ [exnItem]
-        | _ ->
+        | None ->
             exnPaths.Add(path, [exnItem])
 
     member this.CancelAfterWriteCount writes cancelToken =
@@ -240,9 +240,7 @@ type FakeFileSystem(treeItems) =
 
     member this.GetShortcutTarget path = result {
         do! checkExn false path
-        match shortcuts.TryGetValue path with
-        | true, p -> return p
-        | _ -> return! Error notAShortcut
+        return! shortcuts.TryGetValueOption path |> Result.ofOption notAShortcut
     }
 
     member this.IsEmpty path =
@@ -297,11 +295,10 @@ type FakeFileSystem(treeItems) =
                 remove toPath
             substitute item { item with Path = toPath; Name = toPath.Name }
 
-            match shortcuts.TryGetValue fromPath with
-            | true, target ->
+            shortcuts.TryGetValueOption fromPath |> Option.iter (fun target ->
                 shortcuts.Remove(fromPath) |> ignore
                 shortcuts.Add(toPath, target)
-            | _ -> ()
+            )
 
             if item.Type = Folder then
                 for item in this.ItemsIn fromPath do
@@ -321,9 +318,9 @@ type FakeFileSystem(treeItems) =
             remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
         items <- newItem :: items
-        match shortcuts.TryGetValue fromPath with
-        | true, target -> shortcuts.Add(toPath, target)
-        | _ -> ()
+        shortcuts.TryGetValueOption fromPath |> Option.iter (fun target ->
+            shortcuts.Add(toPath, target)
+        )
         checkCancelToken ()
     }
 

@@ -53,7 +53,7 @@ let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel
 }
 
 let dropOut (fsReader: IFileSystemReader) putType (model: MainModel) =
-    // TODO: move to MainAction, call removeItem
+    // TODO: move to MainAction, call removeItem or refresh
     // TODO: support multiple items
     if putType = Move && fsReader.GetItem model.CursorItem.Path = Ok None then
         let items = model.Items |> List.except [model.CursorItem] |> model.ItemsOrEmpty

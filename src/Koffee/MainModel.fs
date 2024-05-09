@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -40,6 +40,7 @@ type ItemType =
         | NetHost -> "💻"
         | Empty -> ""
 
+// TODO: try refactoring to record type
 type ItemRef = Path * ItemType
 
 module ItemRef =
@@ -182,6 +183,23 @@ type InputMode =
     | Confirm of ConfirmType
     | Input of InputType
 
+type PutIntent = {
+    SourceRef: ItemRef
+    DestParent: Path
+    Overwrite: bool
+}
+with
+    member this.Description pathFormat =
+        sprintf "%s to \"%s\"" (ItemRef.describe this.SourceRef) (this.DestParent.Format pathFormat)
+
+    member this.GetDest isShortcut =
+        let sourcePath = fst this.SourceRef
+        this.DestParent.Join (sourcePath.Name + if isShortcut then ".lnk" else "")
+
+    static member equalSourceAndDest intent1 intent2 =
+        intent1.SourceRef = intent2.SourceRef &&
+        intent1.DestParent = intent2.DestParent
+
 type PutItem = {
     ItemType: ItemType
     Source: Path
@@ -189,11 +207,6 @@ type PutItem = {
     DestExists: bool
 }
 with
-    static member intentEquals (a: PutItem) (b: PutItem) =
-        a.Source = b.Source &&
-        a.Dest = b.Dest &&
-        a.ItemType = b.ItemType
-
     static member reverse putItem =
         { putItem with Source = putItem.Dest; Dest = putItem.Source }
 
@@ -208,7 +221,7 @@ with
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItems of PutType * intent: PutItem * actual: PutItem list * cancelled: bool
+    | PutItems of PutType * intent: PutIntent * actual: PutItem list * cancelled: bool
     | DeletedItems of permanent: bool * Item list * cancelled: bool
 with
     member this.Description pathFormat =
@@ -223,7 +236,7 @@ with
                 |> function
                     | 0 -> ""
                     | count -> sprintf " (%i files)" count
-            sprintf "%O %s%s" putType ([intent] |> PutItem.describeList pathFormat) fileCountStr
+            sprintf "%O %s%s" putType (intent.Description pathFormat) fileCountStr
         | DeletedItems (permanent, items, _) ->
             match items with
             | item :: rest ->
@@ -252,6 +265,9 @@ type InputError =
         | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
         | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
 
+type TooManyCopiesOfNameException(name) =
+    inherit exn(sprintf "There are already too many copies of \"%s\"" name)
+
 type UndoMoveBlockedByExistingItemException() =
     inherit exn("An item already exists in the previous location")
 
@@ -266,11 +282,11 @@ module MainStatus =
             sprintf "Created %s" item.Description
         | RenamedItem (item, newName) ->
             sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItems (Move, item, _, _) ->
-            sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, item, _, _) ->
-            sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Shortcut, {ItemType = typ; Source = src}, _, _) ->
+        | PutItems (Move, intent, _, _) ->
+            sprintf "Moved %s" (intent.Description pathFormat)
+        | PutItems (Copy, intent, _, _) ->
+            sprintf "Copied %s" (intent.Description pathFormat)
+        | PutItems (Shortcut, {SourceRef = (src, typ)}, _, _) ->
             sprintf "Created shortcut to %s \"%s\"" (typ.ToLowerString()) (src.Format pathFormat)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
@@ -385,23 +401,23 @@ module MainStatus =
                 sprintf "Removed network host%s: %s" plural (names |> String.concat ", ")
 
     type Busy =
-        | PuttingItem of isCopy: bool * isRedo: bool * PutItem * PathFormat
+        | PuttingItem of isCopy: bool * isRedo: bool * PutIntent * PathFormat
         | DeletingItems of permanent: bool * Item list
         | PreparingPut of PutType * name: string
         | CheckingIsRecyclable
         | PreparingDelete of Item list
         | UndoingCreate of Item
-        | UndoingPut of isCopy: bool * PutItem * PathFormat
+        | UndoingPut of isCopy: bool * PutIntent * PathFormat
         | RedoingDeleting of permanent: bool * Item list
 
         member this.Message =
             match this with
-            | PuttingItem (isCopy, isRedo, putItem, pathFormat) ->
+            | PuttingItem (isCopy, isRedo, intent, pathFormat) ->
                 let action =
                     if isRedo
                     then sprintf "Redoing %s of" (if isCopy then "copy" else "move")
                     else if isCopy then "Copying" else "Moving"
-                sprintf "%s %s..." action ([putItem] |> PutItem.describeList pathFormat)
+                sprintf "%s %s..." action (intent.Description pathFormat)
             | DeletingItems (permanent, items) ->
                 let action = if permanent then "Deleting" else "Recycling"
                 sprintf "%s %s..." action (Item.describeList items)
@@ -417,9 +433,9 @@ module MainStatus =
                 sprintf "Preparing to delete %s..." descr
             | UndoingCreate item ->
                 sprintf "Undoing creation of %s - Deleting..." item.Description
-            | UndoingPut (isCopy, putItem, pathFormat) ->
+            | UndoingPut (isCopy, intent, pathFormat) ->
                 let action = if isCopy then "copy" else "move"
-                sprintf "Undoing %s of %s..." action (PutItem.describeList pathFormat [putItem])
+                sprintf "Undoing %s of %s..." action (intent.Description pathFormat)
             | RedoingDeleting (permanent, items) ->
                 let action = if permanent then "deletion" else "recycle"
                 sprintf "Redoing %s of %s..." action (Item.describeList items)
@@ -441,7 +457,6 @@ module MainStatus =
         | CouldNotDeleteCopyDest of name: string * exn
         | CannotUndoNonEmptyCreated of Item
         | CannotUndoDelete of permanent: bool * items: Item list
-        | CannotRedoPutToExisting of putType: PutType * PutItem * PathFormat
         | NoUndoActions
         | NoRedoActions
         | NoFilesSelected
@@ -504,9 +519,6 @@ module MainStatus =
                 if permanent
                 then sprintf "Cannot undo deletion of %s" (Item.describeList items)
                 else sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore items" (Item.describeList items)
-            | CannotRedoPutToExisting (putType, putItem, pathFormat) ->
-                sprintf "Could not redo %s of %s because an item already exists at %s"
-                    (putType.ToLowerString()) putItem.Source.Name (putItem.Dest.Format pathFormat)
             | NoUndoActions ->
                 "No more actions to undo"
             | NoRedoActions ->
@@ -911,7 +923,7 @@ type MainModel = {
         match actionStack with
         | PutItems (putType1, intent1, actual1, cancelled1) ::
           PutItems (putType2, intent2, actual2, true) :: tail
-                when putType1 = putType2 && PutItem.intentEquals intent1 intent2 ->
+                when putType1 = putType2 && PutIntent.equalSourceAndDest intent1 intent2 ->
             // take distinct items by path, keeping the newer items
             let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Source) |> List.rev
             PutItems (putType1, intent2, mergedActual, cancelled1) :: tail

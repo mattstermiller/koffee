@@ -189,9 +189,9 @@ let registerSelectedItems putType (model: MainModel) =
             else None
         )
     match regItems |> List.tryHead with
-    | Some (path, itemType) ->
+    | Some itemRef ->
         { model with
-            Config = { model.Config with YankRegister = Some (path, itemType, putType) }
+            Config = { model.Config with YankRegister = Some (itemRef, putType) }
             Status = None
         }
     | None -> model
@@ -377,28 +377,33 @@ let private performPut (fs: IFileSystem) progress (undoIter: int option) enumErr
             |> openDest
     }
 
-let putToDestination (fs: IFileSystem) (progress: Progress) isRedo overwrite putType item destPath model = asyncSeqResult {
+let putToDestination (fs: IFileSystem) (progress: Progress) isRedo overwrite putType ((sourcePath, itemType): ItemRef)
+        destPath model = asyncSeqResult {
     let! existing = fs.GetItem destPath |> actionError "check destination path"
     match existing with
     | Some existing when not overwrite && not isRedo ->
         // refresh item list to make sure we can see the existing file
         let! model = Nav.openPath fs model.Location (CursorToItem (existing, true)) model
+        let! sourceItem =
+            fs.GetItem sourcePath
+            |> Result.bind (Result.ofOption (exn "source item missing"))
+            |> actionError "read source item"
         yield
             { model with
-                InputMode = Some (Confirm (Overwrite (putType, item, existing)))
+                InputMode = Some (Confirm (Overwrite (putType, sourceItem, existing)))
                 InputText = ""
             }
     | _ ->
         let model = { model with CancelToken = CancelToken() }
-        let putItem = { ItemType = item.Type; Source = item.Path; Dest = destPath; DestExists = existing.IsSome }
-        yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, item.Name))
+        let putItem = { ItemType = itemType; Source = sourcePath; Dest = destPath; DestExists = existing.IsSome }
+        yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, sourcePath.Name))
         progress.Start ()
         let! enumerated =
             match putType with
             | Shortcut ->
                 async { return [Ok putItem] }
             | Move | Copy ->
-                enumeratePutItems fs model.CancelToken (putType = Copy) item.Type destPath item.Path
+                enumeratePutItems fs model.CancelToken (putType = Copy) itemType destPath sourcePath
                 |> AsyncSeq.toListAsync
         if model.CancelToken.IsCancelled then
             yield model |> MainModel.withMessage (MainStatus.CancelledPut (putType, false, 0, enumerated.Length))
@@ -437,48 +442,48 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo overwrite put
             yield! performPut fs progress None enumErrors putType putItem items model
 }
 
-let putInLocation (fs: IFileSystem) progress isRedo overwrite putType item model = asyncSeqResult {
-    let sameFolder = item.Path.Parent = model.Location
-    if putType = Move && sameFolder then
-        return MainStatus.CannotMoveToSameFolder
+let putInLocation (fs: IFileSystem) progress isRedo overwrite putType (itemRef: ItemRef) model = asyncSeqResult {
     do! fs.GetItem model.Location
         |> actionError "read put location"
         |> Result.okIf (Option.exists (fun l -> l.Type.CanCreateIn)) MainStatus.CannotPutHere
         |> Result.map ignore
+    let path = fst itemRef
+    let sameFolder = path.Parent = model.Location
+    if putType = Move && sameFolder then
+        return MainStatus.CannotMoveToSameFolder
     let! destName =
         match putType with
         | Copy when sameFolder ->
-            let unused name =
-                match fs.GetItem (model.Location.Join name) with
-                | Ok None -> true
-                | _ -> false
-            Seq.init 99 (getCopyName item.Name)
-            |> Seq.tryFind unused
-            |> Result.ofOption (MainStatus.TooManyCopies item.Name)
+            result {
+                let! existingDestNames =
+                    fs.GetItems model.Location
+                    |> Result.map (List.map (fun i -> i.Name.ToLower()) >> Set)
+                    |> actionError "read location items"
+                return!
+                    Seq.init 99 (getCopyName path.Name)
+                    |> Seq.tryFind (fun name -> not (existingDestNames |> Set.contains (name.ToLower())))
+                    |> Result.ofOption (MainStatus.TooManyCopies path.Name)
+            }
         | Shortcut ->
-            Ok (item.Name + ".lnk")
+            Ok (path.Name + ".lnk")
         | _ ->
-            Ok item.Name
+            Ok path.Name
     let destPath = model.Location.Join destName
-    yield! putToDestination fs progress isRedo overwrite putType item destPath model
+    yield! putToDestination fs progress isRedo overwrite putType itemRef destPath model
 }
 
 let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult {
     match model.Config.YankRegister with
     | None -> ()
-    | Some (path, _, putType) ->
+    | Some (itemRef, putType) ->
         if model.IsSearchingSubFolders then
             return MainStatus.CannotPutHere
-        match! fs.GetItem path |> actionError "read yank register item" with
-        | Some item ->
-            let! model = putInLocation fs progress false overwrite putType item model
-            let wasImmediatelyCanceled =
-                match model.Status with Some (MainStatus.Message (MainStatus.CancelledPut (_, _, 0, _))) -> true | _ -> false
-            // if not cancelled or opened input for confirmation, clear yank register
-            if not wasImmediatelyCanceled && model.InputMode.IsNone then
-                yield { model with Config = { model.Config with YankRegister = None } }
-        | None ->
-            return MainStatus.YankRegisterItemMissing (path.Format model.PathFormat)
+        let! model = putInLocation fs progress false overwrite putType itemRef model
+        let wasImmediatelyCanceled =
+            match model.Status with Some (MainStatus.Message (MainStatus.CancelledPut (_, _, 0, _))) -> true | _ -> false
+        // if not cancelled or opened input for confirmation, clear yank register
+        if not wasImmediatelyCanceled && model.InputMode.IsNone then
+            yield { model with Config = { model.Config with YankRegister = None } }
 }
 
 let undoMove (fs: IFileSystem) progress undoIter (intent: PutItem) (moved: PutItem list) (model: MainModel) =
@@ -760,10 +765,6 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                 let! model = openPath item.Path.Parent
                 yield! rename fs item newName model
             | PutItems (putType, intent, _, cancelled) ->
-                let! item =
-                    fs.GetItem intent.Source
-                    |> Result.bind (Result.ofOption (RedoPutItemMissingException() :> exn))
-                    |> actionError "read source path"
                 let! model = openPath intent.Dest.Parent
                 let overwrite = intent.DestExists
                 if not overwrite && not cancelled then
@@ -772,7 +773,7 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                         yield Nav.moveCursor (CursorToItem (existing, true)) model
                         return MainStatus.CannotRedoPutToExisting (putType, intent, model.PathFormat)
                     | None -> ()
-                yield! putToDestination fs progress true overwrite putType item intent.Dest model
+                yield! putToDestination fs progress true overwrite putType intent.SourceRef intent.Dest model
             | DeletedItems (permanent, items, _) ->
                 let! model =
                     openPath items.Head.Path.Parent

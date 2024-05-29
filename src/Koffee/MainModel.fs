@@ -40,8 +40,10 @@ type ItemType =
         | NetHost -> "💻"
         | Empty -> ""
 
+type ItemRef = Path * ItemType
+
 module ItemRef =
-    let describe (typ: ItemType) (path: Path) =
+    let describe ((path, typ): ItemRef) =
         sprintf "%s \"%s\"" (typ.ToLowerString()) path.Name
 
 type Item = {
@@ -55,7 +57,9 @@ type Item = {
 with
     override this.ToString() = sprintf "%O at %O" this.Type this.Path
 
-    member this.Description = ItemRef.describe this.Type this.Path
+    member this.Ref = (this.Path, this.Type)
+
+    member this.Description = ItemRef.describe this.Ref
 
     member this.TypeName = this.Type.ToString()
 
@@ -193,10 +197,10 @@ with
     static member reverse putItem =
         { putItem with Source = putItem.Dest; Dest = putItem.Source }
 
-    static member describeList pathFormat putItems =
+    static member describeList pathFormat (putItems: PutItem list) =
         match putItems with
         | [putItem] ->
-            sprintf "%s to \"%s\"" (ItemRef.describe putItem.ItemType putItem.Source) (putItem.Dest.Format pathFormat)
+            sprintf "%s to \"%s\"" (ItemRef.describe (putItem.Source, putItem.ItemType)) (putItem.Dest.Format pathFormat)
         | {Dest = dest} :: _ ->
             sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
         | [] -> "0 items"
@@ -250,9 +254,6 @@ type InputError =
 
 type UndoMoveBlockedByExistingItemException() =
     inherit exn("An item already exists in the previous location")
-
-type RedoPutItemMissingException() =
-    inherit exn("The item no longer exists")
 
 type RedoPutBlockedByExistingItemException() =
     inherit exn("An item already exists in the destination")
@@ -430,7 +431,6 @@ module MainStatus =
         | CouldNotOpenPath of Path * PathFormat * exn
         | NoPreviousSearch
         | ShortcutTargetMissing of string
-        | YankRegisterItemMissing of string
         | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
         | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotPutHere
@@ -478,8 +478,6 @@ module MainStatus =
                 "No previous search to repeat"
             | ShortcutTargetMissing path ->
                 "Shortcut target does not exist: " + path
-            | YankRegisterItemMissing path ->
-                "Item in yank register no longer exists: " + path
             | PutError (isUndo, putType, errorPaths, totalItems) ->
                 let undo = if isUndo then "undo " else ""
                 this.ItemErrorsDescription (undo + putType.ToLowerString()) errorPaths totalItems
@@ -571,7 +569,7 @@ type Config = {
     TextEditor: string
     CommandlinePath: string
     SearchExclusions: string list
-    YankRegister: (Path * ItemType * PutType) option
+    YankRegister: (ItemRef * PutType) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list

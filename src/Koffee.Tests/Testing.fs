@@ -113,13 +113,17 @@ type DifferentStatusTypeComparer() as this =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
 
     override _.IsTypeMatch(type1, type2) =
+        let statusParentTypes = [
+            typeof<MainStatus.StatusType>
+            typeof<MainStatus.Message>
+            typeof<MainStatus.Busy>
+            typeof<MainStatus.Error>
+        ]
         let isStatusType (t: Type) =
-            t <> null && t.BaseType |> Seq.containedIn [
-                typeof<MainStatus.StatusType>
-                typeof<MainStatus.Message>
-                typeof<MainStatus.Busy>
-                typeof<MainStatus.Error>
-            ]
+            t <> null && (
+                t |> Seq.containedIn statusParentTypes ||
+                t.BaseType |> Seq.containedIn statusParentTypes
+            )
         [type1; type2] |> List.forall isStatusType && type1 <> type2
 
     override _.CompareType parms =

@@ -42,8 +42,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     ]
     let src = fs.Item "/c/other/file"
     let dest = fs.Item ("/c/" + destName)
-    let item = Some (src.Path, src.Type, putType)
-    let model = testModel |> withReg item
+    let model = testModel |> withReg (Some (src.Ref, putType))
     let expectedItems = fs.ItemsIn "/c"
 
     let actual = seqResult (Action.put fs progress false) model
@@ -61,25 +60,19 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 
 [<Test>]
 let ``Put handles missing register item`` () =
-    let src = createFile "/c/file"
-    let fs = FakeFileSystem []
-    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
+    let src = createFile "/c/folder/file"
+    let fs = FakeFileSystem [
+        folder "folder" []
+    ]
+    let model = testModel |> withReg (Some (src.Ref, Move))
 
     let actual = seqResult (Action.put fs progress false) model
 
-    let expected = model |> MainModel.withError (MainStatus.YankRegisterItemMissing (src.Path.Format model.PathFormat))
-    assertAreEqual expected actual
-
-[<Test>]
-let ``Put handles error reading register item`` () =
-    let src = createFile "/c/file"
-    let fs = FakeFileSystem []
-    fs.AddExnPath false ex src.Path
-    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
-
-    let actual = seqResult (Action.put fs progress false) model
-
-    let expected = model |> MainModel.withError (MainStatus.ActionError ("read yank register item", ex))
+    let expectedEx = FakeFileSystemErrors.pathDoesNotExist src.Path
+    let expected =
+        model
+        |> MainModel.withError (MainStatus.PutError (false, Move, [src.Path, expectedEx], 1))
+        |> withNewCancelToken
     assertAreEqual expected actual
 
 [<TestCaseSource("putTypeCases")>]
@@ -92,8 +85,7 @@ let ``Put item handles file system errors`` putType =
     let src = fs.Item "/c/folder/file"
     let destPath = "/c/file" + (if putType = Shortcut then ".lnk" else "") |> createPath
     fs.AddExnPath true ex destPath
-    let item = Some (src.Path, src.Type, putType)
-    let model = testModel |> withReg item
+    let model = testModel |> withReg (Some (src.Ref, putType))
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.put fs progress false) model
@@ -122,7 +114,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     let putType = if copy then Copy else Move
     let model =
         testModel
-        |> withReg (Some (src.Path, src.Type, putType))
+        |> withReg (Some (src.Ref, putType))
         |> withHistoryPaths [itemHistoryPath src]
 
     let actual = seqResult (Action.put fs progress overwrite) model
@@ -186,7 +178,7 @@ let ``Put or redo put folder handles partial success by updating undo and settin
         |> MainModel.withLocation dest.Parent
         |> if isRedo
             then pushRedo (PutItems (putType, putItem, [], false))
-            else withReg (Some (src.Path, src.Type, putType))
+            else withReg (Some (src.Ref, putType))
         |> withHistoryPaths (historyPaths {
             "/c/fruit/amazing/banana"
             "/d/other/"
@@ -288,7 +280,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
     ]
     let regItem =
         if not isRedo
-        then Some (src.Path, src.Type, putType)
+        then Some (src.Ref, putType)
         else None
     let model =
         testModel
@@ -491,7 +483,7 @@ let ``Put or redo put enumerated folder handles partial success with cancellatio
     fs.AddExnPath true ex errorItem.Dest
     let regItem =
         if not isRedo
-        then Some (src.Path, src.Type, putType)
+        then Some (src.Ref, putType)
         else None
     let model =
         testModel
@@ -590,7 +582,7 @@ let ``Put enumerated folder does nothing when canceled immediately`` (copy: bool
     ]
     let src = fs.Item "/c/fruit"
     let putType = if copy then Copy else Move
-    let model = testModel |> withLocation "/d" |> withReg (Some (src.Path, src.Type, putType))
+    let model = testModel |> withLocation "/d" |> withReg (Some (src.Ref, putType))
     let expectedFs = fs.Items
 
     let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (Action.put fs progress false) model
@@ -631,7 +623,7 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
     let src = fs.Item "/c/fruit"
     let dest = createFolder "/c/dest/fruit"
     let putType = if copy then Copy else Move
-    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, putType))
+    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Ref, putType))
 
     let actual = seqResult (Action.put fs progress true) model
 
@@ -1083,7 +1075,7 @@ let ``Put folder to move deletes source folder after enumerated move and updates
     let model =
         testModel
         |> MainModel.withLocation dest.Path.Parent
-        |> withReg (Some (src.Path, src.Type, Move))
+        |> withReg (Some (src.Ref, Move))
         |> withHistoryPaths (historyPaths {
             "/c/folder/file"
             "/c/dest2/unrelated"
@@ -1141,7 +1133,7 @@ let ``Put item to move in same folder returns error``() =
         file "file"
     ]
     let src = fs.Item "/c/file"
-    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
+    let model = testModel |> withReg (Some (src.Ref, Move))
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.put fs progress false) model
@@ -1547,7 +1539,7 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
         yield! copyNames "file" existingCopies |> List.map file
     ]
     let src = fs.Item "/c/file"
-    let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
+    let model = testModel |> withReg (Some (src.Ref, Copy))
 
     let actual = seqResult (Action.put fs progress false) model
 
@@ -2090,7 +2082,7 @@ let ``Put shortcut calls file sys create shortcut`` overwrite =
     ]
     let target = fs.Item "/c/src/file"
     let shortcut = createFile "/c/file.lnk"
-    let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
+    let model = testModel |> withReg (Some (target.Ref, Shortcut))
 
     let actual = seqResult (Action.put fs progress overwrite) model
 

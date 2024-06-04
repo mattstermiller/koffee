@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -23,14 +23,16 @@ type ItemType =
         | Drive | Folder | NetShare -> true
         | _ -> false
 
-    override this.ToString() =
+    member this.Name =
         match this with
         | NetHost -> "Network Host"
         | NetShare -> "Network Share"
         | Empty -> ""
         | _ -> sprintf "%A" this
 
-    member this.ToLowerString() = this.ToString().ToLower()
+    member this.NameLower = this.Name.ToLower()
+
+    override this.ToString() = this.Name
 
     member this.Symbol =
         match this with
@@ -45,7 +47,7 @@ type ItemRef = Path * ItemType
 
 module ItemRef =
     let describe ((path, typ): ItemRef) =
-        sprintf "%s \"%s\"" (typ.ToLowerString()) path.Name
+        sprintf "%s \"%s\"" typ.NameLower path.Name
 
 type Item = {
     Path: Path
@@ -62,7 +64,7 @@ with
 
     member this.Description = ItemRef.describe this.Ref
 
-    member this.TypeName = this.Type.ToString()
+    member this.TypeName = this.Type.Name
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
@@ -287,7 +289,7 @@ module MainStatus =
         | PutItems (Copy, intent, _, _) ->
             sprintf "Copied %s" (intent.Description pathFormat)
         | PutItems (Shortcut, {SourceRef = (src, typ)}, _, _) ->
-            sprintf "Created shortcut to %s \"%s\"" (typ.ToLowerString()) (src.Format pathFormat)
+            sprintf "Created shortcut to %s \"%s\"" typ.NameLower (src.Format pathFormat)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->

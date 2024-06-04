@@ -234,8 +234,8 @@ module MainView =
             // display yank register
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
-                    register |> Option.map (fun ((path, itemType), putType) ->
-                        sprintf "%A: %s %s" putType itemType.Symbol path.Name)
+                    register |> Option.map (fun (itemRef, putType) ->
+                        sprintf "%A: %s %s" putType itemRef.Type.Symbol itemRef.Path.Name)
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.IsCollapsed <- text.IsNone
             )

@@ -182,7 +182,7 @@ let registerSelectedItems putType (model: MainModel) =
     let regItems =
         model.ActionItems |> List.choose (fun item ->
             if item.Type.CanModify
-            then Some (item.Path, item.Type)
+            then Some item.Ref
             else None
         )
     match regItems |> List.tryHead with
@@ -215,7 +215,7 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
         | Ok existingNames ->
             let nameExists name =
                 existingNames |> Set.contains (name |> String.toLower)
-            for src, typ in srcRefs do
+            for { Path = src; Type = typ } in srcRefs do
                 if not cancelToken.IsCancelled then
                     let destNameAndExistsResult =
                         if src.Parent = destParent then
@@ -310,7 +310,7 @@ let rec private getDirectChildOfBase basePath (subPath: Path) =
     else if subPath.Parent = basePath then subPath
     else getDirectChildOfBase basePath subPath.Parent
 
-let private performPut (fs: IFileSystem) progress undoIter enumErrors putType intent items (model: MainModel) =
+let private performPut (fs: IFileSystem) progress undoIter enumErrors putType (intent: PutIntent) items (model: MainModel) =
     asyncSeqResult {
         let isUndo = undoIter |> Option.isSome
         let! results = items |> performPutItems fs progress model.CancelToken isUndo putType
@@ -324,10 +324,9 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
 
         let! deletedFolders, deleteFolderErrors = async {
             // for folders that were enumerated and contents were moved, delete empty source folders
-            let intentSource, intentType = intent.SourceRef
-            let actualIntentSource = if isUndo then intent.GetDest false else intentSource
+            let actualIntentSource = if isUndo then intent.GetDest false else intent.Source.Path
             let actualSource putItem = if isUndo then putItem.Dest else putItem.Source
-            if putType = Move && intentType = Folder
+            if putType = Move && intent.Source.Type = Folder
                     && not (items |> List.exists (fun putItem -> (actualSource putItem) = actualIntentSource)) then
                 return! deleteEmptyFolders fs actualIntentSource
             else
@@ -361,9 +360,7 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
                 let isCompleted = errorPaths.IsEmpty && not model.CancelToken.IsCancelled
                 let pathReplacements =
                     if isCompleted && shouldReplaceHistory intent.Overwrite then
-                        let source = fst intent.SourceRef
-                        let dest = intent.GetDest false
-                        Map [getReplacement source dest]
+                        Map [getReplacement intent.Source.Path (intent.GetDest false)]
                     else
                         succeeded
                         |> List.filter (fun putItem -> shouldReplaceHistory putItem.DestExists)
@@ -376,11 +373,10 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
             else
                 model
         let openDest model =
-            let source = fst intent.SourceRef
             let dest =
                 if isUndo then
-                    source
-                else if putType = Copy && source.Parent = intent.DestParent then
+                    intent.Source.Path
+                else if putType = Copy && intent.Source.Path.Parent = intent.DestParent then
                     // if copied to same parent, get copy name from putItems
                     getDirectChildOfBase intent.DestParent succeeded.Head.Dest
                 else
@@ -412,10 +408,9 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
             |> openDest
     }
 
-let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType intent model = asyncSeqResult {
-    let sourcePath = fst intent.SourceRef
+let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType (intent: PutIntent) model = asyncSeqResult {
     let model = { model with CancelToken = CancelToken() }
-    yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, sourcePath.Name))
+    yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, intent.Source.Path.Name))
     progress.Start ()
     let alreadyPutItemsForResume =
         if isRedo then
@@ -427,7 +422,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
             )
         else []
     let copyNameToReuse =
-        if sourcePath.Parent = intent.DestParent then
+        if intent.Source.Path.Parent = intent.DestParent then
             alreadyPutItemsForResume |> List.tryHead |> Option.map (fun putItem ->
                 (getDirectChildOfBase intent.DestParent putItem.Dest).Name
             )
@@ -438,7 +433,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
             let deepExistsCheck = intent.Overwrite || not alreadyPutItemsForResume.IsEmpty
             return!
                 enumeratePutItems fs model.CancelToken deepExistsCheck (putType = Copy) copyNameToReuse
-                    intent.DestParent [intent.SourceRef]
+                    intent.DestParent [intent.Source]
                 |> AsyncSeq.toListAsync
         | Shortcut ->
             let destPath = intent.GetDest true
@@ -447,8 +442,8 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
                 return [Error (destPath, e)]
             | Ok existing ->
                 let putItem = {
-                    ItemType = snd intent.SourceRef
-                    Source = sourcePath
+                    ItemType = intent.Source.Type
+                    Source = intent.Source.Path
                     Dest = destPath
                     DestExists = existing.IsSome
                 }
@@ -470,7 +465,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
             |> Result.bind (Result.ofOption (exn "existing item missing")) // shouldn't ever happen :)
             |> actionError "read existing item"
         let! sourceItem =
-            fs.GetItem sourcePath
+            fs.GetItem intent.Source.Path
             |> Result.bind (Result.ofOption (exn "source item missing"))
             |> actionError "read source item"
         let! model = Nav.openPath fs model.Location (CursorToItem (existing, true)) model
@@ -517,11 +512,10 @@ let putInLocation (fs: IFileSystem) progress isRedo overwrite putType (itemRef: 
         |> actionError "read put location"
         |> Result.okIf (Option.exists (fun l -> l.Type.CanCreateIn)) MainStatus.CannotPutHere
         |> Result.map ignore
-    let path = fst itemRef
-    let sameFolder = path.Parent = model.Location
+    let sameFolder = itemRef.Path.Parent = model.Location
     if putType = Move && sameFolder then
         return MainStatus.CannotMoveToSameFolder
-    let intent = { SourceRef = itemRef; DestParent = model.Location; Overwrite = overwrite }
+    let intent = { Source = itemRef; DestParent = model.Location; Overwrite = overwrite }
     yield! putToDestination fs progress isRedo putType intent model
 }
 
@@ -586,12 +580,11 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
 
     let! deletedFolders, deleteFolderErrors = async {
         // delete empty copied folders
-        let intentSource, intentType = intent.SourceRef
         let intentDest =
-            if intentSource.Parent = intent.DestParent
+            if intent.Source.Path.Parent = intent.DestParent
             then copied.Head.Dest |> getDirectChildOfBase intent.DestParent
             else intent.GetDest false
-        if intentType = Folder && not (copied |> List.exists (fun putItem -> putItem.Dest = intentDest)) then
+        if intent.Source.Type = Folder && not (copied |> List.exists (fun putItem -> putItem.Dest = intentDest)) then
             return! deleteEmptyFolders fs intentDest
         else
             return ([], [])

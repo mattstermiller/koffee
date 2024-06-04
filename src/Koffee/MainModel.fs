@@ -42,11 +42,14 @@ type ItemType =
         | NetHost -> "💻"
         | Empty -> ""
 
-// TODO: try refactoring to record type
-type ItemRef = Path * ItemType
+type ItemRef = {
+    Path: Path
+    Type: ItemType
+}
+with
+    member this.Description = ItemRef.describe this.Path this.Type
 
-module ItemRef =
-    let describe ((path, typ): ItemRef) =
+    static member describe (path: Path) (typ: ItemType) =
         sprintf "%s \"%s\"" typ.NameLower path.Name
 
 type Item = {
@@ -60,13 +63,13 @@ type Item = {
 with
     override this.ToString() = sprintf "%O at %O" this.Type this.Path
 
-    member this.Ref = (this.Path, this.Type)
-
-    member this.Description = ItemRef.describe this.Ref
+    member this.Description = ItemRef.describe this.Path this.Type
 
     member this.TypeName = this.Type.Name
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
+
+    member this.Ref = { Path = this.Path; Type = this.Type }
 
     static member Empty =
         { Path = Path.Root; Name = ""; Type = Empty
@@ -186,20 +189,19 @@ type InputMode =
     | Input of InputType
 
 type PutIntent = {
-    SourceRef: ItemRef
+    Source: ItemRef
     DestParent: Path
     Overwrite: bool
 }
 with
     member this.Description pathFormat =
-        sprintf "%s to \"%s\"" (ItemRef.describe this.SourceRef) (this.DestParent.Format pathFormat)
+        sprintf "%s to \"%s\"" this.Source.Description (this.DestParent.Format pathFormat)
 
     member this.GetDest isShortcut =
-        let sourcePath = fst this.SourceRef
-        this.DestParent.Join (sourcePath.Name + if isShortcut then ".lnk" else "")
+        this.DestParent.Join (this.Source.Path.Name + if isShortcut then ".lnk" else "")
 
     static member equalSourceAndDest intent1 intent2 =
-        intent1.SourceRef = intent2.SourceRef &&
+        intent1.Source = intent2.Source &&
         intent1.DestParent = intent2.DestParent
 
 type PutItem = {
@@ -215,7 +217,7 @@ with
     static member describeList pathFormat (putItems: PutItem list) =
         match putItems with
         | [putItem] ->
-            sprintf "%s to \"%s\"" (ItemRef.describe (putItem.Source, putItem.ItemType)) (putItem.Dest.Format pathFormat)
+            sprintf "%s to \"%s\"" (ItemRef.describe putItem.Source putItem.ItemType) (putItem.Dest.Format pathFormat)
         | {Dest = dest} :: _ ->
             sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
         | [] -> "0 items"
@@ -288,8 +290,8 @@ module MainStatus =
             sprintf "Moved %s" (intent.Description pathFormat)
         | PutItems (Copy, intent, _, _) ->
             sprintf "Copied %s" (intent.Description pathFormat)
-        | PutItems (Shortcut, {SourceRef = (src, typ)}, _, _) ->
-            sprintf "Created shortcut to %s \"%s\"" typ.NameLower (src.Format pathFormat)
+        | PutItems (Shortcut, intent, _, _) ->
+            sprintf "Created shortcut to %s \"%s\"" intent.Source.Type.NameLower (intent.Source.Path.Format pathFormat)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->

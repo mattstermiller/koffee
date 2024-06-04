@@ -286,7 +286,7 @@ let pathReplace oldPath newPath (path: Path) =
     |> Option.defaultWith (fun () -> failwithf "Problem with test: expected \"%O\" to be within path: %O" oldPath path)
 
 let createPutIntent (srcItem: Item) destParent =
-    { SourceRef = srcItem.Ref; DestParent = destParent; Overwrite = false }
+    { Source = srcItem.Ref; DestParent = destParent; Overwrite = false }
 
 let createPutItem srcItem dest = { ItemType = srcItem.Type; Source = srcItem.Path; Dest = dest; DestExists = false }
 let createPutItemFrom src dest item = createPutItem item (item.Path |> pathReplace src dest)

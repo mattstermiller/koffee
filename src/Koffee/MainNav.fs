@@ -14,24 +14,17 @@ let moveCursor cursor (model: MainModel) =
         match cursor with
         | CursorStay -> model.Cursor
         | CursorToIndex index -> index
-        | CursorToName name ->
-            let matchFunc =
-                if name.Length = 2 && name.[1] = ':'
-                then String.startsWithIgnoreCase // if name is drive, use "starts with" because drives have labels
-                else String.equalsIgnoreCase
-            model.Items |> List.tryFindIndex (fun i -> matchFunc name i.Name) |? model.Cursor
-        | CursorToItem (item, _) ->
-            model.Items |> List.tryFindIndex (fun i -> i.Path = item.Path) |? model.Cursor
+        | CursorToPath (path, _) -> model.Items |> List.tryFindIndex (fun i -> i.Path = path) |? model.Cursor
     )
 
 let listDirectory cursor model =
-    let hiddenCursorItem =
+    let possiblyHiddenPathToSelect =
         match cursor with
-        | CursorToItem (item, true) -> Some item
+        | CursorToPath (path, true) -> Some path
         | _ -> None
     let items =
         model.Directory
-        |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i = hiddenCursorItem)
+        |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i.Path = possiblyHiddenPathToSelect)
         |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
         |> model.ItemsOrEmpty
     { model with Items = items }
@@ -78,7 +71,7 @@ let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     | Some path ->
         match fsReader.GetItem path with
         | Ok (Some item) when item.Type = File ->
-            model |> MainModel.clearStatus |> openPath fsReader path.Parent (CursorToItem (item, true))
+            model |> MainModel.clearStatus |> openPath fsReader path.Parent (CursorToPath (item.Path, true))
         | Ok _ ->
             model |> MainModel.clearStatus |> openPath fsReader path CursorStay
         | Error e ->
@@ -168,16 +161,16 @@ let openParent fsReader (model: MainModel) =
         else
             model
             |> MainModel.clearStatus
-            |> openPath fsReader model.CursorItem.Path.Parent (CursorToItem (model.CursorItem, false))
+            |> openPath fsReader model.CursorItem.Path.Parent model.KeepCursorByPath
     else
-        let rec getParent n (path: Path) (currentName: string) =
-            if n < 1 || path = Path.Root then (path, currentName)
-            else getParent (n-1) path.Parent path.Name
-        let path, cursorName = getParent model.RepeatCount model.Location model.Location.Name
-        model |> MainModel.clearStatus |> openPath fsReader path (CursorToName cursorName)
+        let rec getParent n (path: Path) =
+            if n < 1 || path.Parent = Path.Root then path
+            else getParent (n-1) path.Parent
+        let path = getParent (model.RepeatCount-1) model.Location
+        model |> MainModel.clearStatus |> openPath fsReader path.Parent (CursorToPath (path, false))
 
 let refresh fsReader (model: MainModel) =
-    openPath fsReader model.Location (CursorToItem (model.CursorItem, false)) model
+    openPath fsReader model.Location model.KeepCursorByPath model
 
 let refreshDirectory fsReader (model: MainModel) =
     getDirectory fsReader model model.Location
@@ -233,7 +226,7 @@ let sortList field model =
         match model.Sort with
         | Some (f, desc) when f = field -> not desc
         | _ -> field = Modified
-    let cursor = if model.Cursor = 0 then CursorStay else CursorToItem (model.CursorItem, false)
+    let cursor = if model.Cursor = 0 then CursorStay else model.KeepCursorByPath
     { model with
         Sort = Some (field, desc)
         Items = model.Items |> SortField.SortByTypeThen (field, desc)

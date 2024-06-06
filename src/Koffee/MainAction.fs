@@ -111,9 +111,9 @@ let create (fs: IFileSystem) itemType name model = asyncSeqResult {
         do! fs.Create itemType itemPath |> itemActionError action model.PathFormat
         let model = model |> performedAction action
         yield model
-        yield! Nav.openPath fs model.Location (CursorToName name) model
+        yield! Nav.openPath fs model.Location (CursorToPath (itemPath, false)) model
     | Some existing ->
-        yield! Nav.openPath fs model.Location (CursorToItem (existing, true)) model
+        yield! Nav.openPath fs model.Location (CursorToPath (itemPath, true)) model
         return MainStatus.CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
 }
 
@@ -151,7 +151,7 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
                 |> fun model ->
                     if model.SearchCurrent.IsSome
                     then { model with Items = model.Items |> substitute }
-                    else Nav.listDirectory (CursorToName newName) model
+                    else Nav.listDirectory (CursorToPath (newPath, false)) model
                 |> performedAction action
         | Some existingItem ->
             return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)
@@ -173,7 +173,7 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
             model
             |> MainModel.mapHistory (History.withPathReplaced item.Path oldItem.Path)
             |> performedUndo undoIter (RenamedItem (oldItem, currentName))
-            |> ignoreError (Nav.openPath fs parentPath (CursorToName oldItem.Name))
+            |> ignoreError (Nav.openPath fs parentPath (CursorToPath (oldItem.Path, false)))
     | Some existingItem ->
         return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
 }
@@ -382,7 +382,7 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType (i
                 else
                     let isShortcut = (putType = Shortcut)
                     intent.GetDest isShortcut
-            model |> ignoreError (Nav.openPath fs dest.Parent (CursorToName dest.Name))
+            model |> ignoreError (Nav.openPath fs dest.Parent (CursorToPath (dest, false)))
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errorPaths.IsEmpty then
@@ -468,7 +468,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType (inte
             fs.GetItem intent.Source.Path
             |> Result.bind (Result.ofOption (exn "source item missing"))
             |> actionError "read source item"
-        let! model = Nav.openPath fs model.Location (CursorToItem (existing, true)) model
+        let! model = Nav.openPath fs model.Location (CursorToPath (existingPath, true)) model
         yield
             { model with
                 InputMode = Some (Confirm (Overwrite (putType, sourceItem, existing)))
@@ -813,10 +813,11 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
                 let! model = openPath intent.DestParent
                 yield! putToDestination fs progress true putType intent model
             | DeletedItems (permanent, items, _) ->
+                // normally, redo of delete is impossible because undo is impossible, but cancellation pushes redo action for resuming
                 let! model =
                     openPath items.Head.Path.Parent
                     |> Result.map (
-                        Nav.moveCursor (CursorToItem (items.Head, true))
+                        Nav.moveCursor (CursorToPath (items.Head.Path, true))
                         >> applyIf (not items.Tail.IsEmpty) (MainModel.selectItems (items |> Seq.map (fun i -> i.Path)))
                     )
                 yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))

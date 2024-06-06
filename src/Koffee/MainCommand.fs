@@ -10,7 +10,6 @@ let toggleHidden (model: MainModel) =
         { model with
             Config = { model.Config with ShowHidden = show }
         } |> MainModel.withMessage (MainStatus.ToggleHidden show)
-    let cursor = CursorToItem (model.CursorItem, false)
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
         let items =
@@ -18,9 +17,9 @@ let toggleHidden (model: MainModel) =
             |> filter
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
             |> model.ItemsOrEmpty
-        { model with Items = items } |> Nav.moveCursor cursor
+        { model with Items = items } |> Nav.moveCursor model.KeepCursorByPath
     | None ->
-        Nav.listDirectory cursor model
+        model |> Nav.listDirectory model.KeepCursorByPath
 
 let private getDropInPutType (event: DragEvent) (model: MainModel) (path: Path) =
     let desiredPutType =

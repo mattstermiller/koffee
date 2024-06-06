@@ -97,7 +97,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                     |> model.ItemsOrEmpty
                     |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                 Cursor = 0
-            } |> Nav.moveCursor (CursorToItem (model.CursorItem, false))
+            } |> Nav.moveCursor model.KeepCursorByPath
         let items = model.Directory |> filter
         if model.SearchInput.SubFolders then
             match model.SubDirectories with
@@ -120,7 +120,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
     | Some (Error e) ->
         yield { model with InputError = Some e }
     | None ->
-        yield model |> Nav.listDirectory (CursorToItem (model.CursorItem, false))
+        yield model |> Nav.listDirectory model.KeepCursorByPath
 }
 
 let addSubDirResults newItems model =
@@ -155,12 +155,12 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
 let clearSearch (model: MainModel) =
     { model with ShowHistoryType = None }
     |> clearSearchProps
-    |> Nav.listDirectory (CursorToItem (model.CursorItem, false))
+    |> Nav.listDirectory model.KeepCursorByPath
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.SearchCurrent with
     | Some current ->
-        let cursor = CursorToItem (model.CursorItem, false)
+        let cursor = model.KeepCursorByPath
         let! newModel = model |> Nav.openPath fsReader model.Location cursor
         let searchModels =
             { newModel with

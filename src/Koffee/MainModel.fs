@@ -258,8 +258,7 @@ with
 type CursorMoveType =
     | CursorStay
     | CursorToIndex of int
-    | CursorToName of string
-    | CursorToItem of Item * showHidden: bool
+    | CursorToPath of Path * showHidden: bool
 
 type InputError =
     | FindFailure of prefix: string
@@ -817,6 +816,8 @@ type MainModel = {
 
     member this.CursorItem =
         this.Items.[this.Cursor |> this.ClampCursor]
+
+    member this.KeepCursorByPath = CursorToPath (this.CursorItem.Path, false)
 
     member this.ActionItems =
         if not this.SelectedItems.IsEmpty then this.SelectedItems else [this.CursorItem]

@@ -60,7 +60,7 @@ let testCases () =
         ("invalid/gram", [])
     ] |> List.map (fun (inp, exp) -> TestCaseData(inp, exp))
 
-[<TestCaseSource("testCases")>]
+[<TestCaseSource(nameof testCases)>]
 let ``Path suggestions return expected results`` input expected =
     let model =
         { testModel with

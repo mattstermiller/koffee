@@ -29,7 +29,7 @@ let putItemOverwriteCases () =
 let assertAreEqual expected actual =
     assertAreEqualWith expected actual (fun comp -> comp.Config.MembersToIgnore.Remove "MainModel.History" |> ignore)
 
-[<TestCaseSource("putItemOverwriteCases")>]
+[<TestCaseSource(nameof putItemOverwriteCases)>]
 let ``Put item in different folder with item of same name prompts for overwrite`` putType existingHidden =
     let destName = if putType = Shortcut then "file.lnk" else "file"
     let fs = FakeFileSystem [
@@ -76,7 +76,7 @@ let ``Put handles missing register item`` () =
         |> withNewCancelToken
     assertAreEqual expected actual
 
-[<TestCaseSource("putTypeCases")>]
+[<TestCaseSource(nameof putTypeCases)>]
 let ``Put item handles file system errors`` putType =
     let fs = FakeFileSystem [
         folder "folder" [
@@ -1000,7 +1000,7 @@ let ``Redo put performs move or copy of intent instead of actual`` (copy: bool) 
         ]
     ]
 
-[<TestCaseSource("putTypeCases")>]
+[<TestCaseSource(nameof putTypeCases)>]
 let ``Redo put item that was not an overwrite when path is occupied returns error`` putType =
     let fs = FakeFileSystem [
         folder "dest" [

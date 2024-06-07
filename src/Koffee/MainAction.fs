@@ -797,29 +797,25 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         let model = { model with RedoStack = rest }
         yield model
         let redoHead = model.RedoStack |> List.tryHead
-        let openPath (path: Path) =
+        let openPath (path: Path) cursorMove =
             if path <> model.Location
-            then Nav.openPath fs path CursorStay model
+            then Nav.openPath fs path cursorMove model
             else Ok model
         let! model = asyncSeqResult {
             match action with
             | CreatedItem item ->
-                let! model = openPath item.Path.Parent
+                let! model = openPath item.Path.Parent CursorStay
                 yield! create fs item.Type item.Name model
             | RenamedItem (item, newName) ->
-                let! model = openPath item.Path.Parent
+                let! model = openPath item.Path.Parent CursorStay
                 yield! rename fs item newName model
             | PutItems (putType, intent, _, _) ->
-                let! model = openPath intent.DestParent
+                let! model = openPath intent.DestParent CursorStay
                 yield! putToDestination fs progress true putType intent model
             | DeletedItems (permanent, items, _) ->
                 // normally, redo of delete is impossible because undo is impossible, but cancellation pushes redo action for resuming
-                let! model =
-                    openPath items.Head.Path.Parent
-                    |> Result.map (
-                        Nav.moveCursor (CursorToPath (items.Head.Path, true))
-                        >> applyIf (not items.Tail.IsEmpty) (MainModel.selectItems (items |> Seq.map (fun i -> i.Path)))
-                    )
+                let cursor = CursorToAndSelectPaths (items |> List.map (fun i -> i.Path), true)
+                let! model = openPath items.Head.Path.Parent cursor
                 yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))
                 let deleteFunc = if permanent then delete else recycle
                 yield! deleteFunc fs progress model.ActionItems model

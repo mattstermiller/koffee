@@ -23,6 +23,7 @@
     <Compile Include="MainModelTests.fs" />
     <Compile Include="MainViewTests.fs" />
     <Compile Include="MainNavTests_BackForward.fs" />
+    <Compile Include="MainNavTests_ListDirectory.fs" />
     <Compile Include="MainNavTests_OpenPath.fs" />
     <Compile Include="MainNavTests_SortHistory.fs" />
     <Compile Include="MainNavTests_SuggestPaths.fs" />

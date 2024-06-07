@@ -9,27 +9,53 @@ open UIHelpers
 type ShortcutTargetMissingException(itemName, targetPath) =
     inherit exn(sprintf "Shortcut target for %s does not exist: %s" itemName targetPath)
 
-let moveCursor cursor (model: MainModel) =
-    model |> MainModel.withCursor (
-        match cursor with
-        | CursorStay -> model.Cursor
-        | CursorToIndex index -> index
-        | CursorToPath (path, _) -> model.Items |> List.tryFindIndex (fun i -> i.Path = path) |? model.Cursor
-    )
+let private setCursorAndSelected refreshSelected cursorMoveType (model: MainModel) =
+    let cursor, pathsToSelect =
+        match cursorMoveType with
+        | CursorStay ->
+            (model.Cursor, None)
+        | CursorToIndex index ->
+            (index, None)
+        | CursorToPath (path, _) ->
+            let cursor = model.Items |> List.tryFindIndex (fun item -> item.Path = path) |? model.Cursor
+            (cursor, None)
+        | CursorToAndSelectPaths (paths, _) ->
+            let paths = Set paths
+            let matches =
+                model.Items
+                |> Seq.map (fun item -> item.Path)
+                |> Seq.indexed
+                |> Seq.filter (fun (_, path) -> paths |> Set.contains path)
+                |> Seq.toList
+            match matches with
+            | [] ->
+                (model.Cursor, Some [])
+            | (i, _) :: rest ->
+                (i, if rest.IsEmpty then Some [] else Some (matches |> List.map snd))
+    let pathsToSelect =
+        pathsToSelect |> Option.orElseWith (fun () ->
+            if refreshSelected
+            then Some (model.SelectedItems |> List.map (fun item -> item.Path))
+            else None
+        )
+    model
+    |> MainModel.withCursor cursor
+    |> Option.foldBack MainModel.selectItems pathsToSelect
+
+let moveCursor = setCursorAndSelected false
 
 let listDirectory cursor model =
-    let possiblyHiddenPathToSelect =
+    let possiblyHiddenPathsToSelect =
         match cursor with
-        | CursorToPath (path, true) -> Some path
-        | _ -> None
+        | CursorToPath (path, true) -> Set [path]
+        | CursorToAndSelectPaths (paths, true) -> Set paths
+        | _ -> Set.empty
     let items =
         model.Directory
-        |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || Some i.Path = possiblyHiddenPathToSelect)
+        |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || possiblyHiddenPathsToSelect |> Set.contains i.Path)
         |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
         |> model.ItemsOrEmpty
-    { model with Items = items }
-    |> moveCursor cursor
-    |> MainModel.selectItems (model.SelectedItems |> Seq.map (fun i -> i.Path))
+    { model with Items = items } |> setCursorAndSelected true cursor
 
 let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
     if path = Path.Network then

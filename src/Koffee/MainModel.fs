@@ -259,6 +259,7 @@ type CursorMoveType =
     | CursorStay
     | CursorToIndex of int
     | CursorToPath of Path * showHidden: bool
+    | CursorToAndSelectPaths of Path list * showHidden: bool
 
 type InputError =
     | FindFailure of prefix: string

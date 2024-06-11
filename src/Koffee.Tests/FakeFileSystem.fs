@@ -41,8 +41,7 @@ module FakeFileSystem =
     let modified value item = modifiedOpt (Some value) item
     let hide value item = { item with IsHidden = value }
 
-    let sortByPath items =
-        items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
+    let sortByPath items = items |> List.sortBy (fun i -> i.Path)
 
     type TreeItem with
         static member build items =
@@ -259,6 +258,7 @@ type FakeFileSystem(treeItems) =
 
 
     member this.Create itemType path = result {
+        checkCancelToken ()
         do! checkExn true path
         let createItem () =
             items <- Item.Basic path path.Name itemType :: items
@@ -275,6 +275,7 @@ type FakeFileSystem(treeItems) =
     }
 
     member this.CreateShortcut target path = result {
+        checkCancelToken ()
         remove path
         do! this.Create File path
         shortcuts.Add(path, string target)
@@ -291,6 +292,7 @@ type FakeFileSystem(treeItems) =
     }
 
     member this.Move itemType fromPath toPath = result {
+        checkCancelToken ()
         let substitute oldItem newItem =
             items <- items |> List.map (fun i -> if i = oldItem then newItem else i)
         if String.equalsIgnoreCase (string fromPath) (string toPath) then
@@ -317,10 +319,10 @@ type FakeFileSystem(treeItems) =
             if item.Type = Folder then
                 for item in this.ItemsIn fromPath do
                     do! this.Move item.Type item.Path (toPath.Join item.Name)
-        checkCancelToken ()
     }
 
     member this.Copy itemType fromPath toPath = result {
+        checkCancelToken ()
         let! item = this.AssertItem itemType fromPath
         do! checkExn true toPath
         do! this.CheckDestParent toPath
@@ -335,7 +337,6 @@ type FakeFileSystem(treeItems) =
         shortcuts.TryGetValueOption fromPath |> Option.iter (fun target ->
             shortcuts.Add(toPath, target)
         )
-        checkCancelToken ()
     }
 
     member this.CheckRecyclable (totalSize: int64) path =
@@ -348,18 +349,18 @@ type FakeFileSystem(treeItems) =
         )
 
     member this.Recycle itemType path = result {
+        checkCancelToken ()
         let! item = this.AssertItem itemType path
         do! checkExn true path
         recycleBin <- item :: recycleBin
         remove path
-        checkCancelToken ()
     }
 
     member this.Delete itemType path = result {
+        checkCancelToken ()
         let! item = this.AssertItem itemType path
         do! checkExn true path
         if item.Type = Folder && hasChildren item.Path then
             return! Error cannotDeleteNonEmptyFolder
         remove path
-        checkCancelToken ()
     }

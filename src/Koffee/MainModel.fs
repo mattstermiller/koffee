@@ -188,6 +188,26 @@ type InputMode =
     | Confirm of ConfirmType
     | Input of InputType
 
+type PutItem = {
+    ItemType: ItemType
+    Source: Path
+    Dest: Path
+    DestExists: bool
+}
+with
+    member this.AreBasePathsDifferent = this.Source.Base <> this.Dest.Base
+
+    static member reverse putItem =
+        { putItem with Source = putItem.Dest; Dest = putItem.Source }
+
+    static member describeList pathFormat (putItems: PutItem list) =
+        match putItems with
+        | [putItem] ->
+            sprintf "%s to \"%s\"" (ItemRef.describe putItem.Source putItem.ItemType) (putItem.Dest.Format pathFormat)
+        | {Dest = dest} :: _ ->
+            sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
+        | [] -> "0 items"
+
 type PutIntent = {
     Source: ItemRef
     DestParent: Path
@@ -200,27 +220,12 @@ with
     member this.GetDest isShortcut =
         this.DestParent.Join (this.Source.Path.Name + if isShortcut then ".lnk" else "")
 
+    member this.FilterPutItemsToDestParent putItems =
+        putItems |> Seq.filter (fun putItem -> putItem.Dest.Parent = this.DestParent)
+
     static member equalSourceAndDest intent1 intent2 =
         intent1.Source = intent2.Source &&
         intent1.DestParent = intent2.DestParent
-
-type PutItem = {
-    ItemType: ItemType
-    Source: Path
-    Dest: Path
-    DestExists: bool
-}
-with
-    static member reverse putItem =
-        { putItem with Source = putItem.Dest; Dest = putItem.Source }
-
-    static member describeList pathFormat (putItems: PutItem list) =
-        match putItems with
-        | [putItem] ->
-            sprintf "%s to \"%s\"" (ItemRef.describe putItem.Source putItem.ItemType) (putItem.Dest.Format pathFormat)
-        | {Dest = dest} :: _ ->
-            sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
-        | [] -> "0 items"
 
 type ItemAction =
     | CreatedItem of Item
@@ -458,7 +463,6 @@ module MainStatus =
         | CannotMoveToSameFolder
         | TooManyCopies of fileName: string
         | CouldNotDeleteMoveSource of name: string * exn
-        | CouldNotDeleteCopyDest of name: string * exn
         | CannotUndoNonEmptyCreated of Item
         | CannotUndoDelete of permanent: bool * items: Item list
         | NoUndoActions
@@ -515,8 +519,6 @@ module MainStatus =
                 sprintf "There are already too many copies of \"%s\"" fileName
             | CouldNotDeleteMoveSource (name, ex) ->
                 sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
-            | CouldNotDeleteCopyDest (name, ex) ->
-                sprintf "Could not delete copy destination folder \"%s\" after undoing copy: %s" name ex.Message
             | CannotUndoNonEmptyCreated item ->
                 sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
             | CannotUndoDelete (permanent, items) ->
@@ -930,8 +932,11 @@ type MainModel = {
         | PutItems (putType1, intent1, actual1, cancelled1) ::
           PutItems (putType2, intent2, actual2, true) :: tail
                 when putType1 = putType2 && PutIntent.equalSourceAndDest intent1 intent2 ->
-            // take distinct items by path, keeping the newer items
-            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Source) |> List.rev
+            let mergedActual =
+                actual1 @ actual2
+                |> Seq.distinctBy (fun pi -> pi.Source)
+                |> Seq.sortBy (fun pi -> pi.Source)
+                |> Seq.toList
             PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
         | DeletedItems (permanent1, items1, cancelled1) ::
           DeletedItems (permanent2, items2, true) :: tail

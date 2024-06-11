@@ -2104,18 +2104,23 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
 
 // shortcut tests
 
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Put shortcut calls file sys create shortcut`` overwrite =
+[<TestCase(false, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, false)>]
+[<TestCase(true, true)>]
+let ``Put shortcut calls file sys create shortcut`` isFolder overwrite =
     let fs = FakeFileSystem [
         folder "src" [
-            file "file"
+            if isFolder then
+                folder "item" []
+            else
+                file "item"
         ]
         if overwrite then
-            file "file.lnk"
+            file "item.lnk"
     ]
-    let target = fs.Item "/c/src/file"
-    let shortcut = createFile "/c/file.lnk"
+    let target = fs.Item "/c/src/item"
+    let shortcut = createFile "/c/item.lnk"
     let model = testModel |> withReg (Some (target.Ref, Shortcut))
 
     let actual = seqResult (Action.put fs progress overwrite) model

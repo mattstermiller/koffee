@@ -255,15 +255,19 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
 let private performPutItems (fs: IFileSystem) (progress: Progress) (cancelToken: CancelToken) isUndo putType (items: PutItem list) =
     let fileSysAction putItem =
         // when undoing a move that was an overwrite, copy it back since a version of the item was there before
+        // (undo only calls performPutItems for Move)
         let putType = if isUndo && putItem.DestExists then Copy else putType
-        if not isUndo && putItem.ItemType = Folder && putItem.DestExists then
+        match putType with
+        | Shortcut ->
+            fs.CreateShortcut putItem.Source putItem.Dest
+        | _ when not isUndo && putItem.ItemType = Folder && putItem.DestExists ->
             Ok () // skip if folder already exists
-        else
-            match putType with
-            | Move -> fs.Move putItem.ItemType putItem.Source putItem.Dest
-            | Copy when putItem.ItemType = Folder -> fs.Create putItem.ItemType putItem.Dest
-            | Copy -> fs.Copy putItem.ItemType putItem.Source putItem.Dest
-            | Shortcut -> fs.CreateShortcut putItem.Source putItem.Dest
+        | Move ->
+            fs.Move putItem.ItemType putItem.Source putItem.Dest
+        | Copy when putItem.ItemType = Folder ->
+            fs.Create putItem.ItemType putItem.Dest
+        | Copy ->
+            fs.Copy putItem.ItemType putItem.Source putItem.Dest
     let mutable foldersChecked = Set []
     let ensureFolderExists destExists (path: Path) = result {
         if not (foldersChecked |> Set.contains path) then

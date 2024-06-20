@@ -1350,21 +1350,24 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
 [<TestCase(true, true)>]
 let ``Undo move handles partial success by updating redo and setting error message`` errorCausedByExisting destExisted =
     let fs = FakeFileSystem [
-        folder "dest" [
+        drive 'c' [
+            folder "another" []
+            if errorCausedByExisting then
+                folder "moved" [
+                    fileWith (size 7L) "file"
+                ]
+        ]
+        drive 'd' [
             folder "moved" [
                 file "file"
                 file "other"
             ]
         ]
-        if errorCausedByExisting then
-            folder "moved" [
-                file "file"
-            ]
     ]
-    let errorItem = createFile "/c/dest/moved/file"
+    let errorItem = createFile "/d/moved/file"
     if not errorCausedByExisting then
         fs.AddExnPath false ex errorItem.Path
-    let destPath = createPath "/c/dest/moved"
+    let destPath = createPath "/d/moved"
     let original = createFolder "/c/moved"
     let intent = { createPutIntent original destPath.Parent with Overwrite = destExisted }
     let actualMoved = List.map (createPutItemFrom original.Path destPath) [
@@ -1374,10 +1377,11 @@ let ``Undo move handles partial success by updating redo and setting error messa
     let action = PutItems (Move, intent, actualMoved, false)
     let model =
         testModel
+        |> withLocation "/d"
         |> pushUndo action
         |> withHistoryPaths (historyPaths {
             errorItem
-            "/c/dest2/unrelated"
+            "/d/unrelated"
             destPath, true
             actualMoved.[1].Dest, false
         })
@@ -1385,38 +1389,44 @@ let ``Undo move handles partial success by updating redo and setting error messa
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
-        createFolder "/c/dest"
-        original
+        createFolder "/c/another"
+        createFolder "/c/moved"
     ]
     let expectedExn = if errorCausedByExisting then UndoMoveBlockedByExistingItemException() :> exn else ex
     let expectedError = MainStatus.PutError (true, Move, [(errorItem.Path, expectedExn)], 2)
     let expectedAction = PutItems (Move, intent, actualMoved |> List.skip 1, false)
     let expected =
-        { model with
-            Directory = expectedItems |> sortByPath
-            Items = expectedItems
-            Cursor = 1
-            UndoStack = model.UndoStack.Tail
-            RedoStack = expectedAction :: testModel.RedoStack
-            CancelToken = CancelToken()
-        }
+        model
+        |> MainModel.withPushedLocation original.Path.Parent
+        |> fun model ->
+            { model with
+                Directory = expectedItems |> sortByPath
+                Items = expectedItems
+                Cursor = 1
+                UndoStack = model.UndoStack.Tail
+                RedoStack = expectedAction :: testModel.RedoStack
+                CancelToken = CancelToken()
+            }
         |> MainModel.withError expectedError
         |> withHistoryPaths (historyPaths {
-            model.Location, true
             yield! model.History.Paths |> List.take 3
             actualMoved.[1].Source, false
         })
+        |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "dest" [
+        drive 'c' [
+            folder "another" []
+            folder "moved" [
+                if errorCausedByExisting then
+                    fileWith (size 7L) "file"
+                file "other"
+            ]
+        ]
+        drive 'd' [
             folder "moved" [
                 file "file"
             ]
-        ]
-        folder "moved" [
-            if errorCausedByExisting then
-                file "file"
-            file "other"
         ]
     ]
 

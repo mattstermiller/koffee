@@ -148,6 +148,27 @@ let ``Create exn path does not create`` () =
     fs.ItemsShouldEqualList (createFs().Items)
 
 [<Test>]
+let ``Create file where file exists overwrites it`` () =
+    let fs = FakeFileSystem [
+        fileWith (size 5L) "notes.txt"
+    ]
+    fs.Create File (createPath "/c/notes.txt") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqual [
+        file "notes.txt"
+    ]
+
+[<Test>]
+let ``Create folder where folder exists does nothing`` () =
+    let fs = FakeFileSystem [
+        folder "programs" [
+            file "koffee.exe"
+        ]
+    ]
+    let expectedFs = fs.Items
+    fs.Create Folder (createPath "/c/programs") |> shouldEqual (Ok ())
+    fs.ItemsShouldEqualList expectedFs
+
+[<Test>]
 let ``Move file moves it`` () =
     let fs = createFs ()
     fs.Move File (createPath "/c/readme.md") (createPath "/c/programs/docs.md") |> shouldEqual (Ok ())

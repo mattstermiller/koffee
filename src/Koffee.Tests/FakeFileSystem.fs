@@ -256,8 +256,18 @@ type FakeFileSystem(treeItems) =
 
     member this.Create itemType path = result {
         do! checkExn true path
-        do! checkPathNotUsed path
-        items <- Item.Basic path path.Name itemType :: items
+        let createItem () =
+            items <- Item.Basic path path.Name itemType :: items
+        match tryFindItem path with
+        | Some existing when existing.Type <> itemType ->
+            return! Error (itemAlreadyExistsOnPath path)
+        | Some _ when itemType = Folder ->
+            ()
+        | Some _ ->
+            remove path
+            createItem ()
+        | None ->
+            createItem ()
     }
 
     member this.CreateShortcut target path = result {

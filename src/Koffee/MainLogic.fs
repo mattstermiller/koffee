@@ -229,7 +229,7 @@ let submitInput fs os model = asyncSeqResult {
                 InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
             }
         yield model
-        yield! Nav.openSelected fs os model
+        yield! Nav.openItems fs os [model.CursorItem] model
     | Some (Input Search) ->
         let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
         yield
@@ -381,9 +381,9 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
             | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
-            | OpenSelected -> AsyncResult (Nav.openSelected fs os)
+            | OpenSelected -> AsyncResult (fun m -> Nav.openItems fs os m.ActionItems m)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
-            | OpenFileAndExit -> AsyncResult (fun m -> asyncSeqResult { yield! Nav.openSelected fs os m; closeWindow(); })
+            | OpenFileAndExit -> AsyncResult (Nav.openFilesAndExit fs os closeWindow)
             | OpenProperties -> SyncResult (Command.openProperties os)
             | OpenParent -> SyncResult (Nav.openParent fs)
             | OpenRoot -> SyncResult (Nav.openPath fs Path.Root CursorStay)

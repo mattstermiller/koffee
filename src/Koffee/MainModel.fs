@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -1133,7 +1133,7 @@ type MainEvents =
         StartPrompt SetBookmark, "Set Bookmark/Saved Search"
         OpenSelected, "Open Selected Item"
         OpenFileWith, "Open File With..."
-        OpenFileAndExit, "Open File and Exit"
+        OpenFileAndExit, "Open Files and Exit"
         StartInput (Rename Begin), "Rename Item (Prepend)"
         StartInput (Rename EndName), "Rename Item (Append to Name)"
         StartInput (Rename End), "Rename Item (Append to Extension)"

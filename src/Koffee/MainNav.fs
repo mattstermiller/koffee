@@ -137,14 +137,14 @@ let getOpenTarget (fsReader: IFileSystemReader) pathFormat (item: Item) =
     | _ ->
         Ok (item.Type, item.Path)
 
-let openSelected fsReader (os: IOperatingSystem) (model: MainModel) = asyncSeqResult {
+let openItems fsReader (os: IOperatingSystem) items (model: MainModel) = asyncSeqResult {
     let getOpenTarget item =
         getOpenTarget fsReader model.PathFormat item |> Result.mapError (fun ex -> item.Name, ex)
     let openFile path =
         os.OpenFile path
         |> Result.map (fun () -> path)
         |> Result.mapError (fun ex -> path.Name, ex)
-    match model.ActionItems with
+    match items with
     | [item] ->
         let mapError res = res |> Result.mapError (fun (name, ex) -> MainStatus.CouldNotOpenFiles [name, ex])
         let! itemType, path = getOpenTarget item |> mapError
@@ -178,6 +178,15 @@ let openSelected fsReader (os: IOperatingSystem) (model: MainModel) = asyncSeqRe
         | errors ->
             yield model
             return MainStatus.CouldNotOpenFiles errors
+}
+
+let openFilesAndExit fsReader os exit (model: MainModel) = asyncSeqResult {
+    match model.ActionItems |> List.filter (fun i -> i.Type = File) with
+    | [] ->
+        return MainStatus.NoFilesSelected
+    | files ->
+        yield! openItems fsReader os files model
+        exit ()
 }
 
 let openParent fsReader (model: MainModel) =

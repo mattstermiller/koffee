@@ -22,7 +22,7 @@ let defaultsAsString = [
     ("zt", Scroll CursorTop)
     ("zz", Scroll CursorMiddle)
     ("zb", Scroll CursorBottom)
-    ("l", OpenSelected)
+    ("l", OpenCursorItem)
     ("<enter>", OpenSelected)
     ("<s-enter>", OpenFileWith)
     ("<c-enter>", OpenFileAndExit)

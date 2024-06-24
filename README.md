@@ -38,7 +38,8 @@ _A capital letter indicates that the letter key is combined with Shift._
 - `j` to move the cursor down
 - `k` to move the cursor up
 - `h` to go up to the parent folder
-- `l` or `Enter` to open the selected file or folder
+- `l` to open the file or folder under the cursor
+- `Enter` to open selected files or item under the cursor if nothing is selected
 - `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
@@ -125,7 +126,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `4H` will go back 4 times.
 - Display navigation history for Back/Forward with `gh`
 - Display status message history with `gs`
-- Open the selected file and exit with `Ctrl + Enter`
+- Open the selected files and exit with `Ctrl + Enter`
 - Open the selected file or folder's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`

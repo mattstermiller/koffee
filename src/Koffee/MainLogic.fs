@@ -381,6 +381,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
             | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
+            | OpenCursorItem -> AsyncResult (fun m -> Nav.openItems fs os [m.CursorItem] m)
             | OpenSelected -> AsyncResult (fun m -> Nav.openItems fs os m.ActionItems m)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
             | OpenFileAndExit -> AsyncResult (Nav.openFilesAndExit fs os closeWindow)

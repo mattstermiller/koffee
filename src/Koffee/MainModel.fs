@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -1045,6 +1045,7 @@ type MainEvents =
     | SelectAll
     | Scroll of ScrollType
     | OpenPath of string * EvtHandler
+    | OpenCursorItem
     | OpenSelected
     | OpenParent
     | OpenRoot
@@ -1131,7 +1132,8 @@ type MainEvents =
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt GoToSavedSearch, "Go To Saved Search"
         StartPrompt SetBookmark, "Set Bookmark/Saved Search"
-        OpenSelected, "Open Selected Item"
+        OpenCursorItem, "Open Cursor Item"
+        OpenSelected, "Open Selected Item(s)"
         OpenFileWith, "Open File With..."
         OpenFileAndExit, "Open Files and Exit"
         StartInput (Rename Begin), "Rename Item (Prepend)"

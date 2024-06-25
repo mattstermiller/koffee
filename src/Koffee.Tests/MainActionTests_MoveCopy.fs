@@ -49,7 +49,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems |> List.filter (fun i -> i.Name <> "hidden")
             Cursor = 2
             InputMode = Some (Confirm (Overwrite (putType, src, dest)))
@@ -129,7 +129,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     ]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -207,7 +207,7 @@ let ``Put or redo put folder handles partial success by updating undo and settin
     let expectedError = MainStatus.PutError (false, putType, [(errorItem.Path, ex)], 4)
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedAction :: testModel.UndoStack
@@ -317,7 +317,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         let expectedItems = [createFolder "/d/fruit"]
         let expected =
             { model with
-                Directory = expectedItems |> sortByPath
+                Directory = expectedItems
                 Items = expectedItems
                 Cursor = 0
                 UndoStack = expectedAction :: testModel.UndoStack
@@ -389,7 +389,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
     let expectedItems = [createFolder "/d/fruit"]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedMergedAction :: testModel.UndoStack
@@ -517,7 +517,7 @@ let ``Put or redo put enumerated folder handles partial success with cancellatio
     let expectedItems = [createFolder "/d/fruit"]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedUndoAction :: testModel.UndoStack
@@ -636,16 +636,16 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
             createPutItem (createFile "/c/fruit/bushes/blueberry")
         else
             createPutItem (createFolder "/c/fruit/bushes")
-        createPutItem (createFile "/c/fruit/tomato")
         createPutItem (createFile "/c/fruit/trees/apple" |> size 7L) |> withDestExists
         createPutItem (createFile "/c/fruit/trees/banana")
         createPutItem (createFolder "/c/fruit/vines") |> withDestExists
+        createPutItem (createFile "/c/fruit/tomato")
     ]
     let expectedAction = PutItems (putType, intent, expectedPut, false)
     let expectedItems = [dest]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -734,7 +734,7 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
                 [original]
         let expected =
             { model with
-                Directory = expectedItems |> sortByPath
+                Directory = expectedItems
                 Items = expectedItems
                 Cursor = 0
                 UndoStack = expectedUndoAction :: testModel.UndoStack
@@ -888,7 +888,7 @@ let ``Undo put enumerated folder handles partial success with cancellation by up
             [original]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedUndoAction :: testModel.UndoStack
@@ -971,7 +971,7 @@ let ``Redo put performs move or copy of intent instead of actual`` (copy: bool) 
     ]
     let expected =
         { (model |> MainModel.withPushedLocation dest.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
@@ -1042,7 +1042,7 @@ let ``Redo put item that was not an overwrite when path is occupied returns erro
     ]
     let expected =
         { (model |> MainModel.withPushedLocation dest.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             RedoStack = model.RedoStack.Tail
             CancelToken = CancelToken()
@@ -1086,11 +1086,11 @@ let ``Put folder to move deletes source folder after enumerated move and updates
     let expectedPut =
         if enumerated then
             List.map (createPutItemFrom src.Path dest.Path) [
-                createFile "/c/folder/file"
                 createFolder "/c/folder/sub"
+                createFile "/c/folder/file"
             ]
         else
-            [{ createPutItem src dest.Path with DestExists = enumerated }]
+            [createPutItem src dest.Path]
 
     let actual = seqResult (Action.put fs progress enumerated) model
 
@@ -1099,7 +1099,7 @@ let ``Put folder to move deletes source folder after enumerated move and updates
     let expectedItems = [dest]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -1172,7 +1172,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     ]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 3
             UndoStack = model.UndoStack.Tail
@@ -1236,7 +1236,7 @@ let ``Undo move of enumerated folder deletes original dest folder when empty aft
     ]
     let expected =
         { (model |> MainModel.withPushedLocation original.Path.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = model.UndoStack.Tail
@@ -1312,7 +1312,7 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
     ]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = model.UndoStack.Tail
@@ -1400,7 +1400,7 @@ let ``Undo move handles partial success by updating redo and setting error messa
         |> MainModel.withPushedLocation original.Path.Parent
         |> fun model ->
             { model with
-                Directory = expectedItems |> sortByPath
+                Directory = expectedItems
                 Items = expectedItems
                 Cursor = 1
                 UndoStack = model.UndoStack.Tail
@@ -1518,7 +1518,7 @@ let ``Redo move folder that was an overwrite merges correctly``() =
     let expectedAction = PutItems (Move, intent, expectedActual, false)
     let expected =
         { (model |> MainModel.withPushedLocation destPath.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
@@ -1612,7 +1612,7 @@ let ``Redo copy item to same parent where copy already exists copies to next nam
     let expectedAction = PutItems (Copy, intent, [createPutItem src expectedDest], false)
     let expected =
         { (model |> MainModel.withPushedLocation dest.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = expectedItems.Length - 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -1680,7 +1680,7 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
     ]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 2
             UndoStack = expectedMergedAction :: testModel.UndoStack
@@ -1740,7 +1740,7 @@ let ``Undo copy file deletes it`` curPathDifferent =
     ]
     let expected =
         { model with
-            Directory = if curPathDifferent then model.Directory else expectedItems |> sortByPath
+            Directory = if curPathDifferent then model.Directory else expectedItems
             Items = if curPathDifferent then model.Items else expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
@@ -2144,7 +2144,7 @@ let ``Put shortcut calls file sys create shortcut`` isFolder overwrite =
     ]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -2194,7 +2194,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
                 model
             else
                 { model with
-                    Directory = expectedItems |> sortByPath
+                    Directory = expectedItems
                     Items = expectedItems
                     Cursor = 0
                 }

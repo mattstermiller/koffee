@@ -229,7 +229,11 @@ type FakeFileSystem(treeItems) =
     member this.GetItems path = result {
         callsToGetItems <- callsToGetItems + 1
         do! checkExn false path
-        return this.Items |> List.filter (fun i -> i.Path.Parent = path)
+        let typeRank = function Folder -> 0 | _ -> 1
+        return
+            items
+            |> List.filter (fun i -> i.Path.Parent = path)
+            |> List.sortBy (fun i -> (typeRank i.Type, i.Name |> String.toLower))
     }
 
     member this.GetFolders path =

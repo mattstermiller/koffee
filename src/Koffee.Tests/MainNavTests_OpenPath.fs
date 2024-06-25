@@ -29,7 +29,7 @@ let ``Opening a valid path updates model correctly`` setCursor =
     let expectedItems = fs.ItemsIn (string path)
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             SelectedItems = []
             Cursor = if setCursor then 2 else 0
@@ -63,7 +63,7 @@ let ``Opening same path does not modify navigation history or selected items`` s
     let expectedItems = fs.ItemsIn "/c"
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = if setCursor then 2 else 0
         }

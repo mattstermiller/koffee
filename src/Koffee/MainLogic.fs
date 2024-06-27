@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
@@ -149,8 +149,9 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         match char with
         | 'y' ->
             match confirmType with
-            | Overwrite (putType, src, _) ->
-                let! model = Action.putInLocation fs progress false true putType src.Ref model
+            | Overwrite (putType, srcDestPairs) ->
+                let itemRefs = srcDestPairs |> List.map (fun (src, _) -> src.Ref)
+                let! model = Action.putInLocation fs progress false true putType itemRefs model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
                 yield! Action.delete fs progress model.ActionItems model

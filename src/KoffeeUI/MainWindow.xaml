@@ -51,6 +51,7 @@
     <!-- Input panel -->
     <DockPanel Name="InputPanel" x:FieldModifier="public" DockPanel.Dock="Bottom" Visibility="Collapsed"
                Background="{StaticResource PanelBrush}">
+      <!-- TODO wrap text, expand panel -->
       <TextBlock Name="InputText" x:FieldModifier="public" Text="Input:" Foreground="{StaticResource PanelTextBrush}"
                  VerticalAlignment="Center" Margin="6,6,0,6"/>
       <StackPanel Name="SearchOptions" x:FieldModifier="public" DockPanel.Dock="Right" VerticalAlignment="Center"

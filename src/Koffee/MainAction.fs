@@ -212,58 +212,46 @@ let getCopyName name i =
 
 let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) deepExistsCheck putType
         (copyNamesToReuse: Map<string, string>) destParent srcRefs =
-    let rec iter checkExists (destParent: Path) (srcRefs: ItemRef seq) = asyncSeq {
-        // TODO: try to add For support to asyncSeqResult to clean this up
-        let existingNames =
+    let rec iter checkExists (destParent: Path) (srcRefs: ItemRef seq) = asyncSeqResult {
+        let! existingNames =
             if checkExists then
                 fsReader.GetItems destParent
                 |> Result.map (List.map (fun i -> i.Name.ToLower()) >> Set)
                 |> Result.mapError (fun e -> (destParent, e))
             else
                 Ok (Set [])
-        match existingNames with
-        | Error e ->
-            yield Error e
-        | Ok existingNames ->
-            let nameExists name =
-                existingNames |> Set.contains (name |> String.toLower)
-            for { Path = src; Type = typ } in srcRefs do
-                if not cancelToken.IsCancelled then
-                    let destNameAndExistsResult =
-                        if putType = Copy && src.Parent = destParent then
-                            copyNamesToReuse
-                            |> Map.tryFind src.Name
-                            |> Option.map (fun name -> Ok (name, nameExists name))
-                            |> Option.defaultWith (fun () ->
-                                Seq.init 99 (getCopyName src.Name)
-                                |> Seq.tryFind (not << nameExists)
-                                |> function
-                                    | Some name -> Ok (name, false)
-                                    | None -> Error (src, TooManyCopiesOfNameException src.Name :> exn)
-                            )
-                        else
-                            let name = src.Name + if putType = Shortcut then ".lnk" else ""
-                            Ok (name, nameExists name)
-                    match destNameAndExistsResult with
-                    | Error e ->
-                        yield Error e
-                    | Ok (destName, destExists) ->
-                        let dest = destParent.Join destName
-                        let putItem = { ItemType = typ; Source = src; Dest = dest; DestExists = destExists }
-                        match typ with
-                        | Folder when (putType <> Shortcut && destExists && deepExistsCheck)
-                                || not destExists && (putType = Copy || putItem.AreBasePathsDifferent) ->
-                            let! itemsResult = runAsync (fun () -> fsReader.GetItems src)
-                            match itemsResult with
-                            | Ok items ->
-                                yield Ok putItem
-                                if not items.IsEmpty then
-                                    yield! iter destExists dest (items |> Seq.map (fun i -> i.Ref))
-                            | Error error ->
-                                yield Error (src, error)
-                        | Folder | File ->
-                            yield Ok putItem
-                        | _ -> ()
+        let nameExists name =
+            existingNames |> Set.contains (name |> String.toLower)
+        for { Path = src; Type = typ } in srcRefs do
+            if not cancelToken.IsCancelled then
+                let! destName, destExists =
+                    if putType = Copy && src.Parent = destParent then
+                        copyNamesToReuse
+                        |> Map.tryFind src.Name
+                        |> Option.map (fun name -> Ok (name, nameExists name))
+                        |> Option.defaultWith (fun () ->
+                            Seq.init 99 (getCopyName src.Name)
+                            |> Seq.tryFind (not << nameExists)
+                            |> function
+                                | Some name -> Ok (name, false)
+                                | None -> Error (src, TooManyCopiesOfNameException src.Name :> exn)
+                        )
+                    else
+                        let name = src.Name + if putType = Shortcut then ".lnk" else ""
+                        Ok (name, nameExists name)
+                let dest = destParent.Join destName
+                let putItem = { ItemType = typ; Source = src; Dest = dest; DestExists = destExists }
+                match typ with
+                | Folder when (putType <> Shortcut && destExists && deepExistsCheck)
+                        || not destExists && (putType = Copy || putItem.AreBasePathsDifferent) ->
+                    let! itemsResult = runAsync (fun () -> fsReader.GetItems src |> Result.mapError (fun e -> (src, e)))
+                    let! items = itemsResult
+                    yield putItem
+                    if not items.IsEmpty then
+                        yield! iter destExists dest (items |> Seq.map (fun i -> i.Ref))
+                | Folder | File ->
+                    yield putItem
+                | _ -> ()
     }
     iter true destParent srcRefs
 

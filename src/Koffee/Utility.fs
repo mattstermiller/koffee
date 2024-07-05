@@ -121,6 +121,8 @@ type AsyncSeqResultBuilder() =
     member this.Delay f = asyncSeq.Delay f
     member this.Combine (x: AsyncSeq<_>, y) = AsyncSeq.append x y |> takeUntilError
     member this.Using (x, f) = asyncSeq.Using (x, f)
+    member this.For (x: seq<_>, f) = asyncSeq.For (x, f)
+    member this.For (x: AsyncSeq<_>, f) = asyncSeq.For (x, f)
 
 let asyncSeqResult = AsyncSeqResultBuilder()
 

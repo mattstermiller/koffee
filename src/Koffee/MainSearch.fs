@@ -66,9 +66,8 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) 
     let rec enumerate progressFactor dirs = asyncSeq {
         for dir in dirs do
             if not <| isCancelled () then
-                let! subItemsRes = runAsync (fun () -> fsReader.GetItems dir.Path)
+                let subItems = fsReader.GetItems dir.Path |> Result.defaultValue []
                 if not <| isCancelled () then
-                    let subItems = subItemsRes |> Result.defaultValue []
                     let subDirs = getDirs subItems
                     yield subItems
                     let progressFactor = progressFactor / float (subDirs.Length + 1)
@@ -77,7 +76,7 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) 
     }
     let dirs = getDirs items
     progress.Start ()
-    yield! enumerate (1.0 / float dirs.Length) dirs
+    yield! runSeqAsync (enumerate (1.0 / float dirs.Length) dirs)
     progress.Finish ()
 }
 

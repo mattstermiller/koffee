@@ -4,6 +4,7 @@ module Utility
 open System
 open System.Collections.Generic
 open System.Text.RegularExpressions
+open System.Threading
 open System.Linq
 open System.Reactive.Linq
 open System.Reactive.Concurrency
@@ -21,11 +22,18 @@ let inline mapFst f (a, b) = (f a, b)
 let inline mapSnd f (a, b) = (a, f b)
 
 let runAsync (f: unit -> 'a) = async {
-    let ctx = System.Threading.SynchronizationContext.Current
-    do! Async.SwitchToNewThread()
+    let ctx = SynchronizationContext.Current
+    do! Async.SwitchToThreadPool ()
     let result = f()
     do! Async.SwitchToContext ctx
     return result
+}
+
+let runSeqAsync (aseq: AsyncSeq<_>) = asyncSeq {
+    let ctx = SynchronizationContext.Current
+    do! Async.SwitchToThreadPool ()
+    yield! aseq
+    do! Async.SwitchToContext ctx
 }
 
 module Async =

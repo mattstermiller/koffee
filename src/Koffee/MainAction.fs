@@ -5,6 +5,7 @@ open FSharp.Control
 open Acadian.FSharp
 open Koffee
 open Koffee.Main.Util
+open System.Threading
 
 let private performedAction action (model: MainModel) =
     model
@@ -244,8 +245,7 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
                 match typ with
                 | Folder when (putType <> Shortcut && destExists && deepExistsCheck)
                         || not destExists && (putType = Copy || putItem.AreBasePathsDifferent) ->
-                    let! itemsResult = runAsync (fun () -> fsReader.GetItems src |> Result.mapError (fun e -> (src, e)))
-                    let! items = itemsResult
+                    let! items = fsReader.GetItems src |> Result.mapError (fun e -> (src, e))
                     yield putItem
                     if not items.IsEmpty then
                         yield! iter destExists dest (items |> Seq.map (fun i -> i.Ref))
@@ -253,7 +253,7 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
                     yield putItem
                 | _ -> ()
     }
-    iter true destParent srcRefs
+    runSeqAsync (iter true destParent srcRefs)
 
 let private performPutItems (fs: IFileSystem) (progress: Progress) (cancelToken: CancelToken) isUndo putType (items: PutItem list) =
     let fileSysAction putItem =
@@ -659,21 +659,22 @@ let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
         return model |> MainModel.withMessage (MainStatus.ClipboardCopy (item.Path.Format model.PathFormat))
 }
 
-let rec private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) = asyncSeq {
-    for item in items do
-        if not cancelToken.IsCancelled then
-            match item.Type with
-            | Folder ->
-                let! subItems = runAsync (fun () -> fsReader.GetItems item.Path)
-                match subItems with
-                | Ok subItems when not subItems.IsEmpty ->
-                    yield! enumerateDeleteItems fsReader cancelToken subItems
+let private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) =
+    let rec iter (items: Item seq) = asyncSeq {
+        for item in items do
+            if not cancelToken.IsCancelled then
+                match item.Type with
+                | Folder ->
+                    match fsReader.GetItems item.Path with
+                    | Ok subItems when not subItems.IsEmpty ->
+                        yield! iter subItems
+                    | _ -> ()
+                    yield item
+                | File ->
+                    yield item
                 | _ -> ()
-                yield item
-            | File ->
-                yield item
-            | _ -> ()
-}
+    }
+    runSeqAsync (iter items)
 
 let private removeItems (items: Item list) (model: MainModel) =
     if items.IsEmpty then

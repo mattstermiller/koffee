@@ -28,23 +28,39 @@ module MainView =
     let getPrompt pathFormat inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
-        | Confirm (Overwrite (putType, src, dest)) ->
-            match dest.Type with
-            | Folder ->
-                sprintf "Folder \"%s\" already exists. %A anyway and merge files y/n ?" dest.Name putType
-            | File ->
-                match src.Modified, src.Size, dest.Modified, dest.Size with
-                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                    let compare a b less greater =
-                        if a = b then "same"
-                        else if a < b then less
-                        else greater
-                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                        dest.Name
-                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
-            | _ -> ""
+        | Confirm (Overwrite (putType, srcExistingPairs)) ->
+            match srcExistingPairs with
+            | [(src, existing)] ->
+                match existing.Type with
+                | Folder ->
+                    sprintf "Folder \"%s\" already exists. %A anyway and overwrite files y/n ?" existing.Name putType
+                | File ->
+                    match src.Modified, src.Size, existing.Modified, existing.Size with
+                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                        let compare a b less greater =
+                            if a = b then "same"
+                            else if a < b then less
+                            else greater
+                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                            existing.Name
+                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" existing.Name
+                | _ -> ""
+            | _ ->
+                let types = srcExistingPairs |> Seq.map (fun (_, existing) -> existing.Type)
+                let hasFiles = types |> Seq.contains File
+                let hasFolders = types |> Seq.contains Folder
+                let typesString =
+                    [
+                        if hasFolders then "folders"
+                        if hasFiles then "files"
+                    ] |> String.concat " and "
+                let overwriteMessage =
+                    if not hasFolders
+                    then "Overwrite y/n ?"
+                    else sprintf "%A anyway, merge folders and overwrite files y/n ?" putType
+                sprintf "%i %s already exist. %s" srcExistingPairs.Length typesString overwriteMessage
         | Confirm Delete ->
             "Permanently delete selected item(s) y/n ?"
         | Confirm (OverwriteBookmark (char, existingPath)) ->
@@ -234,8 +250,13 @@ module MainView =
             // display yank register
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
-                    register |> Option.map (fun (itemRef, putType) ->
-                        sprintf "%A: %s %s" putType itemRef.Type.Symbol itemRef.Path.Name)
+                    register |> Option.bind (fun (putType, itemRefs) ->
+                        match itemRefs with
+                        | itemRef :: rest ->
+                            let restDescr = if rest.IsEmpty then "" else sprintf " and %i more" rest.Length
+                            Some (sprintf "%A: %s %s%s" putType itemRef.Type.Symbol itemRef.Path.Name restDescr)
+                        | [] -> None
+                    )
                 window.RegisterText.Text <- text |? ""
                 window.RegisterPanel.IsCollapsed <- text.IsNone
             )

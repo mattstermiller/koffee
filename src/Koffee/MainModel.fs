@@ -52,6 +52,14 @@ with
     static member describe (path: Path) (typ: ItemType) =
         sprintf "%s \"%s\"" typ.NameLower path.Name
 
+    static member describeList (itemRefs: ItemRef list) =
+        match itemRefs with
+        | itemRef :: rest ->
+            let restCount = rest.Length
+            itemRef.Description + if restCount > 0 then sprintf " and %i other items" restCount else ""
+        | _ ->
+            "0 items"
+
 type Item = {
     Path: Path
     Name: string
@@ -171,7 +179,7 @@ type PromptType =
     | DeleteSavedSearch
 
 type ConfirmType =
-    | Overwrite of PutType * src: Item * dest: Item
+    | Overwrite of PutType * srcExistingPairs: (Item * Item) list
     | Delete
     | OverwriteBookmark of char * existingPath: Path
     | OverwriteSavedSearch of char * existingSearch: Search
@@ -209,22 +217,19 @@ with
         | [] -> "0 items"
 
 type PutIntent = {
-    Source: ItemRef
+    Sources: ItemRef list
     DestParent: Path
     Overwrite: bool
 }
 with
     member this.Description pathFormat =
-        sprintf "%s to \"%s\"" this.Source.Description (this.DestParent.Format pathFormat)
-
-    member this.GetDest isShortcut =
-        this.DestParent.Join (this.Source.Path.Name + if isShortcut then ".lnk" else "")
+        sprintf "%s to \"%s\"" (ItemRef.describeList this.Sources) (this.DestParent.Format pathFormat)
 
     member this.FilterPutItemsToDestParent putItems =
         putItems |> Seq.filter (fun putItem -> putItem.Dest.Parent = this.DestParent)
 
     static member equalSourceAndDest intent1 intent2 =
-        intent1.Source = intent2.Source &&
+        intent1.Sources = intent2.Sources &&
         intent1.DestParent = intent2.DestParent
 
 type ItemAction =
@@ -296,7 +301,8 @@ module MainStatus =
         | PutItems (Copy, intent, _, _) ->
             sprintf "Copied %s" (intent.Description pathFormat)
         | PutItems (Shortcut, intent, _, _) ->
-            sprintf "Created shortcut to %s \"%s\"" intent.Source.Type.NameLower (intent.Source.Path.Format pathFormat)
+            let plural = if intent.Sources.Length = 1 then "" else "s"
+            sprintf "Created shortcut%s to %s" plural (ItemRef.describeList intent.Sources)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
@@ -412,7 +418,7 @@ module MainStatus =
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent * PathFormat
         | DeletingItems of permanent: bool * Item list
-        | PreparingPut of PutType * name: string
+        | PreparingPut of PutType * ItemRef list
         | CheckingIsRecyclable
         | PreparingDelete of Item list
         | UndoingCreate of Item
@@ -430,8 +436,8 @@ module MainStatus =
             | DeletingItems (permanent, items) ->
                 let action = if permanent then "Deleting" else "Recycling"
                 sprintf "%s %s..." action (Item.describeList items)
-            | PreparingPut (putType, name) ->
-                sprintf "Preparing to %O %s..." putType name
+            | PreparingPut (putType, itemRefs) ->
+                sprintf "Preparing to %O %s..." putType (ItemRef.describeList itemRefs)
             | CheckingIsRecyclable ->
                 "Determining if items will fit in Recycle Bin..."
             | PreparingDelete items ->
@@ -461,7 +467,10 @@ module MainStatus =
         | CannotPutHere
         | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
         | CannotMoveToSameFolder
+        | CannotRegisterMultipleItemsWithSameName of duplicateName: string
+        | CannotPutMultipleItemsWithSameName of PutType * duplicateName: string
         | TooManyCopies of fileName: string
+        | CouldNotReadItemsForOverwritePrompt
         | CouldNotDeleteMoveSource of name: string * exn
         | CannotUndoNonEmptyCreated of Item
         | CannotUndoDelete of permanent: bool * items: Item list
@@ -515,6 +524,12 @@ module MainStatus =
                         actionName itemType name append
             | CannotMoveToSameFolder ->
                 "Cannot move item to same folder it is already in"
+            | CannotRegisterMultipleItemsWithSameName name ->
+                sprintf "Cannot put multiple items with the same name in yank register: \"%s\"" name
+            | CannotPutMultipleItemsWithSameName (putType, name) ->
+                sprintf "Cannot %s multiple items with the same name: \"%s\"" (putType.ToLowerString()) name
+            | CouldNotReadItemsForOverwritePrompt ->
+                "Items exist in the destination, but could not read all item metadata for overwrite prompt. Please try again."
             | TooManyCopies fileName ->
                 sprintf "There are already too many copies of \"%s\"" fileName
             | CouldNotDeleteMoveSource (name, ex) ->
@@ -587,7 +602,7 @@ type Config = {
     TextEditor: string
     CommandlinePath: string
     SearchExclusions: string list
-    YankRegister: (ItemRef * PutType) option
+    YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list

@@ -1,5 +1,6 @@
 module Koffee.Main.Action
 
+open System.Collections.Generic
 open FSharp.Control
 open Acadian.FSharp
 open Koffee
@@ -178,28 +179,39 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
         return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
 }
 
+let private getDuplicateName (itemRefs: ItemRef seq) =
+    itemRefs
+    |> Seq.map (fun i -> i.Path.Name)
+    |> Seq.groupBy id
+    |> Seq.filter (fun (_, items) -> items |> Seq.truncate 2 |> Seq.length > 1)
+    |> Seq.map fst
+    |> Seq.tryHead
+
 let registerSelectedItems putType (model: MainModel) =
-    let regItems =
-        model.ActionItems |> List.choose (fun item ->
-            if item.Type.CanModify
-            then Some item.Ref
-            else None
-        )
-    match regItems |> List.tryHead with
-    | Some itemRef ->
-        { model with
-            Config = { model.Config with YankRegister = Some (itemRef, putType) }
-            Status = None
-        }
-    | None -> model
+    let itemsToRegister =
+        model.ActionItems
+        |> Seq.filter (fun item -> item.Type.CanModify)
+        |> Seq.map (fun item -> item.Ref)
+        |> Seq.toList
+    if itemsToRegister.IsEmpty then
+        Ok model
+    else
+        match getDuplicateName itemsToRegister with
+        | Some duplicateName ->
+            Error (MainStatus.CannotRegisterMultipleItemsWithSameName duplicateName)
+        | None ->
+            { model with
+                Config = { model.Config with YankRegister = Some (putType, itemsToRegister) }
+                Status = None
+            } |> Ok
 
 let getCopyName name i =
     let (nameNoExt, ext) = Path.SplitName name
     let number = if i = 0 then "" else string (i+1)
     sprintf "%s copy%s%s" nameNoExt number ext
 
-let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) deepExistsCheck copy
-        copyNameToReuse destParent srcRefs =
+let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) deepExistsCheck putType
+        (copyNamesToReuse: Map<string, string>) destParent srcRefs =
     let rec iter checkExists (destParent: Path) (srcRefs: ItemRef seq) = asyncSeq {
         // TODO: try to add For support to asyncSeqResult to clean this up
         let existingNames =
@@ -218,8 +230,9 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
             for { Path = src; Type = typ } in srcRefs do
                 if not cancelToken.IsCancelled then
                     let destNameAndExistsResult =
-                        if src.Parent = destParent then
-                            copyNameToReuse
+                        if putType = Copy && src.Parent = destParent then
+                            copyNamesToReuse
+                            |> Map.tryFind src.Name
                             |> Option.map (fun name -> Ok (name, nameExists name))
                             |> Option.defaultWith (fun () ->
                                 Seq.init 99 (getCopyName src.Name)
@@ -229,7 +242,8 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
                                     | None -> Error (src, TooManyCopiesOfNameException src.Name :> exn)
                             )
                         else
-                            Ok (src.Name, nameExists src.Name)
+                            let name = src.Name + if putType = Shortcut then ".lnk" else ""
+                            Ok (name, nameExists name)
                     match destNameAndExistsResult with
                     | Error e ->
                         yield Error e
@@ -237,7 +251,8 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
                         let dest = destParent.Join destName
                         let putItem = { ItemType = typ; Source = src; Dest = dest; DestExists = destExists }
                         match typ with
-                        | Folder when (destExists && deepExistsCheck) || not destExists && (copy || putItem.AreBasePathsDifferent) ->
+                        | Folder when (putType <> Shortcut && destExists && deepExistsCheck)
+                                || not destExists && (putType = Copy || putItem.AreBasePathsDifferent) ->
                             let! itemsResult = runAsync (fun () -> fsReader.GetItems src)
                             match itemsResult with
                             | Ok items ->
@@ -287,51 +302,104 @@ let private performPutItems (fs: IFileSystem) (progress: Progress) (cancelToken:
 
 // TODO: failure to remove source folders should give an error to the user
 // rename to deleteSourceFolders and yield error for folders that have files
-let private deleteEmptyFolders (fs: IFileSystem) path =
-    let rec iter path = seq {
-        match fs.GetItems path with
-        | Ok items ->
-            let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
-            yield! folders |> Seq.collect (fun folder -> iter folder.Path)
-            if files |> List.isEmpty then
-                yield
-                    fs.Delete Folder path
-                    |> Result.map (cnst path)
-                    |> Result.mapError (fun ex -> (path, ex))
-        | Error ex ->
-            yield Error (path, ex)
+let private deleteEmptyFolders (fs: IFileSystem) paths =
+    let rec iter paths = seq {
+        for path in paths do
+            match fs.GetItems path with
+            | Ok items ->
+                let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
+                yield! folders |> Seq.map (fun folder -> folder.Path) |> iter
+                if files |> List.isEmpty then
+                    yield
+                        fs.Delete Folder path
+                        |> Result.map (cnst path)
+                        |> Result.mapError (fun ex -> (path, ex))
+            | Error ex ->
+                yield Error (path, ex)
     }
-    runAsync (fun () -> iter path |> Result.partition)
+    runAsync (fun () -> iter paths |> Result.partition)
 
-let private performPut (fs: IFileSystem) progress undoIter enumErrors putType (intent: PutIntent) items (model: MainModel) =
+let private getPathReplacementsForMove isUndo isCompleted intent succeeded unsuccessful (enumErrorPaths: Path list) =
+    let wasCopiedBack overwritten = isUndo && overwritten
+    let shouldReplaceAtIntent = isCompleted && not (wasCopiedBack intent.Overwrite)
+    let isIncompleteEnumeratedFolder putItem =
+        putItem.ItemType = Folder
+        && (putItem.DestExists || putItem.AreBasePathsDifferent)
+        && (unsuccessful |> List.exists (fun pi -> pi.Source.IsWithin putItem.Source)
+            || enumErrorPaths |> List.exists (fun path -> path.IsWithin putItem.Source || path.IsWithin putItem.Dest)
+        )
+    let putItemAtIntent putItem =
+        let rec upToIntent (src: Path) (dest: Path) =
+            if dest.Parent = intent.DestParent then (src, dest)
+            else upToIntent src.Parent dest.Parent
+        let src, dest = upToIntent putItem.Source putItem.Dest
+        if src = putItem.Source
+        then putItem
+        else { putItem with Source = src; Dest = dest }
+    succeeded
+    |> List.toSeq
+    |> applyIf (not shouldReplaceAtIntent) (Seq.filter (fun putItem ->
+        not (wasCopiedBack putItem.DestExists) && not (isIncompleteEnumeratedFolder putItem)
+    ))
+    |> Seq.fold (fun replacements putItem ->
+        match replacements with
+        | prev :: _ when putItem.Source.IsWithin prev.Source ->
+            replacements // skip paths within the previous path
+        | _ ->
+            let replacement = putItem |> applyIf shouldReplaceAtIntent putItemAtIntent
+            replacement :: replacements
+    ) []
+    |> Seq.map (fun putItem ->
+        if isUndo
+        then putItem.Dest, putItem.Source
+        else putItem.Source, putItem.Dest
+    )
+    |> Map
+
+let private performPut (fs: IFileSystem) progress undoIter enumErrors putType intent putItems (model: MainModel) =
     asyncSeqResult {
         let isUndo = undoIter |> Option.isSome
-        let! results = items |> performPutItems fs progress model.CancelToken isUndo putType
+        let! results = putItems |> performPutItems fs progress model.CancelToken isUndo putType
         let succeeded, putErrors = results |> Result.partition
         let errorPaths = enumErrors @ putErrors
-        let enumeratedItemCount = items.Length + enumErrors.Length
+        let enumeratedItemCount = putItems.Length + enumErrors.Length
 
         // if nothing succeeded, return error
         if succeeded |> List.isEmpty then
             return MainStatus.PutError (isUndo, putType, errorPaths, enumeratedItemCount)
 
         let! deletedFolders, deleteFolderErrors = async {
-            let isSubPathOf ancestor (path: Path) =
-                path <> ancestor && path.IsWithin ancestor
-            if putType = Move && intent.Source.Type = Folder
-                    && succeeded |> List.exists (fun putItem -> putItem.Source |> isSubPathOf intent.Source.Path) then
-                return! deleteEmptyFolders fs (if isUndo then intent.GetDest false else intent.Source.Path)
+            // for folders that were enumerated and their contents were moved, delete empty source folders
+            if putType = Move then
+                let isSubPathOf ancestor (path: Path) =
+                    path <> ancestor && path.IsWithin ancestor
+                return!
+                    intent.Sources
+                    |> Seq.filter (fun intentSource ->
+                        intentSource.Type = Folder
+                        && succeeded |> List.exists (fun putItem -> putItem.Source |> isSubPathOf intentSource.Path)
+                    )
+                    |> Seq.map (fun itemRef ->
+                        if isUndo
+                        then intent.DestParent.Join itemRef.Path.Name
+                        else itemRef.Path
+                    )
+                    |> deleteEmptyFolders fs
             else
                 return ([], [])
         }
 
         let action = PutItems (putType, intent, succeeded, model.CancelToken.IsCancelled)
-        let unsuccessful = lazy (items |> List.except succeeded)
+        let unsuccessful =
+            if not (errorPaths.IsEmpty) || model.CancelToken.IsCancelled then
+                putItems |> List.except succeeded
+            else
+                []
 
         let updateUndoRedo (model: MainModel) =
             let cancelledAction =
                 if model.CancelToken.IsCancelled then
-                    Some (PutItems (putType, intent, unsuccessful.Value, true))
+                    Some (PutItems (putType, intent, unsuccessful, true))
                 else
                     None
             if isUndo then
@@ -344,55 +412,34 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType (i
                 |> MainModel.withRedoStack (cancelledAction |> Option.toList)
         let updateHistory model =
             if putType = Move then
-                let shouldReplaceHistory overwritten = not (isUndo && overwritten)
-                let getReplacement originalSource originalDest =
-                    if isUndo
-                    then originalDest, originalSource
-                    else originalSource, originalDest
-                let isIncompleteEnumeratedFolder putItem =
-                    putItem.ItemType = Folder
-                    && (putItem.DestExists || putItem.AreBasePathsDifferent)
-                    && (unsuccessful.Value |> List.exists (fun pi -> pi.Source.IsWithin putItem.Source)
-                        || enumErrors |> List.exists (fun (path, _) -> path.IsWithin putItem.Source || path.IsWithin putItem.Dest)
-                    )
                 let isCompleted = errorPaths.IsEmpty && not model.CancelToken.IsCancelled
                 let pathReplacements =
-                    if isCompleted && shouldReplaceHistory intent.Overwrite then
-                        Map [getReplacement intent.Source.Path (intent.GetDest false)]
-                    else
-                        succeeded
-                        |> List.filter (fun putItem ->
-                            shouldReplaceHistory putItem.DestExists && not (isIncompleteEnumeratedFolder putItem)
-                        )
-                        |> List.map (fun putItem -> getReplacement putItem.Source putItem.Dest)
-                        |> Map
-                model |> MainModel.mapHistory (
-                    History.withPathsReplaced pathReplacements
-                    >> History.withoutPaths deletedFolders
-                )
+                    getPathReplacementsForMove isUndo isCompleted intent succeeded unsuccessful (enumErrors |> List.map fst)
+                model |> MainModel.mapHistory (History.withPathsReplaced pathReplacements)
             else
                 model
         let openDest model =
-            let dest =
+            let destPaths =
                 if isUndo then
-                    intent.Source.Path
+                    intent.Sources |> List.map (fun itemRef -> itemRef.Path)
                 else
                     intent.FilterPutItemsToDestParent succeeded
                     |> Seq.map (fun putItem -> putItem.Dest)
-                    |> Seq.tryHead
+                    |> Seq.toList
+                    |> Option.ofCond (not << List.isEmpty)
                     |> Option.defaultWith (fun () ->
                         let rec childOfDestParent (path: Path) =
                             if path.Parent = intent.DestParent then path
                             else childOfDestParent path.Parent
-                        childOfDestParent succeeded.Head.Dest
+                        [childOfDestParent succeeded.Head.Dest]
                     )
-            model |> ignoreError (Nav.openPath fs dest.Parent (CursorToPath (dest, false)))
+            model |> ignoreError (Nav.openPath fs destPaths.Head.Parent (CursorToAndSelectPaths (destPaths, false)))
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errorPaths.IsEmpty then
                 MainStatus.Error (MainStatus.PutError (isUndo, putType, errorPaths, enumeratedItemCount))
             else if model.CancelToken.IsCancelled then
-                MainStatus.Message (MainStatus.CancelledPut (putType, isUndo, succeeded.Length, items.Length))
+                MainStatus.Message (MainStatus.CancelledPut (putType, isUndo, succeeded.Length, putItems.Length))
             else
                 deleteFolderErrors
                 |> List.tryHead
@@ -414,9 +461,9 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType (i
             |> openDest
     }
 
-let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType (intent: PutIntent) model = asyncSeqResult {
+let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType intent model = asyncSeqResult {
     let model = { model with CancelToken = CancelToken() }
-    yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, intent.Source.Path.Name))
+    yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, intent.Sources))
     progress.Start ()
     let alreadyPutItemsForResume =
         if isRedo then
@@ -427,109 +474,104 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType (inte
                 | _ -> []
             )
         else []
-    let copyNameToReuse =
-        if intent.Source.Path.Parent = intent.DestParent then
-            intent.FilterPutItemsToDestParent alreadyPutItemsForResume
-            |> Seq.map (fun putItem -> putItem.Dest.Name)
-            |> Seq.tryHead
-        else None
-    let! enumerated = async {
-        match putType with
-        | Move | Copy ->
-            let deepExistsCheck = intent.Overwrite || not alreadyPutItemsForResume.IsEmpty
-            return!
-                enumeratePutItems fs model.CancelToken deepExistsCheck (putType = Copy) copyNameToReuse
-                    intent.DestParent [intent.Source]
-                |> AsyncSeq.toListAsync
-        | Shortcut ->
-            let destPath = intent.GetDest true
-            match fs.GetItem destPath with
-            | Error e ->
-                return [Error (destPath, e)]
-            | Ok existing ->
-                let putItem = {
-                    ItemType = intent.Source.Type
-                    Source = intent.Source.Path
-                    Dest = destPath
-                    DestExists = existing.IsSome
-                }
-                return [Ok putItem]
-    }
-    let pathToConfirmOverwrite =
+    let copyNamesToReuse =
+        alreadyPutItemsForResume
+        |> intent.FilterPutItemsToDestParent
+        |> Seq.map (fun putItem -> putItem.Source.Name, putItem.Dest.Name)
+        |> Map
+    let! enumerationResults =
+        let deepExistsCheck = intent.Overwrite || not alreadyPutItemsForResume.IsEmpty
+        enumeratePutItems fs model.CancelToken deepExistsCheck putType copyNamesToReuse intent.DestParent intent.Sources
+        |> AsyncSeq.toListAsync
+    let putItemsToConfirmOverwrite =
         if not intent.Overwrite && not isRedo then
-            enumerated |> List.tryPick (function
-                | Ok putItem when putItem.DestExists -> Some putItem.Dest
+            enumerationResults |> List.choose (function
+                | Ok putItem when putItem.DestExists -> Some putItem
                 | _ -> None
             )
         else
-            None
-    match pathToConfirmOverwrite with
-    | Some existingPath ->
+            []
+    if not putItemsToConfirmOverwrite.IsEmpty then
+        let sourceItems =
+            putItemsToConfirmOverwrite
+            |> Seq.map (fun putItem -> putItem.Source.Parent)
+            |> Seq.distinct
+            |> Seq.collect (fs.GetItems >> Result.defaultValue [])
+            |> Seq.toList
+        let destItems = fs.GetItems intent.DestParent |> Result.defaultValue []
+        let tryFind itemList path =
+            itemList |> List.tryFind (fun item -> item.Path = path)
+        let srcExistingPairs, putItemsNotFound =
+            putItemsToConfirmOverwrite
+            |> List.map (fun putItem ->
+                match tryFind sourceItems putItem.Source, tryFind destItems putItem.Dest with
+                | Some src, Some existing -> Ok (src, existing)
+                | _ -> Error putItem
+            )
+            |> Result.partition
+        if not putItemsNotFound.IsEmpty then
+            return MainStatus.CouldNotReadItemsForOverwritePrompt
         // refresh item list to make sure we can see the existing file
-        let! existing =
-            fs.GetItem existingPath
-            |> Result.bind (Result.ofOption (exn "existing item missing")) // shouldn't ever happen :)
-            |> actionError "read existing item"
-        let! sourceItem =
-            fs.GetItem intent.Source.Path
-            |> Result.bind (Result.ofOption (exn "source item missing"))
-            |> actionError "read source item"
-        let! model = Nav.openPath fs model.Location (CursorToPath (existingPath, true)) model
+        let existingPaths = srcExistingPairs |> List.map (fun (_, item) -> item.Path)
+        let! model = Nav.openPath fs model.Location (CursorToAndSelectPaths (existingPaths, true)) model
         yield
             { model with
-                InputMode = Some (Confirm (Overwrite (putType, sourceItem, existing)))
+                InputMode = Some (Confirm (Overwrite (putType, srcExistingPairs)))
                 InputText = ""
             }
-    | None ->
-        if model.CancelToken.IsCancelled then
-            yield model |> MainModel.withMessage (MainStatus.CancelledPut (putType, false, 0, enumerated.Length))
-        else
-            // if resuming cancelled put, skip items already done
-            let filterItemsToSkip =
-                alreadyPutItemsForResume
-                |> List.map (fun putItem -> putItem.Source)
-                |> function
-                    | [] -> id
-                    | pathsToSkip ->
-                        List.filter (fun (res: Result<PutItem, _>) -> // TODO: remove type annotation
-                            let path = res |> Result.toOption |> Option.map (fun putItem -> putItem.Source)
-                            not (path |> Option.exists (Seq.containedIn pathsToSkip))
-                        )
-            let blockRedoIfDestExists putResult =
-                putResult |> Result.bind (fun putItem ->
-                    if putItem.DestExists
-                    then Error (putItem.Source, RedoPutBlockedByExistingItemException() :> exn)
-                    else Ok putItem
-                )
-            let items, enumErrors =
-                enumerated
-                |> filterItemsToSkip
-                |> applyIf (isRedo && not intent.Overwrite) (List.map blockRedoIfDestExists)
-                |> Result.partition
-            if putType = Move || putType = Copy then
-                yield model |> MainModel.withBusy (MainStatus.PuttingItem ((putType = Copy), isRedo, intent, model.PathFormat))
-            yield! performPut fs progress None enumErrors putType intent items model
+    else if model.CancelToken.IsCancelled then
+        yield model |> MainModel.withMessage (MainStatus.CancelledPut (putType, false, 0, enumerationResults.Length))
+    else
+        // if resuming cancelled put, skip items already done
+        let filterItemsToSkip =
+            alreadyPutItemsForResume
+            |> List.map (fun putItem -> putItem.Source)
+            |> function
+                | [] -> id
+                | pathsToSkip ->
+                    List.filter (fun res ->
+                        let path = res |> Result.toOption |> Option.map (fun putItem -> putItem.Source)
+                        not (path |> Option.exists (Seq.containedIn pathsToSkip))
+            )
+        let blockRedoIfDestExists putResult =
+            putResult |> Result.bind (fun putItem ->
+                if putItem.DestExists
+                then Error (putItem.Source, RedoPutBlockedByExistingItemException() :> exn)
+                else Ok putItem
+            )
+        let putItems, enumErrors =
+            enumerationResults
+            |> filterItemsToSkip
+            |> applyIf (isRedo && not intent.Overwrite) (List.map blockRedoIfDestExists)
+            |> Result.partition
+        if putType = Move || putType = Copy then
+            yield model |> MainModel.withBusy (MainStatus.PuttingItem ((putType = Copy), isRedo, intent, model.PathFormat))
+        yield! performPut fs progress None enumErrors putType intent putItems model
 }
 
-let putInLocation (fs: IFileSystem) progress isRedo overwrite putType (itemRef: ItemRef) model = asyncSeqResult {
+let putInLocation (fs: IFileSystem) progress isRedo overwrite putType (itemRefs: ItemRef list) (model: MainModel) = asyncSeqResult {
+    if model.IsSearchingSubFolders then
+        return MainStatus.CannotPutHere
     do! fs.GetItem model.Location
         |> actionError "read put location"
         |> Result.okIf (Option.exists (fun l -> l.Type.CanCreateIn)) MainStatus.CannotPutHere
         |> Result.map ignore
-    let sameFolder = itemRef.Path.Parent = model.Location
-    if putType = Move && sameFolder then
+    let itemRefs = itemRefs |> applyIf (putType = Move) (List.filter (fun itemRef -> itemRef.Path.Parent <> model.Location))
+    if itemRefs.IsEmpty then
         return MainStatus.CannotMoveToSameFolder
-    let intent = { Source = itemRef; DestParent = model.Location; Overwrite = overwrite }
-    yield! putToDestination fs progress isRedo putType intent model
+    match getDuplicateName itemRefs with
+    | Some duplicateName ->
+        return MainStatus.CannotPutMultipleItemsWithSameName (putType, duplicateName)
+    | None ->
+        let intent = { Sources = itemRefs; DestParent = model.Location; Overwrite = overwrite }
+        yield! putToDestination fs progress isRedo putType intent model
 }
 
 let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult {
     match model.Config.YankRegister with
     | None -> ()
-    | Some (itemRef, putType) ->
-        if model.IsSearchingSubFolders then
-            return MainStatus.CannotPutHere
-        let! model = putInLocation fs progress false overwrite putType itemRef model
+    | Some (putType, itemRefs) ->
+        let! model = putInLocation fs progress false overwrite putType itemRefs model
         let wasImmediatelyCanceled =
             match model.Status with Some (MainStatus.Message (MainStatus.CancelledPut (_, _, 0, _))) -> true | _ -> false
         // if not cancelled or opened input for confirmation, clear yank register
@@ -537,7 +579,7 @@ let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult
             yield { model with Config = { model.Config with YankRegister = None } }
 }
 
-let undoMove (fs: IFileSystem) progress undoIter (intent: PutIntent) (moved: PutItem list) (model: MainModel) =
+let undoMove (fs: IFileSystem) progress undoIter intent (moved: PutItem list) (model: MainModel) =
     asyncSeqResult {
         let model = { model with CancelToken = CancelToken() }
         yield model |> MainModel.withBusy (MainStatus.UndoingPut (false, intent, model.PathFormat))
@@ -585,7 +627,6 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
 
     if not errors.IsEmpty && succeeded.IsEmpty then
         return MainStatus.PutError (true, Copy, errors, itemsToDelete.Length)
-
     let cancelledUndo =
         if model.CancelToken.IsCancelled
         then Some (PutItems (Copy, intent, (itemsToDelete |> List.except succeeded), true))

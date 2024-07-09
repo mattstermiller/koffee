@@ -285,15 +285,15 @@ let pathReplace oldPath newPath (path: Path) =
     path.TryReplace oldPath newPath
     |> Option.defaultWith (fun () -> failwithf "Problem with test: expected \"%O\" to be within path: %O" oldPath path)
 
-let createPutIntent (srcItem: Item) destParent =
-    { Source = srcItem.Ref; DestParent = destParent; Overwrite = false }
+let createPutIntent (srcItems: Item list) destParent =
+    { Sources = srcItems |> List.map (fun i -> i.Ref); DestParent = destParent; Overwrite = false }
 
 let createPutItem srcItem dest = { ItemType = srcItem.Type; Source = srcItem.Path; Dest = dest; DestExists = false }
 let createPutItemFrom src dest item = createPutItem item (item.Path |> pathReplace src dest)
 let withDestExists putItem = { putItem with DestExists = true }
 
 let createPutIntentAndItem srcItem (dest: Path) =
-    (createPutIntent srcItem dest.Parent, createPutItem srcItem dest)
+    (createPutIntent [srcItem] dest.Parent, createPutItem srcItem dest)
 
 let testModel =
     let items = [ createFile "/c/default item" ]

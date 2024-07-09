@@ -33,21 +33,29 @@ let updateDropInPutType (paths: Path list) (event: DragEvent) (model: MainModel)
     model
 
 let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
-    // TODO: support multiple items
     match getDropInPutType event model (paths |> List.head) with
     | Some putType ->
-        let paths =
-            if putType = Move then
-                paths |> List.filter (fun p -> p.Parent <> model.Location)
-            else
+        match paths with
+        | [path] ->
+            let! item =
+                fs.GetItem path
+                |> Result.bind (Result.ofOption (path.Format model.PathFormat |> sprintf "Path not found: %s" |> exn))
+                |> actionError "read drop item"
+            yield! Action.putInLocation fs progress false false putType [item.Ref] model
+        | _ ->
+            let parentLists, errors =
                 paths
-        match paths |> List.tryHead with
-        | Some path ->
-            match! fs.GetItem path |> actionError "drop item" with
-            | Some item ->
-                yield! Action.putInLocation fs progress false false putType item.Ref model
-            | None -> ()
-        | None -> ()
+                |> Seq.map (fun p -> p.Parent)
+                |> Seq.distinct
+                |> Seq.map (fun parent -> fs.GetItems parent |> actionError "read parent of drop item")
+                |> Result.partition
+            match errors with
+            | error :: _ ->
+                return error
+            | [] ->
+                let parentItemRefs = parentLists |> Seq.collect (Seq.map (fun item -> (item.Path, item.Ref))) |> Map
+                let itemRefs = paths |> List.choose (fun p -> parentItemRefs |> Map.tryFind p)
+                yield! Action.putInLocation fs progress false false putType itemRefs model
     | None -> ()
 }
 

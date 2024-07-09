@@ -536,18 +536,13 @@ module MainView =
             window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
                 let paths = getFileDropPaths e.Data
                 e.Handled <- true
-                UpdateDropInPutType (paths, DragEvent e)
+                UpdateDropInPutType (paths, DragInEvent e)
             )
             window.ItemGrid.MouseMove |> Obs.choose (fun e ->
                 if e.LeftButton = MouseButtonState.Pressed then
-                    let item = window.ItemGrid.SelectedItem :?> Item
-                    let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
-                    DragDrop.DoDragDrop(window.ItemGrid, dropData,
-                        DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
-                    |> DragDropEffects.toPutTypes
-                    |> List.tryHead
-                    |> Option.map DropOut
-                else None
+                    Some (DropOut (DragOutEvent window.ItemGrid))
+                else
+                    None
             )
             window.ItemGrid.Drop |> Obs.choose (fun e ->
                 let paths = getFileDropPaths e.Data
@@ -555,7 +550,7 @@ module MainView =
                     None
                 else
                     e.Handled <- true
-                    Some (DropIn (paths, DragEvent e))
+                    Some (DropIn (paths, DragInEvent e))
             )
             config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
             history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged

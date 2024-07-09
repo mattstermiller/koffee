@@ -867,3 +867,48 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
 }
 
 let redo fs = redoIter 1 fs
+
+let private getDropInPutType (event: DragInEvent) (location: Path) (path: Path) =
+    let desiredPutType =
+        event.PutType |> Option.defaultWith (fun () -> if path.Base = location.Base then Move else Copy)
+    event.AllowedPutTypes
+    |> List.tryFind ((=) desiredPutType)
+    |> Option.orElse (event.AllowedPutTypes |> List.tryHead)
+
+let updateDropInPutType (paths: Path list) (event: DragInEvent) (model: MainModel) =
+    event.PutType <- paths |> List.tryHead |> Option.bind (getDropInPutType event model.Location)
+    model
+
+let dropIn (fs: IFileSystem) progress paths (event: DragInEvent) (model: MainModel) = asyncSeqResult {
+    match getDropInPutType event model.Location (paths |> List.head) with
+    | Some putType ->
+        match paths with
+        | [path] ->
+            let! item =
+                fs.GetItem path
+                |> Result.bind (Result.ofOption (path.Format model.PathFormat |> sprintf "Path not found: %s" |> exn))
+                |> actionError "read drop item"
+            yield! putInLocation fs progress false false putType [item.Ref] model
+        | _ ->
+            let parentLists, errors =
+                paths
+                |> Seq.map (fun p -> p.Parent)
+                |> Seq.distinct
+                |> Seq.map (fun parent -> fs.GetItems parent |> actionError "read parent of drop item")
+                |> Result.partition
+            match errors with
+            | error :: _ ->
+                return error
+            | [] ->
+                let parentItemRefs = parentLists |> Seq.collect (Seq.map (fun item -> (item.Path, item.Ref))) |> Map
+                let itemRefs = paths |> List.choose (fun p -> parentItemRefs |> Map.tryFind p)
+                yield! putInLocation fs progress false false putType itemRefs model
+    | None -> ()
+}
+
+let dropOut (fsReader: IFileSystemReader) (dragOutEvent: DragOutEvent) (model: MainModel) =
+    match dragOutEvent.DoDropOut (model.ActionItems |> Seq.map (fun i -> i.Path)) with
+    | Some putType when putType = Move ->
+        ignoreError (Nav.refresh fsReader) model
+    | _ ->
+        model

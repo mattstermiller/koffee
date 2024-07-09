@@ -1041,7 +1041,7 @@ module DragDropEffects =
         else if shift then DragDropEffects.Move
         else DragDropEffects.None
 
-type DragEvent(event: DragEventArgs) =
+type DragInEvent(event: DragEventArgs) =
     do
         event.Effects <- DragDropEffects.fromKeyModifiers ()
 
@@ -1050,6 +1050,14 @@ type DragEvent(event: DragEventArgs) =
         and set value = event.Effects <- DragDropEffects.ofPutTypes value
 
     member this.AllowedPutTypes = event.AllowedEffects |> DragDropEffects.toPutTypes
+
+type DragOutEvent(control) =
+    member _.DoDropOut (paths: Path seq) =
+        let winPaths = paths |> Seq.map (fun p -> p.Format Windows) |> Seq.toArray
+        let dropData = DataObject(DataFormats.FileDrop, winPaths)
+        DragDrop.DoDragDrop(control, dropData, DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
+        |> DragDropEffects.toPutTypes
+        |> List.tryHead
 
 type ScrollType =
     | CursorTop
@@ -1088,9 +1096,9 @@ type MainEvents =
     | InputForward
     | InputDelete of isShifted: bool * EvtHandler
     | SubDirectoryResults of Item list
-    | UpdateDropInPutType of Path list * DragEvent
-    | DropIn of Path list * DragEvent
-    | DropOut of PutType
+    | UpdateDropInPutType of Path list * DragInEvent
+    | DropIn of Path list * DragInEvent
+    | DropOut of DragOutEvent
     | SubmitInput
     | CancelInput
     | FindNext

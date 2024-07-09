@@ -21,53 +21,6 @@ let toggleHidden (model: MainModel) =
     | None ->
         model |> Nav.listDirectory model.KeepCursorByPath
 
-let private getDropInPutType (event: DragEvent) (model: MainModel) (path: Path) =
-    let desiredPutType =
-        event.PutType |> Option.defaultWith (fun () -> if path.Base = model.Location.Base then Move else Copy)
-    event.AllowedPutTypes
-    |> List.tryFind ((=) desiredPutType)
-    |> Option.orElse (event.AllowedPutTypes |> List.tryHead)
-
-let updateDropInPutType (paths: Path list) (event: DragEvent) (model: MainModel) =
-    event.PutType <- paths |> List.tryHead |> Option.bind (getDropInPutType event model)
-    model
-
-let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
-    match getDropInPutType event model (paths |> List.head) with
-    | Some putType ->
-        match paths with
-        | [path] ->
-            let! item =
-                fs.GetItem path
-                |> Result.bind (Result.ofOption (path.Format model.PathFormat |> sprintf "Path not found: %s" |> exn))
-                |> actionError "read drop item"
-            yield! Action.putInLocation fs progress false false putType [item.Ref] model
-        | _ ->
-            let parentLists, errors =
-                paths
-                |> Seq.map (fun p -> p.Parent)
-                |> Seq.distinct
-                |> Seq.map (fun parent -> fs.GetItems parent |> actionError "read parent of drop item")
-                |> Result.partition
-            match errors with
-            | error :: _ ->
-                return error
-            | [] ->
-                let parentItemRefs = parentLists |> Seq.collect (Seq.map (fun item -> (item.Path, item.Ref))) |> Map
-                let itemRefs = paths |> List.choose (fun p -> parentItemRefs |> Map.tryFind p)
-                yield! Action.putInLocation fs progress false false putType itemRefs model
-    | None -> ()
-}
-
-let dropOut (fsReader: IFileSystemReader) putType (model: MainModel) =
-    // TODO: move to MainAction, call removeItem or refresh
-    // TODO: support multiple items
-    if putType = Move && fsReader.GetItem model.CursorItem.Path = Ok None then
-        let items = model.Items |> List.except [model.CursorItem] |> model.ItemsOrEmpty
-        { model with Items = items }
-    else
-        model
-
 let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
     let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
                   |> Rect.fit (getScreenBounds())

@@ -416,9 +416,9 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ClipCopy -> SyncResult (Action.clipCopy os)
             | Recycle -> AsyncResult (fun m -> Action.recycle fs progress m.ActionItems m)
             | SortList field -> Sync (Nav.sortList field)
-            | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
-            | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)
-            | DropOut putType -> Sync (Command.dropOut fs putType)
+            | UpdateDropInPutType (paths, event) -> Sync (Action.updateDropInPutType paths event)
+            | DropIn (paths, event) -> AsyncResult (Action.dropIn fs progress paths event)
+            | DropOut event -> Sync (Action.dropOut fs event)
             | ToggleHidden -> Sync Command.toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)

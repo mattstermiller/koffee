@@ -649,14 +649,16 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
 }
 
 let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
-    let items = model.ActionItems |> List.filter (fun item -> item.Type <> Empty)
-    match items with
-    | [] ->
+    let paths =
+        model.ActionItems
+        |> Seq.filter (fun item -> item.Type <> Empty)
+        |> Seq.map (fun i -> i.Path)
+        |> Seq.toList
+    if paths.IsEmpty then
         return model
-    // TODO: support multiple items
-    | item :: _ ->
-        do! os.CopyToClipboard item.Path |> actionError "copy to clipboard"
-        return model |> MainModel.withMessage (MainStatus.ClipboardCopy (item.Path.Format model.PathFormat))
+    else
+        do! os.CopyToClipboard paths |> actionError "copy to clipboard"
+        return model |> MainModel.withMessage (MainStatus.ClipboardCopy (paths, model.PathFormat))
 }
 
 let private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) =

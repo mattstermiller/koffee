@@ -332,7 +332,7 @@ module MainStatus =
         | OpenExplorer
         | OpenCommandLine of path: string
         | OpenTextEditor of name: string
-        | ClipboardCopy of path: string
+        | ClipboardCopy of paths: Path list * PathFormat
         | RemovedNetworkHosts of names: string list
 
         member private this.DescribeCancelledProgress action completed total =
@@ -409,8 +409,12 @@ module MainStatus =
                 sprintf "Opened Commandline at: %s" path
             | OpenTextEditor name ->
                 sprintf "Opened text editor for: %s" name
-            | ClipboardCopy path ->
-                sprintf "Copied to clipboard: %s" path
+            | ClipboardCopy (paths, pathFormat) ->
+                let pathsDescr =
+                    match paths with
+                    | [path] -> path.Format pathFormat
+                    | _ -> paths |> Seq.map (fun p -> p.Name) |> String.concat ", "
+                sprintf "Copied to clipboard: %s" pathsDescr
             | RemovedNetworkHosts names ->
                 let plural = if names.Length > 1 then "s" else ""
                 sprintf "Removed network host%s: %s" plural (names |> String.concat ", ")

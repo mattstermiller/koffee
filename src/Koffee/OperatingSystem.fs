@@ -92,7 +92,7 @@ type IOperatingSystem =
     abstract member OpenProperties: Path -> Result<unit, exn>
     abstract member OpenExplorer: Item -> unit
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
-    abstract member CopyToClipboard: Path -> Result<unit, exn>
+    abstract member CopyToClipboard: Path seq -> Result<unit, exn>
     abstract member GetEnvironmentVariable: string -> string option
 
 type OperatingSystem() =
@@ -126,11 +126,11 @@ type OperatingSystem() =
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
                 |> Process.Start |> ignore
 
-        member this.CopyToClipboard path =
+        member this.CopyToClipboard paths =
             tryResult <| fun () ->
-                let path = wpath path
-                let data = DataObject(DataFormats.FileDrop, [|path|])
-                data.SetText(path)
+                let winPaths = paths |> Seq.map wpath |> Seq.toArray
+                let data = DataObject(DataFormats.FileDrop, winPaths)
+                data.SetText(winPaths |> String.concat "\n")
                 Clipboard.SetDataObject(data, true)
 
         member this.GetEnvironmentVariable key =

@@ -422,7 +422,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | ToggleHidden -> Sync Command.toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)
-            | OpenExplorer -> Sync (Command.openExplorer os)
+            | OpenExplorer -> SyncResult (Command.openExplorer os)
             | OpenCommandLine -> SyncResult (Command.openCommandLine os)
             | OpenSettings -> SyncResult (Command.openSettings fs openSettings)
             | Exit -> Sync (fun m -> closeWindow(); m)

@@ -60,10 +60,21 @@ module OsInterop =
             val mutable hProcess: IntPtr
 
         [<DllImport("shell32.dll", CharSet = CharSet.Auto)>]
-        extern bool ShellExecuteEx(ShellExecuteInfo& lpExecInfo);
+        extern bool ShellExecuteEx(ShellExecuteInfo& lpExecInfo)
+
+    module private SelectInExplorer =
+        [<DllImport("shell32.dll", SetLastError = true)>]
+        extern int SHOpenFolderAndSelectItems(IntPtr pidlFolder, uint cidl,
+            [<In; MarshalAs(UnmanagedType.LPArray)>] IntPtr[] apidl, uint dwFlags)
+
+        [<DllImport("shell32.dll", SetLastError = true)>]
+        extern void SHParseDisplayName([<MarshalAs(UnmanagedType.LPWStr)>] string name, IntPtr bindingContext,
+            [<Out>] IntPtr& pidl, uint sfgaoIn, [<Out>] uint& psfgaoOut);
+
 
     open OpenWithNative
     open OpenPropertiesNative
+    open SelectInExplorer
 
     let openFileWith fileName =
         let mutable info =
@@ -85,12 +96,35 @@ module OsInterop =
         info.cbSize <- Marshal.SizeOf(info)
         ShellExecuteEx(&info);
 
+    let openExplorerAndSelect location selectItemPaths =
+        let getDisplayName path =
+            let mutable nativePath = IntPtr.Zero
+            let mutable psfgaoOut = 0u
+            SHParseDisplayName(path, IntPtr.Zero, &nativePath, 0u, &psfgaoOut)
+            Some nativePath |> Option.filter ((<>) IntPtr.Zero)
+        let nativeLocation =
+            getDisplayName location
+            |> Option.defaultWith (fun () -> failwithf "Cannot read folder %s" location)
+        let nativeSelectPaths =
+            selectItemPaths
+            |> Seq.choose getDisplayName
+            |> Seq.ifEmpty (seq {IntPtr.Zero})
+            |> Seq.toArray
+        try
+            SHOpenFolderAndSelectItems(nativeLocation, uint nativeSelectPaths.Length, nativeSelectPaths, 0u)
+        finally
+            [
+                nativeLocation
+                yield! nativeSelectPaths
+            ]
+            |> List.iter Marshal.FreeCoTaskMem
+
 
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
     abstract member OpenFileWith: Path -> Result<unit, exn>
     abstract member OpenProperties: Path -> Result<unit, exn>
-    abstract member OpenExplorer: Item -> unit
+    abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member CopyToClipboard: Path seq -> Result<unit, exn>
     abstract member GetEnvironmentVariable: string -> string option
@@ -112,14 +146,9 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 OsInterop.openProperties (wpath path) |> ignore
 
-        member this.OpenExplorer item =
-            match item.Type with
-            | File | Folder when item.Path <> Path.Root ->
-                Process.Start("explorer.exe", sprintf "/select,\"%s\"" (wpath item.Path)) |> ignore
-            | Drive | Empty ->
-                Process.Start("explorer.exe", sprintf "\"%s\"" (wpath item.Path)) |> ignore
-            | _ ->
-                Process.Start("explorer.exe") |> ignore
+        member this.OpenExplorer location selectItemPaths =
+            tryResult <| fun () ->
+                OsInterop.openExplorerAndSelect (wpath location) (selectItemPaths |> Seq.map wpath) |> ignore
 
         member this.LaunchApp exePath workingPath args =
             tryResult <| fun () ->

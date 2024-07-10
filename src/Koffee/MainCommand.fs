@@ -44,10 +44,15 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
     return model
 }
 
-let openExplorer (os: IOperatingSystem) (model: MainModel) =
-    // TODO: support multiple items
-    os.OpenExplorer model.ActionItems.Head
-    model |> MainModel.withMessage MainStatus.OpenExplorer
+let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
+    let parent = model.ActionItems.Head.Path.Parent
+    let selectPaths =
+        model.ActionItems
+        |> Seq.filter (fun i -> i.Path.Parent = parent)
+        |> Seq.map (fun i -> i.Path)
+    do! os.OpenExplorer parent selectPaths |> actionError "open Explorer"
+    return model |> MainModel.withMessage MainStatus.OpenExplorer
+}
 
 let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
     match model.ActionItems with

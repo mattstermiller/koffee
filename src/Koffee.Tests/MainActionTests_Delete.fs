@@ -96,6 +96,85 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
 
 [<TestCase(false)>]
 [<TestCase(true)>]
+let ``Recycle or Delete multiple items from recursive search recycles or deletes and updates items and path history``
+        permanent =
+    let fs = FakeFileSystem [
+        driveWithSize 'c' 100L [
+            folder "folder1" [
+                file "another"
+                file "file1"
+            ]
+            folder "folder2" [
+                folder "sub" [
+                    file "file2"
+                ]
+            ]
+            file "file3"
+            file "file4"
+            file "other"
+        ]
+    ]
+    let items =
+        [
+            "/c/folder1/file1"
+            "/c/folder2/sub/file2"
+            "/c/file3"
+            "/c/file4"
+        ]
+        |> List.map fs.Item
+    let selected = items |> List.take 3
+    let model =
+        { testModel with
+            Directory = fs.ItemsIn "/c"
+            Items = items
+            SelectedItems = selected
+            SearchCurrent = Some { Terms = "file"; SubFolders = true; CaseSensitive = false; Regex = false }
+        }
+        |> withHistoryPaths (historyPaths {
+            "/c/folder1/"
+            yield! items
+        })
+
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResult (testFunc fs progress selected) model
+
+    let expectedAction = DeletedItems (permanent, selected, false)
+    let expected =
+        { model with
+            Directory = [
+                createFolder "/c/folder1"
+                createFolder "/c/folder2"
+                createFile "/c/file4"
+                createFile "/c/other"
+            ]
+            Items = [createFile "/c/file4"]
+            SelectedItems = []
+            UndoStack = expectedAction :: model.UndoStack
+            RedoStack = []
+            CancelToken = CancelToken()
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withHistoryPaths (historyPaths {
+            "/c/folder1/"
+            "/c/file4"
+        })
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        driveWithSize 'c' 100L [
+            folder "folder1" [
+                file "another"
+            ]
+            folder "folder2" [
+                folder "sub" []
+            ]
+            file "file4"
+            file "other"
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual (if permanent then [] else selected)
+
+[<TestCase(false)>]
+[<TestCase(true)>]
 let ``Recycle or Delete folder recycles or deletes it and updates path history`` permanent =
     let fs = FakeFileSystem [
         driveWithSize 'c' 100L [

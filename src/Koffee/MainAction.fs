@@ -712,8 +712,8 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
 
     let actualDeleted, errors = results |> Result.partition
     let deletedCount = actualDeleted.Length
-    let basePath = items.Head.Path.Parent
-    let itemsDeleted = actualDeleted |> List.filter (fun i -> i.Path.Parent = basePath)
+    let actualDeletedPaths = actualDeleted |> Seq.map (fun i -> i.Path) |> Set
+    let itemsDeleted = items |> List.filter (fun i -> actualDeletedPaths |> Set.contains i.Path)
 
     let undoAction =
         if not itemsDeleted.IsEmpty then

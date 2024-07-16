@@ -106,3 +106,20 @@ let openSettings fsReader openSettings model = result {
     let config = openSettings model.Config
     return! { model with Config = config } |> Nav.refresh fsReader
 }
+
+let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
+    let itemPath = model.CursorItem.Path
+    let! gitRoot =
+        os.Execute "git" itemPath.Parent "rev-parse --show-toplevel"
+        |> Result.map Path.Parse
+        |> (actionError "find git root")
+    match gitRoot with
+    | Some gitRoot ->
+        let pathStr = itemPath.FormatRelativeFolder model.PathFormat gitRoot
+        let pathStr = pathStr |> String.substring 1 (pathStr.Length - 2)
+        let devOpsPath = sprintf "https://dev.azure.com/osh-inc/Canopy/_git/%s?path=%s" gitRoot.Name pathStr
+        do! os.LaunchApp devOpsPath model.Location "" |> actionError "launch url"
+        return model |> MainModel.withMessage (MainStatus.OpenInDevOps (gitRoot.Name, pathStr))
+    | _ ->
+        return model
+}

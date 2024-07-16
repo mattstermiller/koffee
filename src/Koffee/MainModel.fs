@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -430,6 +430,7 @@ module MainStatus =
         | OpenTextEditor of names: string list
         | OpenTerminal of Path
         | OpenExplorer
+        | OpenInDevOps of repo: string * path: string
         | RemovedNetworkHosts of names: string list
 
         static member private describePaths pathFormat (paths: Path list) =
@@ -515,6 +516,8 @@ module MainStatus =
                 sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
+            | OpenInDevOps (repo, path) ->
+                sprintf "Opened DevOps to %s repo, path %s" repo path
             | RemovedNetworkHosts names ->
                 sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
 
@@ -1201,6 +1204,7 @@ type MainEvents =
     | OpenWithTextEditor
     | OpenTerminal
     | OpenExplorer
+    | OpenInDevOps
     | OpenSettings
     | Exit
     | LocationInputChanged
@@ -1270,6 +1274,7 @@ type MainEvents =
         OpenWithTextEditor, "Open Selected File With Text Editor"
         OpenTerminal, "Open Terminal at Current Location"
         OpenExplorer, "Open Windows Explorer at Current Location"
+        OpenInDevOps, "Open item in DevOps"
         Undo, "Undo Action"
         Redo, "Redo Action"
         ToggleHistory NavHistory, "Show Navigation History"

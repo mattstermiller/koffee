@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
@@ -408,6 +408,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)
             | OpenTerminal -> SyncResult (Command.openTerminal os)
             | OpenExplorer -> SyncResult (Command.openExplorer os)
+            | OpenInDevOps -> SyncResult (Command.openInDevOps os)
             | OpenSettings -> SyncResult (Command.openSettings fs openSettings)
             | Exit -> Sync (fun m -> closeWindow(); m)
             | LocationInputChanged -> Async (Nav.suggestPaths fs)

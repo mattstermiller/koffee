@@ -148,6 +148,7 @@ type IOperatingSystem =
     abstract member OpenProperties: Path seq -> Result<unit, exn>
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
+    abstract member Execute: command: string -> workingPath: Path -> args: string -> Result<string, exn>
     abstract member GetClipboardFileDrop: unit -> Result<PutType * Path list, exn>
     abstract member SetClipboardFileDrop: copy: bool -> Path seq -> Result<unit, exn>
     abstract member SetClipboardText: string -> Result<unit, exn>
@@ -184,6 +185,22 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
                 |> Process.Start |> ignore
+
+        member _.Execute command workingPath args =
+            tryResult <| fun () ->
+                ProcessStartInfo(command, args,
+                    WorkingDirectory = wpath workingPath,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true
+                )
+                |> Process.Start
+                |> fun proc ->
+                    proc.WaitForExit()
+                    if proc.ExitCode <> 0 then
+                        failwithf "Command exited with code %i" proc.ExitCode
+                    proc.StandardOutput.ReadToEnd()
 
         member _.GetClipboardFileDrop () =
             tryResult <| fun () ->

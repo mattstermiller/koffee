@@ -331,7 +331,7 @@ module MainStatus =
         | OpenProperties of name: string
         | OpenExplorer
         | OpenCommandLine of path: string
-        | OpenTextEditor of name: string
+        | OpenTextEditor of names: string list
         | ClipboardCopy of paths: Path list * PathFormat
         | RemovedNetworkHosts of names: string list
 
@@ -407,13 +407,14 @@ module MainStatus =
                 "Opened Windows Explorer"
             | OpenCommandLine path ->
                 sprintf "Opened Commandline at: %s" path
-            | OpenTextEditor name ->
-                sprintf "Opened text editor for: %s" name
+            | OpenTextEditor names ->
+                let descr = names |> Seq.truncate 10 |> String.concat ", "
+                sprintf "Opened text editor for: %s" descr
             | ClipboardCopy (paths, pathFormat) ->
                 let pathsDescr =
                     match paths with
                     | [path] -> path.Format pathFormat
-                    | _ -> paths |> Seq.map (fun p -> p.Name) |> String.concat ", "
+                    | _ -> paths |> Seq.truncate 10 |> Seq.map (fun p -> p.Name) |> String.concat ", "
                 sprintf "Copied to clipboard: %s" pathsDescr
             | RemovedNetworkHosts names ->
                 let plural = if names.Length > 1 then "s" else ""

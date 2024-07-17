@@ -86,18 +86,19 @@ let openCommandLine (os: IOperatingSystem) model = result {
 }
 
 let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
-    // TODO: support multiple items
-    let item = model.ActionItems.Head
-    match item.Type with
-    | File ->
-        let args = item.Path.Format Windows |> sprintf "\"%s\""
+    let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
+    if items.IsEmpty then
+        return model
+    else
+        let pathArg (path: Path) = path.Format Windows |> sprintf "\"%s\""
+        let paths = items |> List.map (fun i -> i.Path)
+        let args = paths |> Seq.map pathArg |> String.concat " "
         do! os.LaunchApp model.Config.TextEditor model.Location args
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text Editor", e))
         return
             model
-            |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory [item.Path])
-            |> MainModel.withMessage (MainStatus.OpenTextEditor item.Name)
-    | _ -> return model
+            |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory paths)
+            |> MainModel.withMessage (MainStatus.OpenTextEditor (items |> List.map (fun i -> i.Name)))
 }
 
 let openSettings fsReader openSettings model = result {

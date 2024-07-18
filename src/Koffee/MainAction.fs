@@ -883,6 +883,7 @@ let dropIn (fs: IFileSystem) progress paths (event: DragInEvent) (model: MainMod
     match getDropInPutType event model.Location (paths |> List.head) with
     | Some putType ->
         match paths with
+        | [path] when path.Parent = model.Location -> ()
         | [path] ->
             let! item =
                 fs.GetItem path

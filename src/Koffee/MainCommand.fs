@@ -66,15 +66,13 @@ let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
 }
 
 let openProperties (os: IOperatingSystem) (model: MainModel) = result {
-    // TODO: support multiple items
-    let item = model.ActionItems.Head
-    match item.Type with
     // TODO: support open properties for Drive, others?
-    | File | Folder ->
-        do! os.OpenProperties item.Path |> actionError "open properties"
-        return model |> MainModel.withMessage (MainStatus.OpenProperties item.Name)
-    | _ ->
+    let items = model.ActionItems |> List.filter (fun i -> i.Type |> Seq.containedIn [File; Folder])
+    if items.IsEmpty then
         return model
+    else
+        do! os.OpenProperties (items |> Seq.map (fun i -> i.Path)) |> actionError "open properties"
+        return model |> MainModel.withMessage (MainStatus.OpenProperties (items |> List.map (fun i -> i.Name)))
 }
 
 let openCommandLine (os: IOperatingSystem) model = result {

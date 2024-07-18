@@ -328,7 +328,7 @@ module MainStatus =
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
         | OpenFiles of names: string list
-        | OpenProperties of name: string
+        | OpenProperties of names: string list
         | OpenExplorer
         | OpenCommandLine of path: string
         | OpenTextEditor of names: string list
@@ -401,8 +401,9 @@ module MainStatus =
                 match names with
                 | [name] -> sprintf "Opened File: %s" name
                 | _ -> sprintf "Opened %i Files" names.Length
-            | OpenProperties name ->
-                sprintf "Opened Properties: %s" name
+            | OpenProperties names ->
+                let descr = names.Head + if names.Tail.IsEmpty then "" else sprintf " and %i others" names.Tail.Length
+                sprintf "Opened Properties: %s" descr
             | OpenExplorer ->
                 "Opened Windows Explorer"
             | OpenCommandLine path ->

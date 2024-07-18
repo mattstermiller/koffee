@@ -7,6 +7,7 @@ open Acadian.FSharp
 
 module OsInterop =
     open System.Runtime.InteropServices
+    open System.Runtime.InteropServices.ComTypes
 
     // Open With dialog: http://www.pinvoke.net/default.aspx/shell32/SHOpenWithDialog.html
     module private OpenWithNative =
@@ -31,36 +32,30 @@ module OsInterop =
         [<DllImport("shell32.dll", EntryPoint = "SHOpenWithDialog", CharSet = CharSet.Unicode)>]
         extern int SHOpenWithDialog(IntPtr hWndParent, OpenWithInfo& info)
 
-
     module private OpenPropertiesNative =
-        let SW_SHOW = 5
-        let SEE_MASK_INVOKEIDLIST = 12u
+        type HRESULT =
+            | S_OK = 0
 
-        [<Struct; StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)>]
-        type ShellExecuteInfo =
-            val mutable cbSize: int
-            val mutable fMask: uint32
-            val mutable hwnd: IntPtr
-            [<MarshalAs(UnmanagedType.LPTStr)>]
-            val mutable lpVerb: string
-            [<MarshalAs(UnmanagedType.LPTStr)>]
-            val mutable lpFile: string
-            [<MarshalAs(UnmanagedType.LPTStr)>]
-            val mutable lpParameters: string
-            [<MarshalAs(UnmanagedType.LPTStr)>]
-            val mutable lpDirectory: string
-            val mutable nShow: int
-            val mutable hInstApp: IntPtr
-            val mutable lpIDList: IntPtr
-            [<MarshalAs(UnmanagedType.LPTStr)>]
-            val mutable lpClass: string
-            val mutable hkeyClass: IntPtr
-            val mutable dwHotKey: uint32
-            val mutable hIcon: IntPtr
-            val mutable hProcess: IntPtr
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern HRESULT SHILCreateFromPath([<MarshalAs(UnmanagedType.LPWStr)>] string pszPath, IntPtr& ppIdl, uint& rgflnOut)
 
-        [<DllImport("shell32.dll", CharSet = CharSet.Auto)>]
-        extern bool ShellExecuteEx(ShellExecuteInfo& lpExecInfo)
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern IntPtr ILFindLastID(IntPtr pidl)
+
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern IntPtr ILClone(IntPtr pidl)
+
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern Boolean ILRemoveLastID(IntPtr pidl)
+
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern void ILFree(IntPtr pidl)
+
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern HRESULT CIDLData_CreateFromIDArray(IntPtr pidlFolder, uint cidl, IntPtr[] apidl, IDataObject& ppdtobj)
+
+        [<DllImport("Shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)>]
+        extern HRESULT SHMultiFileProperties(IDataObject pdtobj, uint dwFlags)
 
     module private SelectInExplorer =
         [<DllImport("shell32.dll", SetLastError = true)>]
@@ -85,16 +80,42 @@ module OsInterop =
             )
         SHOpenWithDialog(IntPtr.Zero, &info)
 
-    let openProperties fileName =
-        let mutable info =
-            ShellExecuteInfo(
-                lpVerb = "properties",
-                lpFile = fileName,
-                nShow = SW_SHOW,
-                fMask = SEE_MASK_INVOKEIDLIST
-            )
-        info.cbSize <- Marshal.SizeOf(info)
-        ShellExecuteEx(&info);
+    let openProperties paths =
+        let mutable pidlParent = IntPtr.Zero
+        let pidlItems = ResizeArray()
+
+        let loadItemId path =
+            let mutable pidlFull = IntPtr.Zero
+            let mutable rgflnOut = 0u
+            let hres = SHILCreateFromPath(path, &pidlFull, &rgflnOut)
+            if hres = HRESULT.S_OK then
+                let pidlItem = ILFindLastID(pidlFull)
+                pidlItems.Add(ILClone(pidlItem))
+                ILRemoveLastID(pidlFull) |> ignore
+                if pidlParent = IntPtr.Zero then
+                    pidlParent <- ILClone(pidlFull)
+                ILFree(pidlFull)
+            // ignore item failure
+
+        paths |> Seq.iter loadItemId
+        if pidlItems.Count = 0 then
+            failwith "Failed to load any items for opening property window"
+
+        try
+            let pidlItemArray = pidlItems |> Seq.toArray
+            let mutable pDataObj = null
+            let mutable hres = CIDLData_CreateFromIDArray(pidlParent, uint32 pidlItemArray.Length, pidlItemArray, &pDataObj)
+            if hres = HRESULT.S_OK then
+                hres <- SHMultiFileProperties(pDataObj, 0u)
+
+            if hres <> HRESULT.S_OK then
+                failwith "Failed to open multi-file properties"
+        finally
+            seq {
+                pidlParent
+                yield! pidlItems
+            }
+            |> Seq.iter ILFree
 
     let openExplorerAndSelect location selectItemPaths =
         let getDisplayName path =
@@ -123,7 +144,7 @@ module OsInterop =
 type IOperatingSystem =
     abstract member OpenFile: Path -> Result<unit, exn>
     abstract member OpenFileWith: Path -> Result<unit, exn>
-    abstract member OpenProperties: Path -> Result<unit, exn>
+    abstract member OpenProperties: Path seq -> Result<unit, exn>
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member CopyToClipboard: Path seq -> Result<unit, exn>
@@ -142,9 +163,9 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 OsInterop.openFileWith (wpath path) |> ignore
 
-        member this.OpenProperties path =
+        member this.OpenProperties paths =
             tryResult <| fun () ->
-                OsInterop.openProperties (wpath path) |> ignore
+                OsInterop.openProperties (paths |> Seq.map wpath) |> ignore
 
         member this.OpenExplorer location selectItemPaths =
             tryResult <| fun () ->

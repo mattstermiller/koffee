@@ -39,7 +39,7 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
     let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
                       |> Result.ofOption MainStatus.CouldNotFindKoffeeExe
     let folder = koffeePath.Parent
-    do! os.LaunchApp (koffeePath.Format Windows) folder args
+    do! os.LaunchApp false (koffeePath.Format Windows) folder args
         |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Koffee", e))
     return model
 }
@@ -67,7 +67,6 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
         do! os.OpenProperties (items |> Seq.map (fun i -> i.Path)) |> actionError "open properties"
         return model |> MainModel.withMessage (MainStatus.OpenProperties (items |> List.map (fun i -> i.Name)))
 }
-
 let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
     let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
     if items.IsEmpty then
@@ -76,7 +75,7 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         let pathArg (path: Path) = path.Format Windows |> sprintf "\"%s\""
         let paths = items |> List.map (fun i -> i.Path)
         let args = paths |> Seq.map pathArg |> String.concat " "
-        do! os.LaunchApp model.Config.TextEditor model.Location args
+        do! os.LaunchApp false model.Config.TextEditor model.Location args
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text editor", e))
         return
             model
@@ -86,7 +85,7 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
 
 let openTerminal (os: IOperatingSystem) model = result {
     if model.Location <> Path.Root then
-        do! os.LaunchApp model.Config.TerminalPath model.Location ""
+        do! os.LaunchApp false model.Config.TerminalPath model.Location ""
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Terminal", e))
         return model |> MainModel.withMessage (MainStatus.OpenTerminal model.Location)
     else return model
@@ -107,6 +106,19 @@ let openSettings fsReader openSettings model = result {
     return! { model with Config = config } |> Nav.refresh fsReader
 }
 
+let openInVsCode (os: IOperatingSystem) (model: MainModel) = result {
+    let args =
+        [
+            model.Location
+            yield! model.SelectedItems |> List.map (fun i -> i.Path)
+        ]
+        |> List.map (fun path -> path.Format Windows |> sprintf "\"%s\"")
+        |> String.concat " "
+    do! os.LaunchApp true "code" model.Location args |> actionError "open VS Code"
+    let selectedNames = model.SelectedItems |> List.map (fun i -> i.Name)
+    return model |> MainModel.withMessage (MainStatus.OpenInVsCode (model.Location, selectedNames, model.PathFormat))
+}
+
 let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
     let itemPath = model.CursorItem.Path
     let! gitRoot =
@@ -118,7 +130,7 @@ let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
         let pathStr = itemPath.FormatRelativeFolder model.PathFormat gitRoot
         let pathStr = pathStr |> String.substring 1 (pathStr.Length - 2)
         let devOpsPath = sprintf "https://dev.azure.com/osh-inc/Canopy/_git/%s?path=%s" gitRoot.Name pathStr
-        do! os.LaunchApp devOpsPath model.Location "" |> actionError "launch url"
+        do! os.LaunchApp true devOpsPath model.Location "" |> actionError "launch url"
         return model |> MainModel.withMessage (MainStatus.OpenInDevOps (gitRoot.Name, pathStr))
     | _ ->
         return model

@@ -52,13 +52,8 @@ with
     static member describe (path: Path) (typ: ItemType) =
         sprintf "%s \"%s\"" typ.NameLower path.Name
 
-    static member describeList (itemRefs: ItemRef list) =
-        match itemRefs with
-        | itemRef :: rest ->
-            let restCount = rest.Length
-            itemRef.Description + if restCount > 0 then sprintf " and %i other items" restCount else ""
-        | _ ->
-            "0 items"
+    static member describeList (itemRefs: ItemRef seq) =
+        itemRefs |> Seq.describeAndCount 5 (fun i -> i.Description)
 
 type Item = {
     Path: Path
@@ -101,12 +96,11 @@ with
             Type = itemType
         }
 
-    static member paths (items: Item list) = items |> List.map (fun i -> i.Path)
+    static member paths (items: Item list) =
+        items |> List.map (fun i -> i.Path)
 
-    static member describeList (items: Item list) =
-        match items with
-        | [item] -> item.Description
-        | _ -> sprintf "%s items" (items.Length |> String.format "N0")
+    static member describeList (items: Item seq) =
+        items |> Seq.describeAndCount 5 (fun i -> i.Description)
 
 type SortField =
     | Name
@@ -290,6 +284,14 @@ type RedoPutBlockedByExistingItemException() =
 
 [<RequireQualifiedAccess>]
 module MainStatus =
+    let private pluralS list =
+        match list with
+        | [_] -> ""
+        | _ -> "s"
+
+    let private describeList strs =
+        Seq.describeAndCount 5 id strs
+
     let private actionCompleteMessage action pathFormat =
         match action with
         | CreatedItem item ->
@@ -301,8 +303,7 @@ module MainStatus =
         | PutItems (Copy, intent, _, _) ->
             sprintf "Copied %s" (intent.Description pathFormat)
         | PutItems (Shortcut, intent, _, _) ->
-            let plural = if intent.Sources.Length = 1 then "" else "s"
-            sprintf "Created shortcut%s to %s" plural (ItemRef.describeList intent.Sources)
+            sprintf "Created shortcut%s to %s" (pluralS intent.Sources) (ItemRef.describeList intent.Sources)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
@@ -398,28 +399,23 @@ module MainStatus =
             | ToggleHidden showing ->
                 sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | OpenFiles names ->
-                match names with
-                | [name] -> sprintf "Opened File: %s" name
-                | _ -> sprintf "Opened %i Files" names.Length
+                sprintf "Opened File%s: %s" (pluralS names) (describeList names)
             | OpenProperties names ->
-                let descr = names.Head + if names.Tail.IsEmpty then "" else sprintf " and %i others" names.Tail.Length
-                sprintf "Opened Properties: %s" descr
+                sprintf "Opened Properties for: %s" (describeList names)
             | OpenExplorer ->
                 "Opened Windows Explorer"
             | OpenCommandLine path ->
                 sprintf "Opened Commandline at: %s" path
             | OpenTextEditor names ->
-                let descr = names |> Seq.truncate 10 |> String.concat ", "
-                sprintf "Opened text editor for: %s" descr
+                sprintf "Opened text editor for: %s" (describeList names)
             | ClipboardCopy (paths, pathFormat) ->
                 let pathsDescr =
                     match paths with
                     | [path] -> path.Format pathFormat
-                    | _ -> paths |> Seq.truncate 10 |> Seq.map (fun p -> p.Name) |> String.concat ", "
+                    | _ -> paths |> List.map (fun p -> p.Name) |> describeList
                 sprintf "Copied to clipboard: %s" pathsDescr
             | RemovedNetworkHosts names ->
-                let plural = if names.Length > 1 then "s" else ""
-                sprintf "Removed network host%s: %s" plural (names |> String.concat ", ")
+                sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
 
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent * PathFormat
@@ -447,11 +443,7 @@ module MainStatus =
             | CheckingIsRecyclable ->
                 "Determining if items will fit in Recycle Bin..."
             | PreparingDelete items ->
-                let descr =
-                    match items with
-                    | [item] -> item.Description
-                    | _ -> sprintf "%i items" items.Length
-                sprintf "Preparing to delete %s..." descr
+                sprintf "Preparing to delete %s..." (items |> Seq.map (fun i -> i.Description) |> describeList)
             | UndoingCreate item ->
                 sprintf "Undoing creation of %s - Deleting..." item.Description
             | UndoingPut (isCopy, intent, pathFormat) ->

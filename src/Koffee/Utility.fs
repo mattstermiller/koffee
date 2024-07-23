@@ -61,6 +61,13 @@ module Result =
         | Some a -> Error a
         | None -> Ok ()
 
+module Seq =
+    let describeAndCount maxDescribe toString items =
+        let items = items |> Seq.cache
+        let countOverMax = (items |> Seq.length) - maxDescribe
+        (items |> Seq.truncate maxDescribe |> Seq.map toString |> String.concat ", ")
+        + (if countOverMax > 0 then sprintf " and %i more" countOverMax else "")
+
 type Dictionary<'K, 'V> with
     member this.TryGetValueOption key =
         match this.TryGetValue key with

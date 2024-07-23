@@ -70,6 +70,7 @@ let defaultsAsString = [
     ("<c-e>", OpenWithTextEditor)
     ("<cs-t>", OpenTerminal)
     ("<cs-e>", OpenExplorer)
+    ("<cs-s>", OpenInVsCode)
     ("<cs-d>", OpenInDevOps)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)

@@ -10,7 +10,7 @@ let ``Config can be serialized and deserialized`` () =
         { Config.Default with
             DefaultPath = createPath "/c/Documents and Settings/SomeUser/"
             PathFormat = Unix
-            YankRegister = Some (createPath "/c/users/name", Folder, Move)
+            YankRegister = Some (Move, [{ Path = createPath "/c/users/name"; Type = Folder }])
             Bookmarks = [('a', createPath "/c/path1"); ('b', createPath "/c/path2")]
         }
     let converters = FSharpJsonConverters.getAll ()

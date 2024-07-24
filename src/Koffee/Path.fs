@@ -116,7 +116,7 @@ type Path private (path: string) =
         if this = Path.Root then ""
         else (this.Format fmt |> String.replace (relativeTo.Format fmt) ".") + fmt.Separator
 
-    member this.Name =
+    member val Name =
         if path.Length = 3 && path.EndsWith @":\"
         then path.Substring(0, 2)
         else path |> IOPath.GetFileName

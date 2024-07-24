@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -8,50 +8,61 @@ open System.ComponentModel
 open System.Reactive.Subjects
 open VinylUI
 open VinylUI.Wpf
-open Reflection
 open Acadian.FSharp
+open Reflection
+open UIHelpers
 open KoffeeUI
 
 module Obs = Observable
 
 module MainView =
-    let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
-        keyEvent |> Obs.choose (fun evt ->
-            if evt.Key = key then
-                evt.Handled <- true
-                Some <| resultFunc()
-            else
-                None)
+    let private itemCountAndSize name items =
+        let sizeStr =
+            items
+            |> List.choose (fun n -> if n.Type = File then n.Size else None)
+            |> Option.ofCond (not << List.isEmpty)
+            |> Option.map (List.sum >> Format.fileSize >> sprintf ", %s")
+            |> Option.toString
+        sprintf "%i %s%s" items.Length name sizeStr
 
-    let isNotModifier (evt: KeyEventArgs) =
-        let modifierKeys = [
-            Key.LeftShift; Key.RightShift; Key.LeftCtrl; Key.RightCtrl;
-            Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
-        ]
-        not <| List.contains evt.RealKey modifierKeys
-
-    let getPrompt pathFormat (item: Item) inputMode =
+    let getPrompt pathFormat inputMode =
         let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match inputMode with
-        | Confirm (Overwrite (putType, src, dest)) ->
-            match dest.Type with
-            | Folder ->
-                sprintf "Folder \"%s\" already exists. %A anyway and merge files y/n ?" dest.Name putType
-            | File ->
-                match src.Modified, src.Size, dest.Modified, dest.Size with
-                | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                    let compare a b less greater =
-                        if a = b then "same"
-                        else if a < b then less
-                        else greater
-                    sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                        dest.Name
-                        (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                        (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" dest.Name
-            | _ -> ""
+        | Confirm (Overwrite (putType, srcExistingPairs)) ->
+            match srcExistingPairs with
+            | [(src, existing)] ->
+                match existing.Type with
+                | Folder ->
+                    sprintf "Folder \"%s\" already exists. %A anyway and overwrite files y/n ?" existing.Name putType
+                | File ->
+                    match src.Modified, src.Size, existing.Modified, existing.Size with
+                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                        let compare a b less greater =
+                            if a = b then "same"
+                            else if a < b then less
+                            else greater
+                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                            existing.Name
+                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" existing.Name
+                | _ -> ""
+            | _ ->
+                let types = srcExistingPairs |> Seq.map (fun (_, existing) -> existing.Type)
+                let hasFiles = types |> Seq.contains File
+                let hasFolders = types |> Seq.contains Folder
+                let typesString =
+                    [
+                        if hasFolders then "folders"
+                        if hasFiles then "files"
+                    ] |> String.concat " and "
+                let overwriteMessage =
+                    if not hasFolders
+                    then "Overwrite y/n ?"
+                    else sprintf "%A anyway, merge folders and overwrite files y/n ?" putType
+                sprintf "%i %s already exist. %s" srcExistingPairs.Length typesString overwriteMessage
         | Confirm Delete ->
-            sprintf "Permanently delete %s y/n ?" item.Description
+            "Permanently delete selected item(s) y/n ?"
         | Confirm (OverwriteBookmark (char, existingPath)) ->
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
@@ -89,13 +100,13 @@ module MainView =
                 paths.SelectedIndex <- if paths.SelectedIndex < items - 1 then paths.SelectedIndex + 1 else 0
                 e.Handled <- true
             | Key.Tab ->
-                if paths.Visible then
+                if paths.IsVisible then
                     selectedPath |> Option.iter window.PathBox.set_Text
                 window.PathBox.Select(window.PathBox.Text.Length, 0)
                 e.Handled <- true
             | _ -> ()
         )
-        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.Visible <- false)
+        window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.IsHidden <- true)
 
         // scroll path to show the end when it overflows
         window.PathBox.TextChanged.Add (fun _ ->
@@ -124,7 +135,7 @@ module MainView =
                 match relInfo with
                 | Some (path, fmt) -> (fun p -> p.FormatRelativeFolder fmt path)
                 | None -> string
-            window.ItemGrid.Columns.[2].Collapsed <- relInfo.IsNone
+            window.ItemGrid.Columns.[2].IsCollapsed <- relInfo.IsNone
 
         // bind Tab key to switch focus
         window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
@@ -155,7 +166,6 @@ module MainView =
                 | _ -> ()
         )
 
-        window.Progress.Collapsed <- true
         progress
             |> Obs.buffer 0.3
             |> Obs.onCurrent
@@ -167,7 +177,7 @@ module MainView =
             ))
             |> Obs.add (fun incr ->
                 window.Progress.Value <- incr |> Option.map ((+) window.Progress.Value) |? 0.0
-                window.Progress.Collapsed <- incr.IsNone
+                window.Progress.IsCollapsed <- incr.IsNone
             )
 
         if model.Config.Window.IsMaximized then
@@ -197,11 +207,11 @@ module MainView =
                     window.PathSuggestions.ItemsSource <- paths
                     window.PathSuggestions.SelectedIndex <- if paths.Length = 1 then 0 else -1
                     window.PathSuggestions.IsEnabled <- true
-                    window.PathSuggestions.Visible <- window.PathBox.IsFocused && not (paths |> Array.isEmpty)
+                    window.PathSuggestions.IsHidden <- not window.PathBox.IsFocused || (paths |> Array.isEmpty)
                 | Error error ->
                     window.PathSuggestions.ItemsSource <- ["Error: " + error]
                     window.PathSuggestions.IsEnabled <- false
-                    window.PathSuggestions.Visible <- window.PathBox.IsFocused
+                    window.PathSuggestions.IsHidden <- not window.PathBox.IsFocused
             )
 
             Bind.modelMulti(<@ model.Items, model.Cursor, model.Sort @>).toFunc(fun (items, cursor, sort) ->
@@ -220,15 +230,15 @@ module MainView =
                     c.SortDirection <- if Some i = sortIndex then sortDir |> Option.toNullable else Nullable()
                 )
             )
+            Bind.model(<@ model.SelectedItems @>).toFunc(fun selected ->
+                window.ItemGrid.Tag <- selected
+                if not selected.IsEmpty then
+                    window.SelectedStatus.Text <- itemCountAndSize "selected" selected
+                window.SelectedStatusPanel.IsCollapsed <- selected.IsEmpty
+            )
             Bind.model(<@ model.Items @>).toFunc(fun items ->
-                // directory status
-                window.DirectoryStatus.Text <-
-                    let fileSizes = items |> List.choose (fun n -> if n.Type = File then n.Size else None)
-                    let fileStr =
-                        match fileSizes with
-                        | [] -> ""
-                        | sizes -> sprintf ", %s" (sizes |> List.sum |> Format.fileSize)
-                    sprintf "%i item%s%s" items.Length (if items.Length = 1 then "" else "s") fileStr
+                let name = (if items.Length = 1 then "item" else "items")
+                window.DirectoryStatus.Text <- itemCountAndSize name items
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
@@ -240,10 +250,15 @@ module MainView =
             // display yank register
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
-                    register |> Option.map (fun (path, itemType, putType) ->
-                        sprintf "%A: %s %s" putType itemType.Symbol path.Name)
+                    register |> Option.bind (fun (putType, itemRefs) ->
+                        match itemRefs with
+                        | itemRef :: rest ->
+                            let restDescr = if rest.IsEmpty then "" else sprintf " and %i more" rest.Length
+                            Some (sprintf "%A: %s %s%s" putType itemRef.Type.Symbol itemRef.Path.Name restDescr)
+                        | [] -> None
+                    )
                 window.RegisterText.Text <- text |? ""
-                window.RegisterPanel.Visible <- text.IsSome
+                window.RegisterPanel.IsCollapsed <- text.IsNone
             )
 
             // update UI for status
@@ -267,9 +282,9 @@ module MainView =
                         | Some (MainStatus.Error error) -> ("", error.Message)
                         | None -> ("", "")
                 window.StatusText.Text <- statusText
-                window.StatusText.Collapsed <- statusText |> String.isEmpty
+                window.StatusText.IsCollapsed <- statusText |> String.isEmpty
                 window.ErrorText.Text <- errorText
-                window.ErrorText.Collapsed <- errorText |> String.isEmpty
+                window.ErrorText.IsCollapsed <- errorText |> String.isEmpty
                 let isBusy =
                     match status with
                     | Some (MainStatus.Busy _) -> true
@@ -287,8 +302,8 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.SelectedItem, model.PathFormat, model.Config.Bookmarks, model.Config.SavedSearches @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), selected, pathFormat, bookmarks, searches) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.PathFormat, model.Config.Bookmarks, model.Config.SavedSearches @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), pathFormat, bookmarks, searches) ->
                     match inputMode with
                     | Some inputMode ->
                         match inputMode with
@@ -301,7 +316,7 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No bookmarks set")]
                             window.Bookmarks.ItemsSource <- bookmarks
                             window.BookmarksHeader.Text <- "Bookmarks"
-                            window.BookmarkPanel.Collapsed <- false
+                            window.BookmarkPanel.IsCollapsed <- false
                         | Prompt GoToSavedSearch
                         | Prompt SetSavedSearch
                         | Prompt DeleteSavedSearch ->
@@ -311,19 +326,19 @@ module MainView =
                                 |> Seq.ifEmpty [(' ', "No searches saved")]
                             window.Bookmarks.ItemsSource <- searches
                             window.BookmarksHeader.Text <- "Saved Searches"
-                            window.BookmarkPanel.Collapsed <- false
+                            window.BookmarkPanel.IsCollapsed <- false
                         | _ ->
-                            window.BookmarkPanel.Collapsed <- true
-                        window.SearchOptions.Collapsed <- inputMode <> Input Search
-                        window.InputText.Text <- getPrompt pathFormat selected inputMode
-                        if not window.InputPanel.Visible then
-                            window.InputPanel.Visible <- true
+                            window.BookmarkPanel.IsCollapsed <- true
+                        window.SearchOptions.IsCollapsed <- inputMode <> Input Search
+                        window.InputText.Text <- getPrompt pathFormat inputMode
+                        if window.InputPanel.IsCollapsed then
+                            window.InputPanel.IsCollapsed <- false
                             window.InputBox.Select(selectStart, selectLen)
                             window.InputBox.Focus() |> ignore
                     | None ->
-                        if window.InputPanel.Visible then
-                            window.InputPanel.Collapsed <- true
-                            window.BookmarkPanel.Collapsed <- true
+                        if not window.InputPanel.IsCollapsed then
+                            window.InputPanel.IsCollapsed <- true
+                            window.BookmarkPanel.IsCollapsed <- true
                             window.ItemGrid.Focus() |> ignore
                 )
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
@@ -332,14 +347,14 @@ module MainView =
             Bind.model(<@ model.InputError @>).toFunc(function
                 | Some error ->
                     window.InputError.Text <- error.Message
-                    window.InputErrorPanel.Collapsed <- false
+                    window.InputErrorPanel.IsCollapsed <- false
                 | None ->
-                    window.InputErrorPanel.Collapsed <- true
+                    window.InputErrorPanel.IsCollapsed <- true
             )
             Bind.modelMulti(<@ model.SearchCurrent, model.InputMode @>).toFunc(function
                 | None, _
                 | Some _, Some (Input Search) ->
-                    window.SearchPanel.Collapsed <- true
+                    window.SearchPanel.IsCollapsed <- true
                 | Some search, _ ->
                     window.SearchStatus.Text <-
                         [   sprintf "Search results for \"%s\"" search.Terms
@@ -347,7 +362,7 @@ module MainView =
                             (if search.Regex then "Regular Expression" else "")
                             (if search.SubFolders then "Sub-Folders" else "")
                         ] |> List.filter String.isNotEmpty |> String.concat ", "
-                    window.SearchPanel.Visible <- true
+                    window.SearchPanel.IsCollapsed <- false
             )
             Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
@@ -403,12 +418,12 @@ module MainView =
                         window.HistoryHeader.Text <- header
                         window.HistoryBack.ItemsSource <- prev |> List.rev
                         window.HistoryCurrentLabel.Text <- current |? ""
-                        window.HistoryCurrent.Collapsed <- current.IsNone || isEmpty
+                        window.HistoryCurrent.IsCollapsed <- current.IsNone || isEmpty
                         window.HistoryForward.ItemsSource <- next
-                        window.HistoryEmpty.Collapsed <- not isEmpty
-                        window.HistoryPanel.Collapsed <- false
+                        window.HistoryEmpty.IsCollapsed <- not isEmpty
+                        window.HistoryPanel.IsCollapsed <- false
                     | None ->
-                        window.HistoryPanel.Collapsed <- true
+                        window.HistoryPanel.IsCollapsed <- true
                 )
 
             Bind.model(<@ model.WindowLocation @>).toFunc(fun (left, top) ->
@@ -521,18 +536,13 @@ module MainView =
             window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
                 let paths = getFileDropPaths e.Data
                 e.Handled <- true
-                UpdateDropInPutType (paths, DragEvent e)
+                UpdateDropInPutType (paths, DragInEvent e)
             )
             window.ItemGrid.MouseMove |> Obs.choose (fun e ->
                 if e.LeftButton = MouseButtonState.Pressed then
-                    let item = window.ItemGrid.SelectedItem :?> Item
-                    let dropData = DataObject(DataFormats.FileDrop, [|item.Path.Format Windows|])
-                    DragDrop.DoDragDrop(window.ItemGrid, dropData,
-                        DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
-                    |> DragDropEffects.toPutTypes
-                    |> List.tryHead
-                    |> Option.map DropOut
-                else None
+                    Some (DropOut (DragOutEvent window.ItemGrid))
+                else
+                    None
             )
             window.ItemGrid.Drop |> Obs.choose (fun e ->
                 let paths = getFileDropPaths e.Data
@@ -540,7 +550,7 @@ module MainView =
                     None
                 else
                     e.Handled <- true
-                    Some (DropIn (paths, DragEvent e))
+                    Some (DropIn (paths, DragInEvent e))
             )
             config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
             history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged

@@ -13,6 +13,7 @@
     <Compile Include="FakeFileSystem.fs" />
     <Compile Include="Testing.fs" />
     <Compile Include="FakeFileSystemTests.fs" />
+    <Compile Include="AsyncSeqResultBuilderTests.fs" />
     <Compile Include="RectTests.fs" />
     <Compile Include="KeyComboParserTests.fs" />
     <Compile Include="PathTests.fs" />
@@ -23,11 +24,13 @@
     <Compile Include="MainModelTests.fs" />
     <Compile Include="MainViewTests.fs" />
     <Compile Include="MainNavTests_BackForward.fs" />
+    <Compile Include="MainNavTests_ListDirectory.fs" />
     <Compile Include="MainNavTests_OpenPath.fs" />
     <Compile Include="MainNavTests_SortHistory.fs" />
     <Compile Include="MainNavTests_SuggestPaths.fs" />
     <Compile Include="MainSearchTests_Find.fs" />
     <Compile Include="MainLogicTests_InitModel.fs" />
+    <Compile Include="MainActionTests_Select.fs" />
     <Compile Include="MainActionTests_Create.fs" />
     <Compile Include="MainActionTests_Rename.fs" />
     <Compile Include="MainActionTests_Delete.fs" />

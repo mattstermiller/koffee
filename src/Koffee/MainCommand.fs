@@ -10,7 +10,6 @@ let toggleHidden (model: MainModel) =
         { model with
             Config = { model.Config with ShowHidden = show }
         } |> MainModel.withMessage (MainStatus.ToggleHidden show)
-    let select = SelectItem (model.SelectedItem, false)
     match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
         let items =
@@ -18,46 +17,9 @@ let toggleHidden (model: MainModel) =
             |> filter
             |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
             |> model.ItemsOrEmpty
-        { model with Items = items } |> Nav.select select
+        { model with Items = items } |> Nav.moveCursor model.KeepCursorByPath
     | None ->
-        Nav.listDirectory select model
-
-let private getDropInPutType (event: DragEvent) (model: MainModel) (path: Path) =
-    let desiredPutType =
-        event.PutType |> Option.defaultWith (fun () -> if path.Base = model.Location.Base then Move else Copy)
-    event.AllowedPutTypes
-    |> List.tryFind ((=) desiredPutType)
-    |> Option.orElse (event.AllowedPutTypes |> List.tryHead)
-
-let updateDropInPutType (paths: Path list) (event: DragEvent) (model: MainModel) =
-    event.PutType <- paths |> List.tryHead |> Option.bind (getDropInPutType event model)
-    model
-
-let dropIn (fs: IFileSystem) progress paths (event: DragEvent) (model: MainModel) = asyncSeqResult {
-    match getDropInPutType event model (paths |> List.head) with
-    | Some putType ->
-        let paths =
-            if putType = Move then
-                paths |> List.filter (fun p -> p.Parent <> model.Location)
-            else
-                paths
-        // only supports one item for now until multi-select is implemented
-        match paths |> List.tryHead with
-        | Some path ->
-            match! fs.GetItem path |> actionError "drop item" with
-            | Some item ->
-                yield! Action.putInLocation fs progress false false putType item model
-            | None -> ()
-        | None -> ()
-    | None -> ()
-}
-
-let dropOut (fsReader: IFileSystemReader) putType (model: MainModel) =
-    if putType = Move && fsReader.GetItem model.SelectedItem.Path = Ok None then
-        let items = model.Items |> List.except [model.SelectedItem] |> model.ItemsOrEmpty
-        { model with Items = items }
-    else
-        model
+        model |> Nav.listDirectory model.KeepCursorByPath
 
 let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
     let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
@@ -82,28 +44,35 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
     return model
 }
 
-let openExplorer (os: IOperatingSystem) (model: MainModel) =
-    os.OpenExplorer model.SelectedItem
-    model |> MainModel.withMessage MainStatus.OpenExplorer
+let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
+    let parent = model.ActionItems.Head.Path.Parent
+    let selectPaths =
+        model.ActionItems
+        |> Seq.filter (fun i -> i.Path.Parent = parent)
+        |> Seq.map (fun i -> i.Path)
+    do! os.OpenExplorer parent selectPaths |> actionError "open Explorer"
+    return model |> MainModel.withMessage MainStatus.OpenExplorer
+}
 
 let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
-    let item = model.SelectedItem
-    match item.Type with
-    | File ->
+    match model.ActionItems with
+    | [item] when item.Type = File ->
         do! os.OpenFileWith item.Path |> actionError "open file with"
-        return model |> MainModel.withMessage (MainStatus.OpenFile item.Name)
-    | _ ->
+        return model |> MainModel.withMessage (MainStatus.OpenFiles [item.Name])
+    | [_] ->
         return model
+    | _ ->
+        return! Error MainStatus.CannotOpenWithMultiple
 }
 
 let openProperties (os: IOperatingSystem) (model: MainModel) = result {
-    let item = model.SelectedItem
-    match item.Type with
-    | File | Folder ->
-        do! os.OpenProperties item.Path |> actionError "open properties"
-        return model |> MainModel.withMessage (MainStatus.OpenProperties item.Name)
-    | _ ->
+    // TODO: support open properties for Drive, others?
+    let items = model.ActionItems |> List.filter (fun i -> i.Type |> Seq.containedIn [File; Folder])
+    if items.IsEmpty then
         return model
+    else
+        do! os.OpenProperties (items |> Seq.map (fun i -> i.Path)) |> actionError "open properties"
+        return model |> MainModel.withMessage (MainStatus.OpenProperties (items |> List.map (fun i -> i.Name)))
 }
 
 let openCommandLine (os: IOperatingSystem) model = result {
@@ -115,16 +84,19 @@ let openCommandLine (os: IOperatingSystem) model = result {
 }
 
 let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
-    match model.SelectedItem.Type with
-    | File ->
-        let args = model.SelectedItem.Path.Format Windows |> sprintf "\"%s\""
+    let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
+    if items.IsEmpty then
+        return model
+    else
+        let pathArg (path: Path) = path.Format Windows |> sprintf "\"%s\""
+        let paths = items |> List.map (fun i -> i.Path)
+        let args = paths |> Seq.map pathArg |> String.concat " "
         do! os.LaunchApp model.Config.TextEditor model.Location args
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text Editor", e))
         return
             model
-            |> MainModel.mapHistory (History.withFilePath model.Config.Limits.PathHistory model.SelectedItem.Path)
-            |> MainModel.withMessage (MainStatus.OpenTextEditor model.SelectedItem.Name)
-    | _ -> return model
+            |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory paths)
+            |> MainModel.withMessage (MainStatus.OpenTextEditor (items |> List.map (fun i -> i.Name)))
 }
 
 let openSettings fsReader openSettings model = result {

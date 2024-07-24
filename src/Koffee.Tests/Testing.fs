@@ -113,8 +113,18 @@ type DifferentStatusTypeComparer() as this =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
 
     override _.IsTypeMatch(type1, type2) =
-        [type1; type2] |> List.forall (fun t -> t <> null && t.BaseType = typeof<MainStatus.StatusType>)
-        && type1 <> type2
+        let statusParentTypes = [
+            typeof<MainStatus.StatusType>
+            typeof<MainStatus.Message>
+            typeof<MainStatus.Busy>
+            typeof<MainStatus.Error>
+        ]
+        let isStatusType (t: Type) =
+            t <> null && (
+                t |> Seq.containedIn statusParentTypes ||
+                t.BaseType |> Seq.containedIn statusParentTypes
+            )
+        [type1; type2] |> List.forall isStatusType && type1 <> type2
 
     override _.CompareType parms =
         this.AddDifference parms
@@ -206,12 +216,14 @@ let itemHistoryPath (item: Item) =
     { PathValue = item.Path; IsDirectory = item.Type |> Seq.containedIn [Folder; Drive; NetHost; NetShare] }
 
 type HistoryPathsBuilder() =
+    let ofPair (path, isDirectory) = { PathValue = path; IsDirectory = isDirectory }
     member _.Yield(hp: HistoryPath) = [hp]
     member _.Yield(pathStr) = [createHistoryPath pathStr]
     member _.Yield(item) = [itemHistoryPath item]
-    member _.Yield((path, isDirectory)) = [{ PathValue = path; IsDirectory = isDirectory }]
+    member _.Yield((path, isDirectory)) = [ofPair (path, isDirectory)]
     member _.YieldFrom(hps: HistoryPath seq) = hps |> Seq.toList
     member _.YieldFrom(items: Item seq) = items |> Seq.map itemHistoryPath |> Seq.toList
+    member _.YieldFrom(pathAndIsDirectoryItems: (Path * bool) seq) = pathAndIsDirectoryItems |> Seq.map ofPair |> Seq.toList
     member _.Zero() = []
     member _.Delay(f) = f()
     member _.Combine(hps1: HistoryPath list, hps2: HistoryPath list) = List.append hps1 hps2
@@ -273,8 +285,15 @@ let pathReplace oldPath newPath (path: Path) =
     path.TryReplace oldPath newPath
     |> Option.defaultWith (fun () -> failwithf "Problem with test: expected \"%O\" to be within path: %O" oldPath path)
 
-let createPutItem src dest item = { Item = item; Dest = item.Path |> pathReplace src dest; DestExists = false }
+let createPutIntent (srcItems: Item list) destParent =
+    { Sources = srcItems |> List.map (fun i -> i.Ref); DestParent = destParent; Overwrite = false }
+
+let createPutItem srcItem dest = { ItemType = srcItem.Type; Source = srcItem.Path; Dest = dest; DestExists = false }
+let createPutItemFrom src dest item = createPutItem item (item.Path |> pathReplace src dest)
 let withDestExists putItem = { putItem with DestExists = true }
+
+let createPutIntentAndItem srcItem (dest: Path) =
+    (createPutIntent [srcItem] dest.Parent, createPutItem srcItem dest)
 
 let testModel =
     let items = [ createFile "/c/default item" ]
@@ -291,4 +310,4 @@ let testModel =
 
 let ex = System.UnauthorizedAccessException() :> exn
 
-let progress = Event<float option>()
+let progress = Progress (Event<float option>())

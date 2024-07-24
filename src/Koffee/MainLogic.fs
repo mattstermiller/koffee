@@ -1,10 +1,11 @@
-﻿module Koffee.MainLogic
+module Koffee.MainLogic
 
 open FSharp.Control
 open VinylUI
 open Acadian.FSharp
 open Koffee.Main
 open Koffee.Main.Util
+open UIHelpers
 
 let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptions model =
     let config = model.Config
@@ -86,7 +87,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! model |> MainModel.clearStatus |> Nav.openPath fs path SelectNone
+                yield! model |> MainModel.clearStatus |> Nav.openPath fs path CursorStay
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
         | SetBookmark ->
@@ -148,11 +149,12 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         match char with
         | 'y' ->
             match confirmType with
-            | Overwrite (putType, src, _) ->
-                let! model = Action.putInLocation fs progress false true putType src model
+            | Overwrite (putType, srcDestPairs) ->
+                let itemRefs = srcDestPairs |> List.map (fun (src, _) -> src.Ref)
+                let! model = Action.putInLocation fs progress false true putType itemRefs model
                 yield { model with Config = { model.Config with YankRegister = None } }
             | Delete ->
-                yield! Action.delete fs progress model.SelectedItem model
+                yield! Action.delete fs progress model.ActionItems model
             | OverwriteBookmark (char, _) ->
                 yield withBookmark char model
             | OverwriteSavedSearch (char, _) ->
@@ -162,7 +164,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         | 'n' ->
             let model = model |> MainModel.withMessage (MainStatus.CancelledConfirm confirmType)
             match confirmType with
-            | Overwrite _ when not model.Config.ShowHidden && model.SelectedItem.IsHidden ->
+            | Overwrite _ when not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) ->
                 // if we were temporarily showing a hidden file, refresh
                 yield! Nav.refresh fs model
             | _ ->
@@ -225,10 +227,10 @@ let submitInput fs os model = asyncSeqResult {
         let model =
             { model with
                 InputText = ""
-                InputMode = if not multi || model.SelectedItem.Type = File then None else model.InputMode
+                InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
             }
         yield model
-        yield! Nav.openSelected fs os None model
+        yield! Nav.openItems fs os [model.CursorItem] model
     | Some (Input Search) ->
         let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
         yield
@@ -250,7 +252,7 @@ let submitInput fs os model = asyncSeqResult {
     | Some (Input (Rename _)) ->
         let model = { model with InputMode = None }
         yield model
-        yield! Action.rename fs model.SelectedItem model.InputText model
+        yield! Action.rename fs model.CursorItem model.InputText model
     | _ -> ()
 }
 
@@ -267,6 +269,8 @@ let escape model =
         model |> MainModel.withoutKeyCombo
     else if model.ShowHistoryType.IsSome then
         { model with ShowHistoryType = None }
+    else if not model.SelectedItems.IsEmpty then
+        model |> MainModel.clearSelection
     else
         model.CancelToken.Cancel()
         model |> MainModel.clearStatus |> Search.clearSearch
@@ -360,7 +364,8 @@ let AsyncResult handler =
 type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
                 gridScroller, openSettings, closeWindow, startOptions) =
     let subDirResults = Event<_>()
-    let progress = Event<_>()
+    let progressEvt = Event<_>()
+    let progress = Progress progressEvt
 
     let rec dispatcher evt =
         let handler =
@@ -372,15 +377,19 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CursorDownHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (m.PageSize/2 * m.RepeatCount))
             | CursorToFirst -> Sync (fun m -> m |> MainModel.withCursor 0)
             | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
+            | SelectToggle -> Sync Action.selectToggle
+            | SelectRange -> Sync Action.selectRange
+            | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
             | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
-            | OpenSelected -> SyncResult (Nav.openSelected fs os None)
+            | OpenCursorItem -> AsyncResult (fun m -> Nav.openItems fs os [m.CursorItem] m)
+            | OpenSelected -> AsyncResult (fun m -> Nav.openItems fs os m.ActionItems m)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
-            | OpenFileAndExit -> SyncResult (Nav.openSelected fs os (Some closeWindow))
+            | OpenFileAndExit -> AsyncResult (Nav.openFilesAndExit fs os closeWindow)
             | OpenProperties -> SyncResult (Command.openProperties os)
             | OpenParent -> SyncResult (Nav.openParent fs)
-            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root SelectNone)
-            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath SelectNone m)
+            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root CursorStay)
+            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath CursorStay m)
             | Back -> Sync (Nav.back fs)
             | Forward -> Sync (Nav.forward fs)
             | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
@@ -401,19 +410,19 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | CancelInput -> Sync cancelInput
             | FindNext -> Sync Search.findNext
             | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
-            | StartPut putType -> Sync (Action.registerItem putType)
+            | StartPut putType -> SyncResult (Action.registerSelectedItems putType)
             | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
             | Put -> AsyncResult (Action.put fs progress false)
             | ClipCopy -> SyncResult (Action.clipCopy os)
-            | Recycle -> AsyncResult (fun m -> Action.recycle fs m.SelectedItem m)
+            | Recycle -> AsyncResult (fun m -> Action.recycle fs progress m.ActionItems m)
             | SortList field -> Sync (Nav.sortList field)
-            | UpdateDropInPutType (paths, event) -> Sync (Command.updateDropInPutType paths event)
-            | DropIn (paths, event) -> AsyncResult (Command.dropIn fs progress paths event)
-            | DropOut putType -> Sync (Command.dropOut fs putType)
+            | UpdateDropInPutType (paths, event) -> Sync (Action.updateDropInPutType paths event)
+            | DropIn (paths, event) -> AsyncResult (Action.dropIn fs progress paths event)
+            | DropOut event -> Sync (Action.dropOut fs event)
             | ToggleHidden -> Sync Command.toggleHidden
             | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
             | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)
-            | OpenExplorer -> Sync (Command.openExplorer os)
+            | OpenExplorer -> SyncResult (Command.openExplorer os)
             | OpenCommandLine -> SyncResult (Command.openCommandLine os)
             | OpenSettings -> SyncResult (Command.openSettings fs openSettings)
             | Exit -> Sync (fun m -> closeWindow(); m)
@@ -447,6 +456,6 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let model =
             { MainModel.Default with Config = config.Value; History = history.Value }
             |> initModel fs (getScreenBounds ()) startOptions
-        let binder = MainView.binder config history progress.Publish
+        let binder = MainView.binder config history progressEvt.Publish
         let events = MainView.events config history subDirResults.Publish
         Framework.start binder events dispatcher view model

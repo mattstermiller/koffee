@@ -20,6 +20,8 @@ nuget CompareNETObjects content:none
 nuget NUnit
 nuget NUnit3TestAdapter
 nuget Microsoft.NET.Test.Sdk
+nuget PixiEditor.ColorPicker 3.3.1
+nuget Microsoft.Xaml.Behaviors.Wpf 1.1.39
 
 group Tools
     source https://api.nuget.org/v3/index.json

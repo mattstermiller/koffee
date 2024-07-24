@@ -165,7 +165,7 @@ let ``Undo create handles delete error by returning error`` () =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = MainStatus.ItemActionError (DeletedItem (createdItem, true), model.PathFormat, ex)
+    let expectedError = MainStatus.ItemActionError (DeletedItems (true, [createdItem], false), model.PathFormat, ex)
     let expected = model |> MainModel.withError expectedError |> popUndo
     assertAreEqual expected actual
 

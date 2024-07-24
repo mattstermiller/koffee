@@ -1,10 +1,11 @@
 # Release Notes
 
 ### 0.7.0  Multi-Select (WIP)
+- #14 Adds multi-selection commands to perform open, put, delete and other commands on many items at once
 - #131 Adds ability to cancel Put and Delete operations
-- #132 Adds opened files to path history and shows in path suggestions
+- #132 Adds opened files to path history and shows them in path suggestions
 - #133 Renaming, moving or deleting items updates path history
-- #9 Changes Delete to enumerate and work on single items
+- #9 Changes Delete to enumerate folders and operate on individual items
 - #130 Closes Find prompt when opening a file
 - #129 Fixes FileSystem Move and Copy to handle empty folders
 - #135 Fixes put merge error on empty folder when it exists in destination

@@ -9,10 +9,13 @@ open Koffee.Main
 let withReg reg model =
     { model with Config = { model.Config with YankRegister = reg } }
 
-let copyName = Action.getCopyName
+let getCopyName = Action.getCopyName
 
-let copyNames name num =
-    List.init num (copyName name)
+let getCopyNames name num =
+    List.init num (getCopyName name)
+
+let assertAreEqual expected actual =
+    assertAreEqualWith expected actual (fun comp -> comp.Config.MembersToIgnore.Remove "MainModel.History" |> ignore)
 
 let putTypeCases () = [
     TestCaseData(Move)
@@ -20,16 +23,42 @@ let putTypeCases () = [
     TestCaseData(Shortcut)
 ]
 
-let putItemOverwriteCases () =
+let putTypeAndBoolCases () =
     putTypeCases () |> List.collect (fun c -> [
         TestCaseData(c.Arguments.[0], false)
         TestCaseData(c.Arguments.[0], true)
     ])
 
-let assertAreEqual expected actual =
-    assertAreEqualWith expected actual (fun comp -> comp.Config.MembersToIgnore.Remove "MainModel.History" |> ignore)
+[<TestCaseSource(nameof putTypeCases)>]
+let ``Register selected items with the same name returns error`` putType =
+    let fs = FakeFileSystem [
+        folder "source1" [
+            file "file"
+        ]
+        folder "source2" [
+            file "other file"
+        ]
+        folder "source3" [
+            file "file"
+        ]
+    ]
+    let selected = List.map createFile [
+        "/c/source1/file"
+        "/c/source2/other file"
+        "/c/source3/file"
+    ]
+    let model =
+        { testModel with
+            Directory = selected
+            Items = selected
+            SelectedItems = selected
+            SearchCurrent = Some ({ Search.Default with Terms = "file"; SubFolders = true })
+        }
 
-[<TestCaseSource("putItemOverwriteCases")>]
+    Action.registerSelectedItems putType model
+    |> shouldEqual (Error (MainStatus.CannotRegisterMultipleItemsWithSameName "file"))
+
+[<TestCaseSource(nameof putTypeAndBoolCases)>]
 let ``Put item in different folder with item of same name prompts for overwrite`` putType existingHidden =
     let destName = if putType = Shortcut then "file.lnk" else "file"
     let fs = FakeFileSystem [
@@ -42,18 +71,18 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     ]
     let src = fs.Item "/c/other/file"
     let dest = fs.Item ("/c/" + destName)
-    let item = Some (src.Path, src.Type, putType)
-    let model = testModel |> withReg item
+    let model = testModel |> withReg (Some (putType, [src.Ref]))
     let expectedItems = fs.ItemsIn "/c"
 
     let actual = seqResult (Action.put fs progress false) model
 
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems |> List.filter (fun i -> i.Name <> "hidden")
             Cursor = 2
-            InputMode = Some (Confirm (Overwrite (putType, src, dest)))
+            InputMode = Some (Confirm (Overwrite (putType, [src, dest])))
+            CancelToken = CancelToken()
         }
         |> withLocationOnHistory
     assertAreEqual expected actual
@@ -61,28 +90,22 @@ let ``Put item in different folder with item of same name prompts for overwrite`
 
 [<Test>]
 let ``Put handles missing register item`` () =
-    let src = createFile "/c/file"
-    let fs = FakeFileSystem []
-    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
+    let src = createFile "/c/folder/file"
+    let fs = FakeFileSystem [
+        folder "folder" []
+    ]
+    let model = testModel |> withReg (Some (Move, [src.Ref]))
 
     let actual = seqResult (Action.put fs progress false) model
 
-    let expected = model |> MainModel.withError (MainStatus.YankRegisterItemMissing (src.Path.Format model.PathFormat))
+    let expectedEx = FakeFileSystemErrors.pathDoesNotExist src.Path
+    let expected =
+        model
+        |> MainModel.withError (MainStatus.PutError (false, Move, [src.Path, expectedEx], 1))
+        |> withNewCancelToken
     assertAreEqual expected actual
 
-[<Test>]
-let ``Put handles error reading register item`` () =
-    let src = createFile "/c/file"
-    let fs = FakeFileSystem []
-    fs.AddExnPath false ex src.Path
-    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
-
-    let actual = seqResult (Action.put fs progress false) model
-
-    let expected = model |> MainModel.withError (MainStatus.ActionError ("read yank register item", ex))
-    assertAreEqual expected actual
-
-[<TestCaseSource("putTypeCases")>]
+[<TestCaseSource(nameof putTypeCases)>]
 let ``Put item handles file system errors`` putType =
     let fs = FakeFileSystem [
         folder "folder" [
@@ -92,15 +115,14 @@ let ``Put item handles file system errors`` putType =
     let src = fs.Item "/c/folder/file"
     let destPath = "/c/file" + (if putType = Shortcut then ".lnk" else "") |> createPath
     fs.AddExnPath true ex destPath
-    let item = Some (src.Path, src.Type, putType)
-    let model = testModel |> withReg item
+    let model = testModel |> withReg (Some (putType, [src.Ref]))
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.put fs progress false) model
 
     let expected =
         model
-        |> MainModel.withError (MainStatus.PutError (false, putType, [(src, ex)], 1))
+        |> MainModel.withError (MainStatus.PutError (false, putType, [(src.Path, ex)], 1))
         |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -122,20 +144,21 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     let putType = if copy then Copy else Move
     let model =
         testModel
-        |> withReg (Some (src.Path, src.Type, putType))
+        |> withReg (Some (putType, [src.Ref]))
         |> withHistoryPaths [itemHistoryPath src]
 
     let actual = seqResult (Action.put fs progress overwrite) model
 
-    let putItem = { Item = src; Dest = dest.Path; DestExists = overwrite }
-    let expectedAction = PutItems (putType, putItem, [putItem], false)
+    let intent = { createPutIntent [src] model.Location with Overwrite = overwrite }
+    let actualPut = [{ createPutItem src dest.Path with DestExists = overwrite }]
+    let expectedAction = PutItems (putType, intent, actualPut, false)
     let expectedItems = [
         createFolder "/c/folder"
         createFile "/c/file" |> size 41L
     ]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -180,40 +203,41 @@ let ``Put or redo put folder handles partial success by updating undo and settin
     let errorItem = createFile "/c/fruit/berry big error"
     fs.AddExn true ex "/d/fruit/berry big error"
     let putType = if copy then Copy else Move
-    let putItem = { Item = src; Dest = dest; DestExists = false }
-    let model =
-        testModel
-        |> MainModel.withLocation dest.Parent
-        |> if isRedo
-            then pushRedo (PutItems (putType, putItem, [], false))
-            else withReg (Some (src.Path, src.Type, putType))
-        |> withHistoryPaths (historyPaths {
-            "/c/fruit/amazing/banana"
-            "/d/other/"
-            errorItem
-            src
-        })
-    let testFunc =
-        if isRedo
-        then Action.redo fs progress
-        else Action.put fs progress true
-
-    let actual = seqResult testFunc model
-
-    let expectedPut = List.map (createPutItem src.Path dest) [
+    let intent = createPutIntent [src] dest.Parent
+    let expectedPut = List.map (createPutItemFrom src.Path dest) [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
         createFile "/c/fruit/amazing/banana"
         createFile "/c/fruit/apple"
         createFile "/c/fruit/cherry"
     ]
-    let expectedAction = PutItems (putType, putItem, expectedPut, false)
+    let model =
+        testModel
+        |> MainModel.withLocation dest.Parent
+        |> if isRedo
+            then pushRedo (PutItems (putType, intent, [], false))
+            else withReg (Some (putType, [src.Ref]))
+        |> withHistoryPaths (historyPaths {
+            "/d/other/"
+            errorItem
+            yield! expectedPut |> List.map (fun pi -> pi.Source, pi.ItemType = Folder)
+        })
+    let testFunc =
+        if isRedo
+        then Action.redo fs progress
+        else Action.put fs progress false
+
+    let actual = seqResult testFunc model
+
+    let expectedAction = PutItems (putType, intent, expectedPut, false)
     let expectedItems = [
         createFolder "/d/fruit"
         createFolder "/d/other"
     ]
-    let expectedError = MainStatus.PutError (false, putType, [(errorItem, ex)], 4)
+    let expectedError = MainStatus.PutError (false, putType, [(errorItem.Path, ex)], 6)
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedAction :: testModel.UndoStack
@@ -224,10 +248,10 @@ let ``Put or redo put folder handles partial success by updating undo and settin
         |> MainModel.withError expectedError
         |> withHistoryPaths (historyPaths {
             if copy then
-                expectedPut.[0].Item
+                yield! model.History.Paths
             else
-                expectedPut.[0].Dest, false
-            yield! model.History.Paths.[1..3]
+                yield! model.History.Paths |> List.take 3
+                yield! expectedPut |> List.skip 1 |> List.map (fun pi -> pi.Dest, pi.ItemType = Folder)
         })
         |> withLocationOnHistory
     assertAreEqual expected actual
@@ -277,10 +301,12 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         drive 'd' []
     ]
     let src = fs.Item "/c/fruit"
-    let dest = createPath "/d/fruit"
+    let dest = createFolder "/d/fruit"
     let putType = if copy then Copy else Move
-    let putItem = { Item = src; Dest = dest; DestExists = false }
-    let actualPut = List.map (createPutItem src.Path dest) [
+    let intent = createPutIntent [src] dest.Path.Parent
+    let actualPut = List.map (createPutItemFrom src.Path dest.Path) [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
         createFile "/c/fruit/amazing/banana"
         createFile "/c/fruit/apple"
         createFile "/c/fruit/cherry"
@@ -288,7 +314,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
     ]
     let regItem =
         if not isRedo
-        then Some (src.Path, src.Type, putType)
+        then Some (putType, [src.Ref])
         else None
     let model =
         testModel
@@ -296,16 +322,19 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         |> withReg regItem
         |> if isRedo
             // add repeat to make sure redoIter stops when action is cancelled
-            then pushRedo (PutItems (putType, putItem, actualPut, false)) >> withRepeat 2
+            then pushRedo (PutItems (putType, intent, actualPut, false)) >> withRepeat 2
             else id
         |> withHistoryPaths (historyPaths {
             "/d/"
-            src
-            actualPut.[1].Item
-            actualPut.[2].Item
-            actualPut.[3].Item
-            actualPut.[1].Dest, false
+            actualPut.[0].Source, true
+            actualPut.[1].Source, true
+            actualPut.[2].Source, false
+            actualPut.[3].Source, false
+            actualPut.[4].Source, false
+            actualPut.[5].Source, false
+            actualPut.[3].Dest, false
         })
+    let writesBeforeCancel = actualPut.Length - 2
 
     let testFunc isResume =
         if isRedo
@@ -313,23 +342,23 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         else Action.put fs progress isResume
 
     // part one: put or redo cancels correctly
-    let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) (testFunc false) model
+    let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (testFunc false) model
 
     (
-        let expectedAction = PutItems (putType, putItem, actualPut |> List.take 2, true)
+        let expectedAction = PutItems (putType, intent, actualPut |> List.take writesBeforeCancel, true)
         let expectedRedo =
-            PutItems (putType, putItem, actualPut |> List.skip 2, true)
+            PutItems (putType, intent, actualPut |> List.skip writesBeforeCancel, true)
             :: (if isRedo then testModel.RedoStack else [])
-        let expectedItems = [createFolder "/d/fruit"]
+        let expectedItems = [dest]
         let expected =
             { model with
-                Directory = expectedItems |> sortByPath
+                Directory = expectedItems
                 Items = expectedItems
                 Cursor = 0
                 UndoStack = expectedAction :: testModel.UndoStack
                 RedoStack = expectedRedo
             }
-            |> MainModel.withMessage (MainStatus.CancelledPut (putType, false, 2, 4))
+            |> MainModel.withMessage (MainStatus.CancelledPut (putType, false, writesBeforeCancel, actualPut.Length))
             |> withReg None
             |> withHistoryPaths (
                 if copy then
@@ -337,10 +366,12 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
                 else
                     historyPaths {
                         "/d/"
-                        src
-                        actualPut.[1].Dest, false
-                        actualPut.[2].Item
-                        actualPut.[3].Item
+                        actualPut.[0].Source, true
+                        actualPut.[1].Dest, true
+                        actualPut.[2].Dest, false
+                        actualPut.[3].Dest, false
+                        actualPut.[4].Source, false
+                        actualPut.[5].Source, false
                     }
             )
         assertAreEqual expected modelAfterCancel
@@ -369,7 +400,7 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
     )
 
     // simulate external program creating new file in destination with same relative path as a remaining file
-    let putItemWithConflict = actualPut.[3]
+    let putItemWithConflict = actualPut.[5]
     fs.Create File putItemWithConflict.Dest |> assertOk
 
     // part two: put or redo again completes the operation and merges undo item
@@ -382,20 +413,22 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         |> seqResult (testFunc true)
 
     let expectedPut forMergedUndoItem = [
+        actualPut.[0] |> applyIf (not isRedo) withDestExists
         if not isRedo && copy then
-            yield! actualPut.[0..1] |> List.map withDestExists
+            yield! actualPut.[1..3] |> List.map withDestExists
         else if forMergedUndoItem then
-            yield! actualPut.[0..1]
-        actualPut.[2]
+            yield! actualPut.[1..3]
+        actualPut.[4]
         if not isRedo then
-            actualPut.[3] |> withDestExists
+            actualPut.[5] |> withDestExists
     ]
-    let expectedStatusAction = PutItems (putType, putItem |> withDestExists, expectedPut false, false)
-    let expectedMergedAction = PutItems (putType, putItem, expectedPut true, false)
-    let expectedItems = [createFolder "/d/fruit"]
+    let expectedStatusPut = expectedPut false
+    let expectedStatusAction = PutItems (putType, { intent with Overwrite = true }, expectedStatusPut, false)
+    let expectedMergedAction = PutItems (putType, intent, expectedPut true, false)
+    let expectedItems = [dest]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedMergedAction :: testModel.UndoStack
@@ -405,8 +438,8 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
         }
         |> withReg None
         |> if isRedo then
-                let expectedEx = RedoPutBlockedByExistingItemException() :> exn
-                MainModel.withError (MainStatus.PutError (false, putType, [(putItemWithConflict.Item, expectedEx)], 2))
+                let expectedError = (putItemWithConflict.Source, RedoPutBlockedByExistingItemException() :> exn)
+                MainModel.withError (MainStatus.PutError (false, putType, [expectedError], expectedStatusPut.Length))
             else
                 MainModel.withMessage (MainStatus.ActionComplete (expectedStatusAction, testModel.PathFormat))
         |> withHistoryPaths (
@@ -416,15 +449,17 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
                 historyPaths {
                     "/d/"
                     if isRedo then
-                        src
+                        actualPut.[0].Source, true
                     else
-                        expectedItems.[0]
-                    actualPut.[1].Dest, false
+                        actualPut.[0].Dest, true
+                    actualPut.[1].Dest, true
                     actualPut.[2].Dest, false
+                    actualPut.[3].Dest, false
+                    actualPut.[4].Dest, false
                     if isRedo then
-                        actualPut.[3].Item
+                        actualPut.[5].Source, false
                     else
-                        actualPut.[3].Dest, false
+                        actualPut.[5].Dest, false
                 }
         )
     assertAreEqual expected actual
@@ -480,71 +515,76 @@ let ``Put or redo put enumerated folder handles partial success with cancellatio
     let src = fs.Item "/c/fruit"
     let dest = createPath "/d/fruit"
     let putType = if copy then Copy else Move
-    let putItem = { Item = src; Dest = dest; DestExists = false }
-    let actualPut = List.map (createPutItem src.Path dest) [
+    let intent = createPutIntent [src] dest.Parent
+    let actualPut = List.map (createPutItemFrom src.Path dest) [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
         createFile "/c/fruit/amazing/banana"
+        createFolder "/c/fruit/bad"
         createFile "/c/fruit/bad/grapefruit"
         createFile "/c/fruit/cherry"
         createFile "/c/fruit/dewberry"
     ]
-    let errorItem = actualPut.[1]
+    let errorItem = actualPut.[4]
     fs.AddExnPath true ex errorItem.Dest
     let regItem =
         if not isRedo
-        then Some (src.Path, src.Type, putType)
+        then Some (putType, [src.Ref])
         else None
     let model =
         testModel
         |> withLocation "/d"
         |> withReg regItem
         |> if isRedo
-            then pushRedo (PutItems (putType, putItem, actualPut, false))
+            then pushRedo (PutItems (putType, intent, actualPut, false))
             else id
         |> withHistoryPaths (historyPaths {
             "/d/"
-            src
-            actualPut.[0].Item.Path.Parent, true
-            yield! actualPut |> List.map (fun pi -> pi.Item)
+            yield! actualPut |> List.map (fun pi -> pi.Source, pi.ItemType = Folder)
         })
+    let writesBeforeCancel = actualPut.Length - 1
 
     let testFunc =
         if isRedo
         then Action.redo fs progress
         else Action.put fs progress false
 
-    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) testFunc model
+    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) testFunc model
 
-    let expectedSuccessItems = [
-        actualPut.[0]
-        actualPut.[2]
+    let expectedUnsuccessfulItems = [
+        errorItem
+        actualPut.[6]
     ]
-    let expectedUndoAction = PutItems (putType, putItem, expectedSuccessItems, true)
-    let expectedRedoAction = PutItems (putType, putItem, actualPut |> List.except expectedSuccessItems, true)
+    let expectedSuccessItems = actualPut |> List.except expectedUnsuccessfulItems
+    let expectedUndoAction = PutItems (putType, intent, expectedSuccessItems, true)
+    let expectedRedoAction = PutItems (putType, intent, expectedUnsuccessfulItems, true)
     let expectedItems = [createFolder "/d/fruit"]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 0
             UndoStack = expectedUndoAction :: testModel.UndoStack
             RedoStack = expectedRedoAction :: if isRedo then testModel.RedoStack else []
         }
-        |> MainModel.withError (MainStatus.PutError (false, putType, [errorItem.Item, ex], actualPut.Length))
+        |> MainModel.withError (MainStatus.PutError (false, putType, [errorItem.Source, ex], actualPut.Length))
         |> withReg None
         |> withHistoryPaths (historyPaths {
             "/d/"
-            src
+            actualPut.[0].Source, true
             if copy then
-                actualPut.[0].Item.Path.Parent, true
-                actualPut.[0].Item
+                actualPut.[1].Source, true
+                actualPut.[2].Source, false
             else
-                actualPut.[0].Dest, false
-            actualPut.[1].Item
-            if copy then
-                actualPut.[2].Item
-            else
+                actualPut.[1].Dest, true
                 actualPut.[2].Dest, false
-            actualPut.[3].Item
+            actualPut.[3].Source, true
+            actualPut.[4].Source, false
+            if copy then
+                actualPut.[5].Source, false
+            else
+                actualPut.[5].Dest, false
+            actualPut.[6].Source, false
         })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -567,7 +607,7 @@ let ``Put or redo put enumerated folder handles partial success with cancellatio
                 folder "amazing" [
                     file "banana"
                 ]
-                folder "bad" [] // folder should have been created when preparing to move error item
+                folder "bad" []
                 file "cherry"
             ]
         ]
@@ -590,7 +630,7 @@ let ``Put enumerated folder does nothing when canceled immediately`` (copy: bool
     ]
     let src = fs.Item "/c/fruit"
     let putType = if copy then Copy else Move
-    let model = testModel |> withLocation "/d" |> withReg (Some (src.Path, src.Type, putType))
+    let model = testModel |> withLocation "/d" |> withReg (Some (putType, [src.Ref]))
     let expectedFs = fs.Items
 
     let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (Action.put fs progress false) model
@@ -631,27 +671,28 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
     let src = fs.Item "/c/fruit"
     let dest = createFolder "/c/dest/fruit"
     let putType = if copy then Copy else Move
-    let model = testModel |> withLocation "/c/dest" |> withReg (Some (src.Path, src.Type, putType))
+    let model = testModel |> withLocation "/c/dest" |> withReg (Some (putType, [src.Ref]))
 
     let actual = seqResult (Action.put fs progress true) model
 
-    let intent = { Item = src; Dest = dest.Path; DestExists = true }
-    let createPutItem = createPutItem src.Path dest.Path
+    let intent = { createPutIntent [src] model.Location with Overwrite = true }
+    let createPutItem = createPutItemFrom src.Path dest.Path
     let expectedPut = [
+        createPutItem (createFolder "/c/fruit") |> withDestExists
+        createPutItem (createFolder "/c/fruit/bushes")
         if copy then
             createPutItem (createFile "/c/fruit/bushes/blueberry")
-        else
-            createPutItem (createFolder "/c/fruit/bushes")
-        createPutItem (createFile "/c/fruit/tomato")
+        createPutItem (createFolder "/c/fruit/trees") |> withDestExists
         createPutItem (createFile "/c/fruit/trees/apple" |> size 7L) |> withDestExists
         createPutItem (createFile "/c/fruit/trees/banana")
         createPutItem (createFolder "/c/fruit/vines") |> withDestExists
+        createPutItem (createFile "/c/fruit/tomato")
     ]
     let expectedAction = PutItems (putType, intent, expectedPut, false)
     let expectedItems = [dest]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -682,6 +723,119 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
         ]
     ]
 
+[<TestCaseSource(nameof putTypeCases)>]
+let ``Put items from different parents works correctly`` putType =
+    let fs = FakeFileSystem [
+        folder "source1" [
+            file "file1"
+            file "other"
+        ]
+        folder "source2" [
+            file "file2"
+        ]
+        folder "source3" [
+            file "file3"
+        ]
+    ]
+    let sources = List.map createFile [
+        "/c/source1/file1"
+        "/c/source2/file2"
+        "/c/source3/file3"
+    ]
+    let model =
+        testModel
+        |> withReg (Some (putType, sources |> List.map (fun i -> i.Ref)))
+        |> withHistoryPaths (sources |> List.map itemHistoryPath)
+
+    let actual = seqResult (Action.put fs progress false) model
+
+    let destParent = model.Location
+    let destPath name = destParent.Join (name + if putType = Shortcut then ".lnk" else "")
+    let destItems =
+        sources |> List.map (fun item ->
+            let path = destPath item.Name
+            { item with Path = path; Name = path.Name }
+        )
+    let intent = createPutIntent sources destParent
+    let actualPut = sources |> List.map (fun src -> createPutItem src (destPath src.Name))
+    let expectedAction = PutItems (putType, intent, actualPut, false)
+    let expectedItems = [
+        createFolder "/c/source1"
+        createFolder "/c/source2"
+        createFolder "/c/source3"
+        yield! destItems
+    ]
+    let expected =
+        { testModel with
+            Directory = expectedItems
+            Items = expectedItems
+            Cursor = sources.Length
+            SelectedItems = destItems
+            UndoStack = expectedAction :: testModel.UndoStack
+            RedoStack = []
+            CancelToken = CancelToken()
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, testModel.PathFormat))
+        |> withHistoryPaths ((if putType = Move then destItems else sources) |> List.map itemHistoryPath)
+        |> withLocationOnHistory
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        folder "source1" [
+            if not (putType = Move) then
+                file "file1"
+            file "other"
+        ]
+        folder "source2" [
+            if not (putType = Move) then
+                file "file2"
+        ]
+        folder "source3" [
+            if not (putType = Move) then
+                file "file3"
+        ]
+        if putType = Shortcut then
+            file "file1.lnk"
+            file "file2.lnk"
+            file "file3.lnk"
+        else
+            file "file1"
+            file "file2"
+            file "file3"
+    ]
+
+[<TestCaseSource(nameof putTypeAndBoolCases)>]
+let ``Put in location items with the same name from different parents returns error`` putType destExists =
+    let fs = FakeFileSystem [
+        folder "source1" [
+            file "file"
+        ]
+        folder "source2" [
+            file "other"
+        ]
+        folder "source3" [
+            file "file"
+        ]
+        if destExists then
+            file ("file" + if putType = Shortcut then ".lnk" else "")
+    ]
+    let items = List.map createFile [
+        "/c/source1/file"
+        "/c/source2/other"
+        "/c/source3/file"
+    ]
+    let itemRefs = items |> List.map (fun i -> i.Ref)
+    let model = testModel |> withHistoryPaths (items |> List.map itemHistoryPath)
+    let expectedFs = fs.Items
+
+    // test putInLocation because it is used by dropIn and paste where the item list is not restricted.
+    // `put` could not trigger this because registering items with the same name is not allowed.
+    let actual = seqResult (Action.putInLocation fs progress false false putType itemRefs) model
+
+    let expectedError = MainStatus.CannotPutMultipleItemsWithSameName (putType, "file")
+    let expected = model |> MainModel.withError expectedError
+    assertAreEqual expected actual
+    fs.Items |> shouldEqual expectedFs
+
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Undo put enumerated folder moves or deletes until canceled, then undo again resumes and merges redo item`` wasCopy =
@@ -695,79 +849,84 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
         ]
     let fs = FakeFileSystem [
         drive 'c' [
-            itemTree
-            file "other"
-        ]
-        drive 'd' [
             if wasCopy then
                 itemTree
         ]
+        drive 'd' [
+            itemTree
+            file "other"
+        ]
     ]
-    let dest = fs.Item "/c/fruit"
-    let original = createFolder "/d/fruit"
-    let putItem = { Item = original; Dest = dest.Path; DestExists = false }
-    let actualPut = List.map (createPutItem original.Path dest.Path) [
-        createFile "/d/fruit/amazing/banana"
-        createFile "/d/fruit/apple"
-        createFile "/d/fruit/cherry"
+    let dest = fs.Item "/d/fruit"
+    let original = createFolder "/c/fruit"
+    let putItem = createPutIntent [original] dest.Path.Parent
+    let actualPut = List.map (createPutItemFrom original.Path dest.Path) [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
+        createFile "/c/fruit/amazing/banana"
+        createFile "/c/fruit/apple"
+        createFile "/c/fruit/cherry"
     ]
     let putType = if wasCopy then Copy else Move
     let action = PutItems (putType, putItem, actualPut, false)
     let model =
         testModel
+        |> withLocation "/d"
         |> pushUndo action
         |> withRepeat 2 // make sure undoIter stops when action is cancelled
         |> withHistoryPaths (historyPaths {
-            dest
-            actualPut.[0].Dest, false
-            actualPut.[1].Dest, false
+            actualPut.[0].Dest, true
+            actualPut.[1].Dest, true
             actualPut.[2].Dest, false
+            actualPut.[3].Dest, false
+            actualPut.[4].Dest, false
         })
+    let writesBeforeCancel = actualPut.Length - 1
 
     // part one: undo cancels correctly
-    let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) (Action.undo fs progress) model
+    let modelAfterCancel =
+        seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (Action.undo fs progress) model
+
+    let expectedPutBeforeCancel, expectedPutAfterCancel =
+        actualPut
+        |> applyIf wasCopy List.rev // undo copy deletes items in reverse order
+        |> List.splitAt writesBeforeCancel
+        |> applyIf wasCopy (fun (before, after) -> (before |> List.rev, after |> List.rev))
 
     (
-        let expectedUndoAction = PutItems (putType, putItem, actualPut |> List.skip 2, true)
-        let expectedRedoAction = PutItems (putType, putItem, actualPut |> List.take 2, true)
+        let expectedUndoAction = PutItems (putType, putItem, expectedPutAfterCancel, true)
+        let expectedRedoAction = PutItems (putType, putItem, expectedPutBeforeCancel, true)
         let expectedItems =
             if wasCopy then
                 [
                     dest
-                    createFile "/c/other"
+                    createFile "/d/other"
                 ]
             else
                 [original]
         let expected =
             { model with
-                Directory = expectedItems |> sortByPath
+                Directory = expectedItems
                 Items = expectedItems
                 Cursor = 0
                 UndoStack = expectedUndoAction :: testModel.UndoStack
                 RedoStack = expectedRedoAction :: testModel.RedoStack
             }
-            |> MainModel.withMessage (MainStatus.CancelledPut (putType, true, 2, 3))
-            |> fun model ->
-                if wasCopy
-                then model // undo copy does not open a path, only refreshes if current path is destination
-                else model |> MainModel.withPushedLocation original.Path.Parent
+            |> MainModel.withMessage (MainStatus.CancelledPut (putType, true, writesBeforeCancel, actualPut.Length))
+            // undo copy does not open a path, only refreshes if current path is destination
+            |> applyIf (not wasCopy) (MainModel.withPushedLocation original.Path.Parent)
             |> withHistoryPaths (historyPaths {
-                dest
+                actualPut.[0].Dest, true
                 if not wasCopy then
-                    actualPut.[0].Item
-                    actualPut.[1].Item
-                actualPut.[2].Dest, false
+                    actualPut.[1].Source, true
+                    actualPut.[2].Source, false
+                    actualPut.[3].Source, false
+                    actualPut.[4].Dest, false
             })
             |> withLocationOnHistory
         assertAreEqual expected modelAfterCancel
         fs.ItemsShouldEqual [
             drive 'c' [
-                folder "fruit" [
-                    file "cherry"
-                ]
-                file "other"
-            ]
-            drive 'd' [
                 if wasCopy then
                     itemTree
                 else
@@ -778,6 +937,13 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
                         file "apple"
                     ]
             ]
+            drive 'd' [
+                folder "fruit" [
+                    if not wasCopy then // undo copy deletes in reverse, so the only item left should be parent folder
+                        file "cherry"
+                ]
+                file "other"
+            ]
         ]
         printfn "part one: cancellation completed successfully"
     )
@@ -787,11 +953,11 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
         { modelAfterCancel with RepeatCommand = None }
         |> seqResult (Action.undo fs progress)
 
-    let expectedStatusAction = PutItems (putType, putItem, actualPut |> List.skip 2, false)
+    let expectedStatusAction = PutItems (putType, putItem, expectedPutAfterCancel, false)
     let expectedRedoAction = PutItems (putType, putItem, actualPut, false)
     let expectedItems =
         if wasCopy
-        then [createFile "/c/other"]
+        then [createFile "/d/other"]
         else [original]
     let expected =
         { model with
@@ -804,138 +970,23 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
             CancelToken = CancelToken()
         }
         |> MainModel.withMessage (MainStatus.UndoAction (expectedStatusAction, model.PathFormat, 1, 1))
-        |> fun model ->
-            if wasCopy
-            then model // undo copy does not open a path, only refreshes if current path is destination
-            else model |> MainModel.withPushedLocation original.Path.Parent
+        // undo copy does not open a path, only refreshes if current path is destination
+        |> applyIf (not wasCopy) (MainModel.withPushedLocation original.Path.Parent)
         |> withHistoryPaths (historyPaths {
             if not wasCopy then
-                original
-                actualPut.[0].Item
-                actualPut.[1].Item
-                actualPut.[2].Item
+                actualPut.[0].Source, true
+                actualPut.[1].Source, true
+                actualPut.[2].Source, false
+                actualPut.[3].Source, false
+                actualPut.[4].Source, false
         })
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         drive 'c' [
-            file "other"
-        ]
-        drive 'd' [
             itemTree
         ]
-    ]
-
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Undo put enumerated folder handles partial success with cancellation by updating undo and redo and setting error message``
-        wasCopy =
-    let itemTree =
-        folder "fruit" [
-            folder "amazing" [
-                file "banana"
-            ]
-            folder "bad" [
-                file "grapefruit"
-            ]
-            file "cherry"
-            file "dewberry"
-        ]
-    let fs = FakeFileSystem [
-        drive 'c' [
-            if wasCopy then
-                itemTree
-        ]
         drive 'd' [
-            itemTree
-            file "other"
-        ]
-    ]
-    let original = createFolder "/c/fruit"
-    let dest = fs.Item "/d/fruit"
-    let putItem = { Item = original; Dest = dest.Path; DestExists = false }
-    let actualPut = List.map (createPutItem original.Path dest.Path) [
-        createFile "/c/fruit/amazing/banana"
-        createFile "/c/fruit/bad/grapefruit"
-        createFile "/c/fruit/cherry"
-        createFile "/c/fruit/dewberry"
-    ]
-    let putType = if wasCopy then Copy else Move
-    let action = PutItems (putType, putItem, actualPut, false)
-    let errorItem = actualPut.[1]
-    fs.AddExnPath true ex errorItem.Dest
-    let model =
-        testModel
-        |> withLocation "/d"
-        |> pushUndo action
-        |> withHistoryPaths (historyPaths {
-            dest
-            actualPut.[0].Dest.Parent, true
-            actualPut.[0].Dest, false
-            actualPut.[1].Dest, false
-            actualPut.[2].Dest, false
-        })
-
-    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) (Action.undo fs progress) model
-
-    let expectedSuccessItems = [
-        actualPut.[0]
-        actualPut.[2]
-    ]
-    let expectedUndoAction = PutItems (putType, putItem, actualPut |> List.except expectedSuccessItems, true)
-    let redoIntent = if wasCopy then putItem else putItem |> withDestExists
-    let expectedRedoAction = PutItems (putType, redoIntent, expectedSuccessItems, true)
-    let expectedItems =
-        if wasCopy then
-            [
-                dest
-                createFile "/d/other"
-            ]
-        else
-            [original]
-    let expected =
-        { model with
-            Directory = expectedItems |> sortByPath
-            Items = expectedItems
-            Cursor = 0
-            UndoStack = expectedUndoAction :: testModel.UndoStack
-            RedoStack = expectedRedoAction :: testModel.RedoStack
-        }
-        |> MainModel.withError (MainStatus.PutError (true, putType, [(errorItem |> PutItem.reverse).Item, ex], actualPut.Length))
-        |> fun model ->
-            if wasCopy
-            then model // undo copy does not open a path, only refreshes if current path is destination
-            else model |> MainModel.withPushedLocation original.Path.Parent
-        |> withHistoryPaths (historyPaths {
-            dest
-            if not wasCopy then
-                actualPut.[0].Item
-            actualPut.[1].Dest, false
-            if not wasCopy then
-                actualPut.[2].Item
-        })
-        |> withLocationOnHistory
-    assertAreEqual expected actual
-    fs.ItemsShouldEqual [
-        drive 'c' [
-            if wasCopy then
-                itemTree
-            else
-                folder "fruit" [
-                    folder "amazing" [
-                        file "banana"
-                    ]
-                    folder "bad" []
-                    file "cherry"
-                ]
-        ]
-        drive 'd' [
-            folder "fruit" [
-                folder "bad" [
-                    file "grapefruit"
-                ]
-                file "dewberry"
-            ]
             file "other"
         ]
     ]
@@ -958,27 +1009,28 @@ let ``Redo put performs move or copy of intent instead of actual`` (copy: bool) 
     ]
     let src = createFolder "/c/folder"
     let dest = createPath "/d/dest/folder"
-    let putItem = { Item = src; Dest = dest; DestExists = false }
-    let actualPut = [
-        createFile "/c/folder/file" |> createPutItem src.Path dest
+    let intent = createPutIntent [src] dest.Parent
+    let actualPut = List.map (createPutItemFrom src.Path dest) [
+        createFolder "/c/folder"
+        createFile "/c/folder/file"
     ]
     let putType = if copy then Copy else Move
-    let action = PutItems (putType, putItem, actualPut, false)
+    let action = PutItems (putType, intent, actualPut, false)
     let model = testModel |> withLocation "/d" |> pushRedo action
 
     let actual = seqResult (Action.redo fs progress) model
 
     let expectedActual = actualPut @ [
-        createFile "/c/folder/new" |> createPutItem src.Path dest
+        createFile "/c/folder/new" |> createPutItemFrom src.Path dest
     ]
-    let expectedAction = PutItems (putType, putItem, expectedActual, false)
+    let expectedAction = PutItems (putType, intent, expectedActual, false)
     let expectedItems = [
         createFolder "/d/dest/another"
         createFolder "/d/dest/folder"
     ]
     let expected =
         { (model |> MainModel.withPushedLocation dest.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
@@ -1007,7 +1059,7 @@ let ``Redo put performs move or copy of intent instead of actual`` (copy: bool) 
         ]
     ]
 
-[<TestCaseSource("putTypeCases")>]
+[<TestCaseSource(nameof putTypeCases)>]
 let ``Redo put item that was not an overwrite when path is occupied returns error`` putType =
     let fs = FakeFileSystem [
         folder "dest" [
@@ -1024,22 +1076,21 @@ let ``Redo put item that was not an overwrite when path is occupied returns erro
     ]
     let src = createFolder "/c/put"
     let dest = createPath ("/c/dest/put" + if putType = Shortcut then ".lnk" else "")
-    let putItem = { Item = src; Dest = dest; DestExists = false }
+    let intent = createPutIntent [src] dest.Parent
     let actualPut =
-        if putType = Shortcut then
-            [putItem]
-        else
-            List.map (createPutItem src.Path dest) [
+        List.map (createPutItemFrom src.Path dest) [
+            src
+            if putType <> Shortcut then
                 createFile "/c/put/file"
                 createFile "/c/put/other"
-            ]
-    let action = PutItems (putType, putItem, actualPut, false)
+        ]
+    let action = PutItems (putType, intent, actualPut, false)
     let model = testModel |> pushRedo action
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.redo fs progress) model
 
-    let expectedError = MainStatus.CannotRedoPutToExisting (putType, src, dest.Format model.PathFormat)
+    let expectedError = MainStatus.PutError (false, putType, [src.Path, RedoPutBlockedByExistingItemException() :> exn], 1)
     let expectedItems = [
         createFolder "/c/dest/other"
         if putType = Shortcut then
@@ -1049,10 +1100,10 @@ let ``Redo put item that was not an overwrite when path is occupied returns erro
     ]
     let expected =
         { (model |> MainModel.withPushedLocation dest.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
-            Cursor = 1
             RedoStack = model.RedoStack.Tail
+            CancelToken = CancelToken()
         }
         |> MainModel.withError expectedError
         |> withLocationOnHistory
@@ -1083,30 +1134,29 @@ let ``Put folder to move deletes source folder after enumerated move and updates
     let model =
         testModel
         |> MainModel.withLocation dest.Path.Parent
-        |> withReg (Some (src.Path, src.Type, Move))
+        |> withReg (Some (Move, [src.Ref]))
         |> withHistoryPaths (historyPaths {
             "/c/folder/file"
             "/c/dest2/unrelated"
             "/c/folder/sub/"
             src
         })
+    let createPutItem = createPutItemFrom src.Path dest.Path
+    let expectedPut = [
+        src |> createPutItem |> applyIf enumerated withDestExists
+        if enumerated then
+            createFolder "/c/folder/sub" |> createPutItem
+            createFile "/c/folder/file" |> createPutItem
+    ]
 
     let actual = seqResult (Action.put fs progress enumerated) model
 
-    let intent = { Item = src; Dest = dest.Path; DestExists = enumerated }
-    let expectedPut =
-        if enumerated then
-            List.map (createPutItem src.Path dest.Path) [
-                createFile "/c/folder/file"
-                createFolder "/c/folder/sub"
-            ]
-        else
-            [intent]
-    let expectedAction = PutItems (Move, intent, expectedPut, false)
+    let expectedIntent = { createPutIntent [src] model.Location with Overwrite = enumerated }
+    let expectedAction = PutItems (Move, expectedIntent, expectedPut, false)
     let expectedItems = [dest]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
@@ -1120,7 +1170,7 @@ let ``Put folder to move deletes source folder after enumerated move and updates
             "/c/dest/folder/file"
             "/c/dest2/unrelated"
             "/c/dest/folder/sub/"
-            intent.Dest, true
+            dest
         })
         |> withLocationOnHistory
     assertAreEqual expected actual
@@ -1141,7 +1191,7 @@ let ``Put item to move in same folder returns error``() =
         file "file"
     ]
     let src = fs.Item "/c/file"
-    let model = testModel |> withReg (Some (src.Path, src.Type, Move))
+    let model = testModel |> withReg (Some (Move, [src.Ref]))
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.put fs progress false) model
@@ -1164,8 +1214,8 @@ let ``Undo move item moves it back`` curPathDifferent =
     ]
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
-    let putItem = { Item = original; Dest = moved.Path; DestExists = false }
-    let action = PutItems (Move, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem original moved.Path
+    let action = PutItems (Move, intent, [putItem], false)
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
@@ -1179,7 +1229,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     ]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 3
             UndoStack = model.UndoStack.Tail
@@ -1200,37 +1250,37 @@ let ``Undo move item moves it back`` curPathDifferent =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Undo move of enumerated folder deletes original dest folder when empty afterward`` destFolderEmpty =
+let ``Undo move of enumerated folder deletes original dest folder when empty`` destFolderEmpty =
     let fs = FakeFileSystem [
         drive 'c' [
-            folder "dest" [
-                folder "moved" [
-                    file "file"
-                    if not destFolderEmpty then
-                        file "new"
-                    file "other"
-                ]
-            ]
-        ]
-        drive 'd' [
             folder "another" []
         ]
+        drive 'd' [
+            folder "moved" [
+                file "file"
+                if not destFolderEmpty then
+                    file "new"
+                file "other"
+            ]
+        ]
     ]
-    let moved = fs.Item "/c/dest/moved"
-    let original = createFolder "/d/moved"
-    let putItem = { Item = original; Dest = moved.Path; DestExists = false }
-    let actualMoved = List.map (createPutItem original.Path moved.Path) [
-        createFile "/d/moved/file"
-        createFile "/d/moved/other"
+    let moved = fs.Item "/d/moved"
+    let original = createFolder "/c/moved"
+    let intent = createPutIntent [original] moved.Path.Parent
+    let actualMoved = List.map (createPutItemFrom original.Path moved.Path) [
+        original
+        createFile "/c/moved/file"
+        createFile "/c/moved/other"
     ]
-    let action = PutItems (Move, putItem, actualMoved, false)
+    let action = PutItems (Move, intent, actualMoved, false)
     let model =
         testModel
+        |> withLocation "/d"
         |> pushUndo action
         |> withHistoryPaths (historyPaths {
             moved
-            actualMoved.[0].Dest, false
-            actualMoved.[1].Item
+            actualMoved.[1].Dest, false
+            actualMoved.[2].Source, false
             if not destFolderEmpty then
                 moved.Path.Join "new", false
         })
@@ -1238,12 +1288,12 @@ let ``Undo move of enumerated folder deletes original dest folder when empty aft
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
-        createFolder "/d/another"
-        createFolder "/d/moved"
+        createFolder "/c/another"
+        createFolder "/c/moved"
     ]
     let expected =
         { (model |> MainModel.withPushedLocation original.Path.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = model.UndoStack.Tail
@@ -1253,8 +1303,8 @@ let ``Undo move of enumerated folder deletes original dest folder when empty aft
         |> MainModel.withMessage (MainStatus.UndoAction (action, testModel.PathFormat, 1, 1))
         |> withHistoryPaths (historyPaths {
             original
-            actualMoved.[0].Item
-            actualMoved.[1].Item
+            actualMoved.[1].Source, false
+            actualMoved.[2].Source, false
             if not destFolderEmpty then
                 original.Path.Join "new", false
         })
@@ -1262,19 +1312,17 @@ let ``Undo move of enumerated folder deletes original dest folder when empty aft
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         drive 'c' [
-            folder "dest" [
-                if not destFolderEmpty then
-                    folder "moved" [
-                        file "new"
-                    ]
-            ]
-        ]
-        drive 'd' [
             folder "another" []
             folder "moved" [
                 file "file"
                 file "other"
             ]
+        ]
+        drive 'd' [
+            if not destFolderEmpty then
+                folder "moved" [
+                    file "new"
+                ]
         ]
     ]
 
@@ -1291,24 +1339,25 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
             ]
         ]
     ]
-    let moved = fs.Item "/c/dest/moved"
     let original = createFolder "/c/moved"
-    let putItem = { Item = original; Dest = moved.Path; DestExists = true }
-    let createPutItem = createPutItem original.Path moved.Path
+    let moved = fs.Item "/c/dest/moved"
+    let intent = { createPutIntent [original] moved.Path.Parent with Overwrite = true }
+    let createPutItem = createPutItemFrom original.Path moved.Path
     let actualMoved = [
+        createFolder "/c/moved" |> createPutItem |> withDestExists
         createFolder "/c/moved/folder" |> createPutItem |> withDestExists
         createFile "/c/moved/file" |> createPutItem |> withDestExists
         createFile "/c/moved/other" |> createPutItem
     ]
-    let action = PutItems (Move, putItem, actualMoved, false)
+    let action = PutItems (Move, intent, actualMoved, false)
     let model =
         testModel
         |> pushUndo action
         |> withHistoryPaths (historyPaths {
-            moved
-            actualMoved.[0].Dest, false
-            actualMoved.[1].Dest, false
+            actualMoved.[0].Dest, true
+            actualMoved.[1].Dest, true
             actualMoved.[2].Dest, false
+            actualMoved.[3].Dest, false
         })
 
     let actual = seqResult (Action.undo fs progress) model
@@ -1319,7 +1368,7 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
     ]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = model.UndoStack.Tail
@@ -1328,10 +1377,8 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
         }
         |> MainModel.withMessage (MainStatus.UndoAction (action, testModel.PathFormat, 1, 1))
         |> withHistoryPaths (historyPaths {
-            moved
-            actualMoved.[0].Dest, false
-            actualMoved.[1].Dest, false
-            actualMoved.[2].Item
+            yield! model.History.Paths |> List.take 3
+            actualMoved.[3].Source, false
         })
         |> withLocationOnHistory
     assertAreEqual expected actual
@@ -1357,73 +1404,185 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
 [<TestCase(true, true)>]
 let ``Undo move handles partial success by updating redo and setting error message`` errorCausedByExisting destExisted =
     let fs = FakeFileSystem [
-        folder "dest" [
+        drive 'c' [
+            folder "another" []
+            if errorCausedByExisting then
+                folder "moved" [
+                    fileWith (size 7L) "file"
+                ]
+        ]
+        drive 'd' [
             folder "moved" [
                 file "file"
                 file "other"
             ]
         ]
-        if errorCausedByExisting then
-            folder "moved" [
-                file "file"
-            ]
     ]
-    let errorItem = createFile "/c/dest/moved/file"
+    let errorItem = createFile "/d/moved/file"
     if not errorCausedByExisting then
         fs.AddExnPath false ex errorItem.Path
-    let destPath = createPath "/c/dest/moved"
+    let destPath = createPath "/d/moved"
     let original = createFolder "/c/moved"
-    let putItem = { Item = original; Dest = destPath; DestExists = destExisted }
-    let actualMoved = List.map (createPutItem original.Path destPath) [
-        createFile "/c/moved/file"
-        createFile "/c/moved/other"
+    let intent = { createPutIntent [original] destPath.Parent with Overwrite = destExisted }
+    let actualMoved = [
+        createPutItem original destPath |> applyIf destExisted withDestExists
+        yield! List.map (createPutItemFrom original.Path destPath) [
+            createFile "/c/moved/file"
+            createFile "/c/moved/other"
+        ]
     ]
-    let action = PutItems (Move, putItem, actualMoved, false)
+    let action = PutItems (Move, intent, actualMoved, false)
     let model =
         testModel
+        |> withLocation "/d"
         |> pushUndo action
         |> withHistoryPaths (historyPaths {
-            errorItem
-            "/c/dest2/unrelated"
-            destPath, true
+            "/d/unrelated"
+            actualMoved.[0].Dest, true
             actualMoved.[1].Dest, false
+            actualMoved.[2].Dest, false
         })
 
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems = [
-        createFolder "/c/dest"
-        original
+        createFolder "/c/another"
+        createFolder "/c/moved"
     ]
-    let expectedExn = if errorCausedByExisting then UndoMoveBlockedByExistingItemException() :> exn else ex
-    let expectedError = MainStatus.PutError (true, Move, [(errorItem, expectedExn)], 2)
-    // intent DestExists should be set to true so that redo would merge, otherwise it would always return CannotRedoPutToExisting
-    let expectedAction = PutItems (Move, putItem |> withDestExists, actualMoved |> List.skip 1, false)
+    let expectedError = if errorCausedByExisting then UndoMoveBlockedByExistingItemException() :> exn else ex
+    let expectedAction = PutItems (Move, intent, [actualMoved.[0]; actualMoved.[2]], false)
     let expected =
-        { model with
-            Directory = expectedItems |> sortByPath
-            Items = expectedItems
-            Cursor = 1
-            UndoStack = model.UndoStack.Tail
-            RedoStack = expectedAction :: testModel.RedoStack
-            CancelToken = CancelToken()
-        }
-        |> MainModel.withError expectedError
+        model
+        |> MainModel.withPushedLocation original.Path.Parent
+        |> fun model ->
+            { model with
+                Directory = expectedItems
+                Items = expectedItems
+                Cursor = 1
+                UndoStack = model.UndoStack.Tail
+                RedoStack = expectedAction :: testModel.RedoStack
+                CancelToken = CancelToken()
+            }
+        |> MainModel.withError (MainStatus.PutError (true, Move, [errorItem.Path, expectedError], actualMoved.Length))
         |> withHistoryPaths (historyPaths {
-            model.Location, true
             yield! model.History.Paths |> List.take 3
-            actualMoved.[1].Item
+            actualMoved.[2].Source, false
         })
+        |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        folder "dest" [
+        drive 'c' [
+            folder "another" []
+            folder "moved" [
+                if errorCausedByExisting then
+                    fileWith (size 7L) "file"
+                file "other"
+            ]
+        ]
+        drive 'd' [
             folder "moved" [
                 file "file"
             ]
         ]
-        folder "moved" [
-            if errorCausedByExisting then
-                file "file"
+    ]
+
+[<Test>]
+let ``Undo move enumerated folder handles partial success with cancellation by updating undo and redo and setting error message`` () =
+    let itemTree =
+        folder "fruit" [
+            folder "amazing" [
+                file "banana"
+            ]
+            folder "bad" [
+                file "grapefruit"
+            ]
+            file "cherry"
+            file "dewberry"
+        ]
+    let fs = FakeFileSystem [
+        drive 'c' []
+        drive 'd' [
+            itemTree
+            file "other"
+        ]
+    ]
+    let original = createFolder "/c/fruit"
+    let dest = fs.Item "/d/fruit"
+    let intent = createPutIntent [original] dest.Path.Parent
+    let actualPut = List.map (createPutItemFrom original.Path dest.Path) [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
+        createFile "/c/fruit/amazing/banana"
+        createFolder "/c/fruit/bad"
+        createFile "/c/fruit/bad/grapefruit"
+        createFile "/c/fruit/cherry"
+        createFile "/c/fruit/dewberry"
+    ]
+    let action = PutItems (Move, intent, actualPut, false)
+    let errorItem = actualPut.[4] // bad/grapefruit
+    fs.AddExnPath true ex errorItem.Dest
+    let model =
+        testModel
+        |> withLocation "/d"
+        |> pushUndo action
+        |> withHistoryPaths (historyPaths {
+            actualPut.[0].Dest, true
+            actualPut.[1].Dest, true
+            actualPut.[2].Dest, false
+            actualPut.[3].Dest, true
+            actualPut.[4].Dest, false
+            actualPut.[5].Dest, false
+            actualPut.[6].Dest, false
+        })
+    let writesBeforeCancel = actualPut.Length - 1
+
+    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (Action.undo fs progress) model
+
+    let expectedUnsuccessful = [
+        actualPut.[4]
+        actualPut.[6]
+    ]
+    let expectedUndoAction = PutItems (Move, intent, expectedUnsuccessful, true)
+    let expectedRedoAction = PutItems (Move, intent, actualPut |> List.except expectedUnsuccessful, true)
+    let expectedItems = [original]
+    let expected =
+        { model with
+            Directory = expectedItems |> sortByPath
+            Items = expectedItems
+            Cursor = 0
+            UndoStack = expectedUndoAction :: testModel.UndoStack
+            RedoStack = expectedRedoAction :: testModel.RedoStack
+        }
+        |> MainModel.withError (MainStatus.PutError (true, Move, [actualPut.[4].Dest, ex], actualPut.Length))
+        |> MainModel.withPushedLocation original.Path.Parent
+        |> withHistoryPaths (historyPaths {
+            actualPut.[0].Dest, true
+            actualPut.[1].Source, true
+            actualPut.[2].Source, false
+            actualPut.[3].Dest, true
+            actualPut.[4].Dest, false
+            actualPut.[5].Source, false
+            actualPut.[6].Dest, false
+        })
+        |> withLocationOnHistory
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        drive 'c' [
+            folder "fruit" [
+                folder "amazing" [
+                    file "banana"
+                ]
+                folder "bad" []
+                file "cherry"
+            ]
+        ]
+        drive 'd' [
+            folder "fruit" [
+                folder "bad" [
+                    file "grapefruit"
+                ]
+                file "dewberry"
+            ]
             file "other"
         ]
     ]
@@ -1439,14 +1598,14 @@ let ``Undo move item when previous path is occupied returns error``() =
     ]
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
-    let putItem = { Item = original; Dest = moved.Path; DestExists = false }
-    let action = PutItems (Move, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem original moved.Path
+    let action = PutItems (Move, intent, [putItem], false)
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = MainStatus.PutError (true, Move, [(moved, UndoMoveBlockedByExistingItemException() :> exn)], 1)
+    let expectedError = MainStatus.PutError (true, Move, [(moved.Path, UndoMoveBlockedByExistingItemException() :> exn)], 1)
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -1462,14 +1621,14 @@ let ``Undo move item handles move error by returning error``() =
     let moved = fs.Item "/c/dest/file"
     let original = createFile "/c/file"
     fs.AddExn true ex "/c/file"
-    let putItem = { Item = original; Dest = moved.Path; DestExists = false }
-    let action = PutItems (Move, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem original moved.Path
+    let action = PutItems (Move, intent, [putItem], false)
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = MainStatus.PutError (true, Move, [(moved, ex)], 1)
+    let expectedError = MainStatus.PutError (true, Move, [(moved.Path, ex)], 1)
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -1492,14 +1651,15 @@ let ``Redo move folder that was an overwrite merges correctly``() =
     ]
     let src = createFolder "/c/moved"
     let destPath = createPath "/c/dest/moved"
-    let putItem = { Item = src; Dest = destPath; DestExists = true }
-    let actualMoved = List.map (createPutItem src.Path destPath) [
-        createFile "/c/moved/file" |> size 2L
-        createFile "/c/moved/other"
+    let intent = { createPutIntent [src] destPath.Parent with Overwrite = true }
+    let createPutItem = createPutItemFrom src.Path destPath
+    let actualMoved = [
+        createFolder "/c/moved" |> createPutItem |> withDestExists
+        createFile "/c/moved/file" |> size 2L |> createPutItem
+        createFile "/c/moved/other" |> createPutItem
     ]
-    let action = PutItems (Move, putItem, actualMoved, false)
+    let action = PutItems (Move, intent, actualMoved, false)
     let model = testModel |> pushRedo action
-    let expectedFile = fs.Item "/c/moved/file"
 
     let actual = seqResult (Action.redo fs progress) model
 
@@ -1508,15 +1668,16 @@ let ``Redo move folder that was an overwrite merges correctly``() =
         createFolder "/c/dest/moved"
     ]
     let expectedActual = [
+        actualMoved.[0]
         // even though this file was not originally an overwrite, a redo should overwrite since we're redoing the intent
         // to merge the folder
-        expectedFile |> createPutItem src.Path destPath |> withDestExists
-        actualMoved.[1]
+        actualMoved.[1] |> withDestExists
+        actualMoved.[2]
     ]
-    let expectedAction = PutItems (Move, putItem, expectedActual, false)
+    let expectedAction = PutItems (Move, intent, expectedActual, false)
     let expected =
         { (model |> MainModel.withPushedLocation destPath.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
@@ -1541,24 +1702,26 @@ let ``Redo move folder that was an overwrite merges correctly``() =
 [<TestCase(0)>]
 [<TestCase(1)>]
 [<TestCase(2)>]
-let ``Put item to copy in same folder calls file sys copy with new name`` existingCopies =
+let ``Put file to copy in same folder calls file sys copy with new name`` existingCopies =
     let fs = FakeFileSystem [
         file "file"
-        yield! copyNames "file" existingCopies |> List.map file
+        yield! getCopyNames "file" existingCopies |> List.map file
     ]
     let src = fs.Item "/c/file"
-    let model = testModel |> withReg (Some (src.Path, src.Type, Copy))
+    let model = testModel |> withReg (Some (Copy, [src.Ref]))
 
     let actual = seqResult (Action.put fs progress false) model
 
     let expectedItems =
         [
-            createFile "/c/file"
-            yield! copyNames "file" (existingCopies+1) |> List.map (fun name -> createFile ("/c/" + name))
-        ] |> sortByPath
-    let expectedPath = createPath ("/c/" + copyName "file" existingCopies)
-    let putItem = { Item = createFile "/c/file"; Dest = expectedPath; DestExists = false }
-    let expectedAction = PutItems (Copy, putItem, [putItem], false)
+            "file"
+            yield! getCopyNames "file" (existingCopies+1)
+        ]
+        |> List.map (fun name -> createFile ("/c/" + name))
+        |> sortByPath
+    let expectedPath = createPath ("/c/" + getCopyName "file" existingCopies)
+    let intent, putItem = createPutIntentAndItem (createFile "/c/file") expectedPath
+    let expectedAction = PutItems (Copy, intent, [putItem], false)
     let expected =
         { testModel with
             Directory = expectedItems
@@ -1571,41 +1734,61 @@ let ``Put item to copy in same folder calls file sys copy with new name`` existi
         |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
         |> withLocationOnHistory
     assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        file "file"
+        yield! getCopyNames "file" (existingCopies+1) |> List.map file
+    ]
 
 // redo copy tests
 
 [<Test>]
-let ``Redo copy item to same parent returns error`` () =
-    let copyName = Action.getCopyName "file" 0
+let ``Redo copy item to same parent where copy already exists copies to next name`` () =
     let fs = FakeFileSystem [
         folder "folder" [
             file "another"
             file "file"
-            file copyName
+            file (getCopyName "file" 0)
         ]
     ]
     let src = fs.Item "/c/folder/file"
-    let dest = createPath ("/c/folder/" + copyName)
-    let putItem = { Item = src; Dest = dest; DestExists = false }
-    let action = PutItems (Copy, putItem, [putItem], false)
+    let dest = createPath ("/c/folder/" + getCopyName "file" 0)
+    let expectedDest = createPath ("/c/folder/" + getCopyName "file" 1)
+    let intent, putItem = createPutIntentAndItem src dest
+    let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushRedo action
-    let expectedFs = fs.Items
-    let expectedItems = fs.ItemsIn "/c/folder"
 
     let actual = seqResult (Action.redo fs progress) model
 
-    let expectedError = MainStatus.CannotRedoPutToExisting (Copy, src, dest.Format model.PathFormat)
+    let expectedItems =
+        [
+            "another"
+            "file"
+            getCopyName "file" 0
+            getCopyName "file" 1
+        ]
+        |> List.map (fun name -> createFile ("/c/folder/" + name))
+        |> sortByPath
+    let expectedAction = PutItems (Copy, intent, [createPutItem src expectedDest], false)
     let expected =
         { (model |> MainModel.withPushedLocation dest.Parent) with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
-            Cursor = 2
+            Cursor = expectedItems.Length - 1
+            UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = model.RedoStack.Tail
+            CancelToken = CancelToken()
         }
-        |> MainModel.withError expectedError
+        |> MainModel.withMessage (MainStatus.RedoAction (expectedAction, model.PathFormat, 1, 1))
         |> withLocationOnHistory
     assertAreEqual expected actual
-    fs.Items |> shouldEqual expectedFs
+    fs.ItemsShouldEqual [
+        folder "folder" [
+            file "another"
+            file "file"
+            file (getCopyName "file" 0)
+            file (getCopyName "file" 1)
+        ]
+    ]
 
 [<Test>]
 let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
@@ -1620,7 +1803,7 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
             file "cherry"
             file "dewberry"
         ]
-        folder otherCopyName [] // to make sure redo doesn't try to re-determine copy name on its own
+        folder otherCopyName [] // to make sure redo doesn't try to re-determine copy name but resume using the same one
         folder copyName [
             folder "amazing" [
                 fileWith (size 7L) "banana" // simulate copied file changing, which should not affect resuming
@@ -1630,9 +1813,11 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
     ]
     let src = fs.Item "/c/fruit"
     let dest = createFolder ("/c/" + copyName)
-    let putItem = { Item = src; Dest = dest.Path; DestExists = false }
-    let createPutItem = createPutItem src.Path dest.Path
+    let intent = createPutIntent [src] dest.Path.Parent
+    let createPutItem = createPutItemFrom src.Path dest.Path
     let undoActualPut = List.map createPutItem [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
         createFile "/c/fruit/amazing/banana" |> size 2L
         createFile "/c/fruit/apple"
     ]
@@ -1642,13 +1827,13 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
     ]
     let model =
         testModel
-        |> pushUndo (PutItems (Copy, putItem, undoActualPut, true))
-        |> pushRedo (PutItems (Copy, putItem, redoActualPut, true))
+        |> pushUndo (PutItems (Copy, intent, undoActualPut, true))
+        |> pushRedo (PutItems (Copy, intent, redoActualPut, true))
 
     let actual = seqResult (Action.redo fs progress) model
 
-    let expectedStatusAction = PutItems (Copy, putItem |> withDestExists, redoActualPut, false)
-    let expectedMergedAction = PutItems (Copy, putItem, undoActualPut @ redoActualPut, false)
+    let expectedStatusAction = PutItems (Copy, intent, redoActualPut, false)
+    let expectedMergedAction = PutItems (Copy, intent, undoActualPut @ redoActualPut, false)
     let expectedItems = [
         src
         createFolder ("/c/" + otherCopyName)
@@ -1656,7 +1841,7 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
     ]
     let expected =
         { model with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 2
             UndoStack = expectedMergedAction :: testModel.UndoStack
@@ -1689,29 +1874,22 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
 
 // undo copy tests
 
-[<TestCase(false, true)>]
-[<TestCase(false, false)>]
-[<TestCase(false, null)>]
-[<TestCase(true, true)>]
-[<TestCase(true, false)>]
-[<TestCase(true, null)>]
-let ``Undo copy file deletes when it has the same timestamp or recycles otherwise`` curPathDifferent (sameTimestamp: bool Nullable) =
-    let time = DateTime(2000, 1, 1)
-    let sameTimestamp = sameTimestamp |> Option.ofNullable
-    let copyTime = sameTimestamp |> Option.map (fun same -> if same then time else time.AddDays(1.0))
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Undo copy file deletes it`` curPathDifferent =
     let fs = FakeFileSystem [
-        driveWithSize 'c' 100L [
+        drive 'c' [
             folder "other" []
             folder "src" [
-                fileWith (modified time) "file"
+                file "file"
             ]
-            fileWith (modifiedOpt copyTime >> size 1L) "file"
+            file "file"
         ]
     ]
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"
-    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    let action = PutItems (Copy, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem original copied.Path
+    let action = PutItems (Copy, intent, [putItem], false)
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
@@ -1723,7 +1901,7 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
     ]
     let expected =
         { model with
-            Directory = if curPathDifferent then model.Directory else expectedItems |> sortByPath
+            Directory = if curPathDifferent then model.Directory else expectedItems
             Items = if curPathDifferent then model.Items else expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
@@ -1733,17 +1911,14 @@ let ``Undo copy file deletes when it has the same timestamp or recycles otherwis
         |> if not curPathDifferent then withLocationOnHistory else id
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        driveWithSize 'c' 100L [
+        drive 'c' [
             folder "other" []
             folder "src" [
-                fileWith (modified time) "file"
+                file "file"
             ]
         ]
     ]
-    fs.RecycleBin |> shouldEqual [
-        if sameTimestamp <> Some true then
-            copied
-    ]
+    fs.RecycleBin |> shouldEqual []
 
 [<Test>]
 let ``Undo copy empty folder deletes it`` () =
@@ -1757,8 +1932,8 @@ let ``Undo copy empty folder deletes it`` () =
     ]
     let original = fs.Item "/c/folder"
     let copied = fs.Item "/c/dest/folder"
-    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    let action = PutItems (Copy, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem original copied.Path
+    let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushUndo action
 
     let actual = seqResult (Action.undo fs progress) model
@@ -1793,8 +1968,8 @@ let ``Undo copy empty folder that has new items in it returns error`` () =
     ]
     let original = fs.Item "/c/folder"
     let copied = fs.Item "/c/dest/folder"
-    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    let action = PutItems (Copy, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem original copied.Path
+    let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushUndo action
 
     let actual = seqResult (Action.undo fs progress) model
@@ -1805,7 +1980,7 @@ let ``Undo copy empty folder that has new items in it returns error`` () =
             UndoStack = model.UndoStack.Tail
             CancelToken = CancelToken()
         }
-        |> MainModel.withError (MainStatus.PutError (true, Copy, [copied, expectedExn], 1))
+        |> MainModel.withError (MainStatus.PutError (true, Copy, [copied.Path, expectedExn], 1))
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         drive 'c' [
@@ -1819,52 +1994,59 @@ let ``Undo copy empty folder that has new items in it returns error`` () =
     ]
     fs.RecycleBin |> shouldEqual []
 
-[<TestCase(false, false)>]
-[<TestCase(false, true)>]
-[<TestCase(true, false)>]
-[<TestCase(true, true)>]
-let ``Undo copy folder deletes items that were copied and removes dest folders if empty`` hasNewItem isLocationDest =
-    let fs = FakeFileSystem [
-        driveWithSize 'c' 100L [
-            folder "copied" [
-                folder "folder" [
-                    file "sub"
-                ]
-                file "file"
-                file "other"
+[<TestCase(false, false, false)>]
+[<TestCase(false, false, true)>]
+[<TestCase(false, true, false)>]
+[<TestCase(false, true, true)>]
+[<TestCase(true, true, false)>]
+[<TestCase(true, true, true)>]
+let ``Undo copy folder deletes items that were copied and removes dest folders if empty`` sameParent isLocationDest hasNewItem =
+    let original = createFolder "/c/folder"
+    let copied = createFolder (if sameParent then "/c/" + getCopyName "folder" 0 else "/c/dest/folder")
+    let copiedTree =
+        folder copied.Name [
+            folder "sub" [
+                file "inner"
             ]
+            file "file"
+            if hasNewItem then
+                file "new"
+            file "other"
+        ]
+    let fs = FakeFileSystem [
+        folder "folder" [
+            folder "sub" [
+                file "inner"
+            ]
+            file "file"
+            file "other"
+        ]
+        if sameParent then
+            copiedTree
+        else
             folder "dest" [
                 folder "another" []
-                folder "copied" [
-                    folder "folder" [
-                        file "sub"
-                    ]
-                    file "file"
-                    if hasNewItem then
-                        file "new"
-                    file "other"
-                ]
+                copiedTree
             ]
-        ]
     ]
-    let copied = fs.Item "/c/dest/copied"
-    let original = createFolder "/c/copied"
-    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    let actualCopied = List.map (createPutItem original.Path copied.Path) [
-        createFile "/c/copied/folder/sub"
-        createFile "/c/copied/file"
-        createFile "/c/copied/other"
+    let intent = createPutIntent [original] copied.Path.Parent
+    let actualCopied = List.map (createPutItemFrom original.Path copied.Path) [
+        createFolder "/c/folder"
+        createFolder "/c/folder/sub"
+        createFile "/c/folder/sub/inner"
+        createFile "/c/folder/file"
+        createFile "/c/folder/other"
     ]
-    let action = PutItems (Copy, putItem, actualCopied, false)
+    let action = PutItems (Copy, intent, actualCopied, false)
     let model =
         testModel
         |> pushUndo action
-        |> (if isLocationDest then withLocation "/c/dest" else id)
+        |> (if isLocationDest then MainModel.withLocation copied.Path.Parent else id)
         |> withHistoryPaths (historyPaths {
-            copied
-            actualCopied.[0].Dest.Parent, false
-            actualCopied.[0].Dest, false
-            actualCopied.[1].Dest, false
+            actualCopied.[0].Dest, true
+            actualCopied.[1].Dest, true
+            actualCopied.[2].Dest, false
+            actualCopied.[3].Dest, false
             if hasNewItem then
                 copied.Path.Join "new", false
         })
@@ -1872,23 +2054,33 @@ let ``Undo copy folder deletes items that were copied and removes dest folders i
     let actual = seqResult (Action.undo fs progress) model
 
     let expectedItems =
-        if not isLocationDest then
-            testModel.Items
-        else
+        if isLocationDest then
             [
-                createFolder "/c/dest/another"
+                if sameParent then
+                    createFolder "/c/folder"
+                else
+                    createFolder "/c/dest/another"
                 if hasNewItem then
                     copied
             ]
+        else
+            testModel.Items
+    let expectedRedoAction = PutItems (Copy, intent, actualCopied |> applyIf hasNewItem (List.skip 1), false)
     let expected =
         { model with
             Directory = expectedItems
             Items = expectedItems
             CancelToken = CancelToken()
         }
-        |> MainModel.withMessage (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
+        |> MainModel.withStatus (
+            if hasNewItem then
+                let expectedErrorPaths = [copied.Path, FakeFileSystemErrors.cannotDeleteNonEmptyFolder]
+                MainStatus.Error (MainStatus.PutError (true, Copy, expectedErrorPaths, actualCopied.Length))
+            else
+                MainStatus.Message (MainStatus.UndoAction (action, model.PathFormat, 1, 1))
+        )
         |> popUndo
-        |> pushRedo action
+        |> pushRedo expectedRedoAction
         |> withHistoryPaths (historyPaths {
             if isLocationDest then
                 model.Location, true
@@ -1898,22 +2090,26 @@ let ``Undo copy folder deletes items that were copied and removes dest folders i
         })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
-        driveWithSize 'c' 100L [
-            folder "copied" [
-                folder "folder" [
-                    file "sub"
-                ]
-                file "file"
-                file "other"
+        folder "folder" [
+            folder "sub" [
+                file "inner"
             ]
+            file "file"
+            file "other"
+        ]
+        if sameParent then
+            if hasNewItem then
+                folder copied.Name [
+                    file "new"
+                ]
+        else
             folder "dest" [
                 folder "another" []
                 if hasNewItem then
-                    folder "copied" [
+                    folder "folder" [
                         file "new"
                     ]
             ]
-        ]
     ]
     fs.RecycleBin |> shouldEqual []
 
@@ -1935,13 +2131,13 @@ let ``Undo copy does nothing for items that were overwrites`` () =
     ]
     let copied = fs.Item "/c/dest/copied"
     let original = createFolder "/c/copied"
-    let putItem = { Item = original; Dest = copied.Path; DestExists = true }
-    let createPutItem = createPutItem original.Path copied.Path
+    let intent = { createPutIntent [original] copied.Path.Parent with Overwrite = true }
+    let createPutItem = createPutItemFrom original.Path copied.Path
     let actualCopied = [
         createFile "/c/copied/file" |> createPutItem |> withDestExists
         createFile "/c/copied/other" |> createPutItem
     ]
-    let action = PutItems (Copy, putItem, actualCopied, false)
+    let action = PutItems (Copy, intent, actualCopied, false)
     let model =
         testModel
         |> pushUndo action
@@ -1953,7 +2149,7 @@ let ``Undo copy does nothing for items that were overwrites`` () =
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedAction = PutItems (Copy, putItem, actualCopied |> List.filter (fun pi -> not pi.DestExists), false)
+    let expectedAction = PutItems (Copy, intent, actualCopied |> List.filter (fun pi -> not pi.DestExists), false)
     let expected =
         { model with
             UndoStack = model.UndoStack.Tail
@@ -1977,10 +2173,28 @@ let ``Undo copy does nothing for items that were overwrites`` () =
         ]
     ]
 
-[<TestCase(false, false)>] // error is during deleting an item
-[<TestCase(false, true)>] // error is during deleting an item and we have same copy operation on redo stack
-[<TestCase(true, false)>] // error is during deleting empty original destination folder
-let ``Undo copy handles partial success by updating redo and setting error message`` errorIsDeleteDest hasCancelledRedoItem =
+type UndoCopyError =
+    | DeleteFileError
+    | DeleteFolderError
+    | DeleteFolderNotEmpty
+
+let undoCopyErrorCases = [
+    TestCaseData(DeleteFileError, false)
+    TestCaseData(DeleteFileError, true)
+    TestCaseData(DeleteFolderError, false)
+    TestCaseData(DeleteFolderNotEmpty, false)
+]
+
+[<TestCaseSource(nameof undoCopyErrorCases)>]
+let ``Undo copy handles partial success by updating redo and setting error message`` undoCopyError hasCancelledRedoItem =
+    let isFolderError =
+        match undoCopyError with
+        | DeleteFolderError | DeleteFolderNotEmpty -> true
+        | _ -> false
+    let hasNewItem =
+        match undoCopyError with
+        | DeleteFolderNotEmpty -> true
+        | _ -> false
     let fs = FakeFileSystem [
         driveWithSize 'c' 100L [
             folder "copied" [
@@ -1990,6 +2204,8 @@ let ``Undo copy handles partial success by updating redo and setting error messa
             folder "dest" [
                 folder "copied" [
                     file "file"
+                    if hasNewItem then
+                        file "new"
                     file "other"
                 ]
             ]
@@ -1998,49 +2214,57 @@ let ``Undo copy handles partial success by updating redo and setting error messa
     let copied = fs.Item "/c/dest/copied"
     let original = createFolder "/c/copied"
     let errorItem =
-        if errorIsDeleteDest
+        if isFolderError
         then copied
         else fs.Item "/c/dest/copied/file"
-    fs.AddExnPath true ex errorItem.Path
-    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    let actualCopied = List.map (createPutItem original.Path copied.Path) [
+    if not hasNewItem then
+        fs.AddExnPath true ex errorItem.Path
+    let intent = createPutIntent [original] copied.Path.Parent
+    let actualCopied = List.map (createPutItemFrom original.Path copied.Path) [
+        createFolder "/c/copied"
         createFile "/c/copied/file"
         createFile "/c/copied/other"
     ]
-    let action = PutItems (Copy, putItem, actualCopied, false)
-    let prevCopyItems = [createFile "/c/copied/prev" |> createPutItem original.Path copied.Path]
+    let action = PutItems (Copy, intent, actualCopied, false)
+    let prevCopyItem = createFile "/c/copied/prev" |> createPutItemFrom original.Path copied.Path
     let model =
         testModel
         |> pushUndo action
         |> if hasCancelledRedoItem
-            then pushRedo (PutItems (Copy, putItem, prevCopyItems, true))
+            then pushRedo (PutItems (Copy, intent, [prevCopyItem], true))
             else id
         |> withHistoryPaths (historyPaths {
-            copied
-            actualCopied.[0].Dest, false
+            actualCopied.[0].Dest, true
             actualCopied.[1].Dest, false
+            actualCopied.[2].Dest, false
         })
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError =
-        if errorIsDeleteDest
-        then MainStatus.CouldNotDeleteCopyDest (copied.Name, ex)
-        else MainStatus.PutError (true, Copy, [errorItem, ex], 2)
-    let expectedActual =
-        if hasCancelledRedoItem then prevCopyItems else []
-        @ actualCopied |> List.filter (fun pi -> pi.Dest <> errorItem.Path)
-    let expectedAction = PutItems (Copy, putItem, expectedActual, false)
+    let expectedActual = [
+        if isFolderError then
+            actualCopied.[1]
+        actualCopied.[2]
+        if hasCancelledRedoItem then
+            prevCopyItem
+    ]
+    let expectedAction = PutItems (Copy, intent, expectedActual, false)
+    let nonEmptyEx = FakeFileSystemErrors.cannotDeleteNonEmptyFolder
+    let expectedErrorPaths = [
+        (errorItem.Path, if hasNewItem then nonEmptyEx else ex)
+        if not isFolderError then
+            (copied.Path, nonEmptyEx)
+    ]
     let expected =
         { model with
             UndoStack = model.UndoStack.Tail
             RedoStack = expectedAction :: testModel.RedoStack
             CancelToken = CancelToken()
         }
-        |> MainModel.withError expectedError
+        |> MainModel.withError (MainStatus.PutError (true, Copy, expectedErrorPaths, actualCopied.Length))
         |> withHistoryPaths [
             model.History.Paths.[0]
-            if not errorIsDeleteDest then
+            if not isFolderError then
                 model.History.Paths.[1]
         ]
     assertAreEqual expected actual
@@ -2052,10 +2276,118 @@ let ``Undo copy handles partial success by updating redo and setting error messa
             ]
             folder "dest" [
                 folder "copied" [
-                    if not errorIsDeleteDest then
+                    if not isFolderError then
                         file "file"
+                    if hasNewItem then
+                        file "new"
                 ]
             ]
+        ]
+    ]
+
+[<Test>]
+let ``Undo copy enumerated folder handles partial success with cancellation by updating undo and redo and setting error message`` () =
+    let itemTree =
+        folder "fruit" [
+            folder "amazing" [
+                file "apple"
+                file "banana"
+            ]
+            folder "bad" [
+                file "grapefruit"
+            ]
+            file "cherry"
+        ]
+    let fs = FakeFileSystem [
+        drive 'c' [
+            itemTree
+        ]
+        drive 'd' [
+            itemTree
+            file "other"
+        ]
+    ]
+    let original = createFolder "/c/fruit"
+    let dest = fs.Item "/d/fruit"
+    let intent = createPutIntent [original] dest.Path.Parent
+    let actualPut = List.map (createPutItemFrom original.Path dest.Path) [
+        createFolder "/c/fruit"
+        createFolder "/c/fruit/amazing"
+        createFile "/c/fruit/amazing/apple"
+        createFile "/c/fruit/amazing/banana"
+        createFolder "/c/fruit/bad"
+        createFile "/c/fruit/bad/grapefruit"
+        createFile "/c/fruit/cherry"
+    ]
+    let action = PutItems (Copy, intent, actualPut, false)
+    let errorItem = actualPut.[5] // bad/grapefruit
+    fs.AddExnPath true ex errorItem.Dest
+    let model =
+        testModel
+        |> withLocation "/d"
+        |> pushUndo action
+        |> withHistoryPaths (historyPaths {
+            actualPut.[0].Dest, true
+            actualPut.[1].Dest, true
+            actualPut.[2].Dest, false
+            actualPut.[3].Dest, false
+            actualPut.[4].Dest, true
+            actualPut.[5].Dest, false
+            actualPut.[6].Dest, false
+        })
+    let writesBeforeCancel = 4
+
+    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (Action.undo fs progress) model
+
+    let expectedUnsuccessful = [
+        actualPut.[0]
+        actualPut.[1]
+        actualPut.[2]
+        actualPut.[4]
+        actualPut.[5]
+    ]
+    let expectedErrors = [
+        (actualPut.[5].Dest, ex)
+        (actualPut.[4].Dest, FakeFileSystemErrors.cannotDeleteNonEmptyFolder)
+    ]
+    let expectedUndoAction = PutItems (Copy, intent, expectedUnsuccessful, true)
+    let expectedRedoAction = PutItems (Copy, intent, actualPut |> List.except expectedUnsuccessful, true)
+    let expectedItems = [
+            dest
+            createFile "/d/other"
+        ]
+    let expected =
+        { model with
+            Directory = expectedItems |> sortByPath
+            Items = expectedItems
+            Cursor = 0
+            UndoStack = expectedUndoAction :: testModel.UndoStack
+            RedoStack = expectedRedoAction :: testModel.RedoStack
+        }
+        |> MainModel.withError (MainStatus.PutError (true, Copy, expectedErrors, actualPut.Length))
+        |> withHistoryPaths (historyPaths {
+            actualPut.[0].Dest, true
+            actualPut.[1].Dest, true
+            actualPut.[2].Dest, false
+            actualPut.[4].Dest, true
+            actualPut.[5].Dest, false
+        })
+        |> withLocationOnHistory
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        drive 'c' [
+            itemTree
+        ]
+        drive 'd' [
+            folder "fruit" [
+                folder "amazing" [
+                    file "apple"
+                ]
+                folder "bad" [
+                    file "grapefruit"
+                ]
+            ]
+            file "other"
         ]
     ]
 
@@ -2071,16 +2403,16 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
     ]
     let original = fs.Item "/c/src/file"
     let copied = fs.Item "/c/file"
-    let putItem = { Item = original; Dest = copied.Path; DestExists = false }
-    fs.AddExnPath false (exn "GetItem error") copied.Path
+    let intent, putItem = createPutIntentAndItem original copied.Path
     fs.AddExnPath false ex copied.Path
-    let action = PutItems (Copy, putItem, [putItem], false)
+    fs.AddExnPath true (exn "Write error") copied.Path
+    let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let expectedError = MainStatus.PutError (true, Copy, [copied, ex], 1)
+    let expectedError = MainStatus.PutError (true, Copy, [copied.Path, ex], 1)
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -2088,31 +2420,37 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
 
 // shortcut tests
 
-[<TestCase(false)>]
-[<TestCase(true)>]
-let ``Put shortcut calls file sys create shortcut`` overwrite =
+[<TestCase(false, false)>]
+[<TestCase(false, true)>]
+[<TestCase(true, false)>]
+[<TestCase(true, true)>]
+let ``Put shortcut calls file sys create shortcut`` isFolder overwrite =
     let fs = FakeFileSystem [
         folder "src" [
-            file "file"
+            if isFolder then
+                folder "item" []
+            else
+                file "item"
         ]
         if overwrite then
-            file "file.lnk"
+            file "item.lnk"
     ]
-    let target = fs.Item "/c/src/file"
-    let shortcut = createFile "/c/file.lnk"
-    let model = testModel |> withReg (Some (target.Path, target.Type, Shortcut))
+    let target = fs.Item "/c/src/item"
+    let shortcut = createFile "/c/item.lnk"
+    let model = testModel |> withReg (Some (Shortcut, [target.Ref]))
 
     let actual = seqResult (Action.put fs progress overwrite) model
 
-    let expectedPutItem = { Item = target; Dest = shortcut.Path; DestExists = overwrite }
-    let expectedAction = PutItems (Shortcut, expectedPutItem, [expectedPutItem], false)
+    let expectedIntent = { createPutIntent [target] shortcut.Path.Parent with Overwrite = overwrite }
+    let expectedPutItem = { createPutItem target shortcut.Path with DestExists = overwrite }
+    let expectedAction = PutItems (Shortcut, expectedIntent, [expectedPutItem], false)
     let expectedItems = [
         createFolder "/c/src"
         shortcut
     ]
     let expected =
         { testModel with
-            Directory = expectedItems |> sortByPath
+            Directory = expectedItems
             Items = expectedItems
             Cursor = 1
             UndoStack = expectedAction :: testModel.UndoStack
@@ -2137,8 +2475,8 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
     ]
     let target = fs.Item "/c/folder/file"
     let shortcut = fs.Item "/c/file.lnk"
-    let putItem = { Item = target; Dest = shortcut.Path; DestExists = false }
-    let action = PutItems (Shortcut, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem target shortcut.Path
+    let action = PutItems (Shortcut, intent, [putItem], false)
     let location = if curPathDifferent then "/c/other" else "/c"
     let model =
         testModel
@@ -2162,7 +2500,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
                 model
             else
                 { model with
-                    Directory = expectedItems |> sortByPath
+                    Directory = expectedItems
                     Items = expectedItems
                     Cursor = 0
                 }
@@ -2183,8 +2521,8 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
     let target = createFile "/c/folder/file"
     let shortcut = fs.Item "/c/file.lnk"
     fs.AddExnPath false ex shortcut.Path
-    let putItem = { Item = target; Dest = shortcut.Path; DestExists = false }
-    let action = PutItems (Shortcut, putItem, [putItem], false)
+    let intent, putItem = createPutIntentAndItem target shortcut.Path
+    let action = PutItems (Shortcut, intent, [putItem], false)
     let model =
         testModel
         |> pushUndo action
@@ -2192,7 +2530,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
 
     let actual = seqResult (Action.undo fs progress) model
 
-    let statusAction = DeletedItem (shortcut, true)
+    let statusAction = DeletedItems (true, [shortcut], false)
     let expected =
         model
         |> popUndo
@@ -2212,9 +2550,9 @@ let ``Undo multiple actions using repeat count does each action and updates stat
         ]
         file "created"
     ]
-    let moved = createFile "/c/moved" |> createPutItem (createPath "/c") (createPath "/c/folder")
+    let intent, putItem = createPutIntentAndItem (createFile "/c/moved") (createPath "/c/folder/moved")
     let actions = [
-        PutItems (Move, moved, [moved], false)
+        PutItems (Move, intent, [putItem], false)
         CreatedItem (createFile "/c/created")
         RenamedItem (createFile "/c/folder/moved", "renamed")
     ]
@@ -2264,9 +2602,9 @@ let ``Redo multiple actions using repeat count does each action and updates stat
         folder "folder" []
         file "moved"
     ]
-    let moved = createFile "/c/moved" |> createPutItem (createPath "/c") (createPath "/c/folder")
+    let intent, putItem = createPutIntentAndItem (createFile "/c/moved") (createPath "/c/folder/moved")
     let actions = [
-        PutItems (Move, moved, [moved], false)
+        PutItems (Move, intent, [putItem], false)
         CreatedItem (createFile "/c/created")
         RenamedItem (createFile "/c/folder/moved", "renamed")
     ]

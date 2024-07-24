@@ -35,7 +35,7 @@ let ``Recycle NetHost path removes it from items and history`` () =
                 }
         }
 
-    let actual = seqResult (Action.recycle fs model.SelectedItem) model
+    let actual = seqResult (Action.recycle fs progress model.ActionItems) model
 
     let expectedItems = items |> List.take 1
     let expected =
@@ -50,7 +50,7 @@ let ``Recycle NetHost path removes it from items and history`` () =
                     Paths = model.History.Paths
                 }
         }
-        |> MainModel.withMessage (MainStatus.RemovedNetworkHost "host2")
+        |> MainModel.withMessage (MainStatus.RemovedNetworkHosts ["host2"])
     assertAreEqual expected actual
     assertAreEqual expected.History actual.History
 
@@ -71,11 +71,11 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             item
         })
 
-    let testFunc = if permanent then Action.delete fs progress else Action.recycle fs
-    let actual = seqResult (testFunc item) model
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResult (testFunc fs progress [item]) model
 
     let expectedItems = [createFile "/c/other"]
-    let expectedAction = DeletedItem (item, permanent)
+    let expectedAction = DeletedItems (permanent, [item], false)
     let expected =
         { model with
             Directory = expectedItems
@@ -93,6 +93,85 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
         ]
     ]
     fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Recycle or Delete multiple items from recursive search recycles or deletes and updates items and path history``
+        permanent =
+    let fs = FakeFileSystem [
+        driveWithSize 'c' 100L [
+            folder "folder1" [
+                file "another"
+                file "file1"
+            ]
+            folder "folder2" [
+                folder "sub" [
+                    file "file2"
+                ]
+            ]
+            file "file3"
+            file "file4"
+            file "other"
+        ]
+    ]
+    let items =
+        [
+            "/c/folder1/file1"
+            "/c/folder2/sub/file2"
+            "/c/file3"
+            "/c/file4"
+        ]
+        |> List.map fs.Item
+    let selected = items |> List.take 3
+    let model =
+        { testModel with
+            Directory = fs.ItemsIn "/c"
+            Items = items
+            SelectedItems = selected
+            SearchCurrent = Some { Terms = "file"; SubFolders = true; CaseSensitive = false; Regex = false }
+        }
+        |> withHistoryPaths (historyPaths {
+            "/c/folder1/"
+            yield! items
+        })
+
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResult (testFunc fs progress selected) model
+
+    let expectedAction = DeletedItems (permanent, selected, false)
+    let expected =
+        { model with
+            Directory = [
+                createFolder "/c/folder1"
+                createFolder "/c/folder2"
+                createFile "/c/file4"
+                createFile "/c/other"
+            ]
+            Items = [createFile "/c/file4"]
+            SelectedItems = []
+            UndoStack = expectedAction :: model.UndoStack
+            RedoStack = []
+            CancelToken = CancelToken()
+        }
+        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> withHistoryPaths (historyPaths {
+            "/c/folder1/"
+            "/c/file4"
+        })
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        driveWithSize 'c' 100L [
+            folder "folder1" [
+                file "another"
+            ]
+            folder "folder2" [
+                folder "sub" []
+            ]
+            file "file4"
+            file "other"
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual (if permanent then [] else selected)
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -118,11 +197,11 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             "/c/folder/sub/sub file"
         })
 
-    let testFunc = if permanent then Action.delete fs progress else Action.recycle fs
-    let actual = seqResult (testFunc item) model
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResult (testFunc fs progress [item]) model
 
     let expectedItems = [createFile "/c/other"]
-    let expectedAction = DeletedItem (item, permanent)
+    let expectedAction = DeletedItems (permanent, [item], false)
     let expected =
         { model with
             Directory = expectedItems
@@ -141,7 +220,101 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
     ]
     fs.RecycleBin |> shouldEqual (if permanent then [] else [item])
 
-// TODO: When implementing multi-select, extend or write similar test to cover canceling a recycle operation
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Recycle or Redo recycle multiple items recycles until canceled, then Recycle or Redo again resumes and merges undo item``
+        isRedo =
+    let fs = FakeFileSystem [
+        driveWithSize 'c' 100L [
+            folder "folder" [
+                file "sub file"
+            ]
+            file "file1"
+            file "file2"
+            file "other"
+        ]
+    ]
+    let items =
+        [
+            "/c/folder"
+            "/c/file1"
+            "/c/file2"
+        ] |> List.map fs.Item
+    let action = DeletedItems (false, items, false)
+    let otherItem = fs.Item "/c/other"
+    let model =
+        testModelFromFs fs
+        |> fun model -> { model with SelectedItems = items }
+        |> if isRedo then pushRedo action else id
+
+    let testFunc =
+        if isRedo
+        then Action.redo fs progress
+        else fun m -> Action.recycle fs progress m.SelectedItems m
+
+    // part one: recycle cancels correctly
+    let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) testFunc model
+
+    let expectedCancelledItems = items |> List.skip 2
+
+    (
+        let expectedItems = expectedCancelledItems @ [otherItem]
+        let expectedUndoAction = DeletedItems (false, items |> List.take 2, true)
+        let expectedRedoAction = DeletedItems (false, expectedCancelledItems, true)
+        let expected =
+            { model with
+                Directory = expectedItems
+                Items = expectedItems
+                SelectedItems = expectedCancelledItems
+                UndoStack = expectedUndoAction :: testModel.UndoStack
+                RedoStack = expectedRedoAction :: if isRedo then testModel.RedoStack else []
+            }
+            |> MainModel.withMessage (MainStatus.CancelledDelete (false, 2, items.Length))
+        assertAreEqual expected modelAfterCancel
+        fs.ItemsShouldEqual [
+            driveWithSize 'c' 100L [
+                file "file2"
+                file "other"
+            ]
+        ]
+        fs.RecycleBin |> shouldEqual [
+            createFolder "/c/folder"
+            createFile "/c/file1"
+        ]
+        printfn "part one: cancellation completed successfully"
+    )
+
+    // part two: delete or redo again completes the operation and merges undo item
+    let actual = modelAfterCancel |> seqResult testFunc
+
+    let expectedItems = [otherItem]
+    let expectedAction = DeletedItems (false, expectedCancelledItems, false)
+    let expected =
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
+            SelectedItems = []
+            UndoStack = action :: testModel.UndoStack
+            RedoStack = if isRedo then testModel.RedoStack else []
+            CancelToken = CancelToken()
+        }
+        |> MainModel.withMessage (
+            if isRedo
+            then MainStatus.RedoAction (expectedAction, model.PathFormat, 1, 1)
+            else MainStatus.ActionComplete (expectedAction, model.PathFormat)
+        )
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        driveWithSize 'c' 100L [
+            file "other"
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual [
+        createFolder "/c/folder"
+        createFile "/c/file1"
+        createFile "/c/file2"
+    ]
+
 [<TestCase(false)>]
 [<TestCase(true)>]
 let ``Delete or Redo delete folder deletes items until canceled, then Delete or Redo again resumes and merges undo item``
@@ -157,7 +330,7 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
         file "other"
     ]
     let item = fs.Item "/c/folder"
-    let action = DeletedItem (item, true)
+    let action = DeletedItems (true, [item], false)
     let model =
         testModelFromFs fs
         |> if isRedo then pushRedo action else id
@@ -165,16 +338,17 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
     let testFunc =
         if isRedo
         then Action.redo fs progress
-        else Action.delete fs progress item
+        else Action.delete fs progress [item]
 
     // part one: delete cancels correctly
     let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) testFunc model
 
     (
+        let cancelledAction = DeletedItems (true, [item], true)
         let expected =
             { model with
-                UndoStack = action :: testModel.UndoStack
-                RedoStack = action :: if isRedo then testModel.RedoStack else []
+                // no undo item because only items within the folder were deleted
+                RedoStack = cancelledAction :: if isRedo then testModel.RedoStack else []
             }
             |> MainModel.withMessage (MainStatus.CancelledDelete (true, 2, 5))
         assertAreEqual expected modelAfterCancel
@@ -233,11 +407,13 @@ let ``Recycle or Delete folder does nothing when canceled immediately`` permanen
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let testFunc = if permanent then Action.delete fs progress else Action.recycle fs
-    let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (testFunc item) model
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (testFunc fs progress [item]) model
 
     let expectedTotal = if permanent then 0 else 1
-    let expected = model |> MainModel.withMessage (MainStatus.CancelledDelete (permanent, 0, expectedTotal))
+    let expected =
+        model
+        |> MainModel.withMessage (MainStatus.CancelledDelete (permanent, 0, expectedTotal))
     assertAreEqual expected actual
     fs.ItemsShouldEqualList expectedFs
 
@@ -266,11 +442,14 @@ let ``Recycle file or folder that does not fit in the Recycle Bin returns error`
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.recycle fs item) model
+    let actual = seqResult (Action.recycle fs progress [item]) model
 
     let expectedEx = FakeFileSystemErrors.cannotRecycleItemThatDoesNotFit 4L
-    let expectedError = MainStatus.ItemActionError (DeletedItem (item, false), model.PathFormat, expectedEx)
-    let expected = model |> MainModel.withError expectedError |> withNewCancelToken
+    let expectedError = MainStatus.ActionError ("recycle", expectedEx)
+    let expected =
+        model
+        |> MainModel.withError expectedError
+        |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
@@ -293,14 +472,16 @@ let ``Recycle folder that contains folder that cannot be read returns error`` ()
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.recycle fs item) model
+    let actual = seqResult (Action.recycle fs progress [item]) model
 
     let expectedError = MainStatus.ActionError ("check folder content size", ex)
-    let expected = model |> MainModel.withError expectedError |> withNewCancelToken
+    let expected =
+        model
+        |> MainModel.withError expectedError
+        |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
 
-// TODO: When implementing multi-select, write similar test to cover recycle operation with multiple items
 [<Test>]
 let ``Delete folder handles individual error and deletes other items and returns error`` () =
     let fs = FakeFileSystem [
@@ -317,14 +498,20 @@ let ``Delete folder handles individual error and deletes other items and returns
     let item = fs.Item "/c/folder"
     let model = testModelFromFs fs
 
-    let actual = seqResult (Action.delete fs progress item) model
+    let actual = seqResult (Action.delete fs progress [item]) model
 
     let expectedErrorItems = [
-        createFile "/c/folder/sub/sub file", ex
-        createFolder "/c/folder/sub", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
-        createFolder "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
+        createPath "/c/folder/sub/sub file", ex
+        createPath "/c/folder/sub", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
+        createPath "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     ]
-    let expected = model |> MainModel.withError (MainStatus.DeleteError (expectedErrorItems, 5)) |> withNewCancelToken
+    let expected =
+        { model with
+            // no undo item because only items within the folder were deleted
+            RedoStack = []
+        }
+        |> MainModel.withError (MainStatus.DeleteError (true, expectedErrorItems, 5))
+        |> withNewCancelToken
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "folder" [
@@ -340,22 +527,78 @@ let ``Delete folder handles individual error and deletes other items and returns
 [<TestCase(true)>]
 let ``Recycle or Delete item handles error by returning error`` permanent =
     let fs = FakeFileSystem [
-        file "file"
-        file "other"
+        driveWithSize 'c' 100L [
+            file "file"
+            file "other"
+        ]
     ]
     let item = fs.Item "/c/file"
     fs.AddExnPath false ex item.Path
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let testFunc = if permanent then Action.delete fs progress else Action.recycle fs
-    let actual = seqResult (testFunc item) model
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResult (testFunc fs progress [item]) model
 
-    let expectedError =
-        if permanent then
-            MainStatus.DeleteError ([item, ex], 1)
-        else
-            MainStatus.ItemActionError (DeletedItem (item, false), model.PathFormat, ex)
-    let expected = model |> MainModel.withError expectedError |> withNewCancelToken
+    let expected =
+        model
+        |> MainModel.withError (MainStatus.DeleteError (permanent, [item.Path, ex], 1))
+        |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
+
+[<TestCase(false)>]
+[<TestCase(true)>]
+let ``Recycle or Delete multiple items handles individual error and recycles or deletes other items and returns error`` permanent =
+    let fs = FakeFileSystem [
+        driveWithSize 'c' 100L [
+            folder "folder" [
+                file "sub file"
+            ]
+            file "error file"
+            file "file"
+            file "other"
+        ]
+    ]
+    let items =
+        [
+            "/c/folder"
+            "/c/error file"
+            "/c/file"
+        ] |> List.map fs.Item
+    let errorItem = items.[1]
+    fs.AddExnPath true ex errorItem.Path
+    let model =
+        testModelFromFs fs
+        |> fun model -> { model with SelectedItems = items }
+
+    let testFunc = if permanent then Action.delete else Action.recycle
+    let actual = seqResult (testFunc fs progress items) model
+
+    let expectedItems = [
+        createFile "/c/error file"
+        createFile "/c/other"
+    ]
+    let expectedDeletedItems = items |> List.except [errorItem]
+    let expectedErrorItems = [errorItem.Path, ex]
+    let expectedTotal = items.Length + if permanent then 1 else 0 // permanent delete enumerates items
+    let expectedError = MainStatus.DeleteError (permanent, expectedErrorItems, expectedTotal)
+    let expected =
+        { model with
+            Directory = expectedItems
+            Items = expectedItems
+            SelectedItems = [errorItem]
+            Cursor = 0
+            CancelToken = CancelToken()
+        }
+        |> pushUndo (DeletedItems (permanent, expectedDeletedItems, false))
+        |> popRedo
+        |> MainModel.withError expectedError
+    assertAreEqual expected actual
+    fs.ItemsShouldEqual [
+        driveWithSize 'c' 100L [
+            file "error file"
+            file "other"
+        ]
+    ]
+    fs.RecycleBin |> shouldEqual (if permanent then [] else expectedDeletedItems)

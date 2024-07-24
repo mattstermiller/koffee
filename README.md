@@ -38,7 +38,8 @@ _A capital letter indicates that the letter key is combined with Shift._
 - `j` to move the cursor down
 - `k` to move the cursor up
 - `h` to go up to the parent folder
-- `l` or `Enter` to open the selected file or folder
+- `l` to open the file or folder under the cursor
+- `Enter` to open selected files or item under the cursor if nothing is selected
 - `Shift + Enter` to open the "Open With" dialog for the selected file
 - `H` to go back in navigation history
 - `L` to go forward in navigation history
@@ -69,7 +70,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Esc` when the search input is open or when a search filter is active to cancel the search.
     - Press `n` to repeat the previous search when no search is active.
 - **Bookmarks**
-    - Set a bookmark by pressing `m`. The existing bookmarks are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
+    - Set a bookmark for the current location by pressing `m`. The existing bookmarks are shown. Enter any character to set a bookmark to that character. Upper-case letters are distinct from lower-case letters.
     - Go to a bookmark by pressing `'`. The bookmarks are shown. Enter a character to activate the bookmark set to that character.
     - When viewing bookmarks, press `Delete` then a character to delete the bookmark set to that character.
 - **Saved Searches**
@@ -88,6 +89,12 @@ _A capital letter indicates that the letter key is combined with Shift._
     - When suggestions from history are shown, pressing `Delete` will remove it from the list and history.
 
 #### File & Folder Manipulation
+- **Selecting**
+    - If there is no selection, actions apply to the item under the cursor
+    - Press `Space` to toggle whether the item under the cursor is selected
+    - Press `Shift + Space` to select or unselect the range of items between the previously toggled item and the cursor, inclusive
+    - Press `Ctrl + a` to select all items in the current location
+    - Press `Esc` to deselect all items when there is a selection
 - **Create File or Folder**: Press `o` to create a file or `O` to create a folder. Type in the name of the new item and press `Enter`.
 - **Rename**: There are several ways to start renaming the currently selected file or folder.
     - Press `i` to start with the cursor at the beginning of the name
@@ -97,20 +104,21 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `C` to start with the full name selected
     - When you are done editing the name, press `Enter`
 - **Move / Copy / Shortcut**
-    1. Press `d` to start a move, `y` to start a copy, or `Y` to start a shortcut of the selected file or folder. The item and operation will be displayed in the lower-right corner of the window.
-    2. Navigate to the destination folder and press `p` to move, copy, or create a shortcut of the item there.
+    1. Press `d` to start a move, `y` to start a copy, or `Y` to start a shortcut of the selected item(s). The item and operation ("yank register") will be displayed in the lower-right corner of the window.
+    2. Navigate to the destination folder and press `p` to "put" (move, copy, or create a shortcut of) the item(s) there.
         - A copy to the same folder will append "(copy)" to the name.
-        - If an item with the same name already exists, you will be prompted to overwrite it. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
+        - If at least one item with the same name already exists, you will be prompted to overwrite them. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
     3. You can cancel a move or copy in progress by pressing `Esc`. Performing a Redo (see below) will resume the action.
+    - If you decide not to perform the put and want to clear the yank register, you can do so with `Alt + y`
 - **Delete**
-    - Press `Delete` to send the currently selected item to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.
-    - Press `Shift + Delete` to delete it permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
-    - You can cancel a delete in progress by pressing `Esc`.
+    - Press `Delete` to send the currently selected item(s) to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.
+    - Press `Shift + Delete` to delete items permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
+    - You can cancel a recycle or delete in progress by pressing `Esc`.
 - **Undo / Redo Action**
-    - Press `u` to undo the last file or folder action (this includes creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
-    - Press `U` to redo the last action that was undone. Note that performing any action after an undo will clear the redo list.
-    - Press `gu` to display undo / redo history.
+    - Press `u` to undo the last file or folder action (creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
+    - Press `U` to redo the last action that was undone or to resume a cancelled action. Note that performing any action after an undo will clear the redo list.
     - You can cancel an undo or redo in progress by pressing `Esc`. You can resume the undo or redo by invoking it again.
+    - Press `gu` to display undo / redo history. Press it again or `Esc` to close it.
 
 - **Copy to Clipboard**: Press `Ctrl + c` to copy the selected item to the Windows Clipboard.
     - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.
@@ -120,15 +128,15 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `4H` will go back 4 times.
 - Display navigation history for Back/Forward with `gh`
 - Display status message history with `gs`
-- Open the selected file and exit with `Ctrl + Enter`
-- Open the selected file or folder's properties with `Alt + Enter`
+- Open the selected files and exit with `Ctrl + Enter`
+- Open the selected item's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
 - Open the commandline tool (configured in the Settings window) at your current location with `Ctrl + Shift + c`
-- Open the currently selected file with your text editor (configured in the Settings window) with `Ctrl + Shift + t`
+- Open the selected files with your text editor (configured in the Settings window) with `Ctrl + Shift + t`
 - Show/hide hidden files and folders with `F9`
 
-There are more commands at your disposal. Open the Settings window with `?` for the full list of commands and their key bindings!
+To see the full list of commands and their key bindings, open the Settings window with `?`.
 
 ## Contributing
 If you want to contribute to Koffee, thank you! Head to the [issues page](https://github.com/mattstermiller/koffee/issues).
@@ -142,7 +150,6 @@ If you want to contribute to Koffee, thank you! Head to the [issues page](https:
 Please read the [Development Guide](DEVGUIDE.md) to get started on Koffee code.
 
 ## Future Planned Features
-- Select multiple items
 - Configurable hotkeys
 - Theme selection and editor
 - And more... check out the [issues list](https://github.com/mattstermiller/koffee/issues) and please add your own ideas and contributions!

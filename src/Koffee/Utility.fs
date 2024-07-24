@@ -2,12 +2,15 @@
 module Utility
 
 open System
+open System.Collections.Generic
 open System.Text.RegularExpressions
+open System.Threading
 open System.Linq
 open System.Reactive.Linq
 open System.Reactive.Concurrency
 open FSharp.Control
 open Acadian.FSharp
+open System.Windows
 
 let clamp minVal maxVal value =
     value |> max minVal |> min maxVal
@@ -19,11 +22,18 @@ let inline mapFst f (a, b) = (f a, b)
 let inline mapSnd f (a, b) = (a, f b)
 
 let runAsync (f: unit -> 'a) = async {
-    let ctx = System.Threading.SynchronizationContext.Current
-    do! Async.SwitchToNewThread()
+    let ctx = SynchronizationContext.Current
+    do! Async.SwitchToThreadPool ()
     let result = f()
     do! Async.SwitchToContext ctx
     return result
+}
+
+let runSeqAsync (aseq: AsyncSeq<_>) = asyncSeq {
+    let ctx = SynchronizationContext.Current
+    do! Async.SwitchToThreadPool ()
+    yield! aseq
+    do! Async.SwitchToContext ctx
 }
 
 module Async =
@@ -50,6 +60,19 @@ module Result =
         match opt with
         | Some a -> Error a
         | None -> Ok ()
+
+module Seq =
+    let describeAndCount maxDescribe toString items =
+        let items = items |> Seq.cache
+        let countOverMax = (items |> Seq.length) - maxDescribe
+        (items |> Seq.truncate maxDescribe |> Seq.map toString |> String.concat ", ")
+        + (if countOverMax > 0 then sprintf " and %i more" countOverMax else "")
+
+type Dictionary<'K, 'V> with
+    member this.TryGetValueOption key =
+        match this.TryGetValue key with
+        | true, value -> Some value
+        | _ -> None
 
 module FormatString =
     let date = "yyyy-MM-dd"
@@ -113,6 +136,8 @@ type AsyncSeqResultBuilder() =
     member this.Delay f = asyncSeq.Delay f
     member this.Combine (x: AsyncSeq<_>, y) = AsyncSeq.append x y |> takeUntilError
     member this.Using (x, f) = asyncSeq.Using (x, f)
+    member this.For (x: seq<_>, f) = asyncSeq.For (x, f)
+    member this.For (x: AsyncSeq<_>, f) = asyncSeq.For (x, f)
 
 let asyncSeqResult = AsyncSeqResultBuilder()
 
@@ -143,3 +168,8 @@ module Rect =
           Top = top
           Width = width
           Height = height }
+
+type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
+    member this.Handle () =
+        evt.Handled <- true
+        effect |> Option.iter (fun f -> f ())

@@ -23,12 +23,16 @@ type ItemType =
         | Drive | Folder | NetShare -> true
         | _ -> false
 
-    override this.ToString() =
+    member this.Name =
         match this with
         | NetHost -> "Network Host"
         | NetShare -> "Network Share"
         | Empty -> ""
         | _ -> sprintf "%A" this
+
+    member this.NameLower = this.Name.ToLower()
+
+    override this.ToString() = this.Name
 
     member this.Symbol =
         match this with
@@ -37,6 +41,19 @@ type ItemType =
         | Drive -> "💿"
         | NetHost -> "💻"
         | Empty -> ""
+
+type ItemRef = {
+    Path: Path
+    Type: ItemType
+}
+with
+    member this.Description = ItemRef.describe this.Path this.Type
+
+    static member describe (path: Path) (typ: ItemType) =
+        sprintf "%s \"%s\"" typ.NameLower path.Name
+
+    static member describeList (itemRefs: ItemRef seq) =
+        itemRefs |> Seq.describeAndCount 5 (fun i -> i.Description)
 
 type Item = {
     Path: Path
@@ -49,12 +66,13 @@ type Item = {
 with
     override this.ToString() = sprintf "%O at %O" this.Type this.Path
 
-    member this.Description =
-        sprintf "%s \"%s\"" (this.Type.ToString().ToLower()) this.Name
+    member this.Description = ItemRef.describe this.Path this.Type
 
-    member this.TypeName = this.Type.ToString()
+    member this.TypeName = this.Type.Name
 
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
+
+    member this.Ref = { Path = this.Path; Type = this.Type }
 
     static member Empty =
         { Path = Path.Root; Name = ""; Type = Empty
@@ -77,6 +95,12 @@ with
             Name = name
             Type = itemType
         }
+
+    static member paths (items: Item list) =
+        items |> List.map (fun i -> i.Path)
+
+    static member describeList (items: Item seq) =
+        items |> Seq.describeAndCount 5 (fun i -> i.Description)
 
 type SortField =
     | Name
@@ -114,6 +138,8 @@ type PutType =
     | Move
     | Copy
     | Shortcut
+with
+    member this.ToLowerString() = this.ToString().ToLower()
 
 type Search = {
     Terms: string
@@ -147,7 +173,7 @@ type PromptType =
     | DeleteSavedSearch
 
 type ConfirmType =
-    | Overwrite of PutType * src: Item * dest: Item
+    | Overwrite of PutType * srcExistingPairs: (Item * Item) list
     | Delete
     | OverwriteBookmark of char * existingPath: Path
     | OverwriteSavedSearch of char * existingSearch: Search
@@ -165,53 +191,79 @@ type InputMode =
     | Input of InputType
 
 type PutItem = {
-    Item: Item
+    ItemType: ItemType
+    Source: Path
     Dest: Path
     DestExists: bool
 }
 with
-    static member intentEquals (a: PutItem) (b: PutItem) =
-        a.Item.Path = b.Item.Path && a.Dest = b.Dest
+    member this.AreBasePathsDifferent = this.Source.Base <> this.Dest.Base
 
     static member reverse putItem =
-        let newItem = { putItem.Item with Path = putItem.Dest; Name = putItem.Dest.Name }
-        { Item = newItem; Dest = putItem.Item.Path; DestExists = putItem.DestExists }
+        { putItem with Source = putItem.Dest; Dest = putItem.Source }
 
-    static member describeList pathFormat putItems =
+    static member describeList pathFormat (putItems: PutItem list) =
         match putItems with
-        | [{Item = item; Dest = dest}] ->
-            sprintf "%s to \"%s\"" item.Description (dest.Format pathFormat)
+        | [putItem] ->
+            sprintf "%s to \"%s\"" (ItemRef.describe putItem.Source putItem.ItemType) (putItem.Dest.Format pathFormat)
         | {Dest = dest} :: _ ->
             sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
         | [] -> "0 items"
 
+type PutIntent = {
+    Sources: ItemRef list
+    DestParent: Path
+    Overwrite: bool
+}
+with
+    member this.Description pathFormat =
+        sprintf "%s to \"%s\"" (ItemRef.describeList this.Sources) (this.DestParent.Format pathFormat)
+
+    member this.FilterPutItemsToDestParent putItems =
+        putItems |> Seq.filter (fun putItem -> putItem.Dest.Parent = this.DestParent)
+
+    static member equalSourceAndDest intent1 intent2 =
+        intent1.Sources = intent2.Sources &&
+        intent1.DestParent = intent2.DestParent
+
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItems of PutType * intent: PutItem * actual: PutItem list * cancelled: bool
-    | DeletedItem of Item * permanent: bool
+    | PutItems of PutType * intent: PutIntent * actual: PutItem list * cancelled: bool
+    | DeletedItems of permanent: bool * Item list * cancelled: bool
 with
     member this.Description pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Rename %s to %s" item.Description newName
-        | PutItems (putType, intent, actual, cancelled) ->
+        | PutItems (putType, intent, actual, _) ->
             let fileCountStr =
                 actual
-                |> Seq.filter (fun p -> p.Item.Type = File)
+                |> Seq.filter (fun pi -> pi.ItemType = File)
                 |> Seq.length
                 |> function
                     | 0 -> ""
                     | count -> sprintf " (%i files)" count
-            sprintf "%O %s%s" putType ([intent] |> PutItem.describeList pathFormat) fileCountStr
-        | DeletedItem (item, false) -> sprintf "Recycle %s" item.Description
-        | DeletedItem (item, true) -> sprintf "Delete %s" item.Description
+            sprintf "%O %s%s" putType (intent.Description pathFormat) fileCountStr
+        | DeletedItems (permanent, items, _) ->
+            match items with
+            | item :: rest ->
+                let action = if permanent then "Delete" else "Recycle"
+                let restDescr = sprintf " and %i others" rest.Length
+                let sizeDescr =
+                    items
+                    |> List.choose (fun item -> item.Size)
+                    |> Option.ofCond (not << List.isEmpty)
+                    |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
+                    |? ""
+                sprintf "%s %s%s (%s)" action item.Description restDescr sizeDescr
+            | [] -> "" // items should never be empty
 
-type SelectType =
-    | SelectNone
-    | SelectIndex of int
-    | SelectName of string
-    | SelectItem of Item * showHidden: bool
+type CursorMoveType =
+    | CursorStay
+    | CursorToIndex of int
+    | CursorToPath of Path * showHidden: bool
+    | CursorToAndSelectPaths of Path list * showHidden: bool
 
 type InputError =
     | FindFailure of prefix: string
@@ -221,6 +273,9 @@ type InputError =
         | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
         | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
 
+type TooManyCopiesOfNameException(name) =
+    inherit exn(sprintf "There are already too many copies of \"%s\"" name)
+
 type UndoMoveBlockedByExistingItemException() =
     inherit exn("An item already exists in the previous location")
 
@@ -229,22 +284,30 @@ type RedoPutBlockedByExistingItemException() =
 
 [<RequireQualifiedAccess>]
 module MainStatus =
+    let private pluralS list =
+        match list with
+        | [_] -> ""
+        | _ -> "s"
+
+    let private describeList strs =
+        Seq.describeAndCount 5 id strs
+
     let private actionCompleteMessage action pathFormat =
         match action with
         | CreatedItem item ->
             sprintf "Created %s" item.Description
         | RenamedItem (item, newName) ->
             sprintf "Renamed %s to \"%s\"" item.Description newName
-        | PutItems (Move, item, _, _) ->
-            sprintf "Moved %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Copy, item, _, _) ->
-            sprintf "Copied %s" ([item] |> PutItem.describeList pathFormat)
-        | PutItems (Shortcut, {Item = item}, _, _) ->
-            sprintf "Created shortcut to %s \"%s\"" (item.Type |> string |> String.toLower) (item.Path.Format pathFormat)
-        | DeletedItem (item, false) ->
-            sprintf "Sent %s to Recycle Bin" item.Description
-        | DeletedItem (item, true) ->
-            sprintf "Deleted %s" item.Description
+        | PutItems (Move, intent, _, _) ->
+            sprintf "Moved %s" (intent.Description pathFormat)
+        | PutItems (Copy, intent, _, _) ->
+            sprintf "Copied %s" (intent.Description pathFormat)
+        | PutItems (Shortcut, intent, _, _) ->
+            sprintf "Created shortcut%s to %s" (pluralS intent.Sources) (ItemRef.describeList intent.Sources)
+        | DeletedItems (false, items, _) ->
+            sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
+        | DeletedItems (true, items, _) ->
+            sprintf "Deleted %s" (items |> Item.describeList)
 
     type Message =
         // Navigation
@@ -265,13 +328,13 @@ module MainStatus =
         | CancelledDelete of permanent: bool * completed: int * total: int
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
-        | OpenFile of name: string
-        | OpenProperties of name: string
+        | OpenFiles of names: string list
+        | OpenProperties of names: string list
         | OpenExplorer
         | OpenCommandLine of path: string
-        | OpenTextEditor of name: string
-        | ClipboardCopy of path: string
-        | RemovedNetworkHost of name: string
+        | OpenTextEditor of names: string list
+        | ClipboardCopy of paths: Path list * PathFormat
+        | RemovedNetworkHosts of names: string list
 
         member private this.DescribeCancelledProgress action completed total =
             if completed = 0
@@ -321,13 +384,13 @@ module MainStatus =
                 sprintf "Cancelled %s" action
             | CancelledPut (putType, isUndo, completed, total) ->
                 let undo = if isUndo then "undo of " else ""
-                let putTypeName = string putType |> String.toLower
                 let action =
                     match putType, isUndo with
                     | Move, _ -> "moved"
                     | _, false -> "copied"
                     | _, true -> "deleted"
-                sprintf "Cancelled %s%s - %s" undo putTypeName (this.DescribeCancelledProgress action completed total)
+                sprintf "Cancelled %s%s - %s" undo (putType.ToLowerString())
+                    (this.DescribeCancelledProgress action completed total)
             | CancelledDelete (permanent, completed, total) ->
                 let action = if permanent then "delete" else "recycle"
                 sprintf "Cancelled %s - %s" action (this.DescribeCancelledProgress (action+"d") completed total)
@@ -335,89 +398,95 @@ module MainStatus =
                 sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
             | ToggleHidden showing ->
                 sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
-            | OpenFile name ->
-                sprintf "Opened File: %s" name
-            | OpenProperties name ->
-                sprintf "Opened Properties: %s" name
+            | OpenFiles names ->
+                sprintf "Opened File%s: %s" (pluralS names) (describeList names)
+            | OpenProperties names ->
+                sprintf "Opened Properties for: %s" (describeList names)
             | OpenExplorer ->
                 "Opened Windows Explorer"
             | OpenCommandLine path ->
                 sprintf "Opened Commandline at: %s" path
-            | OpenTextEditor name ->
-                sprintf "Opened text editor for: %s" name
-            | ClipboardCopy path ->
-                sprintf "Copied to clipboard: %s" path
-            | RemovedNetworkHost name ->
-                sprintf "Removed network host: %s" name
+            | OpenTextEditor names ->
+                sprintf "Opened text editor for: %s" (describeList names)
+            | ClipboardCopy (paths, pathFormat) ->
+                let pathsDescr =
+                    match paths with
+                    | [path] -> path.Format pathFormat
+                    | _ -> paths |> List.map (fun p -> p.Name) |> describeList
+                sprintf "Copied to clipboard: %s" pathsDescr
+            | RemovedNetworkHosts names ->
+                sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
 
     type Busy =
-        | PuttingItem of isCopy: bool * isRedo: bool * PutItem * PathFormat
-        | DeletingItem of Item * permanent: bool
-        | PreparingPut of PutType * name: string
+        | PuttingItem of isCopy: bool * isRedo: bool * PutIntent * PathFormat
+        | DeletingItems of permanent: bool * Item list
+        | PreparingPut of PutType * ItemRef list
         | CheckingIsRecyclable
-        | PreparingDelete of name: string
+        | PreparingDelete of Item list
         | UndoingCreate of Item
-        | UndoingPut of isCopy: bool * Item
-        | RedoingDeletingItem of Item * permanent: bool
+        | UndoingPut of isCopy: bool * PutIntent * PathFormat
+        | RedoingDeleting of permanent: bool * Item list
 
         member this.Message =
             match this with
-            | PuttingItem (isCopy, isRedo, putItem, pathFormat) ->
+            | PuttingItem (isCopy, isRedo, intent, pathFormat) ->
                 let action =
                     if isRedo
                     then sprintf "Redoing %s of" (if isCopy then "copy" else "move")
                     else if isCopy then "Copying" else "Moving"
-                sprintf "%s %s..." action ([putItem] |> PutItem.describeList pathFormat)
-            | DeletingItem (item, permanent) ->
+                sprintf "%s %s..." action (intent.Description pathFormat)
+            | DeletingItems (permanent, items) ->
                 let action = if permanent then "Deleting" else "Recycling"
-                sprintf "%s %s..." action item.Description
-            | PreparingPut (putType, name) ->
-                sprintf "Preparing to %O %s..." putType name
+                sprintf "%s %s..." action (Item.describeList items)
+            | PreparingPut (putType, itemRefs) ->
+                sprintf "Preparing to %O %s..." putType (ItemRef.describeList itemRefs)
             | CheckingIsRecyclable ->
                 "Determining if items will fit in Recycle Bin..."
-            | PreparingDelete name ->
-                sprintf "Preparing to delete %s..." name
+            | PreparingDelete items ->
+                sprintf "Preparing to delete %s..." (items |> Seq.map (fun i -> i.Description) |> describeList)
             | UndoingCreate item ->
                 sprintf "Undoing creation of %s - Deleting..." item.Description
-            | UndoingPut (isCopy, item) ->
+            | UndoingPut (isCopy, intent, pathFormat) ->
                 let action = if isCopy then "copy" else "move"
-                sprintf "Undoing %s of %s..." action item.Description
-            | RedoingDeletingItem (item, permanent) ->
+                sprintf "Undoing %s of %s..." action (intent.Description pathFormat)
+            | RedoingDeleting (permanent, items) ->
                 let action = if permanent then "deletion" else "recycle"
-                sprintf "Redoing %s of %s..." action item.Description
+                sprintf "Redoing %s of %s..." action (Item.describeList items)
 
     type Error =
         | ActionError of actionName: string * exn
         | ItemActionError of ItemAction * PathFormat * exn
         | InvalidPath of string
         | CouldNotOpenPath of Path * PathFormat * exn
-        | CouldNotOpenFile of string * exn
         | NoPreviousSearch
         | ShortcutTargetMissing of string
-        | YankRegisterItemMissing of string
-        | PutError of isUndo: bool * PutType * errorItems: (Item * exn) list * totalItems: int
-        | DeleteError of errorItems: (Item * exn) list * totalItems: int
+        | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
+        | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotPutHere
         | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
         | CannotMoveToSameFolder
+        | CannotRegisterMultipleItemsWithSameName of duplicateName: string
+        | CannotPutMultipleItemsWithSameName of PutType * duplicateName: string
         | TooManyCopies of fileName: string
+        | CouldNotReadItemsForOverwritePrompt
         | CouldNotDeleteMoveSource of name: string * exn
-        | CouldNotDeleteCopyDest of name: string * exn
         | CannotUndoNonEmptyCreated of Item
-        | CannotUndoDelete of permanent: bool * item: Item
-        | CannotRedoPutToExisting of putType: PutType * item: Item * destPath: string
+        | CannotUndoDelete of permanent: bool * items: Item list
         | NoUndoActions
         | NoRedoActions
+        | NoFilesSelected
+        | CannotOpenWithMultiple
+        | CouldNotOpenFiles of nameErrorPairs: (string * exn) list
         | CouldNotOpenApp of app: string * exn
         | CouldNotFindKoffeeExe
 
-        member private this.ItemErrorsDescription actionName (errorItems: (Item * exn) list) totalItemCount =
+        member private this.ItemErrorsDescription actionName (errorPaths: (Path * exn) list) totalItemCount =
             let actionMsg = "Could not " + actionName
-            match errorItems with
-            | [(item, ex)] ->
-                sprintf "%s %s: %s" actionMsg item.Description ex.Message
+            match errorPaths with
+            | [(path, ex)] ->
+                sprintf "%s %s: %s" actionMsg path.Name ex.Message
             | (_, ex) :: _ ->
-                sprintf "%s %i of %i total items. First error: %s" actionMsg errorItems.Length totalItemCount ex.Message
+                sprintf "%s %i of %i total items. First error: %s" actionMsg errorPaths.Length totalItemCount ex.Message
             | [] ->
                 actionMsg
 
@@ -435,20 +504,16 @@ module MainStatus =
                 "Path format is invalid: " + path
             | CouldNotOpenPath (path, pathFormat, ex) ->
                 sprintf "Could not open %s: %s" (path.Format pathFormat) ex.Message
-            | CouldNotOpenFile (name, ex) ->
-                sprintf "Could not open %s: %s" name ex.Message
             | NoPreviousSearch ->
                 "No previous search to repeat"
             | ShortcutTargetMissing path ->
                 "Shortcut target does not exist: " + path
-            | YankRegisterItemMissing path ->
-                "Item in yank register no longer exists: " + path
-            | PutError (isUndo, putType, errorItems, totalItems) ->
+            | PutError (isUndo, putType, errorPaths, totalItems) ->
                 let undo = if isUndo then "undo " else ""
-                let putType = putType |> string |> String.toLower
-                this.ItemErrorsDescription (undo + putType) errorItems totalItems
-            | DeleteError (errorItems, totalItems) ->
-                this.ItemErrorsDescription "delete" errorItems totalItems
+                this.ItemErrorsDescription (undo + putType.ToLowerString()) errorPaths totalItems
+            | DeleteError (permanent, errorPaths, totalItems) ->
+                let action = if permanent then "delete"  else "recycle"
+                this.ItemErrorsDescription action errorPaths totalItems
             | CannotPutHere ->
                 "Cannot put items here"
             | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
@@ -457,26 +522,38 @@ module MainStatus =
                         actionName itemType name append
             | CannotMoveToSameFolder ->
                 "Cannot move item to same folder it is already in"
+            | CannotRegisterMultipleItemsWithSameName name ->
+                sprintf "Cannot put multiple items with the same name in yank register: \"%s\"" name
+            | CannotPutMultipleItemsWithSameName (putType, name) ->
+                sprintf "Cannot %s multiple items with the same name: \"%s\"" (putType.ToLowerString()) name
+            | CouldNotReadItemsForOverwritePrompt ->
+                "Items exist in the destination, but could not read all item metadata for overwrite prompt. Please try again."
             | TooManyCopies fileName ->
                 sprintf "There are already too many copies of \"%s\"" fileName
             | CouldNotDeleteMoveSource (name, ex) ->
                 sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
-            | CouldNotDeleteCopyDest (name, ex) ->
-                sprintf "Could not delete copy destination folder \"%s\" after undoing copy: %s" name ex.Message
             | CannotUndoNonEmptyCreated item ->
                 sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
-            | CannotUndoDelete (permanent, item) ->
-                if permanent then
-                    sprintf "Cannot undo deletion of %s" item.Description
-                else
-                    sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore this item" item.Description
-            | CannotRedoPutToExisting (putType, item, destPath) ->
-                let putType = putType |> string |> String.toLower
-                sprintf "Could not redo %s of %s because an item already exists at %s" putType item.Description destPath
+            | CannotUndoDelete (permanent, items) ->
+                if permanent
+                then sprintf "Cannot undo deletion of %s" (Item.describeList items)
+                else sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore items" (Item.describeList items)
             | NoUndoActions ->
                 "No more actions to undo"
             | NoRedoActions ->
                 "No more actions to redo"
+            | NoFilesSelected ->
+                "No files selected"
+            | CannotOpenWithMultiple ->
+                "Cannot use Open File With on multiple items"
+            | CouldNotOpenFiles nameErrorPairs ->
+                match nameErrorPairs with
+                | [name, ex] ->
+                    sprintf "Could not open file '%s': %s" name ex.Message
+                | (name, ex) :: _ ->
+                    sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
+                | _ ->
+                    "Could not open files"
             | CouldNotOpenApp (app, e) ->
                 sprintf "Could not open app %s: %s" app e.Message
             | CouldNotFindKoffeeExe ->
@@ -523,7 +600,7 @@ type Config = {
     TextEditor: string
     CommandlinePath: string
     SearchExclusions: string list
-    YankRegister: (Path * ItemType * PutType) option
+    YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
@@ -641,11 +718,11 @@ with
         | Some sort -> sort
         | None -> PathSort.Default
 
-    static member private pushDistinct max list item =
-        item :: (list |> List.filter ((<>) item)) |> List.truncate max
+    static member private pushDistinct max list items =
+        (items |> List.rev) @ (list |> List.except items) |> List.truncate max
 
     static member withSearch searchLimit search (this: History) =
-        { this with Searches = History.pushDistinct searchLimit this.Searches search }
+        { this with Searches = History.pushDistinct searchLimit this.Searches [search] }
 
     static member withoutSearchIndex index (this: History) =
         let before, rest = this.Searches |> List.splitAt index
@@ -657,17 +734,22 @@ with
         else
             { this with NetHosts = host :: this.NetHosts |> List.sortBy String.toLower }
 
-    static member private withoutNetHost host (this: History) =
-        { this with NetHosts = this.NetHosts |> List.filter (not << String.equalsIgnoreCase host) }
+    static member withoutNetHosts hosts (this: History) =
+        let isHostToRemove host = hosts |> List.exists (String.equalsIgnoreCase host)
+        { this with NetHosts = this.NetHosts |> List.filter (not << isHostToRemove) }
 
-    static member private withPath pathLimit isDirectory path (this: History) =
-        let histPath = { PathValue = path; IsDirectory = isDirectory }
-        { this with Paths = History.pushDistinct pathLimit this.Paths histPath }
+    static member private withPaths pathLimit isDirectories paths (this: History) =
+        if paths |> List.isEmpty then
+            this
+        else
+            let histPaths = paths |> List.map (fun path -> { PathValue = path; IsDirectory = isDirectories })
+            { this with Paths = History.pushDistinct pathLimit this.Paths histPaths }
 
-    static member withFilePath pathLimit path = History.withPath pathLimit false path
+    static member withFilePaths pathLimit paths =
+        History.withPaths pathLimit false paths
 
     static member withFolderPath pathLimit path =
-        History.withPath pathLimit true path
+        History.withPaths pathLimit true [path]
         >> Option.foldBack History.withNetHost path.NetHost
 
     static member withPathReplaced oldPath newPath =
@@ -680,13 +762,9 @@ with
             | None -> hp
         { this with Paths = this.Paths |> List.map replaceOld |> List.distinct }
 
-    static member withPathsRemoved (paths: Path list) (this: History) =
-        { this with Paths = this.Paths |> List.filter (fun hp -> not (paths |> List.exists hp.PathValue.IsWithin)) }
-
-    static member withPathRemoved (path: Path) (this: History) =
-        if path.IsNetHost
-        then this |> History.withoutNetHost path.Name
-        else { this with Paths = this.Paths |> List.filter (fun hp -> not (hp.PathValue.IsWithin path)) }
+    static member withoutPaths (paths: Path list) (this: History) =
+        let isPathToRemove historyPath = paths |> List.exists historyPath.PathValue.IsWithin
+        { this with Paths = this.Paths |> List.filter (not << isPathToRemove) }
 
     static member withPathSort path sort (this: History) =
         if sort = PathSort.Default then
@@ -723,6 +801,8 @@ type MainModel = {
     Items: Item list
     Sort: (SortField * bool) option
     Cursor: int
+    SelectedItems: Item list
+    PreviousSelectIndexAndToggle: (int * bool) option
     PageSize: int
     KeyCombo: KeyCombo
     RepeatCommand: int option
@@ -750,8 +830,13 @@ type MainModel = {
     member private this.ClampCursor index =
         index |> clamp 0 (this.Items.Length - 1)
 
-    member this.SelectedItem =
+    member this.CursorItem =
         this.Items.[this.Cursor |> this.ClampCursor]
+
+    member this.KeepCursorByPath = CursorToPath (this.CursorItem.Path, false)
+
+    member this.ActionItems =
+        if not this.SelectedItems.IsEmpty then this.SelectedItems else [this.CursorItem]
 
     member this.PathFormat = this.Config.PathFormat
 
@@ -797,6 +882,8 @@ type MainModel = {
         Items = [ Item.Empty ]
         Sort = Some (Name, false)
         Cursor = 0
+        SelectedItems = []
+        PreviousSelectIndexAndToggle = None
         PageSize = 30
         KeyCombo = []
         RepeatCommand = None
@@ -825,12 +912,6 @@ type MainModel = {
     static member withLocation path (this: MainModel) =
         { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
 
-    static member withCursor index (this: MainModel) =
-        { this with Cursor = index |> this.ClampCursor }
-
-    static member withCursorRel move (this: MainModel) =
-        MainModel.withCursor (this.Cursor + move) this
-
     static member withPushedLocation path (this: MainModel) =
         if path <> this.Location then
             { this with
@@ -841,16 +922,39 @@ type MainModel = {
             |> MainModel.withLocation path
         else this
 
+    static member withCursor index (this: MainModel) =
+        { this with Cursor = index |> this.ClampCursor }
+
+    static member withCursorRel move (this: MainModel) =
+        MainModel.withCursor (this.Cursor + move) this
+
+    static member selectItems pathsToSelect (this: MainModel) =
+        let selected =
+            if pathsToSelect |> Seq.isEmpty then
+                []
+            else
+                let itemMap = this.Items |> Seq.map (fun item -> (item.Path, item)) |> Map
+                pathsToSelect |> Seq.choose itemMap.TryFind |> Seq.toList
+        { this with SelectedItems = selected }
+
+    static member clearSelection (this: MainModel) =
+        { this with SelectedItems = []; PreviousSelectIndexAndToggle = None }
+
     static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
         match actionStack with
         | PutItems (putType1, intent1, actual1, cancelled1) ::
           PutItems (putType2, intent2, actual2, true) :: tail
-                when putType1 = putType2 && PutItem.intentEquals intent1 intent2 ->
-            // take distinct items by path, keeping the newer items
-            let mergedActual = actual2 @ actual1 |> List.rev |> List.distinctBy (fun pi -> pi.Item.Path) |> List.rev
+                when putType1 = putType2 && PutIntent.equalSourceAndDest intent1 intent2 ->
+            let mergedActual =
+                actual1 @ actual2
+                |> Seq.distinctBy (fun pi -> pi.Source)
+                |> Seq.sortBy (fun pi -> pi.Source)
+                |> Seq.toList
             PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
-        | DeletedItem (item1, true) :: DeletedItem (item2, true) :: _ when item1.Path = item2.Path ->
-            actionStack.Tail
+        | DeletedItems (permanent1, items1, cancelled1) ::
+          DeletedItems (permanent2, items2, true) :: tail
+                when permanent1 = permanent2 && items1.Head.Path.Parent = items2.Head.Path.Parent ->
+            DeletedItems (permanent1, items2 @ items1, cancelled1) :: tail
         | _ ->
             actionStack
 
@@ -860,6 +964,9 @@ type MainModel = {
             |> MainModel.mergeActionsWithSameIntent
             |> List.truncate this.Config.Limits.Undo
         { this with UndoStack = undoStack }
+
+    static member withRedoStack stack (this: MainModel) =
+        { this with RedoStack = stack }
 
     static member pushRedo action (this: MainModel) =
         { this with RedoStack = action :: this.RedoStack |> MainModel.mergeActionsWithSameIntent }
@@ -928,7 +1035,7 @@ module DragDropEffects =
         else if shift then DragDropEffects.Move
         else DragDropEffects.None
 
-type DragEvent(event: DragEventArgs) =
+type DragInEvent(event: DragEventArgs) =
     do
         event.Effects <- DragDropEffects.fromKeyModifiers ()
 
@@ -937,6 +1044,14 @@ type DragEvent(event: DragEventArgs) =
         and set value = event.Effects <- DragDropEffects.ofPutTypes value
 
     member this.AllowedPutTypes = event.AllowedEffects |> DragDropEffects.toPutTypes
+
+type DragOutEvent(control) =
+    member _.DoDropOut (paths: Path seq) =
+        let winPaths = paths |> Seq.map (fun p -> p.Format Windows) |> Seq.toArray
+        let dropData = DataObject(DataFormats.FileDrop, winPaths)
+        DragDrop.DoDragDrop(control, dropData, DragDropEffects.Move ||| DragDropEffects.Copy ||| DragDropEffects.Link)
+        |> DragDropEffects.toPutTypes
+        |> List.tryHead
 
 type ScrollType =
     | CursorTop
@@ -951,8 +1066,12 @@ type MainEvents =
     | CursorDownHalfPage
     | CursorToFirst
     | CursorToLast
+    | SelectToggle
+    | SelectRange
+    | SelectAll
     | Scroll of ScrollType
     | OpenPath of string * EvtHandler
+    | OpenCursorItem
     | OpenSelected
     | OpenParent
     | OpenRoot
@@ -971,9 +1090,9 @@ type MainEvents =
     | InputForward
     | InputDelete of isShifted: bool * EvtHandler
     | SubDirectoryResults of Item list
-    | UpdateDropInPutType of Path list * DragEvent
-    | DropIn of Path list * DragEvent
-    | DropOut of PutType
+    | UpdateDropInPutType of Path list * DragInEvent
+    | DropIn of Path list * DragInEvent
+    | DropOut of DragOutEvent
     | SubmitInput
     | CancelInput
     | FindNext
@@ -1013,6 +1132,9 @@ type MainEvents =
         CursorDownHalfPage, "Move Cursor Down Half Page"
         CursorToFirst, "Move Cursor to First Item"
         CursorToLast, "Move Cursor to Last Item"
+        SelectToggle, "Select/Unselect Item Under Cursor"
+        SelectRange, "Select/Unselect Range (Between Cursor and Last Selection)"
+        SelectAll, "Select All"
         Scroll CursorTop, "Scroll View to Put Cursor at the Top"
         Scroll CursorMiddle, "Scroll View to Put Cursor at the Middle"
         Scroll CursorBottom, "Scroll View to Put Cursor at the Bottom"
@@ -1036,9 +1158,10 @@ type MainEvents =
         StartPrompt GoToBookmark, "Go To Bookmark"
         StartPrompt GoToSavedSearch, "Go To Saved Search"
         StartPrompt SetBookmark, "Set Bookmark/Saved Search"
-        OpenSelected, "Open Selected Item"
+        OpenCursorItem, "Open Cursor Item"
+        OpenSelected, "Open Selected Item(s)"
         OpenFileWith, "Open File With..."
-        OpenFileAndExit, "Open File and Exit"
+        OpenFileAndExit, "Open Files and Exit"
         StartInput (Rename Begin), "Rename Item (Prepend)"
         StartInput (Rename EndName), "Rename Item (Append to Name)"
         StartInput (Rename End), "Rename Item (Append to Extension)"
@@ -1065,3 +1188,17 @@ type MainEvents =
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"
     ]
+
+type Progress(evt: Event<float option>) =
+    member _.Start () =
+        evt.Trigger (Some 0.0)
+
+    member _.GetIncrementer (goalCount: int) =
+        let increment = 1.0 / float goalCount
+        fun _ -> evt.Trigger (Some increment)
+
+    member _.Add progressAmount =
+        evt.Trigger (Some progressAmount)
+
+    member _.Finish _ =
+        evt.Trigger None

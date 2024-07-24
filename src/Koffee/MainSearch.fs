@@ -57,7 +57,7 @@ let getFilter showHidden searchInput =
             filter
     )
 
-let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) isCancelled
+let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) isCancelled
                              (searchExclusions: string list) items = asyncSeq {
     let getDirs =
         List.filter (fun i ->
@@ -66,19 +66,18 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Event<_>) 
     let rec enumerate progressFactor dirs = asyncSeq {
         for dir in dirs do
             if not <| isCancelled () then
-                let! subItemsRes = runAsync (fun () -> fsReader.GetItems dir.Path)
+                let subItems = fsReader.GetItems dir.Path |> Result.defaultValue []
                 if not <| isCancelled () then
-                    let subItems = subItemsRes |> Result.defaultValue []
                     let subDirs = getDirs subItems
                     yield subItems
                     let progressFactor = progressFactor / float (subDirs.Length + 1)
-                    progress.Trigger (Some progressFactor)
+                    progress.Add progressFactor
                     yield! enumerate progressFactor subDirs
     }
     let dirs = getDirs items
-    progress.Trigger (Some 0.0)
-    yield! enumerate (1.0 / float dirs.Length) dirs
-    progress.Trigger None
+    progress.Start ()
+    yield! runSeqAsync (enumerate (1.0 / float dirs.Length) dirs)
+    progress.Finish ()
 }
 
 let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyncSeq {
@@ -97,7 +96,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                     |> model.ItemsOrEmpty
                     |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
                 Cursor = 0
-            } |> Nav.select (SelectItem (model.SelectedItem, false))
+            } |> Nav.moveCursor model.KeepCursorByPath
         let items = model.Directory |> filter
         if model.SearchInput.SubFolders then
             match model.SubDirectories with
@@ -120,7 +119,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
     | Some (Error e) ->
         yield { model with InputError = Some e }
     | None ->
-        yield model |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
+        yield model |> Nav.listDirectory model.KeepCursorByPath
 }
 
 let addSubDirResults newItems model =
@@ -155,13 +154,13 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
 let clearSearch (model: MainModel) =
     { model with ShowHistoryType = None }
     |> clearSearchProps
-    |> Nav.listDirectory (SelectItem (model.SelectedItem, false))
+    |> Nav.listDirectory model.KeepCursorByPath
 
 let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
     match model.SearchCurrent with
     | Some current ->
-        let selectItem = SelectItem (model.SelectedItem, false)
-        let! newModel = model |> Nav.openPath fsReader model.Location selectItem
+        let cursor = model.KeepCursorByPath
+        let! newModel = model |> Nav.openPath fsReader model.Location cursor
         let searchModels =
             { newModel with
                 InputText = current.Terms
@@ -175,7 +174,7 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         match! searchModels |> AsyncSeq.tryLast with
         | Some newModel ->
             let items = newModel.Items |> (newModel.Sort |> Option.map SortField.SortByTypeThen |? id)
-            yield { newModel with Items = items } |> Nav.select selectItem
+            yield { newModel with Items = items } |> Nav.moveCursor cursor
         | None -> ()
     | None ->
         yield! Nav.refresh fsReader model

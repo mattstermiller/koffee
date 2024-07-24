@@ -41,8 +41,7 @@ module FakeFileSystem =
     let modified value item = modifiedOpt (Some value) item
     let hide value item = { item with IsHidden = value }
 
-    let sortByPath items =
-        items |> List.sortBy (fun i -> i.Path |> string |> String.toLower)
+    let sortByPath items = items |> List.sortBy (fun i -> i.Path)
 
     type TreeItem with
         static member build items =
@@ -134,8 +133,8 @@ type FakeFileSystem(treeItems) =
             Ok ()
 
     let checkExn isWrite path =
-        match exnPaths.TryGetValue path with
-        | true, exns ->
+        match exnPaths.TryGetValueOption path with
+        | Some exns ->
             let rec popWhere pred skipped lst =
                 match lst with
                 | [] -> (None, skipped)
@@ -147,7 +146,7 @@ type FakeFileSystem(treeItems) =
             else
                 exnPaths.[path] <- rest
             exnItem |> Option.map (fst >> Error) |? Ok ()
-        | _ ->
+        | None ->
             Ok ()
 
     let checkCancelToken () =
@@ -176,14 +175,14 @@ type FakeFileSystem(treeItems) =
     member this.Item path =
         items |> List.find (fun i -> i.Path = path)
 
-    member this.RecycleBin = recycleBin
+    member this.RecycleBin = recycleBin |> List.rev
 
     member this.AddExnPath writeOnly e path =
         let exnItem = (e, writeOnly)
-        match exnPaths.TryGetValue path with
-        | true, exns ->
+        match exnPaths.TryGetValueOption path with
+        | Some exns ->
             exnPaths.[path] <- exns @ [exnItem]
-        | _ ->
+        | None ->
             exnPaths.Add(path, [exnItem])
 
     member this.CancelAfterWriteCount writes cancelToken =
@@ -207,7 +206,8 @@ type FakeFileSystem(treeItems) =
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.Recycle totalSize itemType path = this.Recycle totalSize itemType path
+        member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
+        member this.Recycle itemType path = this.Recycle itemType path
         member this.Delete itemType path = this.Delete itemType path
 
     member this.GetItem path = result {
@@ -228,7 +228,11 @@ type FakeFileSystem(treeItems) =
     member this.GetItems path = result {
         callsToGetItems <- callsToGetItems + 1
         do! checkExn false path
-        return this.Items |> List.filter (fun i -> i.Path.Parent = path)
+        let typeRank = function Folder -> 0 | _ -> 1
+        return
+            items
+            |> List.filter (fun i -> i.Path.Parent = path)
+            |> List.sortBy (fun i -> (typeRank i.Type, i.Name |> String.toLower))
     }
 
     member this.GetFolders path =
@@ -239,9 +243,7 @@ type FakeFileSystem(treeItems) =
 
     member this.GetShortcutTarget path = result {
         do! checkExn false path
-        match shortcuts.TryGetValue path with
-        | true, p -> return p
-        | _ -> return! Error notAShortcut
+        return! shortcuts.TryGetValueOption path |> Result.ofOption notAShortcut
     }
 
     member this.IsEmpty path =
@@ -256,12 +258,24 @@ type FakeFileSystem(treeItems) =
 
 
     member this.Create itemType path = result {
+        checkCancelToken ()
         do! checkExn true path
-        do! checkPathNotUsed path
-        items <- Item.Basic path path.Name itemType :: items
+        let createItem () =
+            items <- Item.Basic path path.Name itemType :: items
+        match tryFindItem path with
+        | Some existing when existing.Type <> itemType ->
+            return! Error (itemAlreadyExistsOnPath path)
+        | Some _ when itemType = Folder ->
+            ()
+        | Some _ ->
+            remove path
+            createItem ()
+        | None ->
+            createItem ()
     }
 
     member this.CreateShortcut target path = result {
+        checkCancelToken ()
         remove path
         do! this.Create File path
         shortcuts.Add(path, string target)
@@ -278,6 +292,7 @@ type FakeFileSystem(treeItems) =
     }
 
     member this.Move itemType fromPath toPath = result {
+        checkCancelToken ()
         let substitute oldItem newItem =
             items <- items |> List.map (fun i -> if i = oldItem then newItem else i)
         if String.equalsIgnoreCase (string fromPath) (string toPath) then
@@ -296,19 +311,18 @@ type FakeFileSystem(treeItems) =
                 remove toPath
             substitute item { item with Path = toPath; Name = toPath.Name }
 
-            match shortcuts.TryGetValue fromPath with
-            | true, target ->
+            shortcuts.TryGetValueOption fromPath |> Option.iter (fun target ->
                 shortcuts.Remove(fromPath) |> ignore
                 shortcuts.Add(toPath, target)
-            | _ -> ()
+            )
 
             if item.Type = Folder then
                 for item in this.ItemsIn fromPath do
                     do! this.Move item.Type item.Path (toPath.Join item.Name)
-        checkCancelToken ()
     }
 
     member this.Copy itemType fromPath toPath = result {
+        checkCancelToken ()
         let! item = this.AssertItem itemType fromPath
         do! checkExn true toPath
         do! this.CheckDestParent toPath
@@ -320,29 +334,33 @@ type FakeFileSystem(treeItems) =
             remove toPath
         let newItem = { item with Path = toPath; Name = toPath.Name }
         items <- newItem :: items
-        match shortcuts.TryGetValue fromPath with
-        | true, target -> shortcuts.Add(toPath, target)
-        | _ -> ()
-        checkCancelToken ()
+        shortcuts.TryGetValueOption fromPath |> Option.iter (fun target ->
+            shortcuts.Add(toPath, target)
+        )
     }
 
-    member this.Recycle totalSize itemType path = result {
+    member this.CheckRecyclable (totalSize: int64) path =
+        getDriveSize path |> Result.ofOption cannotRecycleItemOnDriveWithNoSize
+        |> Result.bind (fun driveSize ->
+            let ratio = float totalSize / float driveSize
+            if ratio > 0.03
+            then Error (cannotRecycleItemThatDoesNotFit totalSize)
+            else Ok ()
+        )
+
+    member this.Recycle itemType path = result {
+        checkCancelToken ()
         let! item = this.AssertItem itemType path
         do! checkExn true path
-        let! driveSize = getDriveSize path |> Result.ofOption cannotRecycleItemOnDriveWithNoSize
-        let ratio = float totalSize / float driveSize
-        if ratio > 0.03 then
-            return! Error (cannotRecycleItemThatDoesNotFit totalSize)
         recycleBin <- item :: recycleBin
         remove path
-        checkCancelToken ()
     }
 
     member this.Delete itemType path = result {
+        checkCancelToken ()
         let! item = this.AssertItem itemType path
         do! checkExn true path
         if item.Type = Folder && hasChildren item.Path then
             return! Error cannotDeleteNonEmptyFolder
         remove path
-        checkCancelToken ()
     }

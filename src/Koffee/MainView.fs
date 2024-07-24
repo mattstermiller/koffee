@@ -9,7 +9,6 @@ open System.Reactive.Subjects
 open VinylUI
 open VinylUI.Wpf
 open Acadian.FSharp
-open Reflection
 open UIHelpers
 open KoffeeUI
 
@@ -24,60 +23,6 @@ module MainView =
             |> Option.map (List.sum >> Format.fileSize >> sprintf ", %s")
             |> Option.toString
         sprintf "%i %s%s" items.Length name sizeStr
-
-    let getPrompt pathFormat inputMode =
-        let caseName (case: obj) = case |> GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
-        match inputMode with
-        | Confirm (Overwrite (putType, srcExistingPairs)) ->
-            match srcExistingPairs with
-            | [(src, existing)] ->
-                match existing.Type with
-                | Folder ->
-                    sprintf "Folder \"%s\" already exists. %A anyway and overwrite files y/n ?" existing.Name putType
-                | File ->
-                    match src.Modified, src.Size, existing.Modified, existing.Size with
-                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
-                        let compare a b less greater =
-                            if a = b then "same"
-                            else if a < b then less
-                            else greater
-                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
-                            existing.Name
-                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
-                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
-                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" existing.Name
-                | _ -> ""
-            | _ ->
-                let types = srcExistingPairs |> Seq.map (fun (_, existing) -> existing.Type)
-                let hasFiles = types |> Seq.contains File
-                let hasFolders = types |> Seq.contains Folder
-                let typesString =
-                    [
-                        if hasFolders then "folders"
-                        if hasFiles then "files"
-                    ] |> String.concat " and "
-                let overwriteMessage =
-                    if not hasFolders
-                    then "Overwrite y/n ?"
-                    else sprintf "%A anyway, merge folders and overwrite files y/n ?" putType
-                sprintf "%i %s already exist. %s" srcExistingPairs.Length typesString overwriteMessage
-        | Confirm Delete ->
-            "Permanently delete selected item(s) y/n ?"
-        | Confirm (OverwriteBookmark (char, existingPath)) ->
-            sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
-        | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
-            sprintf "Overwrite saved search \"%c\" currently set to \"%s\" y/n ?" char (string existingSearch)
-        | Prompt promptType ->
-            promptType |> caseName
-        | Input (Find multi) ->
-            sprintf "Find item starting with%s:" (if multi then " (multi)" else "")
-        | Input inputType ->
-            let symbol =
-                match inputType with
-                | CreateFile -> File.Symbol + " "
-                | CreateFolder -> Folder.Symbol + " "
-                | _ -> ""
-            symbol + (inputType |> caseName)
 
     /// trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
     let trimStacks stackSize prev next =
@@ -330,7 +275,7 @@ module MainView =
                         | _ ->
                             window.BookmarkPanel.IsCollapsed <- true
                         window.SearchOptions.IsCollapsed <- inputMode <> Input Search
-                        window.InputText.Text <- getPrompt pathFormat inputMode
+                        window.InputText.Text <- inputMode.GetPrompt pathFormat
                         if window.InputPanel.IsCollapsed then
                             window.InputPanel.IsCollapsed <- false
                             window.InputBox.Select(selectStart, selectLen)

@@ -189,6 +189,61 @@ type InputMode =
     | Prompt of PromptType
     | Confirm of ConfirmType
     | Input of InputType
+with
+    member this.GetPrompt pathFormat =
+        let caseName (case: obj) =
+            case |> Reflection.GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
+        match this with
+        | Confirm (Overwrite (putType, srcExistingPairs)) ->
+            match srcExistingPairs with
+            | [(src, existing)] ->
+                match existing.Type with
+                | Folder ->
+                    sprintf "Folder \"%s\" already exists. %A anyway and overwrite files y/n ?" existing.Name putType
+                | File ->
+                    match src.Modified, src.Size, existing.Modified, existing.Size with
+                    | Some srcModified, Some srcSize, Some destModified, Some destSize ->
+                        let compare a b less greater =
+                            if a = b then "same"
+                            else if a < b then less
+                            else greater
+                        sprintf "File \"%s\" already exists. Overwrite with file dated %s (%s), size %s (%s) y/n ?"
+                            existing.Name
+                            (Format.dateTime srcModified) (compare srcModified destModified "older" "newer")
+                            (Format.fileSize srcSize) (compare srcSize destSize "smaller" "larger")
+                    | _ -> sprintf "File \"%s\" already exists. Overwrite it y/n ?" existing.Name
+                | _ -> ""
+            | _ ->
+                let types = srcExistingPairs |> Seq.map (fun (_, existing) -> existing.Type)
+                let hasFiles = types |> Seq.contains File
+                let hasFolders = types |> Seq.contains Folder
+                let typesString =
+                    [
+                        if hasFolders then "folders"
+                        if hasFiles then "files"
+                    ] |> String.concat " and "
+                let overwriteMessage =
+                    if not hasFolders
+                    then "Overwrite y/n ?"
+                    else sprintf "%A anyway, merge folders and overwrite files y/n ?" putType
+                sprintf "%i %s already exist. %s" srcExistingPairs.Length typesString overwriteMessage
+        | Confirm Delete ->
+            "Permanently delete selected item(s) y/n ?"
+        | Confirm (OverwriteBookmark (char, existingPath)) ->
+            sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
+        | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
+            sprintf "Overwrite saved search \"%c\" currently set to \"%s\" y/n ?" char (string existingSearch)
+        | Prompt promptType ->
+            promptType |> caseName
+        | Input (Find multi) ->
+            sprintf "Find item starting with%s:" (if multi then " (multi)" else "")
+        | Input inputType ->
+            let symbol =
+                match inputType with
+                | CreateFile -> File.Symbol + " "
+                | CreateFolder -> Folder.Symbol + " "
+                | _ -> ""
+            symbol + (inputType |> caseName)
 
 type PutItem = {
     ItemType: ItemType
@@ -359,7 +414,6 @@ module MainStatus =
                 sprintf "Set saved search \"%c\" to \"%O\"" char search
             | DeletedSavedSearch (char, search) ->
                 sprintf "Deleted saved search \"%c\" that was set to \"%O\"" char search
-
             | ActionComplete (action, pathFormat) ->
                 actionCompleteMessage action pathFormat
             | UndoAction (action, pathFormat, repeatIter, repeatCount) ->
@@ -552,7 +606,7 @@ module MainStatus =
                     sprintf "Could not open file '%s': %s" name ex.Message
                 | (name, ex) :: _ ->
                     sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
-                | _ ->
+                | [] ->
                     "Could not open files"
             | CouldNotOpenApp (app, e) ->
                 sprintf "Could not open app %s: %s" app e.Message

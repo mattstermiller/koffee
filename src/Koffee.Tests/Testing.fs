@@ -212,17 +212,14 @@ let seqResultWithCancelTokenCallback callback handler (model: MainModel) =
 let createHistoryPath pathStr =
     HistoryPath.Parse pathStr |> Option.defaultWith (fun () -> failwithf "Invalid path: %s" pathStr)
 
-let itemHistoryPath (item: Item) =
-    { PathValue = item.Path; IsDirectory = item.Type |> Seq.containedIn [Folder; Drive; NetHost; NetShare] }
-
 type HistoryPathsBuilder() =
     let ofPair (path, isDirectory) = { PathValue = path; IsDirectory = isDirectory }
     member _.Yield(hp: HistoryPath) = [hp]
     member _.Yield(pathStr) = [createHistoryPath pathStr]
-    member _.Yield(item) = [itemHistoryPath item]
+    member _.Yield(item: Item) = [item.HistoryPath]
     member _.Yield((path, isDirectory)) = [ofPair (path, isDirectory)]
     member _.YieldFrom(hps: HistoryPath seq) = hps |> Seq.toList
-    member _.YieldFrom(items: Item seq) = items |> Seq.map itemHistoryPath |> Seq.toList
+    member _.YieldFrom(items: Item seq) = items |> Seq.map (fun i -> i.HistoryPath) |> Seq.toList
     member _.YieldFrom(pathAndIsDirectoryItems: (Path * bool) seq) = pathAndIsDirectoryItems |> Seq.map ofPair |> Seq.toList
     member _.Zero() = []
     member _.Delay(f) = f()

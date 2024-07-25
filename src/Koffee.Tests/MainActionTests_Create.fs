@@ -103,7 +103,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
         |> withLocation location
         |> pushUndo action
         |> withHistoryPaths (historyPaths {
-            itemHistoryPath createdItem
+            createdItem
             if isFolder then
                 createdItem.Path.Join "file", false
         })

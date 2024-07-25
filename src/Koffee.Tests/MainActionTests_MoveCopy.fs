@@ -145,7 +145,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
     let model =
         testModel
         |> withReg (Some (putType, [src.Ref]))
-        |> withHistoryPaths [itemHistoryPath src]
+        |> withHistoryPaths [src.HistoryPath]
 
     let actual = seqResult (Action.put fs progress overwrite) model
 
@@ -166,7 +166,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
             CancelToken = CancelToken()
         }
         |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, testModel.PathFormat))
-        |> withHistoryPaths [itemHistoryPath (if copy then src else dest)]
+        |> withHistoryPaths [if copy then src.HistoryPath else dest.HistoryPath]
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -745,7 +745,7 @@ let ``Put items from different parents works correctly`` putType =
     let model =
         testModel
         |> withReg (Some (putType, sources |> List.map (fun i -> i.Ref)))
-        |> withHistoryPaths (sources |> List.map itemHistoryPath)
+        |> withHistoryPaths (sources |> List.map (fun i -> i.HistoryPath))
 
     let actual = seqResult (Action.put fs progress false) model
 
@@ -776,7 +776,7 @@ let ``Put items from different parents works correctly`` putType =
             CancelToken = CancelToken()
         }
         |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, testModel.PathFormat))
-        |> withHistoryPaths ((if putType = Move then destItems else sources) |> List.map itemHistoryPath)
+        |> withHistoryPaths ((if putType = Move then destItems else sources) |> List.map (fun i -> i.HistoryPath))
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -824,7 +824,7 @@ let ``Put in location items with the same name from different parents returns er
         "/c/source3/file"
     ]
     let itemRefs = items |> List.map (fun i -> i.Ref)
-    let model = testModel |> withHistoryPaths (items |> List.map itemHistoryPath)
+    let model = testModel |> withHistoryPaths (items |> List.map (fun i -> i.HistoryPath))
     let expectedFs = fs.Items
 
     // test putInLocation because it is used by dropIn and paste where the item list is not restricted.
@@ -2482,7 +2482,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
         testModel
         |> withLocation location
         |> pushUndo action
-        |> withHistoryPaths [itemHistoryPath shortcut]
+        |> withHistoryPaths [shortcut.HistoryPath]
 
     let actual = seqResult (Action.undo fs progress) model
 
@@ -2526,7 +2526,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
     let model =
         testModel
         |> pushUndo action
-        |> withHistoryPaths [itemHistoryPath shortcut]
+        |> withHistoryPaths [shortcut.HistoryPath]
 
     let actual = seqResult (Action.undo fs progress) model
 

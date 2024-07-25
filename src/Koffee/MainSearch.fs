@@ -42,19 +42,20 @@ let findNext model =
     | None -> model
 
 let getFilter showHidden searchInput =
-    (
+    let filterRes =
         if searchInput.Regex then
             let options = if searchInput.CaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase
             match tryResult (fun () -> Regex(searchInput.Terms, options)) with
             | Ok re -> Ok (List.filter (fun item -> re.IsMatch item.Name))
             | Error ex -> Error (InvalidRegex ex.Message)
         else
-            Ok (filterByTerms false searchInput.CaseSensitive searchInput.Terms (fun item -> item.Name))
-    ) |> Result.map (fun filter ->
-        if not showHidden then
-            (List.filter (fun i -> not i.IsHidden) >> filter)
-        else
-            filter
+            match searchInput.Terms |> parseSearchTerms with
+            | Some terms -> Ok (filterByTerms false searchInput.CaseSensitive terms (fun item -> item.Name))
+            | None -> Ok id
+    filterRes |> Result.map (
+        applyIf (not showHidden) (fun filter ->
+            List.filter (fun i -> not i.IsHidden) >> filter
+        )
     )
 
 let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) isCancelled

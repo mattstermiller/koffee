@@ -12,7 +12,7 @@ let fs = FakeFileSystem [
     folder "temporary" []
 ]
 
-let folders = fs.ItemsIn "/c" |> List.map (fun i -> { PathValue = i.Path; IsDirectory = true })
+let folders = fs.ItemsIn "/c" |> List.map (fun i -> i.HistoryPath)
 
 let history =
     folders @ (
@@ -29,7 +29,8 @@ let suggestPaths fsReader model =
     |> Async.RunSynchronously
 
 let testCases () =
-    [   ("/c", [])
+    [
+        ("/c", [])
         ("/c/", folders)
         ("/c/ ", folders)
         ("/c/old", [ folders.[0] ])
@@ -51,14 +52,16 @@ let testCases () =
             folders.[0]
             folders.[2]
         ])
-        ("", [])
         ("gram", [
             history.[6]
             history.[1]
             history.[4]
         ])
         ("invalid/gram", [])
-    ] |> List.map (fun (inp, exp) -> TestCaseData(inp, exp))
+        ("", [])
+        (" ", [])
+    ]
+    |> List.map (fun (input, expected) -> TestCaseData(input, expected))
 
 [<TestCaseSource(nameof testCases)>]
 let ``Path suggestions return expected results`` input expected =
@@ -89,7 +92,7 @@ let ``Path suggestions cache folder listings`` () =
     let model =
         { testModel with
             LocationInput = "/c/"
-            PathSuggestCache = Some (createPath "/c/", Ok (folders |> List.map (fun hp -> hp.PathValue)))
+            PathSuggestCache = Some (createPath "/c/", Ok folders)
         }
 
     let cacheHit = suggestPaths fs model

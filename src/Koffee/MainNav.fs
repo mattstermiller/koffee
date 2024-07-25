@@ -271,39 +271,40 @@ let sortList field model =
     |> moveCursor cursor
 
 let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
-    let getSuggestions search (paths: HistoryPath list) =
-        paths |> filterByTerms true false search (fun p -> p.PathValue.Name)
-    let dirAndSearch =
-        model.LocationInput
+    let (|DirectorySearch|_|) input =
+        input
         |> String.replace @"\" "/"
         |> String.lastIndexOf "/"
         |> Option.ofCond (flip (>=) 0)
-        |> Option.map (fun i ->
-            let dir = model.LocationInput |> String.substring 0 i
-            let search = model.LocationInput |> String.substringFrom (i + 1)
-            (dir, search)
-        )
-    match dirAndSearch with
-    | Some (dir, search) ->
-        match dir |> Path.Parse with
-        | Some dir ->
-            let! pathsRes =
-                match model.PathSuggestCache with
-                | Some (cachePath, cache) when cachePath = dir -> async { return cache }
-                | _ -> runAsync (fun () ->
+        |> Option.bind (fun i -> option {
+            let! dir = input |> String.substring 0 i |> Path.Parse
+            let terms = input |> String.substringFrom (i + 1) |> parseSearchTerms
+            return (dir, terms)
+        })
+    let (|Terms|_|) input =
+        if input |> Seq.exists (Seq.containedIn ['\\'; '/'])
+        then None
+        else parseSearchTerms input
+    let getSuggestions terms (paths: HistoryPath list) =
+        paths |> filterByTerms true false terms (fun p -> p.PathValue.Name)
+    match model.LocationInput with
+    | DirectorySearch (dir, terms) ->
+        let! pathsRes =
+            match model.PathSuggestCache with
+            | Some (cachePath, cache) when cachePath = dir ->
+                async { return cache }
+            | _ ->
+                runAsync (fun () ->
                     fsReader.GetFolders dir
-                    |> Result.map Item.paths
+                    |> Result.map (List.map (fun i -> i.HistoryPath))
                     |> Result.mapError (fun e -> e.Message)
                 )
-            let toHistory p = { PathValue = p; IsDirectory = true }
-            let suggestions = pathsRes |> Result.map (List.map toHistory >> getSuggestions search)
-            yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (dir, pathsRes) }
-        | None ->
-            yield { model with PathSuggestions = Ok [] }
-    | None when model.LocationInput |> String.isNotEmpty ->
-        let suggestions = getSuggestions model.LocationInput model.History.Paths
+        let suggestions = pathsRes |> Result.map (Option.foldBack getSuggestions terms)
+        yield { model with PathSuggestions = suggestions; PathSuggestCache = Some (dir, pathsRes) }
+    | Terms terms ->
+        let suggestions = getSuggestions terms model.History.Paths
         yield { model with PathSuggestions = Ok suggestions }
-    | None ->
+    | _ ->
         yield { model with PathSuggestions = Ok [] }
 }
 

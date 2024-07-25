@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -34,6 +34,11 @@ type ItemType =
 
     override this.ToString() = this.Name
 
+    member this.IsDirectory =
+        match this with
+        | Drive | Folder | NetHost | NetShare -> true
+        | _ -> false
+
     member this.Symbol =
         match this with
         | File -> "📄"
@@ -41,6 +46,31 @@ type ItemType =
         | Drive -> "💿"
         | NetHost -> "💻"
         | Empty -> ""
+
+[<CustomEquality; NoComparison>]
+type HistoryPath = {
+    PathValue: Path
+    IsDirectory: bool
+}
+with
+    member this.Format pathFormat =
+        if this.IsDirectory
+        then this.PathValue.FormatFolder pathFormat
+        else this.PathValue.Format pathFormat
+
+    interface IEquatable<HistoryPath> with
+        member this.Equals other = other.PathValue.Equals this.PathValue
+
+    override this.Equals other =
+        match other with
+        | :? HistoryPath as other -> (this :> IEquatable<HistoryPath>).Equals other
+        | _ -> false
+
+    override this.GetHashCode () = this.PathValue.GetHashCode()
+
+    static member Parse str =
+        Path.Parse str
+        |> Option.map (fun path -> { PathValue = path; IsDirectory = str.EndsWith @"\" || str.EndsWith "/" })
 
 type ItemRef = {
     Path: Path
@@ -73,6 +103,8 @@ with
     member this.SizeFormatted = this.Size |> Option.map Format.fileSize |? ""
 
     member this.Ref = { Path = this.Path; Type = this.Type }
+
+    member this.HistoryPath = { PathValue = this.Path; IsDirectory = this.Type.IsDirectory }
 
     static member Empty =
         { Path = Path.Root; Name = ""; Type = Empty
@@ -735,31 +767,6 @@ with
 
     static member toTuple sort = (sort.Sort, sort.Descending)
 
-[<CustomEquality; NoComparison>]
-type HistoryPath = {
-    PathValue: Path
-    IsDirectory: bool
-}
-with
-    member this.Format pathFormat =
-        if this.IsDirectory
-        then this.PathValue.FormatFolder pathFormat
-        else this.PathValue.Format pathFormat
-
-    interface IEquatable<HistoryPath> with
-        member this.Equals other = other.PathValue.Equals this.PathValue
-
-    override this.Equals other =
-        match other with
-        | :? HistoryPath as other -> (this :> IEquatable<HistoryPath>).Equals other
-        | _ -> false
-
-    override this.GetHashCode () = this.PathValue.GetHashCode()
-
-    static member Parse str =
-        Path.Parse str
-        |> Option.map (fun path -> { PathValue = path; IsDirectory = str.EndsWith @"\" || str.EndsWith "/" })
-
 type History = {
     Paths: HistoryPath list
     Searches: Search list
@@ -848,7 +855,7 @@ type MainModel = {
     Location: Path
     LocationInput: string
     PathSuggestions: Result<HistoryPath list, string>
-    PathSuggestCache: (Path * Result<Path list, string>) option
+    PathSuggestCache: (Path * Result<HistoryPath list, string>) option
     Status: MainStatus.StatusType option
     StatusHistory: MainStatus.StatusType list
     Directory: Item list

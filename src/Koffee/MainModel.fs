@@ -869,9 +869,9 @@ type MainModel = {
     SearchCurrent: Search option
     SubDirectories: Item list option
     SearchHistoryIndex: int option
+    HistoryDisplay: HistoryDisplayType option
     BackStack: (Path * int) list
     ForwardStack: (Path * int) list
-    ShowHistoryType: HistoryDisplayType option
     UndoStack: ItemAction list
     RedoStack: ItemAction list
     CancelToken: CancelToken
@@ -952,7 +952,7 @@ type MainModel = {
         SearchHistoryIndex = None
         BackStack = []
         ForwardStack = []
-        ShowHistoryType = None
+        HistoryDisplay = None
         UndoStack = []
         RedoStack = []
         CancelToken = CancelToken()
@@ -993,6 +993,10 @@ type MainModel = {
 
     static member clearSelection (this: MainModel) =
         { this with SelectedItems = []; PreviousSelectIndexAndToggle = None }
+
+    static member toggleHistoryDisplay historyType model =
+        let display = if model.HistoryDisplay = Some historyType then None else Some historyType
+        { model with HistoryDisplay = display }
 
     static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
         match actionStack with
@@ -1134,7 +1138,7 @@ type MainEvents =
     | Forward
     | Refresh
     | DeletePathSuggestion of HistoryPath
-    | ShowHistory of HistoryDisplayType
+    | ToggleHistory of HistoryDisplayType
     | StartPrompt of PromptType
     | StartConfirm of ConfirmType
     | StartInput of InputType
@@ -1235,9 +1239,9 @@ type MainEvents =
         OpenCommandLine, "Open Windows Commandline at Current Location"
         Undo, "Undo Action"
         Redo, "Redo Action"
-        ShowHistory NavHistory, "Show Navigation History"
-        ShowHistory UndoHistory, "Show Undo/Redo History"
-        ShowHistory StatusHistory, "Show Status History"
+        ToggleHistory NavHistory, "Show Navigation History"
+        ToggleHistory UndoHistory, "Show Undo/Redo History"
+        ToggleHistory StatusHistory, "Show Status History"
         OpenSplitScreenWindow, "Open New Window for Split Screen"
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"

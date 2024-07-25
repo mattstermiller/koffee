@@ -152,7 +152,7 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
 }
 
 let clearSearch (model: MainModel) =
-    { model with ShowHistoryType = None }
+    { model with HistoryDisplay = None }
     |> clearSearchProps
     |> Nav.listDirectory model.KeepCursorByPath
 

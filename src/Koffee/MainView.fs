@@ -311,7 +311,7 @@ module MainView =
             )
             Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
-            Bind.modelMulti(<@ model.ShowHistoryType, model.Location, model.BackStack, model.ForwardStack,
+            Bind.modelMulti(<@ model.HistoryDisplay, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
                                model.StatusHistory, model.PathFormat @>)
                 .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses, pathFormat) ->

@@ -198,7 +198,7 @@ let inputHistory offset model =
             InputTextSelection = (search.Terms.Length, 0)
             SearchInput = search
             SearchHistoryIndex = index
-            ShowHistoryType = index |> Option.map (cnst SearchHistory)
+            HistoryDisplay = index |> Option.map (cnst SearchHistory)
         }
     | _ -> model
 
@@ -212,7 +212,7 @@ let inputDelete isShifted cancelInput model =
     | Some (Prompt SetSavedSearch) ->
         cancelInput ()
         { model with InputMode = Some (Prompt DeleteSavedSearch) }
-    | Some (Input Search) when isShifted && model.ShowHistoryType = Some SearchHistory ->
+    | Some (Input Search) when isShifted && model.HistoryDisplay = Some SearchHistory ->
         match model.SearchHistoryIndex with
         | Some index ->
             model
@@ -239,7 +239,7 @@ let submitInput fs os model = asyncSeqResult {
                 SearchCurrent = if search.IsNone then None else model.SearchCurrent
                 SearchHistoryIndex = Some 0
                 History = model.History |> Option.foldBack (History.withSearch model.Config.Limits.SearchHistory) search
-                ShowHistoryType = None
+                HistoryDisplay = None
             }
     | Some (Input CreateFile) ->
         let model = { model with InputMode = None }
@@ -267,8 +267,8 @@ let escape model =
         { model with InputMode = None }
     else if not model.KeyCombo.IsEmpty || model.RepeatCommand.IsSome then
         model |> MainModel.withoutKeyCombo
-    else if model.ShowHistoryType.IsSome then
-        { model with ShowHistoryType = None }
+    else if model.HistoryDisplay.IsSome then
+        { model with HistoryDisplay = None }
     else if not model.SelectedItems.IsEmpty then
         model |> MainModel.clearSelection
     else
@@ -292,7 +292,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                     model
                     |> MainModel.withoutKeyCombo
                     // hide history if input prompt is opened
-                    |> applyIf model.InputMode.IsSome (fun m -> { m with ShowHistoryType = None })
+                    |> applyIf model.InputMode.IsSome (fun m -> { m with HistoryDisplay = None })
                 (Some newEvent, modelFunc)
             | KeyBinding.PartialMatch ->
                 handleKey ()
@@ -393,10 +393,10 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | Back -> Sync (Nav.back fs)
             | Forward -> Sync (Nav.forward fs)
             | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
-            | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
             | Undo -> AsyncResult (Action.undo fs progress)
             | Redo -> AsyncResult (Action.redo fs progress)
-            | ShowHistory typ -> Sync (fun m -> { m with ShowHistoryType = if m.ShowHistoryType <> Some typ then Some typ else None })
+            | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
+            | ToggleHistory typ -> Sync (MainModel.toggleHistoryDisplay typ)
             | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
             | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
             | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))

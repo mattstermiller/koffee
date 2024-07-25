@@ -15,16 +15,23 @@ let parseSearchTerms searchInput =
     |> Option.ofString
     |> Option.map (String.split ' ' >> Array.toList)
 
-let filterByTerms sortByStartsWith caseSensitive terms projection items =
+let filterByTerms sortByStartsWith caseSensitive (terms: string list) projection items =
     let contains = if caseSensitive then String.contains else String.containsIgnoreCase
     let startsWith = if caseSensitive then String.startsWith else String.startsWithIgnoreCase
-    let matches = items |> List.filter (fun i -> terms |> List.forall (fun t -> projection i |> contains t))
+    let containsAllTerms terms s =
+        terms |> List.forall (fun term -> s |> contains term)
+    let itemsFilteredByProjection predicate =
+        items |> Seq.filter (projection >> predicate)
     if sortByStartsWith then
-        matches |> List.sortBy (fun i ->
-            if projection i |> startsWith terms.[0] then 0 else 1
-        )
+        Seq.append
+            (itemsFilteredByProjection (fun p ->
+                p |> startsWith terms.[0] && p |> containsAllTerms (terms |> List.skip 1)
+            ))
+            (itemsFilteredByProjection (fun p ->
+                not (p |> startsWith terms.[0]) && p |> containsAllTerms terms
+            ))
     else
-        matches
+        itemsFilteredByProjection (containsAllTerms terms)
 
 let clearSearchProps (model: MainModel) =
     if model.IsSearchingSubFolders then

@@ -286,7 +286,10 @@ let suggestPaths (fsReader: IFileSystemReader) (model: MainModel) = asyncSeq {
         then None
         else parseSearchTerms input
     let getSuggestions terms (paths: HistoryPath list) =
-        paths |> filterByTerms true false terms (fun p -> p.PathValue.Name)
+        paths
+        |> filterByTerms true false terms (fun p -> p.PathValue.Name)
+        |> Seq.truncate 20
+        |> Seq.toList
     match model.LocationInput with
     | DirectorySearch (dir, terms) ->
         let! pathsRes =

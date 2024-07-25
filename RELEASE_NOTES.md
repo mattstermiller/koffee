@@ -15,6 +15,7 @@
 - Fixes drive not being selected when opening parent
 - Fixes refresh error to replace item list with error message
 - Fixes Refresh window on focus with recursive search to refresh current directory
+- Fixes path suggestions to limit results and ignore whitespace input instead of matching everything
 - Fixes name sorting to not ignore hyphens
 - Undo/redo now reports status for each iteration so they can be seen in status history
 - Various optimizations for file write operations

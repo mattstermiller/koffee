@@ -50,7 +50,7 @@ let getFilter showHidden searchInput =
             | Error ex -> Error (InvalidRegex ex.Message)
         else
             match searchInput.Terms |> parseSearchTerms with
-            | Some terms -> Ok (filterByTerms false searchInput.CaseSensitive terms (fun item -> item.Name))
+            | Some terms -> Ok (filterByTerms false searchInput.CaseSensitive terms (fun item -> item.Name) >> Seq.toList)
             | None -> Ok id
     filterRes |> Result.map (
         applyIf (not showHidden) (fun filter ->

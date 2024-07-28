@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -974,14 +974,16 @@ type MainModel = {
         { this with Location = path; LocationInput = path.FormatFolder this.PathFormat }
 
     static member withPushedLocation path (this: MainModel) =
-        if path <> this.Location then
-            { this with
-                BackStack = (this.Location, this.Cursor) :: this.BackStack |> List.truncate this.Config.Limits.Back
-                ForwardStack = []
-                Cursor = 0
-            }
-            |> MainModel.withLocation path
-        else this
+        let model =
+            if path <> this.Location then
+                { this with
+                    BackStack = (this.Location, this.Cursor) :: this.BackStack |> List.truncate this.Config.Limits.Back
+                    ForwardStack = []
+                    Cursor = 0
+                }
+            else
+                this
+        model |> MainModel.withLocation path
 
     static member withCursor index (this: MainModel) =
         { this with Cursor = index |> this.ClampCursor }

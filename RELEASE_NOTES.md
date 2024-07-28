@@ -13,6 +13,7 @@
 - Fixes Find input error not going away after using Go To Next Find Match
 - Fixes Back and Forward to not leave inaccessible paths on stack
 - Fixes drive not being selected when opening parent
+- Fixes location input not getting set when opening same folder
 - Fixes refresh error to replace item list with error message
 - Fixes Refresh window on focus with recursive search to refresh current directory
 - Fixes path suggestions to limit results and ignore whitespace input instead of matching everything

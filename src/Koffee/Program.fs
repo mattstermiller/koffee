@@ -39,7 +39,7 @@ let run args =
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
     let controller =
         MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
-            DataGridScroller(window.ItemGrid), Settings.showDialog, closeWindow, options)
+            DataGridScroller(window.ItemGrid), Settings.showDialog window, closeWindow, options)
     Application().Run(window, controller.Start) |> ignore
 
 [<EntryPoint>]

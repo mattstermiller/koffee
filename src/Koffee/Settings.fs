@@ -7,6 +7,7 @@ open VinylUI
 open VinylUI.Wpf
 open Acadian.FSharp
 open UIHelpers
+open KoffeeUI
 
 type KeyBind = {
     EventName: string
@@ -25,47 +26,45 @@ type Events =
     | PathFormatChanged of PathFormat
     | EditSearchExclusions
 
-type View = KoffeeUI.SettingsWindow
+let private binder (window: SettingsWindow) model =
+    window.KeyBindings.AddColumn(<@ fun k -> k.EventName @>, "Command", widthWeight = 3.0)
+    window.KeyBindings.AddColumn(<@ fun k -> k.BoundKeys @>, "Bound Keys")
 
-let private binder (view: View) model =
-    view.KeyBindings.AddColumn(<@ fun k -> k.EventName @>, "Command", widthWeight = 3.0)
-    view.KeyBindings.AddColumn(<@ fun k -> k.BoundKeys @>, "Bound Keys")
-
-    view.PreviewKeyDown.Add (onKey Key.Escape view.Close)
-    view.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W view.Close)
+    window.PreviewKeyDown.Add (onKey Key.Escape window.Close)
+    window.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W window.Close)
 
     let check (ctl: ToggleButton) =
         ctl.IsChecked <- Nullable true
-    check (if model.Config.StartPath = RestorePrevious then view.StartPathPrevious else view.StartPathDefault)
-    check (if model.Config.PathFormat = Windows then view.PathFormatWindows else view.PathFormatUnix)
+    check (if model.Config.StartPath = RestorePrevious then window.StartPathPrevious else window.StartPathDefault)
+    check (if model.Config.PathFormat = Windows then window.PathFormatWindows else window.PathFormatUnix)
 
     let isChecked (ic: bool Nullable) = ic.HasValue && ic.Value
     let validatePath = Path.Parse >> Result.ofOption "Invalid path format."
 
-    [   Bind.view(<@ view.DefaultPath.Text @>)
+    [   Bind.view(<@ window.DefaultPath.Text @>)
             .toModelResult(<@ model.DefaultPath @>, validatePath, string)
-        Bind.view(<@ view.CommandlinePath.Text @>).toModel(<@ model.Config.CommandlinePath @>)
-        Bind.view(<@ view.TextEditor.Text @>).toModel(<@ model.Config.TextEditor @>)
+        Bind.view(<@ window.CommandlinePath.Text @>).toModel(<@ model.Config.CommandlinePath @>)
+        Bind.view(<@ window.TextEditor.Text @>).toModel(<@ model.Config.TextEditor @>)
 
-        Bind.view(<@ view.ShowFullPathInTitleBar.IsChecked @>)
+        Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>)
             .toModel(<@ model.Config.Window.ShowFullPathInTitle @>, isChecked, Nullable)
-        Bind.view(<@ view.ShowHidden.IsChecked @>)
+        Bind.view(<@ window.ShowHidden.IsChecked @>)
             .toModel(<@ model.Config.ShowHidden @>, isChecked, Nullable)
-        Bind.view(<@ view.RefreshOnActivate.IsChecked @>)
+        Bind.view(<@ window.RefreshOnActivate.IsChecked @>)
             .toModel(<@ model.Config.Window.RefreshOnActivate @>, isChecked, Nullable)
 
-        Bind.model(<@ model.KeyBindings @>).toItemsSource(view.KeyBindings, <@ fun kb -> kb.BoundKeys, kb.EventName @>)
+        Bind.model(<@ model.KeyBindings @>).toItemsSource(window.KeyBindings, <@ fun kb -> kb.BoundKeys, kb.EventName @>)
     ]
 
 module Obs = Observable
 
-let private events (view: View) =
-    [ view.StartPathPrevious.Checked |> Obs.mapTo (StartPathChanged RestorePrevious)
-      view.StartPathDefault.Checked |> Obs.mapTo (StartPathChanged DefaultPath)
-      view.DefaultPath.LostFocus |> Obs.mapTo DefaultPathChanged
-      view.EditSearchExclusions.Click |> Obs.mapTo EditSearchExclusions
-      view.PathFormatWindows.Checked |> Obs.mapTo (PathFormatChanged Windows)
-      view.PathFormatUnix.Checked |> Obs.mapTo (PathFormatChanged Unix)
+let private events (window: SettingsWindow) =
+    [ window.StartPathPrevious.Checked |> Obs.mapTo (StartPathChanged RestorePrevious)
+      window.StartPathDefault.Checked |> Obs.mapTo (StartPathChanged DefaultPath)
+      window.DefaultPath.LostFocus |> Obs.mapTo DefaultPathChanged
+      window.EditSearchExclusions.Click |> Obs.mapTo EditSearchExclusions
+      window.PathFormatWindows.Checked |> Obs.mapTo (PathFormatChanged Windows)
+      window.PathFormatUnix.Checked |> Obs.mapTo (PathFormatChanged Unix)
     ]
 
 let updateConfig f (model: Model) =
@@ -109,4 +108,5 @@ let private start (config: Config) view =
     }
     Framework.start binder events dispatcher view model
 
-let showDialog config = View().ShowDialog(start config).Config
+let showDialog parent config =
+    SettingsWindow(Owner = parent).ShowDialog(start config).Config

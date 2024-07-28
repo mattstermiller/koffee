@@ -15,9 +15,10 @@
 - Fixes drive not being selected when opening parent
 - Fixes location input not getting set when opening same folder
 - Fixes refresh error to replace item list with error message
-- Fixes Refresh window on focus with recursive search to refresh current directory
+- Fixes "Refresh window on focus" with recursive search to refresh current directory
 - Fixes path suggestions to limit results and ignore whitespace input instead of matching everything
 - Fixes name sorting to not ignore hyphens
+- Fixes focus not getting forced from main window to settings window when open
 - Undo/redo now reports status for each iteration so they can be seen in status history
 - Various optimizations for file write operations
 

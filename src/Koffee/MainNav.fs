@@ -66,7 +66,7 @@ let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
         |> Ok
     else
         fsReader.GetItems path
-        |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, model.PathFormat, e))
+        |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, e))
 
 let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
     match getDirectory fsReader model path with
@@ -84,7 +84,7 @@ let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
     | Error e when path = model.Location ->
         { model with
             Directory = []
-            Items = Item.EmptyFolderWithMessage e.Message path
+            Items = Item.EmptyFolderWithMessage (e.Message model.PathFormat) path
             SelectedItems = []
         }
         |> MainModel.withError e
@@ -211,7 +211,7 @@ let refreshDirectory fsReader (model: MainModel) =
     getDirectory fsReader model model.Location
     |> function
         | Ok items -> items
-        | Error e -> Item.EmptyFolderWithMessage e.Message model.Location
+        | Error e -> Item.EmptyFolderWithMessage (e.Message model.PathFormat) model.Location
     |> fun items -> { model with Directory = items }
 
 let rec private shiftStacks n current fromStack toStack =

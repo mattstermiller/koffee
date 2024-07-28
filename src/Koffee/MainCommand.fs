@@ -79,7 +79,7 @@ let openCommandLine (os: IOperatingSystem) model = result {
     if model.Location <> Path.Root then
         do! os.LaunchApp model.Config.CommandlinePath model.Location ""
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Commandline tool", e))
-        return model |> MainModel.withMessage (MainStatus.OpenCommandLine model.LocationFormatted)
+        return model |> MainModel.withMessage (MainStatus.OpenCommandLine model.Location)
     else return model
 }
 

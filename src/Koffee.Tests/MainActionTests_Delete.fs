@@ -84,7 +84,7 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             RedoStack = []
             CancelToken = CancelToken()
         }
-        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
         |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -153,7 +153,7 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
             RedoStack = []
             CancelToken = CancelToken()
         }
-        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
         |> withHistoryPaths (historyPaths {
             "/c/folder1/"
             "/c/file4"
@@ -210,7 +210,7 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             RedoStack = []
             CancelToken = CancelToken()
         }
-        |> MainModel.withMessage (MainStatus.ActionComplete (expectedAction, model.PathFormat))
+        |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
         |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -300,8 +300,8 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
         }
         |> MainModel.withMessage (
             if isRedo
-            then MainStatus.RedoAction (expectedAction, model.PathFormat, 1, 1)
-            else MainStatus.ActionComplete (expectedAction, model.PathFormat)
+            then MainStatus.RedoAction (expectedAction, 1, 1)
+            else MainStatus.ActionComplete expectedAction
         )
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
@@ -379,8 +379,8 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
         }
         |> MainModel.withMessage (
             if isRedo
-            then MainStatus.RedoAction (action, model.PathFormat, 1, 1)
-            else MainStatus.ActionComplete (action, model.PathFormat)
+            then MainStatus.RedoAction (action, 1, 1)
+            else MainStatus.ActionComplete action
         )
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

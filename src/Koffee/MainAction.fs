@@ -11,12 +11,12 @@ let private performedAction action (model: MainModel) =
     model
     |> MainModel.pushUndo action
     |> MainModel.withRedoStack []
-    |> MainModel.withMessage (MainStatus.ActionComplete (action, model.PathFormat))
+    |> MainModel.withMessage (MainStatus.ActionComplete action)
 
 let private performedUndo undoIter action (model: MainModel) =
     model
     |> MainModel.pushRedo action
-    |> MainModel.withMessage (MainStatus.UndoAction (action, model.PathFormat, undoIter, model.RepeatCount))
+    |> MainModel.withMessage (MainStatus.UndoAction (action, undoIter, model.RepeatCount))
 
 let private ignoreError f model =
     f model |> Result.defaultValue model
@@ -107,10 +107,10 @@ let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = resu
 let create (fs: IFileSystem) itemType name model = asyncSeqResult {
     let itemPath = model.Location.Join name
     let action = CreatedItem (Item.Basic itemPath name itemType)
-    let! existing = fs.GetItem itemPath |> itemActionError action model.PathFormat
+    let! existing = fs.GetItem itemPath |> itemActionError action
     match existing with
     | None ->
-        do! fs.Create itemType itemPath |> itemActionError action model.PathFormat
+        do! fs.Create itemType itemPath |> itemActionError action
         let model = model |> performedAction action
         yield model
         yield! Nav.openPath fs model.Location (CursorToPath (itemPath, false)) model
@@ -124,7 +124,7 @@ let undoCreate (fs: IFileSystem) undoIter item (model: MainModel) = asyncSeqResu
         return MainStatus.CannotUndoNonEmptyCreated item
     yield model |> MainModel.withBusy (MainStatus.UndoingCreate item)
     let! res = runAsync (fun () -> fs.Delete item.Type item.Path)
-    do! res |> itemActionError (DeletedItems (true, [item], false)) model.PathFormat
+    do! res |> itemActionError (DeletedItems (true, [item], false))
     yield
         model
         |> MainModel.mapHistory (History.withoutPaths [item.Path])
@@ -139,10 +139,10 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
         let! existing =
             if String.equalsIgnoreCase item.Name newName
             then Ok None
-            else fs.GetItem newPath |> itemActionError action model.PathFormat
+            else fs.GetItem newPath |> itemActionError action
         match existing with
         | None ->
-            do! fs.Move item.Type item.Path newPath |> itemActionError action model.PathFormat
+            do! fs.Move item.Type item.Path newPath |> itemActionError action
             let newItem = { item with Name = newName; Path = newPath }
             let substitute = List.map (fun i -> if i = item then newItem else i)
             return
@@ -167,10 +167,10 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
     let action = RenamedItem (item, oldItem.Name)
     let! existing =
         if String.equalsIgnoreCase oldItem.Name currentName then Ok None
-        else fs.GetItem oldItem.Path |> itemActionError action model.PathFormat
+        else fs.GetItem oldItem.Path |> itemActionError action
     match existing with
     | None ->
-        do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action model.PathFormat
+        do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action
         return
             model
             |> MainModel.mapHistory (History.withPathReplaced item.Path oldItem.Path)
@@ -437,9 +437,9 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
                 |> Option.defaultWith (fun () ->
                     match undoIter with
                     | Some iter ->
-                        MainStatus.Message (MainStatus.UndoAction (action, model.PathFormat, iter, model.RepeatCount))
+                        MainStatus.Message (MainStatus.UndoAction (action, iter, model.RepeatCount))
                     | None ->
-                        MainStatus.Message (MainStatus.ActionComplete (action, model.PathFormat))
+                        MainStatus.Message (MainStatus.ActionComplete action)
                 )
         yield
             model
@@ -533,7 +533,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
             |> applyIf (isRedo && not intent.Overwrite) (List.map blockRedoIfDestExists)
             |> Result.partition
         if putType = Move || putType = Copy then
-            yield model |> MainModel.withBusy (MainStatus.PuttingItem ((putType = Copy), isRedo, intent, model.PathFormat))
+            yield model |> MainModel.withBusy (MainStatus.PuttingItem ((putType = Copy), isRedo, intent))
         yield! performPut fs progress None enumErrors putType intent putItems model
 }
 
@@ -570,7 +570,7 @@ let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult
 let undoMove (fs: IFileSystem) progress undoIter intent (moved: PutItem list) (model: MainModel) =
     asyncSeqResult {
         let model = { model with CancelToken = CancelToken() }
-        yield model |> MainModel.withBusy (MainStatus.UndoingPut (false, intent, model.PathFormat))
+        yield model |> MainModel.withBusy (MainStatus.UndoingPut (false, intent))
         let! items, existErrors = runAsync (fun () ->
             moved
             |> Seq.takeWhile (fun _ -> not model.CancelToken.IsCancelled)
@@ -608,7 +608,7 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
     // skip items that existed before the copy
     let itemsToDelete = copied |> List.filter (fun pi -> not pi.DestExists)
     let model = { model with CancelToken = CancelToken() }
-    yield model |> MainModel.withBusy (MainStatus.UndoingPut (true, intent, model.PathFormat))
+    yield model |> MainModel.withBusy (MainStatus.UndoingPut (true, intent))
     // delete items in reverse order so that parent folders are deleted after their children
     let! results = performUndoCopy fs progress model.CancelToken (itemsToDelete |> List.rev)
     let succeeded, errors = results |> Result.partition |> mapFst List.rev
@@ -626,7 +626,7 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
         else if model.CancelToken.IsCancelled then
             MainStatus.Message (MainStatus.CancelledPut (Copy, true, succeeded.Length, itemsToDelete.Length))
         else
-            MainStatus.Message (MainStatus.UndoAction (action, model.PathFormat, undoIter, model.RepeatCount))
+            MainStatus.Message (MainStatus.UndoAction (action, undoIter, model.RepeatCount))
     let pathHistoryToRemove = (succeeded |> List.map (fun pi -> pi.Dest))
     yield
         model
@@ -640,7 +640,7 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
 let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainModel) = result {
     let item = Item.Basic shortcutPath shortcutPath.Name File
     let action = DeletedItems (true, [item], false)
-    do! fs.Delete File shortcutPath |> itemActionError action model.PathFormat
+    do! fs.Delete File shortcutPath |> itemActionError action
     return
         model
         |> MainModel.mapHistory (History.withoutPaths [shortcutPath])
@@ -658,7 +658,7 @@ let clipCopy (os: IOperatingSystem) (model: MainModel) = result {
         return model
     else
         do! os.CopyToClipboard paths |> actionError "copy to clipboard"
-        return model |> MainModel.withMessage (MainStatus.ClipboardCopy (paths, model.PathFormat))
+        return model |> MainModel.withMessage (MainStatus.ClipboardCopy paths)
 }
 
 let private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) =
@@ -730,7 +730,7 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
         else if model.CancelToken.IsCancelled then
             MainStatus.Message (MainStatus.CancelledDelete (permanent, deletedCount, totalCount))
         else
-            MainStatus.Message (MainStatus.ActionComplete (DeletedItems (permanent, items, false), model.PathFormat))
+            MainStatus.Message (MainStatus.ActionComplete (DeletedItems (permanent, items, false)))
 
     progress.Finish ()
     yield
@@ -846,8 +846,8 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
         let status, statusHistory =
             match model.Status with
-            | Some (MainStatus.Message (MainStatus.ActionComplete (action, _))) ->
-                let status = MainStatus.Message (MainStatus.RedoAction (action, model.PathFormat, iter, model.RepeatCount))
+            | Some (MainStatus.Message (MainStatus.ActionComplete action)) ->
+                let status = MainStatus.Message (MainStatus.RedoAction (action, iter, model.RepeatCount))
                 (Some status, status :: model.StatusHistory.Tail)
             | status -> (status, model.StatusHistory)
         let model =

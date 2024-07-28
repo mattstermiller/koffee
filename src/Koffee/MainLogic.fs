@@ -60,7 +60,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
     let withBookmark char model =
         model
         |> MainModel.mapConfig (Config.withBookmark char model.Location)
-        |> MainModel.withMessage (MainStatus.SetBookmark (char, model.LocationFormatted))
+        |> MainModel.withMessage (MainStatus.SetBookmark (char, model.Location))
     let withSavedSearch char search model =
         model
         |> MainModel.mapConfig (Config.withSavedSearch char search)
@@ -106,7 +106,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                 yield
                     model
                     |> MainModel.mapConfig (Config.withoutBookmark char)
-                    |> MainModel.withMessage (MainStatus.DeletedBookmark (char, (path.Format model.PathFormat)))
+                    |> MainModel.withMessage (MainStatus.DeletedBookmark (char, path))
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
         | GoToSavedSearch ->

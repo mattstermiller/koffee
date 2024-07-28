@@ -7,7 +7,7 @@ type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
 let actionError actionName = Result.mapError (fun e -> MainStatus.ActionError (actionName, e))
-let itemActionError action pathFormat = Result.mapError (fun e -> MainStatus.ItemActionError (action, pathFormat, e))
+let itemActionError action = Result.mapError (fun e -> MainStatus.ItemActionError (action, e))
 
 let parseSearchTerms searchInput =
     searchInput

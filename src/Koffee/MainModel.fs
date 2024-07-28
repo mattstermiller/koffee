@@ -355,6 +355,7 @@ type CursorMoveType =
 type InputError =
     | FindFailure of prefix: string
     | InvalidRegex of error: string
+with
     member this.Message =
         match this with
         | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
@@ -379,7 +380,7 @@ module MainStatus =
     let private describeList strs =
         Seq.describeAndCount 5 id strs
 
-    let private actionCompleteMessage action pathFormat =
+    let private actionCompleteMessage pathFormat action =
         match action with
         | CreatedItem item ->
             sprintf "Created %s" item.Description
@@ -400,16 +401,16 @@ module MainStatus =
         // Navigation
         | Find of prefix: string * repeatCount: int
         | NoBookmark of Char
-        | SetBookmark of Char * path: string
-        | DeletedBookmark of Char * path: string
+        | SetBookmark of Char * Path
+        | DeletedBookmark of Char * Path
         | NoSavedSearch of Char
         | SetSavedSearch of Char * Search
         | DeletedSavedSearch of Char * Search
 
         // Actions
-        | ActionComplete of ItemAction * PathFormat
-        | UndoAction of ItemAction * PathFormat * repeatIter: int * repeatCount: int
-        | RedoAction of ItemAction * PathFormat * repeatIter: int * repeatCount: int
+        | ActionComplete of ItemAction
+        | UndoAction of ItemAction * repeatIter: int * repeatCount: int
+        | RedoAction of ItemAction * repeatIter: int * repeatCount: int
         | CancelledConfirm of ConfirmType
         | CancelledPut of PutType * isUndo: bool * completed: int * total: int
         | CancelledDelete of permanent: bool * completed: int * total: int
@@ -418,9 +419,9 @@ module MainStatus =
         | OpenFiles of names: string list
         | OpenProperties of names: string list
         | OpenExplorer
-        | OpenCommandLine of path: string
+        | OpenCommandLine of Path
         | OpenTextEditor of names: string list
-        | ClipboardCopy of paths: Path list * PathFormat
+        | ClipboardCopy of paths: Path list
         | RemovedNetworkHosts of names: string list
 
         member private this.DescribeCancelledProgress action completed total =
@@ -428,7 +429,7 @@ module MainStatus =
             then "nothing done"
             else sprintf "%i of %i already %s" completed total action
 
-        member this.Message =
+        member this.Message pathFormat =
             match this with
             | Find (prefix, repeatCount) ->
                 if repeatCount = 1
@@ -437,29 +438,29 @@ module MainStatus =
             | NoBookmark char ->
                 sprintf "Bookmark \"%c\" not set" char
             | SetBookmark (char, path) ->
-                sprintf "Set bookmark \"%c\" to %s" char path
+                sprintf "Set bookmark \"%c\" to %s" char (path.Format pathFormat)
             | DeletedBookmark (char, path) ->
-                sprintf "Deleted bookmark \"%c\" that was set to %s" char path
+                sprintf "Deleted bookmark \"%c\" that was set to %s" char (path.Format pathFormat)
             | NoSavedSearch char ->
                 sprintf "Saved Search \"%c\" not set" char
             | SetSavedSearch (char, search) ->
                 sprintf "Set saved search \"%c\" to \"%O\"" char search
             | DeletedSavedSearch (char, search) ->
                 sprintf "Deleted saved search \"%c\" that was set to \"%O\"" char search
-            | ActionComplete (action, pathFormat) ->
-                actionCompleteMessage action pathFormat
-            | UndoAction (action, pathFormat, repeatIter, repeatCount) ->
+            | ActionComplete action ->
+                actionCompleteMessage pathFormat action
+            | UndoAction (action, repeatIter, repeatCount) ->
                 let prefix =
                     if repeatCount = 1
                     then "Action undone: "
                     else sprintf "Action %i of %i undone: " repeatIter repeatCount
-                prefix + actionCompleteMessage action pathFormat
-            | RedoAction (action, pathFormat, repeatIter, repeatCount) ->
+                prefix + actionCompleteMessage pathFormat action
+            | RedoAction (action, repeatIter, repeatCount) ->
                 let prefix =
                     if repeatCount = 1
                     then "Action redone: "
                     else sprintf "Action %i of %i redone: " repeatIter repeatCount
-                prefix + actionCompleteMessage action pathFormat
+                prefix + actionCompleteMessage pathFormat action
             | CancelledConfirm confirmType ->
                 let action =
                     match confirmType with
@@ -491,10 +492,10 @@ module MainStatus =
             | OpenExplorer ->
                 "Opened Windows Explorer"
             | OpenCommandLine path ->
-                sprintf "Opened Commandline at: %s" path
+                sprintf "Opened Commandline at: %s" (path.Format pathFormat)
             | OpenTextEditor names ->
                 sprintf "Opened text editor for: %s" (describeList names)
-            | ClipboardCopy (paths, pathFormat) ->
+            | ClipboardCopy paths ->
                 let pathsDescr =
                     match paths with
                     | [path] -> path.Format pathFormat
@@ -504,18 +505,18 @@ module MainStatus =
                 sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
 
     type Busy =
-        | PuttingItem of isCopy: bool * isRedo: bool * PutIntent * PathFormat
+        | PuttingItem of isCopy: bool * isRedo: bool * PutIntent
         | DeletingItems of permanent: bool * Item list
         | PreparingPut of PutType * ItemRef list
         | CheckingIsRecyclable
         | PreparingDelete of Item list
         | UndoingCreate of Item
-        | UndoingPut of isCopy: bool * PutIntent * PathFormat
+        | UndoingPut of isCopy: bool * PutIntent
         | RedoingDeleting of permanent: bool * Item list
 
-        member this.Message =
+        member this.Message pathFormat =
             match this with
-            | PuttingItem (isCopy, isRedo, intent, pathFormat) ->
+            | PuttingItem (isCopy, isRedo, intent) ->
                 let action =
                     if isRedo
                     then sprintf "Redoing %s of" (if isCopy then "copy" else "move")
@@ -532,7 +533,7 @@ module MainStatus =
                 sprintf "Preparing to delete %s..." (items |> Seq.map (fun i -> i.Description) |> describeList)
             | UndoingCreate item ->
                 sprintf "Undoing creation of %s - Deleting..." item.Description
-            | UndoingPut (isCopy, intent, pathFormat) ->
+            | UndoingPut (isCopy, intent) ->
                 let action = if isCopy then "copy" else "move"
                 sprintf "Undoing %s of %s..." action (intent.Description pathFormat)
             | RedoingDeleting (permanent, items) ->
@@ -541,9 +542,9 @@ module MainStatus =
 
     type Error =
         | ActionError of actionName: string * exn
-        | ItemActionError of ItemAction * PathFormat * exn
+        | ItemActionError of ItemAction * exn
         | InvalidPath of string
-        | CouldNotOpenPath of Path * PathFormat * exn
+        | CouldNotOpenPath of Path * exn
         | NoPreviousSearch
         | ShortcutTargetMissing of string
         | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
@@ -576,7 +577,7 @@ module MainStatus =
             | [] ->
                 actionMsg
 
-        member this.Message =
+        member this.Message pathFormat =
             match this with
             | ActionError (action, e) ->
                 let msg =
@@ -584,11 +585,11 @@ module MainStatus =
                     | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
                     | e -> e.Message
                 sprintf "Could not %s: %s" action msg
-            | ItemActionError (action, pathFormat, e) ->
-                (ActionError (action.Description pathFormat, e)).Message
+            | ItemActionError (action, e) ->
+                (ActionError (action.Description pathFormat, e)).Message pathFormat
             | InvalidPath path ->
                 "Path format is invalid: " + path
-            | CouldNotOpenPath (path, pathFormat, ex) ->
+            | CouldNotOpenPath (path, ex) ->
                 sprintf "Could not open %s: %s" (path.Format pathFormat) ex.Message
             | NoPreviousSearch ->
                 "No previous search to repeat"

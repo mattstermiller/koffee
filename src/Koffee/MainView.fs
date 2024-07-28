@@ -207,8 +207,8 @@ module MainView =
             )
 
             // update UI for status
-            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand @>)
-                .toFunc(fun (status, keyCombo, repeatCommand) ->
+            Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand, model.PathFormat @>)
+                .toFunc(fun (status, keyCombo, repeatCommand, pathFormat) ->
                 let statusText, errorText =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
@@ -222,9 +222,9 @@ module MainView =
                         (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
                     else
                         match status with
-                        | Some (MainStatus.Message msg) -> (msg.Message, "")
-                        | Some (MainStatus.Busy msg) -> (msg.Message, "")
-                        | Some (MainStatus.Error error) -> ("", error.Message)
+                        | Some (MainStatus.Message msg) -> (msg.Message pathFormat, "")
+                        | Some (MainStatus.Busy msg) -> (msg.Message pathFormat, "")
+                        | Some (MainStatus.Error error) -> ("", error.Message pathFormat)
                         | None -> ("", "")
                 window.StatusText.Text <- statusText
                 window.StatusText.IsCollapsed <- statusText |> String.isEmpty
@@ -352,8 +352,8 @@ module MainView =
                             | StatusHistory ->
                                 let statusList =
                                     statuses |> List.map (function
-                                        | MainStatus.Message m -> m.Message
-                                        | MainStatus.Error error -> "Error: " + error.Message
+                                        | MainStatus.Message m -> m.Message pathFormat
+                                        | MainStatus.Error error -> "Error: " + error.Message pathFormat
                                         | MainStatus.Busy _ -> ""
                                     ) |> List.map (fun m -> ("", m))
                                 ("Status History", statusList, [], None)

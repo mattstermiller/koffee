@@ -83,7 +83,7 @@ let ``Opening a path that throws on GetItems returns error``() =
 
     let res = Nav.openPath fs path CursorStay model
 
-    let expected = Error (MainStatus.CouldNotOpenPath (path, model.PathFormat, ex))
+    let expected = Error (MainStatus.CouldNotOpenPath (path, ex))
     assertAreEqual expected res
 
 [<Test>]
@@ -104,11 +104,11 @@ let ``Opening same path that throws on GetItems sets empty item and error status
 
     let actual = Nav.openPath fs path CursorStay model |> assertOk
 
-    let expectedError = MainStatus.CouldNotOpenPath (path, model.PathFormat, ex)
+    let expectedError = MainStatus.CouldNotOpenPath (path, ex)
     let expected =
         { model with
             Directory = []
-            Items = Item.EmptyFolderWithMessage expectedError.Message path
+            Items = Item.EmptyFolderWithMessage (expectedError.Message model.PathFormat) path
             SelectedItems = []
         }
         |> MainModel.withError expectedError

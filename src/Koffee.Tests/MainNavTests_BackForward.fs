@@ -113,7 +113,7 @@ let ``Back to inaccessible path pops stack and gives error``() =
         Cursor = 1
         BackStack = ["back2", 3]
         ForwardStack = ["fwd", 4]
-        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", Unix, ex))
+        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", ex))
     }
 
 [<Test>]
@@ -124,7 +124,7 @@ let ``Back 2 to inaccessible path removes from stack and gives error``() =
         Cursor = 1
         BackStack = ["error", 2; "back3", 4]
         ForwardStack = ["fwd", 5]
-        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", Unix, ex))
+        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", ex))
     }
 
 [<Test>]
@@ -135,7 +135,7 @@ let ``Back past end of stack to inaccessible path removes from stack and gives e
         Cursor = 1
         BackStack = ["error", 2]
         ForwardStack = ["fwd", 5]
-        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", Unix, ex))
+        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", ex))
     }
 
 
@@ -202,7 +202,7 @@ let ``Forward to inaccessible path pops stack and gives error``() =
         Cursor = 1
         BackStack = ["back", 2]
         ForwardStack = ["fwd2", 4]
-        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", Unix, ex))
+        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", ex))
     }
 
 [<Test>]
@@ -213,7 +213,7 @@ let ``Forward 2 to inaccessible path removes from stack and gives error``() =
         Cursor = 1
         BackStack = ["back", 2]
         ForwardStack = ["error", 3; "fwd3", 5]
-        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", Unix, ex))
+        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", ex))
     }
 
 [<Test>]
@@ -224,5 +224,5 @@ let ``Forward past end of stack to inaccessible path removes from stack and give
         Cursor = 1
         BackStack = ["back", 2]
         ForwardStack = ["error", 3]
-        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", Unix, ex))
+        Error = Some (MainStatus.CouldNotOpenPath (createPath "/c/error", ex))
     }

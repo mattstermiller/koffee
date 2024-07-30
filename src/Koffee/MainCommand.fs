@@ -66,8 +66,11 @@ let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
 }
 
 let openProperties (os: IOperatingSystem) (model: MainModel) = result {
-    // TODO: support open properties for Drive, others?
-    let items = model.ActionItems |> List.filter (fun i -> i.Type |> Seq.containedIn [File; Folder])
+    let items =
+        model.ActionItems |> List.filter (fun i ->
+            i.Type |> Seq.containedIn [File; Folder; Drive; NetShare]
+            && not (i.Path = Path.Network)
+        )
     if items.IsEmpty then
         return model
     else

@@ -361,6 +361,12 @@ with
         | FindFailure prefix -> sprintf "No item starts with \"%s\"" prefix
         | InvalidRegex error -> sprintf "Invalid Regular Expression: %s" error
 
+type ShortcutTargetMissingException(itemName, targetPath) =
+    inherit exn(sprintf "Shortcut target for %s does not exist: %s" itemName targetPath)
+
+type FolderNotEmptyException() =
+    inherit exn("Folder is not empty")
+
 type TooManyCopiesOfNameException(name) =
     inherit exn(sprintf "There are already too many copies of \"%s\"" name)
 

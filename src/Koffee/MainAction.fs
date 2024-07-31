@@ -288,61 +288,62 @@ let private performPutItems (fs: IFileSystem) (progress: Progress) (cancelToken:
         |>! progress.Finish
     )
 
-// TODO: failure to remove source folders should give an error to the user
-// rename to deleteSourceFolders and yield error for folders that have files
-let private deleteEmptyFolders (fs: IFileSystem) paths =
-    let rec iter paths = seq {
-        for path in paths do
-            match fs.GetItems path with
-            | Ok items ->
-                let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
-                yield! folders |> Seq.map (fun folder -> folder.Path) |> iter
-                if files |> List.isEmpty then
-                    yield
-                        fs.Delete Folder path
-                        |> Result.map (cnst path)
-                        |> Result.mapError (fun ex -> (path, ex))
-            | Error ex ->
-                yield Error (path, ex)
-    }
-    runAsync (fun () -> iter paths |> Result.partition)
+module private MoveUtil =
+    let deleteSourceFolders (fs: IFileSystem) paths =
+        let rec iter paths = seq {
+            for path in paths do
+                match fs.GetItems path with
+                | Ok items ->
+                    let (folders, files) = items |> List.partition (fun item -> item.Type = Folder)
+                    yield! folders |> Seq.map (fun folder -> folder.Path) |> iter
+                    if files |> List.isEmpty then
+                        yield
+                            fs.Delete Folder path
+                            |> Result.map (cnst path)
+                            |> Result.mapError (fun ex -> (path, ex))
+                    else
+                        yield Error (path, FolderNotEmptyException() :> exn)
+                | Error ex ->
+                    yield Error (path, ex)
+        }
+        runAsync (fun () -> iter paths |> Result.partition)
 
-let private getPathReplacementsForMove isUndo isCompleted intent succeeded unsuccessful (enumErrorPaths: Path list) =
-    let wasCopiedBack overwritten = isUndo && overwritten
-    let shouldReplaceAtIntent = isCompleted && not (wasCopiedBack intent.Overwrite)
-    let isIncompleteEnumeratedFolder putItem =
-        putItem.ItemType = Folder
-        && (putItem.DestExists || putItem.AreBasePathsDifferent)
-        && (unsuccessful |> List.exists (fun pi -> pi.Source.IsWithin putItem.Source)
-            || enumErrorPaths |> List.exists (fun path -> path.IsWithin putItem.Source || path.IsWithin putItem.Dest)
+    let getPathReplacements isUndo isCompleted intent succeeded unsuccessful (enumErrorPaths: Path list) =
+        let wasCopiedBack overwritten = isUndo && overwritten
+        let shouldReplaceAtIntent = isCompleted && not (wasCopiedBack intent.Overwrite)
+        let isIncompleteEnumeratedFolder putItem =
+            putItem.ItemType = Folder
+            && (putItem.DestExists || putItem.AreBasePathsDifferent)
+            && (unsuccessful |> List.exists (fun pi -> pi.Source.IsWithin putItem.Source)
+                || enumErrorPaths |> List.exists (fun path -> path.IsWithin putItem.Source || path.IsWithin putItem.Dest)
+            )
+        let putItemAtIntent putItem =
+            let rec upToIntent (src: Path) (dest: Path) =
+                if dest.Parent = intent.DestParent then (src, dest)
+                else upToIntent src.Parent dest.Parent
+            let src, dest = upToIntent putItem.Source putItem.Dest
+            if src = putItem.Source
+            then putItem
+            else { putItem with Source = src; Dest = dest }
+        succeeded
+        |> List.toSeq
+        |> applyIf (not shouldReplaceAtIntent) (Seq.filter (fun putItem ->
+            not (wasCopiedBack putItem.DestExists) && not (isIncompleteEnumeratedFolder putItem)
+        ))
+        |> Seq.fold (fun replacements putItem ->
+            match replacements with
+            | prev :: _ when putItem.Source.IsWithin prev.Source ->
+                replacements // skip paths within the previous path
+            | _ ->
+                let replacement = putItem |> applyIf shouldReplaceAtIntent putItemAtIntent
+                replacement :: replacements
+        ) []
+        |> Seq.map (fun putItem ->
+            if isUndo
+            then putItem.Dest, putItem.Source
+            else putItem.Source, putItem.Dest
         )
-    let putItemAtIntent putItem =
-        let rec upToIntent (src: Path) (dest: Path) =
-            if dest.Parent = intent.DestParent then (src, dest)
-            else upToIntent src.Parent dest.Parent
-        let src, dest = upToIntent putItem.Source putItem.Dest
-        if src = putItem.Source
-        then putItem
-        else { putItem with Source = src; Dest = dest }
-    succeeded
-    |> List.toSeq
-    |> applyIf (not shouldReplaceAtIntent) (Seq.filter (fun putItem ->
-        not (wasCopiedBack putItem.DestExists) && not (isIncompleteEnumeratedFolder putItem)
-    ))
-    |> Seq.fold (fun replacements putItem ->
-        match replacements with
-        | prev :: _ when putItem.Source.IsWithin prev.Source ->
-            replacements // skip paths within the previous path
-        | _ ->
-            let replacement = putItem |> applyIf shouldReplaceAtIntent putItemAtIntent
-            replacement :: replacements
-    ) []
-    |> Seq.map (fun putItem ->
-        if isUndo
-        then putItem.Dest, putItem.Source
-        else putItem.Source, putItem.Dest
-    )
-    |> Map
+        |> Map
 
 let private performPut (fs: IFileSystem) progress undoIter enumErrors putType intent putItems (model: MainModel) =
     asyncSeqResult {
@@ -356,25 +357,30 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
         if succeeded |> List.isEmpty then
             return MainStatus.PutError (isUndo, putType, errorPaths, enumeratedItemCount)
 
-        let! deletedFolders, deleteFolderErrors = async {
-            // for folders that were enumerated and their contents were moved, delete empty source folders
+        let! deleteFolderErrors = async {
+            // for folders that were enumerated and their contents were moved, delete source folders
             if putType = Move then
                 let isSubPathOf ancestor (path: Path) =
                     path <> ancestor && path.IsWithin ancestor
+                let hasSuccessfulMove path =
+                    let successPutItems =
+                        succeeded |> Seq.filter (fun putItem -> putItem.Source |> isSubPathOf path) |> Seq.cache
+                    not (successPutItems |> Seq.isEmpty)
+                    && (not isUndo || successPutItems |> Seq.forall (fun putItem -> not putItem.DestExists))
                 return!
                     intent.Sources
                     |> Seq.filter (fun intentSource ->
-                        intentSource.Type = Folder
-                        && succeeded |> List.exists (fun putItem -> putItem.Source |> isSubPathOf intentSource.Path)
+                        intentSource.Type = Folder && hasSuccessfulMove intentSource.Path
                     )
                     |> Seq.map (fun itemRef ->
                         if isUndo
                         then intent.DestParent.Join itemRef.Path.Name
                         else itemRef.Path
                     )
-                    |> deleteEmptyFolders fs
+                    |> MoveUtil.deleteSourceFolders fs
+                    |> Async.map snd
             else
-                return ([], [])
+                return []
         }
 
         let action = PutItems (putType, intent, succeeded, model.CancelToken.IsCancelled)
@@ -402,7 +408,7 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
             if putType = Move then
                 let isCompleted = errorPaths.IsEmpty && not model.CancelToken.IsCancelled
                 let pathReplacements =
-                    getPathReplacementsForMove isUndo isCompleted intent succeeded unsuccessful (enumErrors |> List.map fst)
+                    MoveUtil.getPathReplacements isUndo isCompleted intent succeeded unsuccessful (enumErrors |> List.map fst)
                 model |> MainModel.mapHistory (History.withPathsReplaced pathReplacements)
             else
                 model

@@ -1300,7 +1300,9 @@ let ``Undo move of enumerated folder deletes original dest folder when empty`` d
             RedoStack = action :: model.RedoStack
             CancelToken = CancelToken()
         }
-        |> MainModel.withMessage (MainStatus.UndoAction (action, 1, 1))
+        |> if destFolderEmpty
+            then MainModel.withMessage (MainStatus.UndoAction (action, 1, 1))
+            else MainModel.withError (MainStatus.CouldNotDeleteMoveSource (moved.Name, FolderNotEmptyException()))
         |> withHistoryPaths (historyPaths {
             original
             actualMoved.[1].Source, false

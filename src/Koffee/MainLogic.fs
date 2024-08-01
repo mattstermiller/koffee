@@ -184,22 +184,7 @@ let inputChanged fsReader subDirResults progress model = asyncSeq {
 
 let inputHistory offset model =
     match model.InputMode with
-    | Some (Input Search) ->
-        let index =
-            (model.SearchHistoryIndex |? -1) + offset
-            |> min (model.History.Searches.Length-1)
-            |> Option.ofCond (flip (>=) 0)
-        let search =
-            match index with
-            | Some index -> model.History.Searches.[index]
-            | None -> Search.Default
-        { model with
-            InputText = search.Terms
-            InputTextSelection = (search.Terms.Length, 0)
-            SearchInput = search
-            SearchHistoryIndex = index
-            HistoryDisplay = index |> Option.map (cnst SearchHistory)
-        }
+    | Some (Input Search) -> Search.traverseSearchHistory offset model
     | _ -> model
 
 let inputDelete isShifted cancelInput model =
@@ -213,13 +198,9 @@ let inputDelete isShifted cancelInput model =
         cancelInput ()
         { model with InputMode = Some (Prompt DeleteSavedSearch) }
     | Some (Input Search) when isShifted && model.HistoryDisplay = Some SearchHistory ->
-        match model.SearchHistoryIndex with
-        | Some index ->
-            model
-            |> MainModel.mapHistory (History.withoutSearchIndex index)
-            |> inputHistory 0
-        | None -> model
-    | _ -> model
+        Search.deleteSearchHistory model
+    | _ ->
+        model
 
 let submitInput fs os model = asyncSeqResult {
     match model.InputMode with

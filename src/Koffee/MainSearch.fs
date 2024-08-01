@@ -152,6 +152,31 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
             yield model |> MainModel.withError MainStatus.NoPreviousSearch
 }
 
+let traverseSearchHistory offset model =
+    let index =
+        (model.SearchHistoryIndex |? -1) + offset
+        |> min (model.History.Searches.Length-1)
+        |> Option.ofCond (flip (>=) 0)
+    let search =
+        match index with
+        | Some index -> model.History.Searches.[index]
+        | None -> Search.Default
+    { model with
+        InputText = search.Terms
+        InputTextSelection = (search.Terms.Length, 0)
+        SearchInput = search
+        SearchHistoryIndex = index
+        HistoryDisplay = index |> Option.map (cnst SearchHistory)
+    }
+
+let deleteSearchHistory model =
+    match model.SearchHistoryIndex with
+    | Some index ->
+        model
+        |> MainModel.mapHistory (History.withoutSearchIndex index)
+        |> traverseSearchHistory 0
+    | None -> model
+
 let clearSearch (model: MainModel) =
     { model with HistoryDisplay = None }
     |> clearSearchProps

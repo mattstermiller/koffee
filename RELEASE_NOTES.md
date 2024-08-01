@@ -5,17 +5,18 @@
 - #131 Adds ability to cancel Put and Delete operations
 - #132 Adds opened files to path history and shows them in path suggestions
 - #133 Renaming, moving or deleting items updates path history
-- #9 Changes Delete to enumerate folders and operate on individual items
 - Adds Open Properties support for drives and net shares
+- #9 Changes Delete to enumerate folders and operate on individual items
 - #130 Closes Find prompt when opening a file
 - #129 Fixes FileSystem Move and Copy to handle empty folders
 - #135 Fixes put merge error on empty folder when it exists in destination
 - Fixes error message when undoing copy of empty folder
 - Fixes Find input error not going away after using Go To Next Find Match
+- Fixes Search to not add sub-folder results to item list if sub-folder option is no longer checked
 - Fixes Back and Forward to not leave inaccessible paths on stack
 - Fixes drive not being selected when opening parent
 - Fixes location input not getting set when opening same folder
-- Fixes refresh error to replace item list with error message
+- Fixes Refresh error to replace item list with error message
 - Fixes "Refresh window on focus" with recursive search to refresh current directory
 - Fixes path suggestions to limit results and ignore whitespace input instead of matching everything
 - Fixes name sorting to not ignore hyphens

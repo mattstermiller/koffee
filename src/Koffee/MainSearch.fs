@@ -126,6 +126,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
 let addSubDirResults newItems model =
     let filter =
         model.SearchCurrent
+        |> Option.filter (fun s -> s.SubFolders)
         |> Option.bind (getFilter model.Config.ShowHidden >> Result.toOption)
         |? cnst []
     let items =

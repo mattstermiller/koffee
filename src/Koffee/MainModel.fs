@@ -420,6 +420,7 @@ module MainStatus =
         | CancelledConfirm of ConfirmType
         | CancelledPut of PutType * isUndo: bool * completed: int * total: int
         | CancelledDelete of permanent: bool * completed: int * total: int
+        | NoItemsToPaste
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
         | OpenFiles of names: string list
@@ -487,6 +488,8 @@ module MainStatus =
             | CancelledDelete (permanent, completed, total) ->
                 let action = if permanent then "delete" else "recycle"
                 sprintf "Cancelled %s - %s" action (this.DescribeCancelledProgress (action+"d") completed total)
+            | NoItemsToPaste ->
+                "No items in clipboard to paste"
             | Sort (field, desc) ->
                 sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
             | ToggleHidden showing ->
@@ -551,6 +554,7 @@ module MainStatus =
         | ItemActionError of ItemAction * exn
         | InvalidPath of string
         | CouldNotOpenPath of Path * exn
+        | PathNotFound of Path
         | NoPreviousSearch
         | ShortcutTargetMissing of string
         | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
@@ -597,6 +601,8 @@ module MainStatus =
                 "Path format is invalid: " + path
             | CouldNotOpenPath (path, ex) ->
                 sprintf "Could not open %s: %s" (path.Format pathFormat) ex.Message
+            | PathNotFound path ->
+                sprintf "Path not found: %s" (path.Format pathFormat)
             | NoPreviousSearch ->
                 "No previous search to repeat"
             | ShortcutTargetMissing path ->
@@ -1174,7 +1180,8 @@ type MainEvents =
     | StartPut of PutType
     | ClearYank
     | Put
-    | ClipCopy
+    | ClipboardCopy
+    | ClipboardPaste
     | Recycle
     | Undo
     | Redo
@@ -1246,7 +1253,8 @@ type MainEvents =
         StartPut Shortcut, "Start Create Shortcut to Item"
         ClearYank, "Clear Yank Register"
         Put, "Put Item to Move/Copy in Current Folder"
-        ClipCopy, "Copy to Clipboard"
+        ClipboardCopy, "Copy to Clipboard"
+        ClipboardPaste, "Paste from Clipboard"
         Recycle, "Send to Recycle Bin"
         StartConfirm Delete, "Delete Permanently"
         OpenProperties, "Open Properties"

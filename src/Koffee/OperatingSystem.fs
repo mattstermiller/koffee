@@ -148,6 +148,7 @@ type IOperatingSystem =
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member CopyToClipboard: Path seq -> Result<unit, exn>
+    abstract member GetItemPathsFromClipboard: unit -> Result<PutType * Path list, exn>
     abstract member GetEnvironmentVariable: string -> string option
 
 type OperatingSystem() =
@@ -182,6 +183,30 @@ type OperatingSystem() =
                 let data = DataObject(DataFormats.FileDrop, winPaths)
                 data.SetText(winPaths |> String.concat "\n")
                 Clipboard.SetDataObject(data, true)
+
+        member this.GetItemPathsFromClipboard () =
+            tryResult <| fun () ->
+                let putType =
+                    Clipboard.GetData("Preferred DropEffect")
+                    |> Option.ofObj
+                    |> Option.bind (fun data ->
+                        let stream = data :?> IO.MemoryStream
+                        let effectBytes = Array.zeroCreate 4
+                        stream.Read(effectBytes, 0, effectBytes.Length) |> ignore
+                        BitConverter.ToInt32(effectBytes, 0)
+                        |> fun i -> Enum.ToObject(typeof<Windows.DragDropEffects>, i) :?> Windows.DragDropEffects
+                        |> DragDropEffects.toPutTypes
+                        |> List.tryHead
+                    )
+                    |? Copy
+                let paths =
+                    Clipboard.GetFileDropList()
+                    |> Option.ofObj
+                    |? Collections.Specialized.StringCollection()
+                    |> Seq.cast<string>
+                    |> Seq.choose Path.Parse
+                    |> Seq.toList
+                (putType, paths)
 
         member this.GetEnvironmentVariable key =
             Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)

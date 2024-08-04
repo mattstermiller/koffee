@@ -2,6 +2,7 @@
 
 ### 0.7.0  Multi-Select (WIP)
 - #14 Adds multi-selection commands to perform open, put, delete and other commands on many items at once
+- #101 Adds command Paste from Clipboard
 - #131 Adds ability to cancel Put and Delete operations
 - #132 Adds opened files to path history and shows them in path suggestions
 - #133 Renaming, moving or deleting items updates path history

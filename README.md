@@ -110,6 +110,11 @@ _A capital letter indicates that the letter key is combined with Shift._
         - If at least one item with the same name already exists, you will be prompted to overwrite them. If you choose to overwrite a folder, the contents will be merged (existing files in the destination with the same name will be overwritten, but the others will remain).
     3. You can cancel a move or copy in progress by pressing `Esc`. Performing a Redo (see below) will resume the action.
     - If you decide not to perform the put and want to clear the yank register, you can do so with `Alt + y`
+- **Clipboard**:
+    - Press `Ctrl + c` to copy the selected items to the Windows Clipboard.
+        - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.
+        - Paste in any text editor or text input to insert the file or folder's path there.
+    - Press `Ctrl + v` to paste items that were cut or copied into the Clipboard (from Koffee or another app) to move or copy them to the current folder.
 - **Delete**
     - Press `Delete` to send the currently selected item(s) to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.
     - Press `Shift + Delete` to delete items permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
@@ -119,10 +124,6 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `U` to redo the last action that was undone or to resume a cancelled action. Note that performing any action after an undo will clear the redo list.
     - You can cancel an undo or redo in progress by pressing `Esc`. You can resume the undo or redo by invoking it again.
     - Press `gu` to display undo / redo history. Press it again or `Esc` to close it.
-
-- **Copy to Clipboard**: Press `Ctrl + c` to copy the selected item to the Windows Clipboard.
-    - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.
-    - Paste in any text editor or text input to insert the file or folder's path there.
 
 #### Other
 - Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `4H` will go back 4 times.

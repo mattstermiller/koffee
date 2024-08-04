@@ -274,6 +274,7 @@ let private performPutItems (fs: IFileSystem) (progress: Progress) (cancelToken:
         | Copy ->
             fs.Copy putItem.ItemType putItem.Source putItem.Dest
     let incrementProgress = progress.GetIncrementer items.Length
+    progress.Start ()
     runAsync (fun () ->
         items
         |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
@@ -458,7 +459,6 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
 let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType intent model = asyncSeqResult {
     let model = { model with CancelToken = CancelToken() }
     yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, intent.Sources))
-    progress.Start ()
     let alreadyPutItemsForResume =
         if isRedo then
             model.UndoStack |> List.tryHead |> (function

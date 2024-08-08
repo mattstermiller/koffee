@@ -111,9 +111,8 @@ _A capital letter indicates that the letter key is combined with Shift._
     3. You can cancel a move or copy in progress by pressing `Esc`. Performing a Redo (see below) will resume the action.
     - If you decide not to perform the put and want to clear the yank register, you can do so with `Alt + y`
 - **Clipboard**:
-    - Press `Ctrl + c` to copy the selected items to the Windows Clipboard.
-        - Paste in Windows Explorer or another app that accepts files to copy the file or folder there.
-        - Paste in any text editor or text input to insert the file or folder's path there.
+    - Press `Ctrl + c` to copy the selected items to the Clipboard.
+    - Press `Ctrl + Shift + c` to copy the paths of the selected items to the Clipboard.
     - Press `Ctrl + v` to paste items that were cut or copied into the Clipboard (from Koffee or another app) to move or copy them to the current folder.
 - **Delete**
     - Press `Delete` to send the currently selected item(s) to the Recycle Bin. If the item cannot be recycled, an error message will be shown instead.

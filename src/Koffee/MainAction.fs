@@ -654,16 +654,28 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
         |> applyIf (model.Location = shortcutPath.Parent) (ignoreError (Nav.refresh fs))
 }
 
-let clipboardCopy (os: IOperatingSystem) (model: MainModel) = result {
-    let paths =
-        model.ActionItems
-        |> Seq.filter (fun item -> item.Type <> Empty)
-        |> Seq.map (fun i -> i.Path)
-        |> Seq.toList
+let private getActionItemPaths (model: MainModel) =
+    model.ActionItems
+    |> Seq.filter (fun item -> item.Type <> Empty)
+    |> Seq.map (fun i -> i.Path)
+    |> Seq.toList
+
+let yankToClipboard (os: IOperatingSystem) (model: MainModel) = result {
+    let paths = getActionItemPaths model
     if paths.IsEmpty then
         return model
     else
-        do! os.CopyToClipboard paths |> actionError "copy to clipboard"
+        do! os.SetClipboardFileDrop paths |> actionError "set clipboard file drop"
+        return model |> MainModel.withMessage (MainStatus.ClipboardCopy paths)
+}
+
+let copyPathsToClipboard (os: IOperatingSystem) (model: MainModel) = result {
+    let paths = getActionItemPaths model
+    if paths.IsEmpty then
+        return model
+    else
+        let text = paths |> Seq.map string |> String.concat "\n"
+        do! os.SetClipboardText text |> actionError "set clipboard text"
         return model |> MainModel.withMessage (MainStatus.ClipboardCopy paths)
 }
 
@@ -691,7 +703,7 @@ let private getItemRefs (fsReader: IFileSystemReader) paths = result {
 }
 
 let clipboardPaste (fs: IFileSystem) (os: IOperatingSystem) progress (model: MainModel) = asyncSeqResult {
-    match! os.GetItemPathsFromClipboard () |> actionError "get from clipboard" with
+    match! os.GetClipboardFileDrop () |> actionError "get from clipboard" with
     | _, [] ->
         yield model |> MainModel.withMessage MainStatus.NoItemsToPaste
     | putType, paths ->
@@ -722,7 +734,7 @@ let dropIn (fs: IFileSystem) progress paths (event: DragInEvent) (model: MainMod
 }
 
 let dropOut (fsReader: IFileSystemReader) (dragOutEvent: DragOutEvent) (model: MainModel) =
-    match dragOutEvent.DoDropOut (model.ActionItems |> Seq.map (fun i -> i.Path)) with
+    match dragOutEvent.DoDropOut (getActionItemPaths model) with
     | Some putType when putType = Move ->
         ignoreError (Nav.refresh fsReader) model
     | _ ->

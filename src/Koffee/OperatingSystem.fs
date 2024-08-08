@@ -1,6 +1,7 @@
 namespace Koffee
 
 open System
+open System.Collections.Specialized
 open System.Diagnostics
 open System.Windows.Forms
 open Acadian.FSharp
@@ -147,47 +148,46 @@ type IOperatingSystem =
     abstract member OpenProperties: Path seq -> Result<unit, exn>
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
-    abstract member CopyToClipboard: Path seq -> Result<unit, exn>
-    abstract member GetItemPathsFromClipboard: unit -> Result<PutType * Path list, exn>
+    abstract member GetClipboardFileDrop: unit -> Result<PutType * Path list, exn>
+    abstract member SetClipboardFileDrop: Path seq -> Result<unit, exn>
+    abstract member SetClipboardText: string -> Result<unit, exn>
     abstract member GetEnvironmentVariable: string -> string option
 
 type OperatingSystem() =
     let wpath (path: Path) = path.Format Windows
 
+    let dropEffectDataName = "Preferred DropEffect"
+
+    let setClipboardData data =
+        Clipboard.SetDataObject(data, true, 3, 250)
+
     interface IOperatingSystem with
-        member this.OpenFile path =
+        member _.OpenFile path =
             tryResult <| fun () ->
                 ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
                 |> Process.Start |> ignore
 
-        member this.OpenFileWith path =
+        member _.OpenFileWith path =
             tryResult <| fun () ->
                 OsInterop.openFileWith (wpath path) |> ignore
 
-        member this.OpenProperties paths =
+        member _.OpenProperties paths =
             tryResult <| fun () ->
                 OsInterop.openProperties (paths |> Seq.map wpath) |> ignore
 
-        member this.OpenExplorer location selectItemPaths =
+        member _.OpenExplorer location selectItemPaths =
             tryResult <| fun () ->
                 OsInterop.openExplorerAndSelect (wpath location) (selectItemPaths |> Seq.map wpath) |> ignore
 
-        member this.LaunchApp exePath workingPath args =
+        member _.LaunchApp exePath workingPath args =
             tryResult <| fun () ->
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
                 |> Process.Start |> ignore
 
-        member this.CopyToClipboard paths =
-            tryResult <| fun () ->
-                let winPaths = paths |> Seq.map wpath |> Seq.toArray
-                let data = DataObject(DataFormats.FileDrop, winPaths)
-                data.SetText(winPaths |> String.concat "\n")
-                Clipboard.SetDataObject(data, true)
-
-        member this.GetItemPathsFromClipboard () =
+        member _.GetClipboardFileDrop () =
             tryResult <| fun () ->
                 let putType =
-                    Clipboard.GetData("Preferred DropEffect")
+                    Clipboard.GetData(dropEffectDataName)
                     |> Option.ofObj
                     |> Option.bind (fun data ->
                         let stream = data :?> IO.MemoryStream
@@ -202,13 +202,24 @@ type OperatingSystem() =
                 let paths =
                     Clipboard.GetFileDropList()
                     |> Option.ofObj
-                    |? Collections.Specialized.StringCollection()
+                    |? StringCollection()
                     |> Seq.cast<string>
                     |> Seq.choose Path.Parse
                     |> Seq.toList
                 (putType, paths)
 
-        member this.GetEnvironmentVariable key =
+        member _.SetClipboardFileDrop paths =
+            tryResult <| fun () ->
+                let winPaths = paths |> Seq.map wpath |> Seq.toArray
+                DataObject(DataFormats.FileDrop, winPaths)
+                |> setClipboardData
+
+        member _.SetClipboardText text =
+            tryResult <| fun () ->
+                DataObject(DataFormats.Text, text)
+                |> setClipboardData
+
+        member _.GetEnvironmentVariable key =
             Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
             |> Option.ofObj
 

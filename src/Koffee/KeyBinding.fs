@@ -57,6 +57,7 @@ let defaultsAsString = [
     ("<a-y>", ClearYank)
     ("p", Put)
     ("<c-c>", ClipboardCopy)
+    ("<cs-c>", ClipboardCopyPaths)
     ("<c-v>", ClipboardPaste)
     ("<delete>", Recycle)
     ("<s-delete>", StartConfirm Delete)

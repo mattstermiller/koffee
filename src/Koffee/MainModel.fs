@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -1181,6 +1181,7 @@ type MainEvents =
     | ClearYank
     | Put
     | ClipboardCopy
+    | ClipboardCopyPaths
     | ClipboardPaste
     | Recycle
     | Undo
@@ -1253,7 +1254,8 @@ type MainEvents =
         StartPut Shortcut, "Start Create Shortcut to Item"
         ClearYank, "Clear Yank Register"
         Put, "Put Item to Move/Copy in Current Folder"
-        ClipboardCopy, "Copy to Clipboard"
+        ClipboardCopy, "Copy Items to Clipboard"
+        ClipboardCopyPaths, "Copy Paths to Clipboard"
         ClipboardPaste, "Paste from Clipboard"
         Recycle, "Send to Recycle Bin"
         StartConfirm Delete, "Delete Permanently"

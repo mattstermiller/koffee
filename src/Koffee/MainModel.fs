@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -384,7 +384,7 @@ module MainStatus =
         | _ -> "s"
 
     let private describeList strs =
-        Seq.describeAndCount 5 id strs
+        Seq.describeAndCount 3 id strs
 
     let private actionCompleteMessage pathFormat action =
         match action with
@@ -428,10 +428,16 @@ module MainStatus =
         | OpenTextEditor of names: string list
         | OpenTerminal of Path
         | OpenExplorer
-        | ClipboardCopy of paths: Path list
+        | ClipboardYank of copy: bool * paths: Path list
+        | ClipboardCopyPaths of paths: Path list
         | RemovedNetworkHosts of names: string list
 
-        member private this.DescribeCancelledProgress action completed total =
+        static member private describePaths pathFormat (paths: Path list) =
+            match paths with
+            | [path] -> path.Format pathFormat
+            | _ -> paths |> List.map (fun p -> p.Name) |> describeList
+
+        static member private describeCancelledProgress action completed total =
             if completed = 0
             then "nothing done"
             else sprintf "%i of %i already %s" completed total action
@@ -484,10 +490,15 @@ module MainStatus =
                     | _, false -> "copied"
                     | _, true -> "deleted"
                 sprintf "Cancelled %s%s - %s" undo (putType.ToLowerString())
-                    (this.DescribeCancelledProgress action completed total)
+                    (Message.describeCancelledProgress action completed total)
             | CancelledDelete (permanent, completed, total) ->
                 let action = if permanent then "delete" else "recycle"
-                sprintf "Cancelled %s - %s" action (this.DescribeCancelledProgress (action+"d") completed total)
+                sprintf "Cancelled %s - %s" action (Message.describeCancelledProgress (action+"d") completed total)
+            | ClipboardYank (copy, paths) ->
+                let action = if copy then "Copied" else "Cut"
+                sprintf "%s to clipboard: %s" action (Message.describePaths pathFormat paths)
+            | ClipboardCopyPaths paths ->
+                sprintf "Copied path%s to clipboard: %s" (pluralS paths) (Message.describePaths pathFormat paths)
             | NoItemsToPaste ->
                 "No items in clipboard to paste"
             | Sort (field, desc) ->
@@ -504,12 +515,6 @@ module MainStatus =
                 sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
-            | ClipboardCopy paths ->
-                let pathsDescr =
-                    match paths with
-                    | [path] -> path.Format pathFormat
-                    | _ -> paths |> List.map (fun p -> p.Name) |> describeList
-                sprintf "Copied to clipboard: %s" pathsDescr
             | RemovedNetworkHosts names ->
                 sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
 
@@ -1180,6 +1185,7 @@ type MainEvents =
     | StartPut of PutType
     | ClearYank
     | Put
+    | ClipboardCut
     | ClipboardCopy
     | ClipboardCopyPaths
     | ClipboardPaste
@@ -1254,6 +1260,7 @@ type MainEvents =
         StartPut Shortcut, "Start Create Shortcut to Item"
         ClearYank, "Clear Yank Register"
         Put, "Put Item to Move/Copy in Current Folder"
+        ClipboardCut, "Cut Items to Clipboard"
         ClipboardCopy, "Copy Items to Clipboard"
         ClipboardCopyPaths, "Copy Paths to Clipboard"
         ClipboardPaste, "Paste from Clipboard"

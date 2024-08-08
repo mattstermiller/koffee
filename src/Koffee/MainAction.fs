@@ -660,13 +660,13 @@ let private getActionItemPaths (model: MainModel) =
     |> Seq.map (fun i -> i.Path)
     |> Seq.toList
 
-let yankToClipboard (os: IOperatingSystem) (model: MainModel) = result {
+let yankToClipboard copy (os: IOperatingSystem) (model: MainModel) = result {
     let paths = getActionItemPaths model
     if paths.IsEmpty then
         return model
     else
-        do! os.SetClipboardFileDrop paths |> actionError "set clipboard file drop"
-        return model |> MainModel.withMessage (MainStatus.ClipboardCopy paths)
+        do! os.SetClipboardFileDrop copy paths |> actionError "set clipboard file drop"
+        return model |> MainModel.withMessage (MainStatus.ClipboardYank (copy, paths))
 }
 
 let copyPathsToClipboard (os: IOperatingSystem) (model: MainModel) = result {
@@ -676,7 +676,7 @@ let copyPathsToClipboard (os: IOperatingSystem) (model: MainModel) = result {
     else
         let text = paths |> Seq.map string |> String.concat "\n"
         do! os.SetClipboardText text |> actionError "set clipboard text"
-        return model |> MainModel.withMessage (MainStatus.ClipboardCopy paths)
+        return model |> MainModel.withMessage (MainStatus.ClipboardCopyPaths paths)
 }
 
 let private getItemRefs (fsReader: IFileSystemReader) paths = result {

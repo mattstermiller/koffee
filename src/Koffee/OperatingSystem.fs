@@ -149,14 +149,15 @@ type IOperatingSystem =
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
     abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member GetClipboardFileDrop: unit -> Result<PutType * Path list, exn>
-    abstract member SetClipboardFileDrop: Path seq -> Result<unit, exn>
+    abstract member SetClipboardFileDrop: copy: bool -> Path seq -> Result<unit, exn>
     abstract member SetClipboardText: string -> Result<unit, exn>
     abstract member GetEnvironmentVariable: string -> string option
 
+module DataFormats =
+    let PreferredDropEffect = "Preferred DropEffect"
+
 type OperatingSystem() =
     let wpath (path: Path) = path.Format Windows
-
-    let dropEffectDataName = "Preferred DropEffect"
 
     let setClipboardData data =
         Clipboard.SetDataObject(data, true, 3, 250)
@@ -187,14 +188,14 @@ type OperatingSystem() =
         member _.GetClipboardFileDrop () =
             tryResult <| fun () ->
                 let putType =
-                    Clipboard.GetData(dropEffectDataName)
+                    Clipboard.GetData(DataFormats.PreferredDropEffect)
                     |> Option.ofObj
                     |> Option.bind (fun data ->
                         let stream = data :?> IO.MemoryStream
                         let effectBytes = Array.zeroCreate 4
                         stream.Read(effectBytes, 0, effectBytes.Length) |> ignore
                         BitConverter.ToInt32(effectBytes, 0)
-                        |> fun i -> Enum.ToObject(typeof<Windows.DragDropEffects>, i) :?> Windows.DragDropEffects
+                        |> LanguagePrimitives.EnumOfValue
                         |> DragDropEffects.toPutTypes
                         |> List.tryHead
                     )
@@ -208,10 +209,16 @@ type OperatingSystem() =
                     |> Seq.toList
                 (putType, paths)
 
-        member _.SetClipboardFileDrop paths =
+        member _.SetClipboardFileDrop copy paths =
             tryResult <| fun () ->
+                let dropEffectData =
+                    if copy then Windows.DragDropEffects.Copy else Windows.DragDropEffects.Move
+                    |> LanguagePrimitives.EnumToValue
+                    |> BitConverter.GetBytes
+                    |> fun bytes -> new IO.MemoryStream(bytes)
                 let winPaths = paths |> Seq.map wpath |> Seq.toArray
                 DataObject(DataFormats.FileDrop, winPaths)
+                |>! fun dataObj -> dataObj.SetData(DataFormats.PreferredDropEffect, dropEffectData)
                 |> setClipboardData
 
         member _.SetClipboardText text =

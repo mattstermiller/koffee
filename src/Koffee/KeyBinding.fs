@@ -56,6 +56,7 @@ let defaultsAsString = [
     ("Y", StartPut Shortcut)
     ("<a-y>", ClearYank)
     ("p", Put)
+    ("<c-x>", ClipboardCut)
     ("<c-c>", ClipboardCopy)
     ("<cs-c>", ClipboardCopyPaths)
     ("<c-v>", ClipboardPaste)

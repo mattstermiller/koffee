@@ -2,11 +2,6 @@ module Koffee.KeyBinding
 
 open System.Windows.Input
 
-let private parseKey keyStr =
-    match KeyComboParser.Parse keyStr with
-    | Some keys -> keys
-    | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
-
 let defaultsAsString = [
     ("k", CursorUp)
     ("j", CursorDown)
@@ -70,13 +65,18 @@ let defaultsAsString = [
     ("ss", SortList Size)
     ("<f9>", ToggleHidden)
     ("<c-n>", OpenSplitScreenWindow)
+    ("<c-e>", OpenWithTextEditor)
+    ("<cs-t>", OpenTerminal)
     ("<cs-e>", OpenExplorer)
-    ("<cs-c>", OpenCommandLine)
-    ("<cs-t>", OpenWithTextEditor)
     ("?", OpenSettings)
     ("<f1>", OpenSettings)
     ("<c-w>", Exit)
 ]
+
+let private parseKey keyStr =
+    match KeyComboParser.Parse keyStr with
+    | Some keys -> keys
+    | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
 
 let defaults =
     defaultsAsString

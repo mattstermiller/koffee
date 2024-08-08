@@ -44,16 +44,6 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
     return model
 }
 
-let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
-    let parent = model.ActionItems.Head.Path.Parent
-    let selectPaths =
-        model.ActionItems
-        |> Seq.filter (fun i -> i.Path.Parent = parent)
-        |> Seq.map (fun i -> i.Path)
-    do! os.OpenExplorer parent selectPaths |> actionError "open Explorer"
-    return model |> MainModel.withMessage MainStatus.OpenExplorer
-}
-
 let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
     match model.ActionItems with
     | [item] when item.Type = File ->
@@ -78,14 +68,6 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
         return model |> MainModel.withMessage (MainStatus.OpenProperties (items |> List.map (fun i -> i.Name)))
 }
 
-let openCommandLine (os: IOperatingSystem) model = result {
-    if model.Location <> Path.Root then
-        do! os.LaunchApp model.Config.CommandlinePath model.Location ""
-            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Commandline tool", e))
-        return model |> MainModel.withMessage (MainStatus.OpenCommandLine model.Location)
-    else return model
-}
-
 let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
     let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
     if items.IsEmpty then
@@ -95,11 +77,29 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         let paths = items |> List.map (fun i -> i.Path)
         let args = paths |> Seq.map pathArg |> String.concat " "
         do! os.LaunchApp model.Config.TextEditor model.Location args
-            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text Editor", e))
+            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text editor", e))
         return
             model
             |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory paths)
             |> MainModel.withMessage (MainStatus.OpenTextEditor (items |> List.map (fun i -> i.Name)))
+}
+
+let openTerminal (os: IOperatingSystem) model = result {
+    if model.Location <> Path.Root then
+        do! os.LaunchApp model.Config.TerminalPath model.Location ""
+            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Terminal", e))
+        return model |> MainModel.withMessage (MainStatus.OpenTerminal model.Location)
+    else return model
+}
+
+let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
+    let parent = model.ActionItems.Head.Path.Parent
+    let selectPaths =
+        model.ActionItems
+        |> Seq.filter (fun i -> i.Path.Parent = parent)
+        |> Seq.map (fun i -> i.Path)
+    do! os.OpenExplorer parent selectPaths |> actionError "open Explorer"
+    return model |> MainModel.withMessage MainStatus.OpenExplorer
 }
 
 let openSettings fsReader openSettings model = result {

@@ -43,7 +43,7 @@ let private binder (window: SettingsWindow) model =
 
     [   Bind.view(<@ window.DefaultPath.Text @>)
             .toModelResult(<@ model.DefaultPath @>, validatePath, string)
-        Bind.view(<@ window.CommandlinePath.Text @>).toModel(<@ model.Config.CommandlinePath @>)
+        Bind.view(<@ window.TerminalPath.Text @>).toModel(<@ model.Config.TerminalPath @>)
         Bind.view(<@ window.TextEditor.Text @>).toModel(<@ model.Config.TextEditor @>)
 
         Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>)

@@ -7,6 +7,7 @@
 - #132 Adds opened files to path history and shows them in path suggestions
 - #133 Renaming, moving or deleting items updates path history
 - Adds Open Properties support for drives and net shares
+- Renames Commandline to Terminal, changes keybinding to `Ctrl + Shift + t`, changes Text editor binding to `Ctrl + e`
 - #9 Changes Delete to enumerate folders and operate on individual items
 - #130 Closes Find prompt when opening a file
 - #129 Fixes FileSystem Move and Copy to handle empty folders

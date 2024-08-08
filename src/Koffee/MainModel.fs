@@ -425,9 +425,9 @@ module MainStatus =
         | ToggleHidden of showing: bool
         | OpenFiles of names: string list
         | OpenProperties of names: string list
-        | OpenExplorer
-        | OpenCommandLine of Path
         | OpenTextEditor of names: string list
+        | OpenTerminal of Path
+        | OpenExplorer
         | ClipboardCopy of paths: Path list
         | RemovedNetworkHosts of names: string list
 
@@ -498,12 +498,12 @@ module MainStatus =
                 sprintf "Opened File%s: %s" (pluralS names) (describeList names)
             | OpenProperties names ->
                 sprintf "Opened Properties for: %s" (describeList names)
+            | OpenTextEditor names ->
+                sprintf "Opened Text editor for: %s" (describeList names)
+            | OpenTerminal path ->
+                sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
-            | OpenCommandLine path ->
-                sprintf "Opened Commandline at: %s" (path.Format pathFormat)
-            | OpenTextEditor names ->
-                sprintf "Opened text editor for: %s" (describeList names)
             | ClipboardCopy paths ->
                 let pathsDescr =
                     match paths with
@@ -697,7 +697,7 @@ type Config = {
     PathFormat: PathFormat
     ShowHidden: bool
     TextEditor: string
-    CommandlinePath: string
+    TerminalPath: string
     SearchExclusions: string list
     YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
@@ -739,7 +739,7 @@ with
         PathFormat = Windows
         ShowHidden = false
         TextEditor = "notepad.exe"
-        CommandlinePath = "cmd.exe"
+        TerminalPath = "cmd.exe"
         SearchExclusions = [
             ".git"
             ".svn"
@@ -1192,8 +1192,8 @@ type MainEvents =
     | OpenFileAndExit
     | OpenProperties
     | OpenWithTextEditor
+    | OpenTerminal
     | OpenExplorer
-    | OpenCommandLine
     | OpenSettings
     | Exit
     | LocationInputChanged
@@ -1259,8 +1259,8 @@ type MainEvents =
         StartConfirm Delete, "Delete Permanently"
         OpenProperties, "Open Properties"
         OpenWithTextEditor, "Open Selected File With Text Editor"
+        OpenTerminal, "Open Terminal at Current Location"
         OpenExplorer, "Open Windows Explorer at Current Location"
-        OpenCommandLine, "Open Windows Commandline at Current Location"
         Undo, "Undo Action"
         Redo, "Redo Action"
         ToggleHistory NavHistory, "Show Navigation History"

@@ -42,9 +42,9 @@
     <TextBox Name="TextEditor" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
              Grid.Row="2"/>
 
-    <Label Name="LabelCommandlinePath" x:FieldModifier="public" Content="Commandline path:" VerticalAlignment="Center"
+    <Label Name="LabelTerminalPath" x:FieldModifier="public" Content="Terminal path:" VerticalAlignment="Center"
            Grid.Row="3"/>
-    <TextBox Name="CommandlinePath" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
+    <TextBox Name="TerminalPath" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
              Grid.Row="3"/>
 
     <Label Name="LabelPathFormat" x:FieldModifier="public" Content="Path format:" VerticalAlignment="Center"

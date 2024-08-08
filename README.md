@@ -132,9 +132,9 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Open the selected files and exit with `Ctrl + Enter`
 - Open the selected item's properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
+- Open the selected files with your text editor (configured in the Settings window) with `Ctrl + e`
+- Open the terminal (configured in the Settings window) at your current location with `Ctrl + Shift + t`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
-- Open the commandline tool (configured in the Settings window) at your current location with `Ctrl + Shift + c`
-- Open the selected files with your text editor (configured in the Settings window) with `Ctrl + Shift + t`
 - Show/hide hidden files and folders with `F9`
 
 To see the full list of commands and their key bindings, open the Settings window with `?`.

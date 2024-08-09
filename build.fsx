@@ -160,11 +160,13 @@ Target.create "package" (fun _ ->
 )
 
 Target.create "publish" (fun _ ->
-    let token =
+    let githubToken =
        match Environment.environVarOrNone "koffee_deploy_token" with
        | Some s -> s
        | None -> failwith "Set the koffee_deploy_token environment variable to a github personal access token with 'repo' access."
-    GitHub.createClientWithToken token
+    // TODO try to validate choco token
+
+    GitHub.createClientWithToken githubToken
     |> GitHub.draftNewRelease "mattstermiller" "koffee" ("v" + version) false releaseNotes.Notes
     |> GitHub.uploadFiles [zipFile; installerFile]
     |> GitHub.publishDraft

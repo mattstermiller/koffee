@@ -160,18 +160,25 @@ Target.create "package" (fun _ ->
 )
 
 Target.create "publish" (fun _ ->
-    let token =
-       match Environment.environVarOrNone "koffee_deploy_token" with
-       | Some s -> s
-       | None -> failwith "Set the koffee_deploy_token environment variable to a github personal access token with 'repo' access."
-    GitHub.createClientWithToken token
+    let githubToken =
+        Environment.environVarOrNone "koffee_deploy_token"
+        |> Option.defaultWith (fun () ->
+            failwith "Set the 'koffee_deploy_token' environment variable to a github personal access token with 'repo' access."
+        )
+    let chocoApiKey =
+        Environment.environVarOrNone "choco_api_key"
+        |> Option.defaultWith (fun () ->
+            failwith "Set the 'choco_api_key' environment variable to your chocolatey API key"
+        )
+
+    GitHub.createClientWithToken githubToken
     |> GitHub.draftNewRelease "mattstermiller" "koffee" ("v" + version) false releaseNotes.Notes
     |> GitHub.uploadFiles [zipFile; installerFile]
     |> GitHub.publishDraft
     |> Async.RunSynchronously
 
     let chocoPackage = sprintf "%skoffee.%s.nupkg" distDir version
-    Shell.Exec("choco", sprintf "push \"%s\" --source https://chocolatey.org/" chocoPackage)
+    Shell.Exec("choco", sprintf "push \"%s\" --source https://chocolatey.org/ --api-key=\"%s\"" chocoPackage chocoApiKey)
     |> failIfNonZero
 )
 

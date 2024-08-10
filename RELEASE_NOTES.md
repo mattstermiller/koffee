@@ -1,6 +1,6 @@
 # Release Notes
 
-### 0.7.0  Multi-Select (WIP)
+### 0.7.0  Multi-Select (2024-08-10)
 - #14 Adds multi-selection commands to perform open, put, delete and other commands on many items at once
 - #148 Adds command Cut Items to Clipboard
 - #147 Adds command Copy Paths to Clipboard, changes existing command to copy only file drop

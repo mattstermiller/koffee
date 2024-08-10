@@ -130,7 +130,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Display navigation history for Back/Forward with `gh`
 - Display status message history with `gs`
 - Open the selected files and exit with `Ctrl + Enter`
-- Open the selected item's properties with `Alt + Enter`
+- Open the selected items' properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
 - Open the selected files with your text editor (configured in the Settings window) with `Ctrl + e`
 - Open the terminal (configured in the Settings window) at your current location with `Ctrl + Shift + t`

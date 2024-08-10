@@ -420,6 +420,8 @@ module MainStatus =
         | CancelledConfirm of ConfirmType
         | CancelledPut of PutType * isUndo: bool * completed: int * total: int
         | CancelledDelete of permanent: bool * completed: int * total: int
+        | ClipboardYank of copy: bool * paths: Path list
+        | ClipboardCopyPaths of paths: Path list
         | NoItemsToPaste
         | Sort of field: obj * desc: bool
         | ToggleHidden of showing: bool
@@ -428,8 +430,6 @@ module MainStatus =
         | OpenTextEditor of names: string list
         | OpenTerminal of Path
         | OpenExplorer
-        | ClipboardYank of copy: bool * paths: Path list
-        | ClipboardCopyPaths of paths: Path list
         | RemovedNetworkHosts of names: string list
 
         static member private describePaths pathFormat (paths: Path list) =

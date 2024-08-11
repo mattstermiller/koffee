@@ -40,11 +40,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Koffee\Koffee.fsproj" />
   </ItemGroup>
-  <!-- fsc.props and empty fsc path are workarounds to compile code using type providers on core sdk -->
-  <Import Project="..\fsc.props" />
-  <PropertyGroup>
-    <DotnetFscCompilerPath>
-    </DotnetFscCompilerPath>
-  </PropertyGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
+  <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
+    <PackageReference Include="FsUnit" Version="2.3.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.16.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.6.1" />
+    <PackageReference Include="CompareNETObjects" Version="4.66" />
+  </ItemGroup>
 </Project>

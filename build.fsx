@@ -5,7 +5,6 @@ nuget Fake.IO.FileSystem
 nuget Fake.IO.Zip
 nuget Fake.DotNet.AssemblyInfoFile
 nuget Fake.DotNet.Cli
-nuget Fake.Installer.InnoSetup
 nuget Fake.API.GitHub
 
 // Pin build dependencies as workaround to https://github.com/fsprojects/FAKE/issues/2722
@@ -20,7 +19,6 @@ open Fake.Core
 open Fake.IO
 open Fake.IO.Globbing.Operators
 open Fake.DotNet
-open Fake.Installer
 open Fake.Api
 open System.IO
 open System.Security.Cryptography
@@ -138,12 +136,7 @@ Target.create "package" (fun _ ->
 
     // create installer
     let installerScript = substitute distFilesDir (distConfigDir + "installer.iss")
-    InnoSetup.build (fun p ->
-        { p with
-            ScriptFile = installerScript
-            QuietMode = InnoSetup.QuietAndProgress
-            OutputBaseFilename = installerBaseFileName
-        })
+    Shell.Exec("dotnet", sprintf "iscc /F\"%s\" /Q \"%s\"" installerBaseFileName installerScript)
 
     // create Chocolatey package
     let chocoDir = distFilesDir + "choco/"

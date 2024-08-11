@@ -2,16 +2,16 @@
   "version": 1,
   "isRoot": true,
   "tools": {
-    "paket": {
-      "version": "7.2.0",
-      "commands": [
-        "paket"
-      ]
-    },
     "fake-cli": {
       "version": "5.23.1",
       "commands": [
         "fake"
+      ]
+    },
+    "dotnet-innosetup": {
+      "version": "6.2.1",
+      "commands": [
+        "iscc"
       ]
     }
   }

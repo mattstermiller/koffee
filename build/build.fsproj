@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Build.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="8.0.301" />
+    <PackageReference Include="Fake.API.GitHub" Version="6.1.0" />
+    <PackageReference Include="Fake.Core.ReleaseNotes" Version="6.1.0" />
+    <PackageReference Include="Fake.Core.Target" Version="6.1.0" />
+    <PackageReference Include="Fake.DotNet.AssemblyInfoFile" Version="6.1.0" />
+    <PackageReference Include="Fake.DotNet.Cli" Version="6.1.0" />
+    <PackageReference Include="Fake.IO.FileSystem" Version="6.1.0" />
+    <PackageReference Include="Fake.IO.Zip" Version="6.1.0" />
+    <PackageReference Include="MSBuild.StructuredLogger" Version="2.2.291" />
+  </ItemGroup>
+
+</Project>

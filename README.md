@@ -28,7 +28,7 @@ You will need to have installed:
 
 Steps:
 - Clone this repository
-- Open a terminal to the folder and run `.\fake.cmd build -t install`
+- Open a terminal to the folder and run `.\build.cmd -t install`
 
 ## Using Koffee
 First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the hotkeys, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.

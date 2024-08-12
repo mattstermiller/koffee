@@ -4,4 +4,4 @@ set -eu
 set -o pipefail
 
 dotnet tool restore
-dotnet fake "$@"
+dotnet run -v:m --project ./build/build.fsproj -- "$@"

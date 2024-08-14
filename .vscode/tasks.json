@@ -16,7 +16,7 @@
       "label": "build all",
       "type": "shell",
       "command": "dotnet",
-      "args": ["fake", "build", "-t", "buildAll"],
+      "args": ["fake", "build", "-t", "buildAllDebug"],
       "group": {
         "kind": "build",
         "isDefault": true
@@ -31,7 +31,7 @@
       "label": "build app",
       "type": "shell",
       "command": "dotnet",
-      "args": ["fake", "build", "-t", "buildApp"],
+      "args": ["fake", "build", "-t", "buildAppDebug"],
       "group": "build",
       "dependsOn": ["tool restore"],
       "presentation": {

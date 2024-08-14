@@ -52,15 +52,15 @@ Target.create "version" (fun _ ->
 )
 
 Target.create "buildApp" (fun _ ->
+    DotNet.build (fun opt -> { opt with Configuration = DotNet.Release }) "src/Koffee"
+)
+
+Target.create "buildAppDebug" (fun _ ->
     DotNet.build (fun opt -> { opt with Configuration = DotNet.Debug }) "src/Koffee"
 )
 
-Target.create "buildAll" (fun _ ->
+Target.create "buildAllDebug" (fun _ ->
     DotNet.build (fun opt -> { opt with Configuration = DotNet.Debug }) ""
-)
-
-Target.create "buildRelease" (fun _ ->
-    DotNet.build (fun opt -> { opt with Configuration = DotNet.Release }) "src/Koffee"
 )
 
 Target.create "test" (fun _ ->
@@ -172,19 +172,28 @@ Target.create "publish" (fun _ ->
 
 open Fake.Core.TargetOperators
 
+// all build targets depend on updating version
 "version" ==> "buildApp"
-"version" ==> "buildAll"
+"version" ==> "buildAppDebug"
+"version" ==> "buildAllDebug"
 
-"version"
-    ==> "clean"
-    ==> "buildRelease"
-    ==> "package"
-    ==> "publish"
-"test" ==> "package"
-
-"install" <== [
-    "buildRelease"
+// package depends on clean, build and test
+"package" <== [
+    "clean"
+    "buildApp"
     "test"
 ]
 
-Target.runOrDefault "buildAll"
+// publish depends on package
+"package" ==> "publish"
+
+"install" <== [
+    "buildApp"
+    "test"
+]
+
+// clean must be run before build or test
+"clean" ?=> "buildApp"
+"clean" ?=> "test"
+
+Target.runOrDefault "buildAllDebug"

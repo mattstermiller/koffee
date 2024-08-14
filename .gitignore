@@ -21,8 +21,7 @@ _ReSharper*/
 # build output
 bin/
 obj/
-build/
 test/
 dist/
-dist-files/
+dist-staging/
 packages/

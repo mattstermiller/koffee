@@ -23,9 +23,9 @@ open Fake.Api
 open System.IO
 open System.Security.Cryptography
 
-let buildDir = "build/"
+let buildOutputDir = "src/Koffee/bin/Release/net451/"
 let distConfigDir = "dist-config/"
-let distFilesDir = "dist-files/"
+let distStagingDir = "dist-staging/"
 let distDir = "dist/"
 
 let summary = "Fast, keyboard-driven file explorer."
@@ -40,7 +40,7 @@ let failIfNonZero ret =
     if ret <> 0 then failwith "Shell command failed."
 
 Target.create "clean" (fun _ ->
-    Shell.cleanDirs [buildDir; distFilesDir]
+    Shell.cleanDirs [distStagingDir]
 )
 
 Target.create "version" (fun _ ->
@@ -51,12 +51,6 @@ Target.create "version" (fun _ ->
     ]
 )
 
-let buildParams (p: MSBuildParams) =
-    { p with
-        RestorePackagesFlag = true
-        Verbosity = Some Quiet
-    }
-
 Target.create "buildApp" (fun _ ->
     DotNet.build (fun opt -> { opt with Configuration = DotNet.Debug }) "src/Koffee"
 )
@@ -66,7 +60,7 @@ Target.create "buildAll" (fun _ ->
 )
 
 Target.create "buildRelease" (fun _ ->
-    DotNet.build (fun opt -> { opt with Configuration = DotNet.Release; OutputPath = Some buildDir }) "src/Koffee"
+    DotNet.build (fun opt -> { opt with Configuration = DotNet.Release }) "src/Koffee"
 )
 
 Target.create "test" (fun _ ->
@@ -77,7 +71,7 @@ Target.create "install" (fun _ ->
     let execElevated cmd (args: string) =
         let args = args.Replace("\"", "\"\"\"")
         Shell.Exec("powershell", sprintf @"start -verb runas %s -argumentlist '%s'" cmd args)
-    let bin = Path.getFullName buildDir
+    let bin = Path.getFullName buildOutputDir
     let progFiles = Environment.environVarOrDefault "ProgramFiles(x86)" (Environment.environVar "ProgramFiles")
     let installDir = progFiles + @"\Koffee"
     execElevated "robocopy" (sprintf "\"%s\" \"%s\" *.exe* *.dll" bin installDir)
@@ -104,15 +98,15 @@ Target.create "package" (fun _ ->
     Directory.create distDir
 
     // setup dir with files to distribute
-    !! (buildDir + "*.exe*")
-    ++ (buildDir + "*.dll")
+    !! (buildOutputDir + "*.exe*")
+    ++ (buildOutputDir + "*.dll")
     ++ ("*.md")
     ++ ("*.txt")
-    |> Shell.copy (distFilesDir + "Koffee")
+    |> Shell.copy (distStagingDir + "Koffee")
 
     // create zip
-    !! (distFilesDir + "Koffee/*")
-    |> Zip.zip distFilesDir zipFile
+    !! (distStagingDir + "Koffee/*")
+    |> Zip.zip distStagingDir zipFile
 
     let computeHash file =
         use stream = File.OpenRead(file)
@@ -135,13 +129,14 @@ Target.create "package" (fun _ ->
         destFile
 
     // create installer
-    let installerScript = substitute distFilesDir (distConfigDir + "installer.iss")
+    let installerScript = substitute distStagingDir (distConfigDir + "installer.iss")
     Shell.Exec("dotnet", sprintf "iscc /F\"%s\" /Q \"%s\"" installerBaseFileName installerScript)
+    |> failIfNonZero
 
     // create Chocolatey package
-    let chocoDir = distFilesDir + "choco/"
+    let chocoDir = distStagingDir + "choco/"
     Shell.copyRecursive (distConfigDir + "choco") chocoDir true |> ignore
-    Shell.copyRecursive (distFilesDir + "Koffee") (chocoDir + "tools/") true |> ignore
+    Shell.copyRecursive (distStagingDir + "Koffee") (chocoDir + "tools/") true |> ignore
     let chocoSpec = substitute chocoDir (distConfigDir + "choco/koffee.nuspec")
     Shell.Exec("choco", sprintf "pack %s --out %s" chocoSpec distDir)
     |> failIfNonZero

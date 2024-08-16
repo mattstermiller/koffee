@@ -9,7 +9,7 @@
       "type": "clr",
       "request": "launch",
       "preLaunchTask": "build app",
-      "program": "${workspaceFolder}/src/Koffee/bin/Debug/net451/Koffee.exe",
+      "program": "${workspaceFolder}/src/Koffee/bin/Debug/net481/Koffee.exe",
       "args": [],
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
@@ -19,7 +19,7 @@
       "type": "clr",
       "request": "launch",
       "preLaunchTask": "build ui test",
-      "program": "${workspaceFolder}/src/KoffeeUI.Test/bin/Debug/net451/KoffeeUI.Test.exe",
+      "program": "${workspaceFolder}/src/KoffeeUI.Test/bin/Debug/net481/KoffeeUI.Test.exe",
       "internalConsoleOptions": "neverOpen"
     }
   ]

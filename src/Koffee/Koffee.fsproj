@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net451</TargetFramework>
+    <TargetFramework>net481</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Win32Resource>.\resources\koffee.res</Win32Resource>
@@ -43,11 +43,11 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="4.7.2" />
-    <PackageReference Include="VinylUI" Version="2.3.1" />
-    <PackageReference Include="System.Reactive" Version="3.1.1" />
-    <PackageReference Include="System.Management" Version="4.7" />
+    <PackageReference Include="VinylUI" Version="3.0.2" />
+    <PackageReference Include="System.Reactive" Version="4.4.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="Microsoft.VisualBasic" Version="10.3" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Acadian.FSharp" Version="1.2.23" />
   </ItemGroup>
 </Project>

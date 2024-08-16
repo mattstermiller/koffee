@@ -7,7 +7,7 @@ open Fake.Api
 open System.IO
 open System.Security.Cryptography
 
-let buildOutputDir = "src/Koffee/bin/Release/net451/"
+let buildOutputDir = "src/Koffee/bin/Release/net481/"
 let distConfigDir = "dist-config/"
 let distStagingDir = "dist-staging/"
 let distDir = "dist/"

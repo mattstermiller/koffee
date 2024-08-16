@@ -1,15 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net481</TargetFramework>
+    <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Win32Resource>.\resources\koffee.res</Win32Resource>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <WarningsAsErrors>25,20</WarningsAsErrors>
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ApplicationIcon>resources/koffee.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <WarningsAsErrors>25,20</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />

@@ -2,6 +2,7 @@
 
 ### 0.7.1  (WIP)
 - Upgrades to .NET Framework 4.8.1
+- #140 Adds support for long file paths
 
 ### 0.7.0  Multi-Select (2024-08-10)
 - #14 Adds multi-selection commands to perform open, put, delete and other commands on many items at once

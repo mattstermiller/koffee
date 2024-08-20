@@ -1,0 +1,6 @@
+{
+  // avoids compiler errors from watcher locking WPF-related files
+  "files.watcherExclude": {
+    "**/obj/**": true
+  }
+}

@@ -7,7 +7,7 @@ The Keyboard-Oriented File & Folder Explorer for Efficiency, or Koffee, is a no-
 ![Screenshot](screenshot.png)
 
 ## Installation
-Koffee depends on **Microsoft .NET Framework 4.5.1**. It is installed by default on Windows 8.1 or newer. Even on older versions of windows, you may already have it installed; look for it in the list of installed programs in "Programs and Features" (Windows 7 or Vista) or "Add or Remove Programs" (Windows XP). If you don't see it, head to [Microsoft's download page](https://www.microsoft.com/en-us/download/details.aspx?id=40773) to download and install it.
+Koffee depends on **Microsoft .NET Framework 4.8.1**. You probably already have it installed. If you don't, go to [.NET Framework 4.8.1](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net481) to download and install it.
 
 ### From [Chocolatey](https://chocolatey.org/)
 
@@ -24,11 +24,11 @@ Go to the [releases page](https://github.com/mattstermiller/koffee/releases). Fr
 ### From Source
 You will need to have installed:
 - [Visual Studio or VS Build Tools 2019](https://visualstudio.microsoft.com/downloads/)
-  - Make sure to select the components ".NET Core SDK", ".NET Framework 4.5.1 targeting pack" and "F# compiler"
+  - Make sure to select the components ".NET SDK", ".NET Framework 4.8 targeting pack" and "F# compiler"
 
 Steps:
 - Clone this repository
-- Open a terminal to the folder and run `.\fake.cmd build -t install`
+- Open a terminal to the folder and run `.\build.cmd -t install`
 
 ## Using Koffee
 First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the hotkeys, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.

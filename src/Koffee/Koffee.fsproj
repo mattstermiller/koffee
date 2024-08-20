@@ -1,15 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net451</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Win32Resource>.\resources\koffee.res</Win32Resource>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <WarningsAsErrors>25,20</WarningsAsErrors>
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ApplicationIcon>resources/koffee.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <WarningsAsErrors>25,20</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
@@ -41,11 +42,13 @@
   <ItemGroup>
     <ProjectReference Include="..\KoffeeUI\KoffeeUI.csproj" />
   </ItemGroup>
-  <!-- fsc.props and empty fsc path are workarounds to compile code using type providers on core sdk -->
-  <Import Project="..\fsc.props" />
-  <PropertyGroup>
-    <DotnetFscCompilerPath>
-    </DotnetFscCompilerPath>
-  </PropertyGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
+  <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
+    <PackageReference Include="VinylUI" Version="3.0.2" />
+    <PackageReference Include="System.Reactive" Version="4.4.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="Microsoft.VisualBasic" Version="10.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Acadian.FSharp" Version="1.2.23" />
+  </ItemGroup>
 </Project>

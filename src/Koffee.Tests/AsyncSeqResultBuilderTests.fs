@@ -5,7 +5,7 @@ open FsUnitTyped
 open FSharp.Control
 
 let shouldEqualList expected actual =
-    actual |> AsyncSeq.toList |> shouldEqual expected
+    actual |> AsyncSeq.toListSynchronously |> shouldEqual expected
 
 [<Test>]
 let ``Yield works as expected`` () =

@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>net451</TargetFramework>
+    <TargetFramework>net481</TargetFramework>
     <UseWPF>true</UseWPF>
     <WarningsAsErrors>25,20</WarningsAsErrors>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -40,11 +40,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Koffee\Koffee.fsproj" />
   </ItemGroup>
-  <!-- fsc.props and empty fsc path are workarounds to compile code using type providers on core sdk -->
-  <Import Project="..\fsc.props" />
-  <PropertyGroup>
-    <DotnetFscCompilerPath>
-    </DotnetFscCompilerPath>
-  </PropertyGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
+  <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
+    <PackageReference Include="FsUnit" Version="2.3.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="CompareNETObjects" Version="4.83.0" />
+  </ItemGroup>
 </Project>

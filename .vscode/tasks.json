@@ -4,24 +4,14 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "tool restore",
-      "type": "shell",
-      "command": "dotnet",
-      "args": ["tool", "restore"],
-      "presentation": {
-        "reveal": "silent"
-      }
-    },
-    {
       "label": "build all",
       "type": "shell",
       "command": "dotnet",
-      "args": ["fake", "build", "-t", "buildAll"],
+      "args": ["run", "--project", "./build/build.fsproj", "--", "-t", "buildAllDebug"],
       "group": {
         "kind": "build",
         "isDefault": true
       },
-      "dependsOn": ["tool restore"],
       "presentation": {
         "reveal": "silent"
       },
@@ -31,9 +21,8 @@
       "label": "build app",
       "type": "shell",
       "command": "dotnet",
-      "args": ["fake", "build", "-t", "buildApp"],
+      "args": ["run", "--project", "./build/build.fsproj", "--", "-t", "buildAppDebug"],
       "group": "build",
-      "dependsOn": ["tool restore"],
       "presentation": {
         "reveal": "silent"
       },

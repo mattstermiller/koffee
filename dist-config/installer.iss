@@ -28,9 +28,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\dist-files\Koffee\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist-files\Koffee\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\dist-files\Koffee\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "Koffee\Koffee.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Koffee\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "Koffee\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

@@ -5,6 +5,7 @@
         Title="Koffee" Width="800" Height="600" FontSize="15">
   <Window.Resources>
     <ResourceDictionary>
+      <local:UnwrappedTextBlockWidthConverter x:Key="UnwrappedTextBlockWidthConverter"/>
       <local:IsCustomSelectionConverter x:Key="IsCustomSelectionConverter"/>
       <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="AppStyles.xaml"/>
@@ -49,12 +50,25 @@
                  Margin="6" Foreground="{StaticResource PanelTextBrush}"/>
     </DockPanel>
     <!-- Input panel -->
-    <DockPanel Name="InputPanel" x:FieldModifier="public" DockPanel.Dock="Bottom" Visibility="Collapsed"
-               Background="{StaticResource PanelBrush}">
-      <!-- TODO wrap text, expand panel -->
-      <TextBlock Name="InputText" x:FieldModifier="public" Text="Input:" Foreground="{StaticResource PanelTextBrush}"
-                 VerticalAlignment="Center" Margin="6,6,0,6"/>
-      <StackPanel Name="SearchOptions" x:FieldModifier="public" DockPanel.Dock="Right" VerticalAlignment="Center"
+    <Grid Name="InputPanel" x:FieldModifier="public" DockPanel.Dock="Bottom" Visibility="Collapsed"
+          Background="{StaticResource PanelBrush}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition MinWidth="50" Width="2*">
+          <ColumnDefinition.MaxWidth>
+            <MultiBinding Converter="{StaticResource UnwrappedTextBlockWidthConverter}">
+              <Binding ElementName="InputText"/>
+              <Binding ElementName="InputText" Path="Text"/>
+            </MultiBinding>
+          </ColumnDefinition.MaxWidth>
+        </ColumnDefinition>
+        <ColumnDefinition MinWidth="80" Width="1*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock Name="InputText" x:FieldModifier="public" Grid.Column="0" Text="Input:" TextWrapping="WrapWithOverflow"
+                 Margin="6,6,0,6" VerticalAlignment="Center" Foreground="{StaticResource PanelTextBrush}"/>
+      <TextBox Name="InputBox" x:FieldModifier="public" Grid.Column="1" TextWrapping="NoWrap" Margin="6"
+               VerticalAlignment="Center" Text="file name"/>
+      <StackPanel Name="SearchOptions" x:FieldModifier="public" Grid.Column="2" VerticalAlignment="Center"
                   Orientation="Horizontal">
         <CheckBox Name="SearchCaseSensitive" x:FieldModifier="public" Content="Case-sensitive (Ctrl+i)" Margin="0,0,8,0"
                   Foreground="{StaticResource PanelTextBrush}"/>
@@ -63,8 +77,7 @@
         <CheckBox Name="SearchSubFolders" x:FieldModifier="public" Content="Sub-Folders (Ctrl+s)" Margin="0,0,8,0"
                   Foreground="{StaticResource PanelTextBrush}"/>
       </StackPanel>
-      <TextBox Name="InputBox" x:FieldModifier="public" TextWrapping="NoWrap" Margin="6" Text="file name"/>
-    </DockPanel>
+    </Grid>
     <ProgressBar DockPanel.Dock="Bottom" Name="Progress" x:FieldModifier="public" Maximum="1.0" Height="12"
                  Visibility="Collapsed"/>
     <Grid>

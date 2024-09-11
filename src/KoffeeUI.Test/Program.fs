@@ -98,13 +98,20 @@ let setupWindow (window: MainWindow) =
     show window.Progress
 
     show window.InputPanel
-    show window.RegisterPanel
+    show window.YankRegisterPanel
+    show window.UndoActionPanel
+    show window.RedoActionPanel
+
+    window.ErrorText.Margin <-
+        let margin = window.ErrorText.Margin
+        margin.set_Left 50
+        margin
 
     grid.Focus() |> ignore
 
     window |> addCloseHotKey
     window.WindowStartupLocation <- WindowStartupLocation.CenterScreen
-    window.Width <- 600
+    window.Width <- 660
     window.Title <- "Koffee UI Test"
 
 let inline elem a = a :> UIElement

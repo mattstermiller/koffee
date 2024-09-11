@@ -19,8 +19,14 @@
       <TextBox Name="PathBox" x:FieldModifier="public" Text="/c/path"/>
     </DockPanel>
     <!-- Status bar -->
-    <Border DockPanel.Dock="Bottom" BorderThickness="0,2,0,0">
-      <DockPanel>
+    <Grid DockPanel.Dock="Bottom">
+      <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Height="20" Margin="6,2"
+                 VerticalAlignment="Center"/>
+      <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Height="20" Margin="6,2"
+                 VerticalAlignment="Center" Foreground="{StaticResource ErrorBrush}"/>
+    </Grid>
+    <Border DockPanel.Dock="Bottom" BorderThickness="0,2">
+      <DockPanel Name="StatusItemPanel">
         <Border DockPanel.Dock="Left" BorderThickness="0,0,2,0">
           <TextBlock Name="DirectoryStatus" x:FieldModifier="public" Text="10 items, 100 KB" VerticalAlignment="Center"
                      Margin="6,2,6,2"/>
@@ -30,15 +36,30 @@
           <TextBlock Name="SelectedStatus" x:FieldModifier="public" Text="2 selected, 20 KB" VerticalAlignment="Center"
                      Margin="6,2,6,2" Style="{StaticResource HighlightTextBlock}"/>
         </Border>
-        <Border Name="RegisterPanel" x:FieldModifier="public" DockPanel.Dock="Right" BorderThickness="2,0,0,0"
-                Visibility="Hidden">
-          <TextBlock Name="RegisterText" x:FieldModifier="public" Text="Copy: file name" Height="20" Margin="6,2,6,2"
-                     VerticalAlignment="Center"/>
-        </Border>
-        <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Height="20" Margin="6,2"
-                   VerticalAlignment="Center"/>
-        <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Height="20" Margin="6,2"
-                   VerticalAlignment="Center" Foreground="{StaticResource ErrorBrush}"/>
+        <Grid DockPanel.Dock="Right">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Name="RedoActionColumn" x:FieldModifier="public" Width="*"
+                              MaxWidth="{Binding ElementName=RedoActionText, Path=ActualWidth}"/>
+            <ColumnDefinition Name="UndoActionColumn" x:FieldModifier="public" Width="*"
+                              MaxWidth="{Binding ElementName=UndoActionText, Path=ActualWidth}"/>
+            <ColumnDefinition Name="YankRegisterColumn" x:FieldModifier="public" Width="*"
+                              MaxWidth="{Binding ElementName=YankRegisterText, Path=ActualWidth}"/>
+          </Grid.ColumnDefinitions>
+          <Border Name="RedoActionPanel" x:FieldModifier="public" Grid.Column="0" BorderThickness="2,0,0,0">
+            <TextBlock Name="RedoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
+                       VerticalAlignment="Center" Text="Redo: Copy item 'C:\projects\koffee\README.md'"/>
+          </Border>
+          <Border Name="UndoActionPanel" x:FieldModifier="public" Grid.Column="1" BorderThickness="2,0,0,0">
+            <TextBlock Name="UndoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
+                       VerticalAlignment="Center" Text="Undo: Move item 'C:\projects\koffee\dist\koffee.zip'"/>
+          </Border>
+          <Border Name="YankRegisterPanel" x:FieldModifier="public" Grid.Column="2" BorderThickness="2,0,0,0">
+            <TextBlock Name="YankRegisterText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
+                       VerticalAlignment="Center" Text="Copy: file name"/>
+          </Border>
+        </Grid>
+        <!-- empty element to take the slack space -->
+        <Border/>
       </DockPanel>
     </Border>
     <!-- Search panel -->
@@ -64,8 +85,9 @@
         <ColumnDefinition MinWidth="80" Width="1*"/>
         <ColumnDefinition Width="Auto"/>
       </Grid.ColumnDefinitions>
-      <TextBlock Name="InputText" x:FieldModifier="public" Grid.Column="0" Text="Input:" TextWrapping="WrapWithOverflow"
-                 Margin="6,6,0,6" VerticalAlignment="Center" Foreground="{StaticResource PanelTextBrush}"/>
+      <TextBlock Name="InputText" x:FieldModifier="public" Grid.Column="0" TextWrapping="WrapWithOverflow"
+                 Margin="6,6,0,6" VerticalAlignment="Center" Foreground="{StaticResource PanelTextBrush}"
+                 Text="A sample input prompt with more text:"/>
       <TextBox Name="InputBox" x:FieldModifier="public" Grid.Column="1" TextWrapping="NoWrap" Margin="6"
                VerticalAlignment="Center" Text="file name"/>
       <StackPanel Name="SearchOptions" x:FieldModifier="public" Grid.Column="2" VerticalAlignment="Center"

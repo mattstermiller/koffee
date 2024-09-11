@@ -3,6 +3,7 @@
 ### 0.7.1  (WIP)
 - Upgrades to .NET Framework 4.8.1
 - #140 Adds support for long file paths (requires LongPathsEnabled in registry)
+- #139 Adds next undo and redo actions to status bar, moves status text to separate bottom bar
 - #143 Changes input panel to wrap prompt text
 
 ### 0.7.0  Multi-Select (2024-08-10)

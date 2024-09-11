@@ -193,6 +193,8 @@ module MainView =
             )
 
             // display yank register
+            let getToggledStarGridLength toggle =
+                if toggle then GridLength(1, GridUnitType.Star) else GridLength(0)
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
                     register |> Option.bind (fun (putType, itemRefs) ->
@@ -202,8 +204,22 @@ module MainView =
                             Some (sprintf "%A: %s %s%s" putType itemRef.Type.Symbol itemRef.Path.Name restDescr)
                         | [] -> None
                     )
-                window.RegisterText.Text <- text |? ""
-                window.RegisterPanel.IsCollapsed <- text.IsNone
+                window.YankRegisterText.Text <- text |? ""
+                window.YankRegisterColumn.Width <- getToggledStarGridLength text.IsSome
+            )
+
+            // display next undo and redo actions
+            let getUndoRedoDisplay prefix (actionStack: ItemAction list, pathFormat) =
+                actionStack
+                |> List.tryHead
+                |> Option.map (fun action -> prefix + action.Description pathFormat)
+            Bind.modelMulti(<@ model.UndoStack, model.PathFormat @>).toFunc(getUndoRedoDisplay "↩ Undo: " >> fun text ->
+                window.UndoActionText.Text <- text |? ""
+                window.UndoActionColumn.Width <- getToggledStarGridLength text.IsSome
+            )
+            Bind.modelMulti(<@ model.RedoStack, model.PathFormat @>).toFunc(getUndoRedoDisplay "🡪 Redo: " >> fun text ->
+                window.RedoActionText.Text <- text |? ""
+                window.RedoActionColumn.Width <- getToggledStarGridLength text.IsSome
             )
 
             // update UI for status
@@ -227,9 +243,7 @@ module MainView =
                         | Some (MainStatus.Error error) -> ("", error.Message pathFormat)
                         | None -> ("", "")
                 window.StatusText.Text <- statusText
-                window.StatusText.IsCollapsed <- statusText |> String.isEmpty
                 window.ErrorText.Text <- errorText
-                window.ErrorText.IsCollapsed <- errorText |> String.isEmpty
                 let isBusy =
                     match status with
                     | Some (MainStatus.Busy _) -> true

@@ -25,11 +25,14 @@ let failIfNonZero ret =
 
 let initTargets () =
     Target.create "clean" (fun _ ->
-        let clean config =
-            Shell.Exec("dotnet", sprintf "clean --verbosity minimal --configuration %s" config)
+        let clean project =
+            Shell.Exec("dotnet", $"clean src/{project} --configuration release --verbosity minimal")
             |> failIfNonZero
-        clean "debug"
-        clean "release"
+        List.iter clean [
+            "KoffeeUI"
+            "Koffee"
+            "Koffee.Tests"
+        ]
 
         Shell.cleanDirs [distStagingDir]
     )

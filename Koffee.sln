@@ -10,7 +10,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KoffeeUI", "src\KoffeeUI\Ko
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "KoffeeUI.Test", "src\KoffeeUI.Test\KoffeeUI.Test.fsproj", "{213B8A96-C842-4C6A-9540-174E0711A8DB}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "build", "build\build.fsproj", "{1680AE1F-A12D-49B3-942C-2E41A4A1F1F9}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "build", "src\build\build.fsproj", "{1680AE1F-A12D-49B3-942C-2E41A4A1F1F9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

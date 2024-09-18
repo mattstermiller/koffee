@@ -1,2 +1,2 @@
 dotnet tool restore
-dotnet run --project ./build/build.fsproj -- %*
+dotnet run --project ./src/build/build.fsproj -- %*

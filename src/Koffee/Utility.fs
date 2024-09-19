@@ -85,6 +85,9 @@ module Format =
     let time = formatDate FormatString.time
     let dateTime = formatDate FormatString.dateTime
 
+    let count name count =
+        sprintf "%i %s%s" count name (if count <> 1 then "s" else "")
+
     let fileSize size =
         let scaleNames = ["B";"KB";"MB";"GB"]
         let scale level = pown 1024L level

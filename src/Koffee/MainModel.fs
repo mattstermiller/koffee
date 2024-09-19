@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -83,7 +83,7 @@ with
         sprintf "%s \"%s\"" typ.NameLower path.Name
 
     static member describeList (itemRefs: ItemRef seq) =
-        itemRefs |> Seq.describeAndCount 5 (fun i -> i.Description)
+        itemRefs |> Seq.describeAndCount 3 (fun i -> i.Description)
 
 type Item = {
     Path: Path
@@ -132,7 +132,7 @@ with
         items |> List.map (fun i -> i.Path)
 
     static member describeList (items: Item seq) =
-        items |> Seq.describeAndCount 5 (fun i -> i.Description)
+        items |> Seq.describeAndCount 3 (fun i -> i.Description)
 
 type SortField =
     | Name
@@ -289,14 +289,6 @@ with
     static member reverse putItem =
         { putItem with Source = putItem.Dest; Dest = putItem.Source }
 
-    static member describeList pathFormat (putItems: PutItem list) =
-        match putItems with
-        | [putItem] ->
-            sprintf "%s to \"%s\"" (ItemRef.describe putItem.Source putItem.ItemType) (putItem.Dest.Format pathFormat)
-        | {Dest = dest} :: _ ->
-            sprintf "%s items to %s" (putItems.Length |> String.format "N0") (dest.Parent.Format pathFormat)
-        | [] -> "0 items"
-
 type PutIntent = {
     Sources: ItemRef list
     DestParent: Path
@@ -322,29 +314,28 @@ with
     member this.Description pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
-        | RenamedItem (item, newName) -> sprintf "Rename %s to %s" item.Description newName
+        | RenamedItem (item, newName) -> sprintf "Rename %s to \"%s\"" item.Description newName
         | PutItems (putType, intent, actual, _) ->
             let fileCountStr =
-                actual
-                |> Seq.filter (fun pi -> pi.ItemType = File)
-                |> Seq.length
-                |> function
-                    | 0 -> ""
-                    | count -> sprintf " (%i files)" count
+                // if any directories were put, give the total file count
+                if intent.Sources |> List.exists (fun itemRef -> itemRef.Type.IsDirectory) then
+                    actual
+                    |> Seq.filter (fun pi -> pi.ItemType = File)
+                    |> Seq.length
+                    |> Format.count "file"
+                    |> sprintf " (%s)"
+                else
+                    ""
             sprintf "%O %s%s" putType (intent.Description pathFormat) fileCountStr
         | DeletedItems (permanent, items, _) ->
-            match items with
-            | item :: rest ->
-                let action = if permanent then "Delete" else "Recycle"
-                let restDescr = sprintf " and %i others" rest.Length
-                let sizeDescr =
-                    items
-                    |> List.choose (fun item -> item.Size)
-                    |> Option.ofCond (not << List.isEmpty)
-                    |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
-                    |? ""
-                sprintf "%s %s%s (%s)" action item.Description restDescr sizeDescr
-            | [] -> "" // items should never be empty
+            let action = if permanent then "Delete" else "Recycle"
+            let sizeDescr =
+                items
+                |> List.choose (fun item -> item.Size)
+                |> Option.ofCond (not << List.isEmpty)
+                |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
+                |? ""
+            sprintf "%s %s%s" action (Item.describeList items) sizeDescr
 
 type CursorMoveType =
     | CursorStay

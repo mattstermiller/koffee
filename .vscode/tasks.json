@@ -7,7 +7,7 @@
       "label": "build all",
       "type": "shell",
       "command": "dotnet",
-      "args": ["run", "--project", "./build/build.fsproj", "--", "-t", "buildAllDebug"],
+      "args": ["run", "--project", "./src/build/build.fsproj", "--", "-t", "buildAllDebug"],
       "group": {
         "kind": "build",
         "isDefault": true
@@ -21,7 +21,7 @@
       "label": "build app",
       "type": "shell",
       "command": "dotnet",
-      "args": ["run", "--project", "./build/build.fsproj", "--", "-t", "buildAppDebug"],
+      "args": ["run", "--project", "./src/build/build.fsproj", "--", "-t", "buildAppDebug"],
       "group": "build",
       "presentation": {
         "reveal": "silent"

@@ -234,8 +234,11 @@ module MainView =
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
                     elif repeatCommand.IsSome then
-                        let plural = if repeatCommand.Value <> 1 then "s" else ""
-                        (sprintf "Repeat command %i time%s..." repeatCommand.Value plural, "")
+                        let msg =
+                            repeatCommand.Value
+                            |> Format.count "time"
+                            |> sprintf "Repeat command %s..."
+                        (msg, "")
                     else
                         match status with
                         | Some (MainStatus.Message msg) -> (msg.Message pathFormat, "")

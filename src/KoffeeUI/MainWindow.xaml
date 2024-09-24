@@ -38,20 +38,20 @@
         </Border>
         <Grid DockPanel.Dock="Right">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Name="RedoActionColumn" x:FieldModifier="public" Width="*"
-                              MaxWidth="{Binding ElementName=RedoActionText, Path=ActualWidth}"/>
             <ColumnDefinition Name="UndoActionColumn" x:FieldModifier="public" Width="*"
                               MaxWidth="{Binding ElementName=UndoActionText, Path=ActualWidth}"/>
+            <ColumnDefinition Name="RedoActionColumn" x:FieldModifier="public" Width="*"
+                              MaxWidth="{Binding ElementName=RedoActionText, Path=ActualWidth}"/>
             <ColumnDefinition Name="YankRegisterColumn" x:FieldModifier="public" Width="*"
                               MaxWidth="{Binding ElementName=YankRegisterText, Path=ActualWidth}"/>
           </Grid.ColumnDefinitions>
-          <Border Name="RedoActionPanel" x:FieldModifier="public" Grid.Column="0" BorderThickness="2,0,0,0">
-            <TextBlock Name="RedoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
-                       VerticalAlignment="Center" Text="Redo: Copy item 'C:\projects\koffee\README.md'"/>
-          </Border>
-          <Border Name="UndoActionPanel" x:FieldModifier="public" Grid.Column="1" BorderThickness="2,0,0,0">
+          <Border Name="UndoActionPanel" x:FieldModifier="public" Grid.Column="0" BorderThickness="2,0,0,0">
             <TextBlock Name="UndoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
                        VerticalAlignment="Center" Text="Undo: Move item 'C:\projects\koffee\dist\koffee.zip'"/>
+          </Border>
+          <Border Name="RedoActionPanel" x:FieldModifier="public" Grid.Column="1" BorderThickness="2,0,0,0">
+            <TextBlock Name="RedoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
+                       VerticalAlignment="Center" Text="Redo: Copy item 'C:\projects\koffee\README.md'"/>
           </Border>
           <Border Name="YankRegisterPanel" x:FieldModifier="public" Grid.Column="2" BorderThickness="2,0,0,0">
             <TextBlock Name="YankRegisterText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"

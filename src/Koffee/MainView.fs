@@ -399,11 +399,18 @@ module MainView =
         ]
 
     let getFileDropPaths (data: IDataObject) =
-        data.GetData(DataFormats.FileDrop) :?> string array
-        |> Option.ofObj
+        let tryGetData format =
+            try
+                data.GetData(format, true)
+            with _ ->
+                null
+        tryGetData DataFormats.FileDrop :?> string array |> Option.ofObj
+        |> Option.orElseWith (fun () ->
+            tryGetData DataFormats.Text :?> string |> Option.ofObj |> Option.map (String.split '\n')
+        )
         |? [||]
-        |> Seq.choose Path.Parse
-        |> Seq.toList
+        |> Array.choose Path.Parse
+        |> Array.toList
 
     let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (window: MainWindow) =
         [

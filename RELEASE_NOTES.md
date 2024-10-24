@@ -5,6 +5,7 @@
 - #140 Adds support for long file paths (requires LongPathsEnabled in registry)
 - #139 Adds next undo and redo actions to status bar, moves status text to separate bottom bar
 - #143 Changes input panel to wrap prompt text
+- Fixes some drop data formats to be converted instead of locking up Koffee
 
 ### 0.7.0  Multi-Select (2024-08-10)
 - #14 Adds multi-selection commands to perform open, put, delete and other commands on many items at once

@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -295,8 +295,15 @@ type PutIntent = {
     Overwrite: bool
 }
 with
-    member this.Description pathFormat =
-        sprintf "%s to \"%s\"" (ItemRef.describeList this.Sources) (this.DestParent.Format pathFormat)
+    member private this.Describe isShort pathFormat =
+        let dest =
+            if isShort
+            then this.DestParent.Name
+            else this.DestParent.Format pathFormat
+        sprintf "%s to \"%s\"" (ItemRef.describeList this.Sources) dest
+
+    member this.Description pathFormat = this.Describe false pathFormat
+    member this.ShortDescription pathFormat = this.Describe true pathFormat
 
     member this.FilterPutItemsToDestParent putItems =
         putItems |> Seq.filter (fun putItem -> putItem.Dest.Parent = this.DestParent)
@@ -311,11 +318,15 @@ type ItemAction =
     | PutItems of PutType * intent: PutIntent * actual: PutItem list * cancelled: bool
     | DeletedItems of permanent: bool * Item list * cancelled: bool
 with
-    member this.Description pathFormat =
+    member private this.Describe isShort pathFormat =
         match this with
         | CreatedItem item -> sprintf "Create %s" item.Description
         | RenamedItem (item, newName) -> sprintf "Rename %s to \"%s\"" item.Description newName
         | PutItems (putType, intent, actual, _) ->
+            let descr =
+                if isShort
+                then intent.ShortDescription pathFormat
+                else intent.Description pathFormat
             let fileCountStr =
                 // if any directories were put, give the total file count
                 if intent.Sources |> List.exists (fun itemRef -> itemRef.Type.IsDirectory) then
@@ -326,7 +337,7 @@ with
                     |> sprintf " (%s)"
                 else
                     ""
-            sprintf "%O %s%s" putType (intent.Description pathFormat) fileCountStr
+            sprintf "%O %s%s" putType descr fileCountStr
         | DeletedItems (permanent, items, _) ->
             let action = if permanent then "Delete" else "Recycle"
             let sizeDescr =
@@ -336,6 +347,9 @@ with
                 |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
                 |? ""
             sprintf "%s %s%s" action (Item.describeList items) sizeDescr
+
+    member this.Description pathFormat = this.Describe false pathFormat
+    member this.ShortDescription pathFormat = this.Describe true pathFormat
 
 type CursorMoveType =
     | CursorStay

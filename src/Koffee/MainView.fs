@@ -212,7 +212,7 @@ module MainView =
             let getUndoRedoDisplay prefix (actionStack: ItemAction list, pathFormat) =
                 actionStack
                 |> List.tryHead
-                |> Option.map (fun action -> prefix + action.Description pathFormat)
+                |> Option.map (fun action -> prefix + action.ShortDescription pathFormat)
             Bind.modelMulti(<@ model.UndoStack, model.PathFormat @>).toFunc(getUndoRedoDisplay "⭮ Undo: " >> fun text ->
                 window.UndoActionText.Text <- text |? ""
                 window.UndoActionColumn.Width <- getToggledStarGridLength text.IsSome

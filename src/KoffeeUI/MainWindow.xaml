@@ -5,8 +5,6 @@
         Title="Koffee" Width="800" Height="600" FontSize="15">
   <Window.Resources>
     <ResourceDictionary>
-      <local:UnwrappedTextBlockWidthConverter x:Key="UnwrappedTextBlockWidthConverter"/>
-      <local:IsCustomSelectionConverter x:Key="IsCustomSelectionConverter"/>
       <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="AppStyles.xaml"/>
       </ResourceDictionary.MergedDictionaries>
@@ -20,10 +18,10 @@
     </DockPanel>
     <!-- Status bar -->
     <Grid DockPanel.Dock="Bottom">
-      <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Height="20" Margin="6,2"
-                 VerticalAlignment="Center"/>
-      <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Height="20" Margin="6,2"
-                 VerticalAlignment="Center" Foreground="{StaticResource ErrorBrush}"/>
+      <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Margin="6,2"
+                 TextWrapping="Wrap" VerticalAlignment="Center"/>
+      <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Margin="6,2"
+                 TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{StaticResource ErrorBrush}"/>
     </Grid>
     <Border DockPanel.Dock="Bottom" BorderThickness="0,2">
       <DockPanel Name="StatusItemPanel">
@@ -76,7 +74,7 @@
       <Grid.ColumnDefinitions>
         <ColumnDefinition MinWidth="50" Width="2*">
           <ColumnDefinition.MaxWidth>
-            <MultiBinding Converter="{StaticResource UnwrappedTextBlockWidthConverter}">
+            <MultiBinding Converter="{local:UnwrappedTextBlockWidthConverter}">
               <Binding ElementName="InputText"/>
               <Binding ElementName="InputText" Path="Text"/>
             </MultiBinding>
@@ -141,7 +139,7 @@
               </DataTrigger>
               <DataTrigger Value="true">
                 <DataTrigger.Binding>
-                  <MultiBinding Converter="{StaticResource IsCustomSelectionConverter}">
+                  <MultiBinding Converter="{local:IsCustomSelectionConverter}">
                     <Binding RelativeSource="{RelativeSource Mode=Self}" Path="Item"/>
                     <Binding RelativeSource="{RelativeSource Mode=FindAncestor, AncestorType=DataGrid}" Path="Tag"/>
                   </MultiBinding>
@@ -156,35 +154,36 @@
       <!-- Popup panels -->
       <StackPanel VerticalAlignment="Bottom" Margin="32,0">
         <!-- History panel -->
-        <StackPanel Name="HistoryPanel" x:FieldModifier="public" Visibility="Collapsed"
-                    Background="{StaticResource PopupBrush}" Margin="0">
-          <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8"
-                     Foreground="{StaticResource PopupTextBrush}" FontWeight="Bold"/>
+        <StackPanel Name="HistoryPanel" x:FieldModifier="public" Visibility="Collapsed" Margin="0"
+                    Background="{StaticResource PopupBrush}">
+          <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8" FontWeight="Bold"
+                     Foreground="{StaticResource PopupTextBrush}"/>
           <ItemsControl Name="HistoryBack" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                  <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right"/>
-                  <TextBlock Text="{Binding Item2}"/>
-                </StackPanel>
+                <DockPanel Margin="8,0,8,6">
+                  <TextBlock Text="{Binding Item1}" DockPanel.Dock="Left" Width="55" Margin="0,0,4,0" FontWeight="Bold"
+                             TextAlignment="Right"
+                             Visibility="{Binding Item1, Converter={local:StringToVisibilityConverter}}"/>
+                  <TextBlock Text="{Binding Item2}" TextWrapping="Wrap"/>
+                </DockPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <ItemsControl Name="HistoryCurrent" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
-            <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-              <TextBlock Text="(current)" Width="55" Margin="0,0,4,0" Foreground="{StaticResource PanelTextBrush}"
-                         FontStyle="Italic"/>
-              <TextBlock Name="HistoryCurrentLabel" x:FieldModifier="public" Text="/some/path"
-                         Foreground="{StaticResource PanelTextBrush}"/>
-            </StackPanel>
-          </ItemsControl>
+          <DockPanel Name="HistoryCurrent" x:FieldModifier="public" Margin="8,0,8,6">
+            <TextBlock Text="(current)" DockPanel.Dock="Left" Width="55" Margin="0,0,4,0" FontStyle="Italic"
+                       Foreground="{StaticResource PanelTextBrush}"/>
+            <TextBlock Name="HistoryCurrentLabel" x:FieldModifier="public" Text="/some/path" TextWrapping="Wrap"
+                       Foreground="{StaticResource PanelTextBrush}"/>
+          </DockPanel>
           <ItemsControl Name="HistoryForward" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                  <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="55" Margin="0,0,4,0" TextAlignment="Right" />
-                  <TextBlock Text="{Binding Item2}"/>
-                </StackPanel>
+                <DockPanel Margin="8,0,8,6">
+                  <TextBlock Text="{Binding Item1}" DockPanel.Dock="Left" Width="55" Margin="0,0,4,0" FontWeight="Bold"
+                             TextAlignment="Right"/>
+                  <TextBlock Text="{Binding Item2}" TextWrapping="Wrap"/>
+                </DockPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -195,13 +194,13 @@
         <StackPanel Name="BookmarkPanel" x:FieldModifier="public" Visibility="Collapsed"
                     Background="{StaticResource PopupBrush}">
           <TextBlock Name="BookmarksHeader" Text="Bookmarks" x:FieldModifier="public" Margin="8,4,8,8"
-                    Foreground="{StaticResource PopupTextBrush}" FontWeight="Bold"/>
+                     FontWeight="Bold" Foreground="{StaticResource PopupTextBrush}"/>
           <ItemsControl Name="Bookmarks" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
                   <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="20"/>
-                  <TextBlock Text="{Binding Item2}"/>
+                  <TextBlock Text="{Binding Item2}" TextWrapping="Wrap"/>
                 </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

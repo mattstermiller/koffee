@@ -3,14 +3,14 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Markup;
 
 namespace KoffeeUI {
     /// <summary>
     /// Returns the width of the TextBlock if it is currently not wrapped, otherwise a larger width
     /// </summary>
-    public class UnwrappedTextBlockWidthConverter : IMultiValueConverter {
-        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
-        {
+    public class UnwrappedTextBlockWidthConverter : MarkupExtension, IMultiValueConverter {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) {
             var textBlock = (TextBlock)values[0];
             return GetUnwrappedTextBlockWidth(textBlock);
         }
@@ -29,5 +29,7 @@ namespace KoffeeUI {
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
+
+        public override object ProvideValue(IServiceProvider serviceProvider) => this;
     }
 }

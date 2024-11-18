@@ -159,36 +159,42 @@
           <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8" FontWeight="Bold"
                      Foreground="{StaticResource PopupTextBrush}"/>
           <ItemsControl Name="HistoryBack" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <DockPanel Margin="8,0,8,6">
-                  <TextBlock Text="{Binding Item1}" DockPanel.Dock="Left" Width="55" Margin="0,0,4,0" FontWeight="Bold"
-                             TextAlignment="Right"
-                             Visibility="{Binding Item1, Converter={local:StringToVisibilityConverter}}"/>
-                  <TextBlock Text="{Binding Item2}" TextWrapping="Wrap"/>
-                </DockPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
+            <ItemsControl.ItemContainerStyle>
+              <Style TargetType="ContentPresenter">
+                <Setter Property="ContentTemplate">
+                  <Setter.Value>
+                    <DataTemplate>
+                      <DockPanel Margin="8,0,8,8">
+                        <TextBlock Text="{Binding Header}" DockPanel.Dock="Left" Margin="0,0,4,0" FontWeight="Bold"
+                                   TextAlignment="Right"
+                                   Width="{Binding ListIsTraversable, Converter={local:BoolToIntParamConverter},
+                                          ConverterParameter=55|20}"/>
+                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap"/>
+                      </DockPanel>
+                    </DataTemplate>
+                  </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                    <Setter Property="ContentTemplate">
+                      <Setter.Value>
+                        <DataTemplate>
+                          <DockPanel Margin="8,0,8,8">
+                            <TextBlock Text="{Binding Header}" DockPanel.Dock="Left" Margin="0,0,4,0" FontStyle="Italic"
+                                       TextAlignment="Right" Foreground="{StaticResource PanelTextBrush}"
+                                       Width="{Binding ListIsTraversable, Converter={local:BoolToIntParamConverter},
+                                              ConverterParameter=55|20}"/>
+                            <TextBlock Text="{Binding Content}" TextWrapping="Wrap"
+                                       Foreground="{StaticResource PanelTextBrush}"/>
+                          </DockPanel>
+                        </DataTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </ItemsControl.ItemContainerStyle>
           </ItemsControl>
-          <DockPanel Name="HistoryCurrent" x:FieldModifier="public" Margin="8,0,8,6">
-            <TextBlock Text="(current)" DockPanel.Dock="Left" Width="55" Margin="0,0,4,0" FontStyle="Italic"
-                       Foreground="{StaticResource PanelTextBrush}"/>
-            <TextBlock Name="HistoryCurrentLabel" x:FieldModifier="public" Text="/some/path" TextWrapping="Wrap"
-                       Foreground="{StaticResource PanelTextBrush}"/>
-          </DockPanel>
-          <ItemsControl Name="HistoryForward" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <DockPanel Margin="8,0,8,6">
-                  <TextBlock Text="{Binding Item1}" DockPanel.Dock="Left" Width="55" Margin="0,0,4,0" FontWeight="Bold"
-                             TextAlignment="Right"/>
-                  <TextBlock Text="{Binding Item2}" TextWrapping="Wrap"/>
-                </DockPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-          <TextBlock Name="HistoryEmpty" x:FieldModifier="public" Text="Nothing in history" Margin="8,0,8,6"
-                     Foreground="{StaticResource PopupTextBrush}"/>
         </StackPanel>
         <!-- Bookmarks panel -->
         <StackPanel Name="BookmarkPanel" x:FieldModifier="public" Visibility="Collapsed"

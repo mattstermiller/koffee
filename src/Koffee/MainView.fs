@@ -15,6 +15,27 @@ open KoffeeUI
 module Obs = Observable
 
 module MainView =
+    type HistoryPanelRow = {
+        Header: string
+        Content: string
+        ListIsTraversable: bool
+        IsCurrent: bool
+    }
+    with
+        static member createFlat (header, content) = {
+            Header = header
+            Content = content
+            ListIsTraversable = false
+            IsCurrent = false
+        }
+
+        static member createTraversable isCurrent (header, content) = {
+            Header = header
+            Content = content
+            ListIsTraversable = true
+            IsCurrent = isCurrent
+        }
+
     let private itemCountAndSize name items =
         let sizeStr =
             items
@@ -23,13 +44,6 @@ module MainView =
             |> Option.map (List.sum >> Format.fileSize >> sprintf ", %s")
             |> Option.toString
         sprintf "%i %s%s" items.Length name sizeStr
-
-    /// trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
-    let trimStacks stackSize prev next =
-        let gap l = max 0 (stackSize - List.length l)
-        let prev = prev |> List.truncate (stackSize + gap next)
-        let next = next |> List.truncate (stackSize + gap prev)
-        (prev, next)
 
     let binder (config: ConfigFile) (history: HistoryFile) (progress: IObservable<_>) (window: MainWindow) model =
         // path suggestions
@@ -334,55 +348,80 @@ module MainView =
                 .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses, pathFormat) ->
                     match historyType with
                     | Some historyType ->
-                        let stackSize = 6
-                        let maxStackSize = stackSize*2
+                        let maxStackSize = 6
+                        let maxListSize = maxStackSize*2
+                        let flatList (history: (string*string) list) =
+                            history |> List.truncate maxListSize |> List.rev |> List.map HistoryPanelRow.createFlat
+                        let traversableList (prev: (string*string) list) (next: (string*string) list) (current: string option) =
+                            // trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
+                            let gap l = max 0 (maxStackSize - List.length l)
+                            let prev = prev |> List.truncate (maxStackSize + gap next)
+                            let next = next |> List.truncate (maxStackSize + gap prev)
+                            seq {
+                                yield! prev |> Seq.rev |> Seq.map (HistoryPanelRow.createTraversable false)
+                                yield!
+                                    current
+                                    |> Option.map (fun content ->
+                                        ("(current)", content) |> HistoryPanelRow.createTraversable true
+                                    )
+                                    |> Option.toList
+                                yield! next |> Seq.map (HistoryPanelRow.createTraversable false)
+                            }
+                            |> Seq.toList
                         let formatStack evt items =
                             let key = KeyBinding.getKeysString evt
-                            items |> List.truncate maxStackSize |> List.mapi (fun i (name: string) ->
+                            items |> List.truncate maxListSize |> List.mapi (fun i (name: string) ->
                                 let repeat = if i > 0 then i + 1 |> string else ""
                                 (repeat + key, name)
                             )
-                        let header, prev, next, current =
+                        let header, rows =
                             match historyType with
                             | NavHistory ->
                                 let format = List.map (fun (p: Path, _) -> p.Format pathFormat)
-                                let current = Some (location.Format pathFormat)
-                                ("Navigation History", back |> format |> formatStack Back, forward |> format |> formatStack Forward, current)
+                                let rows =
+                                    traversableList
+                                        (back |> format |> formatStack Back)
+                                        (forward |> format |> formatStack Forward)
+                                        (Some (location.Format pathFormat))
+                                ("Navigation History", rows)
                             | UndoHistory ->
                                 let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
-                                ("Undo/Redo History", undo |> format |> formatStack Undo, redo |> format |> formatStack Redo, Some "---")
+                                let rows =
+                                    traversableList
+                                        (undo |> format |> formatStack Undo)
+                                        (redo |> format |> formatStack Redo)
+                                        (if undo.IsEmpty && redo.IsEmpty then None else Some "---")
+                                ("Undo/Redo History", rows)
                             | SearchHistory ->
                                 let format = List.map (fun s -> "", string s)
                                 let prev =
                                     searches
                                     |> List.skip (searchIndex |> Option.map ((+) 1) |? 0)
-                                    |> List.truncate maxStackSize
+                                    |> List.truncate maxListSize
                                     |> format
                                 let next =
                                     searches
-                                    |> List.skip (max 0 ((searchIndex |? 0) - maxStackSize))
-                                    |> List.truncate (min maxStackSize (searchIndex |? 0))
+                                    |> List.skip (max 0 ((searchIndex |? 0) - maxListSize))
+                                    |> List.truncate (min maxListSize (searchIndex |? 0))
                                     |> format
                                     |> List.rev
                                 let current = searchIndex |> Option.map (fun i -> string searches.[i])
-                                ("Search History", prev, next, current)
+                                ("Search History", traversableList prev next current)
                             | StatusHistory ->
-                                let statusList =
-                                    statuses |> List.map (function
+                                let rows =
+                                    statuses
+                                    |> List.map (function
                                         | MainStatus.Message m -> m.Message pathFormat
                                         | MainStatus.Error error -> "Error: " + error.Message pathFormat
                                         | MainStatus.Busy _ -> ""
-                                    ) |> List.map (fun m -> ("", m))
-                                ("Status History", statusList, [], None)
+                                    )
+                                    |> List.mapi (fun i msg -> (i+1 |> string, msg))
+                                    |> flatList
+                                ("Status History", rows)
 
-                        let prev, next = trimStacks stackSize prev next
-                        let isEmpty = prev.IsEmpty && next.IsEmpty
                         window.HistoryHeader.Text <- header
-                        window.HistoryBack.ItemsSource <- prev |> List.rev
-                        window.HistoryCurrentLabel.Text <- current |? ""
-                        window.HistoryCurrent.IsCollapsed <- current.IsNone || isEmpty
-                        window.HistoryForward.ItemsSource <- next
-                        window.HistoryEmpty.IsCollapsed <- not isEmpty
+                        window.HistoryBack.ItemsSource <-
+                            rows |> Seq.ifEmpty [HistoryPanelRow.createFlat ("", "Nothing here")]
                         window.HistoryPanel.IsCollapsed <- false
                     | None ->
                         window.HistoryPanel.IsCollapsed <- true

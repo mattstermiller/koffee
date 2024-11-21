@@ -18,21 +18,21 @@ module MainView =
     type HistoryPanelRow = {
         Header: string
         Content: string
-        ListIsTraversable: bool
+        IsListTraversable: bool
         IsCurrent: bool
     }
     with
         static member createFlat (header, content) = {
             Header = header
             Content = content
-            ListIsTraversable = false
+            IsListTraversable = false
             IsCurrent = false
         }
 
         static member createTraversable isCurrent (header, content) = {
             Header = header
             Content = content
-            ListIsTraversable = true
+            IsListTraversable = true
             IsCurrent = isCurrent
         }
 
@@ -285,33 +285,10 @@ module MainView =
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.PathFormat, model.Config.Bookmarks, model.Config.SavedSearches @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), pathFormat, bookmarks, searches) ->
+            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.PathFormat @>)
+                .toFunc(fun (inputMode, (selectStart, selectLen), pathFormat) ->
                     match inputMode with
                     | Some inputMode ->
-                        match inputMode with
-                        | Prompt GoToBookmark
-                        | Prompt SetBookmark
-                        | Prompt DeleteBookmark ->
-                            let bookmarks =
-                                bookmarks
-                                |> List.map (fun (c, p) -> (c, p.Format pathFormat))
-                                |> Seq.ifEmpty [(' ', "No bookmarks set")]
-                            window.Bookmarks.ItemsSource <- bookmarks
-                            window.BookmarksHeader.Text <- "Bookmarks"
-                            window.BookmarkPanel.IsCollapsed <- false
-                        | Prompt GoToSavedSearch
-                        | Prompt SetSavedSearch
-                        | Prompt DeleteSavedSearch ->
-                            let searches =
-                                searches
-                                |> List.map (mapSnd string)
-                                |> Seq.ifEmpty [(' ', "No searches saved")]
-                            window.Bookmarks.ItemsSource <- searches
-                            window.BookmarksHeader.Text <- "Saved Searches"
-                            window.BookmarkPanel.IsCollapsed <- false
-                        | _ ->
-                            window.BookmarkPanel.IsCollapsed <- true
                         window.SearchOptions.IsCollapsed <- inputMode <> Input Search
                         window.InputText.Text <- inputMode.GetPrompt pathFormat
                         if window.InputPanel.IsCollapsed then
@@ -321,7 +298,6 @@ module MainView =
                     | None ->
                         if not window.InputPanel.IsCollapsed then
                             window.InputPanel.IsCollapsed <- true
-                            window.BookmarkPanel.IsCollapsed <- true
                             window.ItemGrid.Focus() |> ignore
                 )
             Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
@@ -351,8 +327,9 @@ module MainView =
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
             Bind.modelMulti(<@ model.HistoryDisplay, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
-                               model.StatusHistory, model.PathFormat @>)
-                .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses, pathFormat) ->
+                               model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches, model.PathFormat @>)
+                .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses,
+                             bookmarks, savedSearches, pathFormat) ->
                     match historyType with
                     | Some historyType ->
                         let maxStackSize = 6
@@ -422,9 +399,21 @@ module MainView =
                                     |> List.mapi (fun i msg -> (i+1 |> string, msg))
                                     |> flatList
                                 ("Status History", rows)
+                            | Bookmarks ->
+                                let rows =
+                                    bookmarks
+                                    |> List.map (fun (char, path) -> (string char, path.Format pathFormat))
+                                    |> List.map HistoryPanelRow.createFlat
+                                ("Bookmarks", rows)
+                            | SavedSearches ->
+                                let rows =
+                                    savedSearches
+                                    |> List.map (fun (char, search) -> string char, string search)
+                                    |> List.map HistoryPanelRow.createFlat
+                                ("Saved Searches", rows)
 
                         window.HistoryHeader.Text <- header
-                        window.HistoryBack.ItemsSource <-
+                        window.HistoryItems.ItemsSource <-
                             rows |> Seq.ifEmpty [HistoryPanelRow.createFlat ("", "Nothing here")]
                         window.HistoryPanel.IsCollapsed <- false
                     | None ->

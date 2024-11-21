@@ -19,6 +19,20 @@ type Item = {
     IsHidden: bool
 }
 
+type HistoryPanelRow = {
+    Header: string
+    Content: string
+    IsListTraversable: bool
+    IsCurrent: bool
+}
+with
+    static member create isCurrent (header, content) = {
+        Header = header
+        Content = content
+        IsListTraversable = true
+        IsCurrent = isCurrent
+    }
+
 type KeyEventArgs with
     member this.RealKey = if this.Key = Key.System then this.SystemKey else this.Key
     member this.Chord = (Keyboard.Modifiers, this.RealKey)
@@ -88,11 +102,13 @@ let setupWindow (window: MainWindow) =
         | _ -> ()
     )
 
-    window.Bookmarks.ItemsSource <- [
-        'a', "C:\\animations"
-        'b', "C:\\bookmarks"
+    window.HistoryHeader.Text <- "Navigation History"
+    window.HistoryItems.ItemsSource <- [
+        HistoryPanelRow.create false ("H", "/c/")
+        HistoryPanelRow.create true ("(current)", "/c/path")
+        HistoryPanelRow.create false ("L", "/c/path/Folder 1")
     ]
-    show window.BookmarkPanel
+    show window.HistoryPanel
 
     window.Progress.Value <- 0.3
     show window.Progress

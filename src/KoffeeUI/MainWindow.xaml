@@ -153,12 +153,12 @@
       </DataGrid>
       <!-- Popup panels -->
       <StackPanel VerticalAlignment="Bottom" Margin="32,0">
-        <!-- History panel -->
+        <!-- History / Bookmarks panel -->
         <StackPanel Name="HistoryPanel" x:FieldModifier="public" Visibility="Collapsed" Margin="0"
                     Background="{StaticResource PopupBrush}">
           <TextBlock Name="HistoryHeader" x:FieldModifier="public" Margin="8,4,8,8" FontWeight="Bold"
                      Foreground="{StaticResource PopupTextBrush}"/>
-          <ItemsControl Name="HistoryBack" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
+          <ItemsControl Name="HistoryItems" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
             <ItemsControl.ItemContainerStyle>
               <Style TargetType="ContentPresenter">
                 <Setter Property="ContentTemplate">
@@ -167,7 +167,7 @@
                       <DockPanel Margin="8,0,8,8">
                         <TextBlock Text="{Binding Header}" DockPanel.Dock="Left" Margin="0,0,4,0" FontWeight="Bold"
                                    TextAlignment="Right"
-                                   Width="{Binding ListIsTraversable, Converter={local:BoolToIntParamConverter},
+                                   Width="{Binding IsListTraversable, Converter={local:BoolToIntParamConverter},
                                           ConverterParameter=55|20}"/>
                         <TextBlock Text="{Binding Content}" TextWrapping="Wrap"/>
                       </DockPanel>
@@ -182,7 +182,7 @@
                           <DockPanel Margin="8,0,8,8">
                             <TextBlock Text="{Binding Header}" DockPanel.Dock="Left" Margin="0,0,4,0" FontStyle="Italic"
                                        TextAlignment="Right" Foreground="{StaticResource PanelTextBrush}"
-                                       Width="{Binding ListIsTraversable, Converter={local:BoolToIntParamConverter},
+                                       Width="{Binding IsListTraversable, Converter={local:BoolToIntParamConverter},
                                               ConverterParameter=55|20}"/>
                             <TextBlock Text="{Binding Content}" TextWrapping="Wrap"
                                        Foreground="{StaticResource PanelTextBrush}"/>
@@ -194,22 +194,6 @@
                 </Style.Triggers>
               </Style>
             </ItemsControl.ItemContainerStyle>
-          </ItemsControl>
-        </StackPanel>
-        <!-- Bookmarks panel -->
-        <StackPanel Name="BookmarkPanel" x:FieldModifier="public" Visibility="Collapsed"
-                    Background="{StaticResource PopupBrush}">
-          <TextBlock Name="BookmarksHeader" Text="Bookmarks" x:FieldModifier="public" Margin="8,4,8,8"
-                     FontWeight="Bold" Foreground="{StaticResource PopupTextBrush}"/>
-          <ItemsControl Name="Bookmarks" x:FieldModifier="public" Foreground="{StaticResource PopupTextBrush}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <StackPanel Orientation="Horizontal" Margin="8,0,8,6">
-                  <TextBlock Text="{Binding Item1}" FontWeight="Bold" Width="20"/>
-                  <TextBlock Text="{Binding Item2}" TextWrapping="Wrap"/>
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
         <!-- Input error panel -->

@@ -81,7 +81,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         | _ -> ()
     | Some (Prompt mode) ->
         cancelInput ()
-        let model = { model with InputMode = None }
+        let model = { model with InputMode = None } |> MainModel.setHistoryDisplayForInputMode model.InputMode
         match mode with
         | GoToBookmark ->
             match model.Config.GetBookmark char with
@@ -242,10 +242,11 @@ let cancelInput model =
     |> match model.InputMode with
         | Some (Input Search) -> Search.clearSearch
         | _ -> id
+    |> MainModel.setHistoryDisplayForInputMode model.InputMode
 
 let escape model =
     if model.InputMode.IsSome then
-        { model with InputMode = None }
+        cancelInput model
     else if not model.KeyCombo.IsEmpty || model.RepeatCommand.IsSome then
         model |> MainModel.withoutKeyCombo
     else if model.HistoryDisplay.IsSome then
@@ -269,12 +270,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                let modelFunc (model: MainModel) =
-                    model
-                    |> MainModel.withoutKeyCombo
-                    // hide history if input prompt is opened
-                    |> applyIf model.InputMode.IsSome (fun m -> { m with HistoryDisplay = None })
-                (Some newEvent, modelFunc)
+                (Some newEvent, MainModel.withoutKeyCombo >> MainModel.setHistoryDisplayForInputMode model.InputMode)
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))

@@ -196,6 +196,14 @@ with
         SubFolders = false
     }
 
+type HistoryDisplayType =
+    | NavHistory
+    | UndoHistory
+    | SearchHistory
+    | StatusHistory
+    | Bookmarks
+    | SavedSearches
+
 type PromptType =
     | GoToBookmark
     | SetBookmark
@@ -222,6 +230,18 @@ type InputMode =
     | Confirm of ConfirmType
     | Input of InputType
 with
+    member this.HistoryDisplay =
+        match this with
+        | Prompt GoToBookmark
+        | Prompt SetBookmark
+        | Prompt DeleteBookmark ->
+            Some Bookmarks
+        | Prompt GoToSavedSearch
+        | Prompt SetSavedSearch
+        | Prompt DeleteSavedSearch ->
+            Some SavedSearches
+        | _ -> None
+
     member this.GetPrompt pathFormat =
         let caseName (case: obj) =
             case |> Reflection.GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
@@ -863,12 +883,6 @@ with
         PathSort = Map.empty
     }
 
-type HistoryDisplayType =
-    | NavHistory
-    | UndoHistory
-    | SearchHistory
-    | StatusHistory
-
 type CancelToken() =
     let mutable cancelled = false
     member _.IsCancelled = cancelled
@@ -1026,9 +1040,18 @@ type MainModel = {
     static member clearSelection (this: MainModel) =
         { this with SelectedItems = []; PreviousSelectIndexAndToggle = None }
 
-    static member toggleHistoryDisplay historyType model =
-        let display = if model.HistoryDisplay = Some historyType then None else Some historyType
-        { model with HistoryDisplay = display }
+    static member toggleHistoryDisplay historyType (this: MainModel) =
+        let display = if this.HistoryDisplay = Some historyType then None else Some historyType
+        { this with HistoryDisplay = display }
+
+    static member setHistoryDisplayForInputMode (prevInputMode: InputMode option) (this: MainModel) =
+        match this.InputMode with
+        | Some inputMode when this.HistoryDisplay <> inputMode.HistoryDisplay ->
+            { this with HistoryDisplay = inputMode.HistoryDisplay }
+        | None when prevInputMode |> Option.exists (fun input -> input.HistoryDisplay.IsSome) ->
+            { this with HistoryDisplay = None }
+        | _ ->
+            this
 
     static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
         match actionStack with

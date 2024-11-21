@@ -45,6 +45,13 @@ module MainView =
             |> Option.toString
         sprintf "%i %s%s" items.Length name sizeStr
 
+    /// trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
+    let trimStacks stackSize prev next =
+        let gap l = max 0 (stackSize - List.length l)
+        let prev = prev |> List.truncate (stackSize + gap next)
+        let next = next |> List.truncate (stackSize + gap prev)
+        (prev, next)
+
     let binder (config: ConfigFile) (history: HistoryFile) (progress: IObservable<_>) (window: MainWindow) model =
         // path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
@@ -353,10 +360,7 @@ module MainView =
                         let flatList (history: (string*string) list) =
                             history |> List.truncate maxListSize |> List.rev |> List.map HistoryPanelRow.createFlat
                         let traversableList (prev: (string*string) list) (next: (string*string) list) (current: string option) =
-                            // trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
-                            let gap l = max 0 (maxStackSize - List.length l)
-                            let prev = prev |> List.truncate (maxStackSize + gap next)
-                            let next = next |> List.truncate (maxStackSize + gap prev)
+                            let prev, next = trimStacks maxStackSize prev next
                             seq {
                                 yield! prev |> Seq.rev |> Seq.map (HistoryPanelRow.createTraversable false)
                                 yield!

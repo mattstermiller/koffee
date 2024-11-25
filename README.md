@@ -24,7 +24,7 @@ Go to the [releases page](https://github.com/mattstermiller/koffee/releases). Fr
 ### From Source
 You will need to have installed:
 - [Visual Studio or VS Build Tools 2019](https://visualstudio.microsoft.com/downloads/)
-  - Make sure to select the components ".NET SDK", ".NET Framework 4.8 targeting pack" and "F# compiler"
+  - Make sure to select the components ".NET SDK" (8.0 or newer), ".NET Framework 4.8 targeting pack" and "F# compiler"
 
 Steps:
 - Clone this repository

@@ -1,10 +1,11 @@
 # Release Notes
 
-### 0.7.1  (WIP)
+### 0.7.1  (2024-11-25)
 - Upgrades to .NET Framework 4.8.1
 - #140 Adds support for long file paths (requires LongPathsEnabled in registry)
 - #139 Adds next undo and redo actions to status bar, moves status text to separate bottom bar
 - #143 Changes input panel to wrap prompt text
+- #144 Changes status message and history panels to wrap text
 - Fixes some drop data formats to be converted instead of locking up Koffee
 
 ### 0.7.0  Multi-Select (2024-08-10)

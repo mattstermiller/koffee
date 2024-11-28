@@ -257,7 +257,26 @@ let escape model =
         model.CancelToken.Cancel()
         model |> MainModel.clearStatus |> Search.clearSearch
 
-let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handleKey model = asyncSeq {
+let SyncResult handler =
+    Sync (fun (model: MainModel) ->
+        match handler model with
+        | Ok newModel -> newModel
+        | Error e -> model |> MainModel.withError e
+    )
+
+let AsyncResult handler =
+    Async (fun (model: MainModel) -> asyncSeq {
+        let mutable last = model
+        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
+            match r with
+            | Ok newModel ->
+                last <- newModel
+                yield newModel
+            | Error e ->
+                yield last |> MainModel.withError e
+    })
+
+let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord handleKey model = asyncSeq {
     let evt, modelFunc =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
@@ -278,7 +297,7 @@ let keyPress dispatcher (keyBindings: (KeyCombo * MainEvents) list) chord handle
                 (None, MainModel.withoutKeyCombo)
     match evt with
     | Some e ->
-        match dispatcher e with
+        match handleCommand e with
         | Sync handler ->
             yield handler model |> modelFunc
         | Async handler ->
@@ -319,64 +338,66 @@ let windowActivated fsReader subDirResults progress model = asyncSeqResult {
             yield! model |> Search.refreshOrResearch fsReader subDirResults progress
 }
 
-let SyncResult handler =
-    Sync (fun (model: MainModel) ->
-        match handler model with
-        | Ok newModel -> newModel
-        | Error e -> model |> MainModel.withError e
-    )
-
-let AsyncResult handler =
-    Async (fun (model: MainModel) -> asyncSeq {
-        let mutable last = model
-        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
-            match r with
-            | Ok newModel ->
-                last <- newModel
-                yield newModel
-            | Error e ->
-                yield last |> MainModel.withError e
-    })
-
 type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
                 gridScroller, openSettings, closeWindow, startOptions) =
     let subDirResults = Event<_>()
     let progressEvt = Event<_>()
     let progress = Progress progressEvt
 
+    let handleCommand (command: MainCommand) =
+        match command with
+        | CursorUp -> Sync (fun m -> m |> MainModel.withCursorRel (-1 * m.RepeatCount))
+        | CursorUpHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (-m.PageSize/2 * m.RepeatCount))
+        | CursorDown -> Sync (fun m -> m |> MainModel.withCursorRel (1 * m.RepeatCount))
+        | CursorDownHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (m.PageSize/2 * m.RepeatCount))
+        | CursorToFirst -> Sync (fun m -> m |> MainModel.withCursor 0)
+        | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
+        | SelectToggle -> Sync Action.selectToggle
+        | SelectRange -> Sync Action.selectRange
+        | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
+        | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
+        | OpenCursorItem -> AsyncResult (fun m -> Nav.openItems fs os [m.CursorItem] m)
+        | OpenSelected -> AsyncResult (fun m -> Nav.openItems fs os m.ActionItems m)
+        | OpenFileWith -> SyncResult (Command.openFileWith os)
+        | OpenFileAndExit -> AsyncResult (Nav.openFilesAndExit fs os closeWindow)
+        | OpenProperties -> SyncResult (Command.openProperties os)
+        | OpenParent -> SyncResult (Nav.openParent fs)
+        | OpenRoot -> SyncResult (Nav.openPath fs Path.Root CursorStay)
+        | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath CursorStay m)
+        | Back -> Sync (Nav.back fs)
+        | Forward -> Sync (Nav.forward fs)
+        | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
+        | Undo -> AsyncResult (Action.undo fs progress)
+        | Redo -> AsyncResult (Action.redo fs progress)
+        | ToggleHistory typ -> Sync (MainModel.toggleHistoryDisplay typ)
+        | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
+        | ConfirmDelete -> SyncResult (Action.startInput fs (Confirm Delete))
+        | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))
+        | FindNext -> Sync Search.findNext
+        | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
+        | StartPut putType -> SyncResult (Action.registerSelectedItems putType)
+        | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
+        | Put -> AsyncResult (Action.put fs progress false)
+        | ClipboardCut -> SyncResult (Action.yankToClipboard false os)
+        | ClipboardCopy -> SyncResult (Action.yankToClipboard true os)
+        | ClipboardCopyPaths -> SyncResult (Action.copyPathsToClipboard os)
+        | ClipboardPaste -> AsyncResult (Action.clipboardPaste fs os progress)
+        | Recycle -> AsyncResult (fun m -> Action.recycle fs progress m.ActionItems m)
+        | SortList field -> Sync (Nav.sortList field)
+        | ToggleHidden -> Sync Command.toggleHidden
+        | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
+        | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)
+        | OpenTerminal -> SyncResult (Command.openTerminal os)
+        | OpenExplorer -> SyncResult (Command.openExplorer os)
+        | OpenSettings -> SyncResult (Command.openSettings fs openSettings)
+        | Exit -> Sync (fun m -> closeWindow(); m)
+
     let rec dispatcher evt =
         let handler =
             match evt with
-            | KeyPress (chord, handler) -> Async (keyPress dispatcher keyBindings chord handler.Handle)
-            | CursorUp -> Sync (fun m -> m |> MainModel.withCursorRel (-1 * m.RepeatCount))
-            | CursorUpHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (-m.PageSize/2 * m.RepeatCount))
-            | CursorDown -> Sync (fun m -> m |> MainModel.withCursorRel (1 * m.RepeatCount))
-            | CursorDownHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (m.PageSize/2 * m.RepeatCount))
-            | CursorToFirst -> Sync (fun m -> m |> MainModel.withCursor 0)
-            | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
-            | SelectToggle -> Sync Action.selectToggle
-            | SelectRange -> Sync Action.selectRange
-            | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
-            | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
+            | KeyPress (chord, handler) -> Async (keyPress handleCommand keyBindings chord handler.Handle)
             | OpenPath (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
-            | OpenCursorItem -> AsyncResult (fun m -> Nav.openItems fs os [m.CursorItem] m)
-            | OpenSelected -> AsyncResult (fun m -> Nav.openItems fs os m.ActionItems m)
-            | OpenFileWith -> SyncResult (Command.openFileWith os)
-            | OpenFileAndExit -> AsyncResult (Nav.openFilesAndExit fs os closeWindow)
-            | OpenProperties -> SyncResult (Command.openProperties os)
-            | OpenParent -> SyncResult (Nav.openParent fs)
-            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root CursorStay)
-            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath CursorStay m)
-            | Back -> Sync (Nav.back fs)
-            | Forward -> Sync (Nav.forward fs)
-            | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
-            | Undo -> AsyncResult (Action.undo fs progress)
-            | Redo -> AsyncResult (Action.redo fs progress)
             | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
-            | ToggleHistory typ -> Sync (MainModel.toggleHistoryDisplay typ)
-            | StartPrompt promptType -> SyncResult (Action.startInput fs (Prompt promptType))
-            | StartConfirm confirmType -> SyncResult (Action.startInput fs (Confirm confirmType))
-            | StartInput inputType -> SyncResult (Action.startInput fs (Input inputType))
             | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs subDirResults progress handler.Handle c)
             | InputChanged -> Async (inputChanged fs subDirResults progress)
             | InputBack -> Sync (inputHistory 1)
@@ -385,27 +406,9 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
             | SubmitInput -> AsyncResult (submitInput fs os)
             | CancelInput -> Sync cancelInput
-            | FindNext -> Sync Search.findNext
-            | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
-            | StartPut putType -> SyncResult (Action.registerSelectedItems putType)
-            | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
-            | Put -> AsyncResult (Action.put fs progress false)
-            | ClipboardCut -> SyncResult (Action.yankToClipboard false os)
-            | ClipboardCopy -> SyncResult (Action.yankToClipboard true os)
-            | ClipboardCopyPaths -> SyncResult (Action.copyPathsToClipboard os)
-            | ClipboardPaste -> AsyncResult (Action.clipboardPaste fs os progress)
-            | Recycle -> AsyncResult (fun m -> Action.recycle fs progress m.ActionItems m)
-            | SortList field -> Sync (Nav.sortList field)
             | UpdateDropInPutType (paths, event) -> Sync (Action.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Action.dropIn fs progress paths event)
             | DropOut event -> Sync (Action.dropOut fs event)
-            | ToggleHidden -> Sync Command.toggleHidden
-            | OpenSplitScreenWindow -> SyncResult (Command.openSplitScreenWindow os getScreenBounds)
-            | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)
-            | OpenTerminal -> SyncResult (Command.openTerminal os)
-            | OpenExplorer -> SyncResult (Command.openExplorer os)
-            | OpenSettings -> SyncResult (Command.openSettings fs openSettings)
-            | Exit -> Sync (fun m -> closeWindow(); m)
             | LocationInputChanged -> Async (Nav.suggestPaths fs)
             | ResetLocationInput -> Sync (fun m -> { m with LocationInput = m.LocationFormatted })
             | ConfigFileChanged config -> Sync (fun m -> { m with Config = config })

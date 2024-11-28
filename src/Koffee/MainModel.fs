@@ -1171,8 +1171,7 @@ type ScrollType =
     | CursorMiddle
     | CursorBottom
 
-type MainEvents =
-    | KeyPress of (ModifierKeys * Key) * EvtHandler
+type MainCommand =
     | CursorUp
     | CursorDown
     | CursorUpHalfPage
@@ -1183,7 +1182,6 @@ type MainEvents =
     | SelectRange
     | SelectAll
     | Scroll of ScrollType
-    | OpenPath of string * EvtHandler
     | OpenCursorItem
     | OpenSelected
     | OpenParent
@@ -1192,22 +1190,10 @@ type MainEvents =
     | Back
     | Forward
     | Refresh
-    | DeletePathSuggestion of HistoryPath
     | ToggleHistory of HistoryDisplayType
+    | ConfirmDelete
     | StartPrompt of PromptType
-    | StartConfirm of ConfirmType
     | StartInput of InputType
-    | InputCharTyped of char * EvtHandler
-    | InputChanged
-    | InputBack
-    | InputForward
-    | InputDelete of isShifted: bool * EvtHandler
-    | SubDirectoryResults of Item list
-    | UpdateDropInPutType of Path list * DragInEvent
-    | DropIn of Path list * DragInEvent
-    | DropOut of DragOutEvent
-    | SubmitInput
-    | CancelInput
     | FindNext
     | RepeatPreviousSearch
     | StartPut of PutType
@@ -1231,17 +1217,8 @@ type MainEvents =
     | OpenExplorer
     | OpenSettings
     | Exit
-    | LocationInputChanged
-    | ResetLocationInput
-    | ConfigFileChanged of Config
-    | HistoryFileChanged of History
-    | PageSizeChanged of int
-    | WindowLocationChanged of int * int
-    | WindowSizeChanged of int * int
-    | WindowMaximizedChanged of bool
-    | WindowActivated
-
-    static member Bindable = [
+with
+    static member ListWithNames = [
         CursorUp, "Move Cursor Up"
         CursorDown, "Move Cursor Down"
         CursorUpHalfPage, "Move Cursor Up Half Page"
@@ -1293,7 +1270,7 @@ type MainEvents =
         ClipboardCopyPaths, "Copy Paths to Clipboard"
         ClipboardPaste, "Paste from Clipboard"
         Recycle, "Send to Recycle Bin"
-        StartConfirm Delete, "Delete Permanently"
+        ConfirmDelete, "Delete Permanently"
         OpenProperties, "Open Properties"
         OpenWithTextEditor, "Open Selected File With Text Editor"
         OpenTerminal, "Open Terminal at Current Location"
@@ -1307,6 +1284,31 @@ type MainEvents =
         OpenSettings, "Open Help/Settings"
         Exit, "Exit"
     ]
+
+type MainEvent =
+    | KeyPress of (ModifierKeys * Key) * EvtHandler
+    | OpenPath of string * EvtHandler
+    | DeletePathSuggestion of HistoryPath
+    | InputCharTyped of char * EvtHandler
+    | InputChanged
+    | InputBack
+    | InputForward
+    | InputDelete of isShifted: bool * EvtHandler
+    | SubDirectoryResults of Item list
+    | UpdateDropInPutType of Path list * DragInEvent
+    | DropIn of Path list * DragInEvent
+    | DropOut of DragOutEvent
+    | SubmitInput
+    | CancelInput
+    | LocationInputChanged
+    | ResetLocationInput
+    | ConfigFileChanged of Config
+    | HistoryFileChanged of History
+    | PageSizeChanged of int
+    | WindowLocationChanged of int * int
+    | WindowSizeChanged of int * int
+    | WindowMaximizedChanged of bool
+    | WindowActivated
 
 type Progress(evt: Event<float option>) =
     member _.Start () =

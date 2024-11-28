@@ -2,26 +2,31 @@ module Koffee.KeyBinding
 
 open System.Windows.Input
 
-let defaultsAsString = [
-    ("k", CursorUp)
-    ("j", CursorDown)
-    ("<c-k>", CursorUpHalfPage)
-    ("<c-u>", CursorUpHalfPage)
-    ("<c-j>", CursorDownHalfPage)
-    ("<c-d>", CursorDownHalfPage)
-    ("gg", CursorToFirst)
-    ("G", CursorToLast)
-    ("<space>", SelectToggle)
-    ("<s-space>", SelectRange)
-    ("<c-a>", SelectAll)
-    ("zt", Scroll CursorTop)
-    ("zz", Scroll CursorMiddle)
-    ("zb", Scroll CursorBottom)
-    ("l", OpenCursorItem)
-    ("<enter>", OpenSelected)
-    ("<s-enter>", OpenFileWith)
-    ("<c-enter>", OpenFileAndExit)
-    ("<a-enter>", OpenProperties)
+let noMod = ModifierKeys.None
+let shift = ModifierKeys.Shift
+let ctrl = ModifierKeys.Control
+let alt = ModifierKeys.Alt
+
+let defaults: (KeyCombo * MainCommand) list = [
+    ([noMod, Key.K], CursorUp)
+    ([noMod, Key.J], CursorDown)
+    ([ctrl, Key.K], CursorUpHalfPage)
+    ([ctrl, Key.U], CursorUpHalfPage)
+    ([ctrl, Key.J], CursorDownHalfPage)
+    ([ctrl, Key.D], CursorDownHalfPage)
+    ([noMod, Key.G; noMod, Key.G], CursorToFirst)
+    ([shift, Key.G], CursorToLast)
+    ([noMod, Key.Space], SelectToggle)
+    ([shift, Key.Space], SelectRange)
+    ([ctrl, Key.A], SelectAll)
+    ([noMod, Key.Z; noMod, Key.T], Scroll CursorTop)
+    ([noMod, Key.Z; noMod, Key.Z], Scroll CursorMiddle)
+    ([noMod, Key.Z; noMod, Key.B], Scroll CursorBottom)
+    ([noMod, Key.L], OpenCursorItem)
+    ([noMod, Key.Enter], OpenSelected)
+    ([shift, Key.Enter], OpenFileWith)
+    ([ctrl, Key.Enter], OpenFileAndExit)
+    ([alt, Key.Enter], OpenProperties)
     ("h", OpenParent)
     ("gr", OpenRoot)
     ("gd", OpenDefault)
@@ -61,7 +66,7 @@ let defaultsAsString = [
     ("<cs-c>", ClipboardCopyPaths)
     ("<c-v>", ClipboardPaste)
     ("<delete>", Recycle)
-    ("<s-delete>", StartConfirm Delete)
+    ("<s-delete>", ConfirmDelete)
     ("sn", SortList Name)
     ("sm", SortList Modified)
     ("ss", SortList Size)

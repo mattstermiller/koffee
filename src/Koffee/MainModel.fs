@@ -1328,11 +1328,13 @@ type InputNavigateHistoryDirection =
     | InputForward
 
 type InputEvent =
-    | InputCharTyped of char * keyHandler: KeyPressHandler
+    | InputCharTyped of char * KeyPressHandler
+    | InputKeyPress of (ModifierKeys * Key) * KeyPressHandler
     | InputChanged
     | InputSubmit
+    // TODO: use KeyPress instead of these two. Also consider making these bindable?
     | InputNavigateHistory of InputNavigateHistoryDirection
-    | InputDelete of isShifted: bool * keyHandler: KeyPressHandler
+    | InputDelete of isShifted: bool * KeyPressHandler
 
 type BackgroundEvent =
     | ConfigFileChanged of Config

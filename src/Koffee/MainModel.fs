@@ -5,6 +5,183 @@ open System.Windows
 open System.Windows.Input
 open Acadian.FSharp
 
+type SortField =
+    | Name
+    | Modified
+    | Size
+
+type RenamePart =
+    | Begin
+    | EndName
+    | End
+    | ReplaceName
+    | ReplaceAll
+
+type PutType =
+    | Move
+    | Copy
+    | Shortcut
+with
+    member this.ToLowerString() = this.ToString().ToLower()
+
+type ScrollType =
+    | CursorTop
+    | CursorMiddle
+    | CursorBottom
+
+type CursorCommand =
+    | CursorUp
+    | CursorDown
+    | CursorUpHalfPage
+    | CursorDownHalfPage
+    | CursorToFirst
+    | CursorToLast
+    | SelectToggle
+    | SelectRange
+    | SelectAll
+    | Scroll of ScrollType
+    | StartFind of multi: bool
+    | FindNext
+with
+    member this.Name =
+        match this with
+        | CursorUp -> "Move Cursor Up"
+        | CursorDown -> "Move Cursor Down"
+        | CursorUpHalfPage -> "Move Cursor Up Half Page"
+        | CursorDownHalfPage -> "Move Cursor Down Half Page"
+        | CursorToFirst -> "Move Cursor to First Item"
+        | CursorToLast -> "Move Cursor to Last Item"
+        | SelectToggle -> "Select/Unselect Item Under Cursor"
+        | SelectRange -> "Select/Unselect Range (Between Cursor and Last Selection)"
+        | SelectAll -> "Select All"
+        | Scroll CursorTop -> "Scroll View to Put Cursor at the Top"
+        | Scroll CursorMiddle -> "Scroll View to Put Cursor at the Middle"
+        | Scroll CursorBottom -> "Scroll View to Put Cursor at the Bottom"
+        | StartFind false -> "Find Item Starting With..."
+        | StartFind true -> "Find Item Starting With... (Multi)"
+        | FindNext -> "Go To Next Find Match"
+
+type NavigationCommand =
+    | OpenParent
+    | OpenRoot
+    | OpenDefault
+    | Back
+    | Forward
+    | Refresh
+    | StartSearch
+    | RepeatPreviousSearch
+    | PromptGoToBookmark
+    | PromptGoToSavedSearch
+    | PromptSetBookmarkOrSavedSearch
+    | SortList of SortField
+    | ToggleHidden
+    | ShowNavHistory
+    | ShowUndoHistory
+    | ShowStatusHistory
+with
+    member this.Name =
+        match this with
+        | OpenParent -> "Open Parent Folder"
+        | OpenRoot -> "Open Root Directory"
+        | OpenDefault -> "Open Default Path"
+        | Back -> "Back in Navigation History"
+        | Forward -> "Forward in Navigation History"
+        | Refresh -> "Refresh Current Folder"
+        | StartSearch -> "Search For Items"
+        | RepeatPreviousSearch -> "Repeat Previous Search"
+        | PromptGoToBookmark -> "Go To Bookmark"
+        | PromptGoToSavedSearch -> "Go To Saved Search"
+        | PromptSetBookmarkOrSavedSearch -> "Set Bookmark/Saved Search"
+        | SortList field -> sprintf "Sort by %O" field
+        | ToggleHidden -> "Show/Hide Hidden Folders and Files"
+        | ShowNavHistory -> "Show Navigation History"
+        | ShowUndoHistory -> "Show Undo/Redo History"
+        | ShowStatusHistory -> "Show Status History"
+
+type ItemActionCommand =
+    | OpenCursorItem
+    | OpenSelected
+    | OpenFileWith
+    | OpenFileAndExit
+    | OpenProperties
+    | OpenWithTextEditor
+    | OpenTerminal
+    | OpenExplorer
+    | CreateFile
+    | CreateFolder
+    | StartRename of RenamePart
+    | Yank of PutType
+    | ClearYank
+    | Put
+    | Recycle
+    | ConfirmDelete
+    | ClipboardCut
+    | ClipboardCopy
+    | ClipboardCopyPaths
+    | ClipboardPaste
+    | Undo
+    | Redo
+with
+    member this.Name =
+        match this with
+        | OpenCursorItem -> "Open Cursor Item"
+        | OpenSelected -> "Open Selected Item(s)"
+        | OpenFileWith -> "Open File With..."
+        | OpenFileAndExit -> "Open Files and Exit"
+        | OpenProperties -> "Open Properties"
+        | OpenWithTextEditor -> "Open Selected File With Text Editor"
+        | OpenTerminal -> "Open Terminal at Current Location"
+        | OpenExplorer -> "Open Windows Explorer at Current Location"
+        | CreateFile -> "Create File"
+        | CreateFolder -> "Create Folder"
+        | StartRename Begin -> "Rename Item (Prepend)"
+        | StartRename EndName -> "Rename Item (Append to Name)"
+        | StartRename End -> "Rename Item (Append to Extension)"
+        | StartRename ReplaceName -> "Rename Item (Replace Name)"
+        | StartRename ReplaceAll -> "Rename Item (Replace Full Name)"
+        | Yank Move -> "Start Move Item"
+        | Yank Copy -> "Start Copy Item"
+        | Yank Shortcut -> "Start Create Shortcut to Item"
+        | ClearYank -> "Clear Yank Register"
+        | Put -> "Put Item to Move/Copy in Current Folder"
+        | Recycle -> "Send to Recycle Bin"
+        | ConfirmDelete -> "Delete Permanently"
+        | ClipboardCut -> "Cut Items to Clipboard"
+        | ClipboardCopy -> "Copy Items to Clipboard"
+        | ClipboardCopyPaths -> "Copy Paths to Clipboard"
+        | ClipboardPaste -> "Paste from Clipboard"
+        | Undo -> "Undo Action"
+        | Redo -> "Redo Action"
+
+type WindowCommand =
+    | OpenSplitScreenWindow
+    | OpenSettings
+    | Exit
+with
+    member this.Name =
+        match this with
+        | OpenSplitScreenWindow -> "Open New Window for Split Screen"
+        | OpenSettings -> "Open Help/Settings"
+        | Exit -> "Exit"
+
+type MainCommand =
+    | Cursor of CursorCommand
+    | Navigation of NavigationCommand
+    | ItemAction of ItemActionCommand
+    | Window of WindowCommand
+with
+    member this.Name =
+        match this with
+        | Cursor c -> c.Name
+        | Navigation n -> n.Name
+        | ItemAction a -> a.Name
+        | Window w -> w.Name
+
+    static member listWithNames =
+        Reflection.enumerateUnionCaseValues<MainCommand>
+        |> Seq.map (fun cmd -> (cmd, cmd.Name))
+        |> Seq.toList
+
 type ItemType =
     | File
     | Folder
@@ -134,44 +311,24 @@ with
     static member describeList (items: Item seq) =
         items |> Seq.describeAndCount 3 (fun i -> i.Description)
 
-type SortField =
-    | Name
-    | Type
-    | Modified
-    | Size
-
-    static member SortByTypeThen (field, desc) (list: Item list) =
+module SortField =
+    let sortByTypeThen field desc (items: Item list) =
         let comparer selector desc a b =
             let aVal, bVal = selector a, selector b
             if aVal = bVal then 0
             else if aVal < bVal = not desc then -1
             else 1
-        list |> List.sortWith (fun a b ->
+        items |> List.sortWith (fun a b ->
             match comparer (fun i -> i.Type) (not desc) a b with
             | 0 ->
                 let compare =
                     match field with
                     | Name -> comparer (fun i -> i.Name.ToLower())
-                    | Type -> comparer (fun i -> i.Type)
                     | Modified -> comparer (fun i -> i.Modified)
                     | Size -> comparer (fun i -> i.Size)
                 compare desc a b
             | res -> res
         )
-
-type RenamePart =
-    | Begin
-    | EndName
-    | End
-    | ReplaceName
-    | ReplaceAll
-
-type PutType =
-    | Move
-    | Copy
-    | Shortcut
-with
-    member this.ToLowerString() = this.ToString().ToLower()
 
 type Search = {
     Terms: string
@@ -221,8 +378,8 @@ type ConfirmType =
 type InputType =
     | Find of multi: bool
     | Search
-    | CreateFile
-    | CreateFolder
+    | NewFile
+    | NewFolder
     | Rename of RenamePart
 
 type InputMode =
@@ -244,7 +401,7 @@ with
 
     member this.GetPrompt pathFormat =
         let caseName (case: obj) =
-            case |> Reflection.GetUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
+            case |> Reflection.getUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match this with
         | Confirm (Overwrite (putType, srcExistingPairs)) ->
             match srcExistingPairs with
@@ -292,8 +449,8 @@ with
         | Input inputType ->
             let symbol =
                 match inputType with
-                | CreateFile -> File.Symbol + " "
-                | CreateFolder -> Folder.Symbol + " "
+                | NewFile -> File.Symbol + " "
+                | NewFolder -> Folder.Symbol + " "
                 | _ -> ""
             symbol + (inputType |> caseName)
 
@@ -969,6 +1126,11 @@ type MainModel = {
         | Some (MainStatus.Message (MainStatus.CancelledDelete _)) -> true
         | _ -> false
 
+    member this.SortItems items =
+        match this.Sort with
+        | Some (field, desc) -> items |> SortField.sortByTypeThen field desc
+        | _ -> items
+
     static member Default = {
         Location = Path.Root
         LocationInput = Path.Root.Format Windows
@@ -1166,73 +1328,25 @@ type DragOutEvent(control) =
         |> DragDropEffects.toPutTypes
         |> List.tryHead
 
-type ScrollType =
-    | CursorTop
-    | CursorMiddle
-    | CursorBottom
-
-type MainEvents =
+type MainEvent =
     | KeyPress of (ModifierKeys * Key) * EvtHandler
-    | CursorUp
-    | CursorDown
-    | CursorUpHalfPage
-    | CursorDownHalfPage
-    | CursorToFirst
-    | CursorToLast
-    | SelectToggle
-    | SelectRange
-    | SelectAll
-    | Scroll of ScrollType
-    | OpenPath of string * EvtHandler
-    | OpenCursorItem
-    | OpenSelected
-    | OpenParent
-    | OpenRoot
-    | OpenDefault
-    | Back
-    | Forward
-    | Refresh
+    | ItemDoubleClick
+    | SettingsButtonClick
+    | LocationInputChanged
+    | LocationInputSubmit of string * EvtHandler
+    | LocationInputCancel
     | DeletePathSuggestion of HistoryPath
-    | ToggleHistory of HistoryDisplayType
-    | StartPrompt of PromptType
-    | StartConfirm of ConfirmType
-    | StartInput of InputType
     | InputCharTyped of char * EvtHandler
     | InputChanged
     | InputBack
     | InputForward
     | InputDelete of isShifted: bool * EvtHandler
+    | InputSubmit
+    | InputCancel
     | SubDirectoryResults of Item list
     | UpdateDropInPutType of Path list * DragInEvent
     | DropIn of Path list * DragInEvent
     | DropOut of DragOutEvent
-    | SubmitInput
-    | CancelInput
-    | FindNext
-    | RepeatPreviousSearch
-    | StartPut of PutType
-    | ClearYank
-    | Put
-    | ClipboardCut
-    | ClipboardCopy
-    | ClipboardCopyPaths
-    | ClipboardPaste
-    | Recycle
-    | Undo
-    | Redo
-    | SortList of SortField
-    | ToggleHidden
-    | OpenSplitScreenWindow
-    | OpenFileWith
-    | OpenFileAndExit
-    | OpenProperties
-    | OpenWithTextEditor
-    | OpenTerminal
-    | OpenExplorer
-    | OpenSettings
-    | Exit
-    | LocationInputChanged
-    | ResetLocationInput
     | ConfigFileChanged of Config
     | HistoryFileChanged of History
     | PageSizeChanged of int
@@ -1240,73 +1354,6 @@ type MainEvents =
     | WindowSizeChanged of int * int
     | WindowMaximizedChanged of bool
     | WindowActivated
-
-    static member Bindable = [
-        CursorUp, "Move Cursor Up"
-        CursorDown, "Move Cursor Down"
-        CursorUpHalfPage, "Move Cursor Up Half Page"
-        CursorDownHalfPage, "Move Cursor Down Half Page"
-        CursorToFirst, "Move Cursor to First Item"
-        CursorToLast, "Move Cursor to Last Item"
-        SelectToggle, "Select/Unselect Item Under Cursor"
-        SelectRange, "Select/Unselect Range (Between Cursor and Last Selection)"
-        SelectAll, "Select All"
-        Scroll CursorTop, "Scroll View to Put Cursor at the Top"
-        Scroll CursorMiddle, "Scroll View to Put Cursor at the Middle"
-        Scroll CursorBottom, "Scroll View to Put Cursor at the Bottom"
-        OpenParent, "Open Parent Folder"
-        OpenRoot, "Open Root Directory"
-        OpenDefault, "Open Default Path"
-        Back, "Back in Navigation History"
-        Forward, "Forward in Navigation History"
-        Refresh, "Refresh Current Folder"
-        SortList Name, "Sort by Name"
-        SortList Modified, "Sort by Modified"
-        SortList Size, "Sort by Size"
-        ToggleHidden, "Show/Hide Hidden Folders and Files"
-        StartInput CreateFile, "Create File"
-        StartInput CreateFolder, "Create Folder"
-        StartInput (Find false), "Find Item Starting With..."
-        StartInput (Find true), "Find Item Starting With... (Multi)"
-        FindNext, "Go To Next Find Match"
-        StartInput Search, "Search For Items"
-        RepeatPreviousSearch, "Repeat Previous Search"
-        StartPrompt GoToBookmark, "Go To Bookmark"
-        StartPrompt GoToSavedSearch, "Go To Saved Search"
-        StartPrompt SetBookmark, "Set Bookmark/Saved Search"
-        OpenCursorItem, "Open Cursor Item"
-        OpenSelected, "Open Selected Item(s)"
-        OpenFileWith, "Open File With..."
-        OpenFileAndExit, "Open Files and Exit"
-        StartInput (Rename Begin), "Rename Item (Prepend)"
-        StartInput (Rename EndName), "Rename Item (Append to Name)"
-        StartInput (Rename End), "Rename Item (Append to Extension)"
-        StartInput (Rename ReplaceName), "Rename Item (Replace Name)"
-        StartInput (Rename ReplaceAll), "Rename Item (Replace Full Name)"
-        StartPut Move, "Start Move Item"
-        StartPut Copy, "Start Copy Item"
-        StartPut Shortcut, "Start Create Shortcut to Item"
-        ClearYank, "Clear Yank Register"
-        Put, "Put Item to Move/Copy in Current Folder"
-        ClipboardCut, "Cut Items to Clipboard"
-        ClipboardCopy, "Copy Items to Clipboard"
-        ClipboardCopyPaths, "Copy Paths to Clipboard"
-        ClipboardPaste, "Paste from Clipboard"
-        Recycle, "Send to Recycle Bin"
-        StartConfirm Delete, "Delete Permanently"
-        OpenProperties, "Open Properties"
-        OpenWithTextEditor, "Open Selected File With Text Editor"
-        OpenTerminal, "Open Terminal at Current Location"
-        OpenExplorer, "Open Windows Explorer at Current Location"
-        Undo, "Undo Action"
-        Redo, "Redo Action"
-        ToggleHistory NavHistory, "Show Navigation History"
-        ToggleHistory UndoHistory, "Show Undo/Redo History"
-        ToggleHistory StatusHistory, "Show Status History"
-        OpenSplitScreenWindow, "Open New Window for Split Screen"
-        OpenSettings, "Open Help/Settings"
-        Exit, "Exit"
-    ]
 
 type Progress(evt: Event<float option>) =
     member _.Start () =

@@ -9,8 +9,8 @@ let shouldEqualTypeAndName expected actual =
     shouldEqual (expected |> List.map typeAndName) (actual |> List.map typeAndName)
 
 [<Test>]
-let ``SortByTypeThen Name asc sorts folders then files by name`` () =
-    SortField.SortByTypeThen (Name, false) [
+let ``sortByTypeThen Name asc sorts folders then files by name`` () =
+    SortField.sortByTypeThen Name false [
         createFolder "/c/dewberry"
         createFile "/c/cherry"
         createFolder "/c/banana"
@@ -24,8 +24,8 @@ let ``SortByTypeThen Name asc sorts folders then files by name`` () =
     ]
 
 [<Test>]
-let ``SortByTypeThen Name desc sorts files then folders by name desc`` () =
-    SortField.SortByTypeThen (Name, true) [
+let ``sortByTypeThen Name desc sorts files then folders by name desc`` () =
+    SortField.sortByTypeThen Name true [
         createFile "/c/apple"
         createFolder "/c/banana"
         createFile "/c/cherry"
@@ -39,8 +39,8 @@ let ``SortByTypeThen Name desc sorts files then folders by name desc`` () =
     ]
 
 [<Test>]
-let ``SortByTypeThen Name sorts insensitive to case`` () =
-    SortField.SortByTypeThen (Name, false) [
+let ``sortByTypeThen Name sorts insensitive to case`` () =
+    SortField.sortByTypeThen Name false [
         createFile "/c/cherry"
         createFile "/c/Banana"
         createFile "/c/apple"
@@ -52,8 +52,8 @@ let ``SortByTypeThen Name sorts insensitive to case`` () =
     ]
 
 [<Test>]
-let ``SortByTypeThen Name sorts hyphenated names correctly`` () =
-    SortField.SortByTypeThen (Name, false) [
+let ``sortByTypeThen Name sorts hyphenated names correctly`` () =
+    SortField.sortByTypeThen Name false [
         createFile "/c/fileC"
         createFile "/c/fil-eA"
         createFile "/c/f-ileB"

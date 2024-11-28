@@ -92,7 +92,6 @@ module MainView =
         window.ItemGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
         let sortColumnsIndex =
             function
-            | Type -> 0
             | Name -> 1
             | Modified -> 3
             | Size -> 4
@@ -361,16 +360,16 @@ module MainView =
                                 let format = List.map (fun (p: Path, _) -> p.Format pathFormat)
                                 let rows =
                                     traversableList
-                                        (back |> format |> formatStack Back)
-                                        (forward |> format |> formatStack Forward)
+                                        (back |> format |> formatStack (Navigation Back))
+                                        (forward |> format |> formatStack (Navigation Forward))
                                         (Some (location.Format pathFormat))
                                 ("Navigation History", rows)
                             | UndoHistory ->
                                 let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
                                 let rows =
                                     traversableList
-                                        (undo |> format |> formatStack Undo)
-                                        (redo |> format |> formatStack Redo)
+                                        (undo |> format |> formatStack (ItemAction Undo))
+                                        (redo |> format |> formatStack (ItemAction Redo))
                                         (if undo.IsEmpty && redo.IsEmpty then None else Some "---")
                                 ("Undo/Redo History", rows)
                             | SearchHistory ->
@@ -460,8 +459,8 @@ module MainView =
                 let selectedPath = window.PathSuggestions.SelectedItem |> unbox |> Option.ofString
                 let path = selectedPath |? window.PathBox.Text
                 match evt.Chord with
-                | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (path, evt.HandlerWithEffect focusGrid))
-                | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
+                | (ModifierKeys.None, Key.Enter) -> Some (LocationInputSubmit (path, evt.HandlerWithEffect focusGrid))
+                | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some LocationInputCancel
                 | (ModifierKeys.None, Key.Delete) ->
                     selectedPath
                     |> Option.bind HistoryPath.Parse
@@ -474,7 +473,7 @@ module MainView =
             window.PathBox.TextChanged
                 |> Obs.filter (fun _ -> window.PathBox.IsFocused)
                 |> Obs.mapTo LocationInputChanged
-            window.SettingsButton.Click |> Obs.mapTo OpenSettings
+            window.SettingsButton.Click |> Obs.mapTo SettingsButtonClick
 
             window.ItemGrid.PreviewKeyDown
                 |> Obs.filter isNotModifier
@@ -484,7 +483,7 @@ module MainView =
                     evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
                 None
             )
-            window.ItemGrid.MouseDoubleClick |> Obs.mapTo OpenSelected
+            window.ItemGrid.MouseDoubleClick |> Obs.mapTo ItemDoubleClick
             window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
                 let grid = window.ItemGrid
                 if grid.HasItems then
@@ -497,7 +496,7 @@ module MainView =
                 else None
             )
 
-            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
+            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> InputSubmit)
             window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
                 match keyEvt.Key with
                 | Key.Up -> Some InputBack
@@ -518,7 +517,7 @@ module MainView =
                 |> Obs.buffer 0.3
                 |> Obs.onCurrent
                 |> Obs.map (List.concat >> SubDirectoryResults)
-            window.InputBox.LostFocus |> Obs.mapTo CancelInput
+            window.InputBox.LostFocus |> Obs.mapTo InputCancel
 
             window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
             window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->

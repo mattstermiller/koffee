@@ -50,7 +50,7 @@ let listDirectory cursor model =
     let items =
         model.Directory
         |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || possiblyHiddenPathsToSelect |> Set.contains i.Path)
-        |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
+        |> model.SortItems
         |> model.ItemsOrEmpty
     { model with Items = items } |> setCursorAndSelected true cursor
 
@@ -261,7 +261,7 @@ let sortList field model =
     let cursor = if model.Cursor = 0 then CursorStay else model.KeepCursorByPath
     { model with
         Sort = Some (field, desc)
-        Items = model.Items |> SortField.SortByTypeThen (field, desc)
+        Items = model.Items |> SortField.sortByTypeThen field desc
         History = model.History |> History.withPathSort model.Location { Sort = field; Descending = desc }
     }
     |> MainModel.withMessage (MainStatus.Sort (field, desc))

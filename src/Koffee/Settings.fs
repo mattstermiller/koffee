@@ -104,7 +104,7 @@ let private start (config: Config) view =
     let model = {
         Config = config
         DefaultPath = Ok config.DefaultPath
-        KeyBindings = MainEvents.Bindable |> List.map keyBinding
+        KeyBindings = MainCommand.listWithNames |> List.map keyBinding
     }
     Framework.start binder events dispatcher view model
 

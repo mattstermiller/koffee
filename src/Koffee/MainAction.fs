@@ -73,8 +73,8 @@ let startInput (fsReader: IFileSystemReader) inputMode (model: MainModel) = resu
             inputMode
     let! allowed =
         match inputMode with
-        | Input CreateFile
-        | Input CreateFolder ->
+        | Input NewFile
+        | Input NewFolder ->
             if model.IsSearchingSubFolders then
                 Error MainStatus.CannotPutHere
             else
@@ -188,7 +188,7 @@ let private getDuplicateName (itemRefs: ItemRef seq) =
     |> Seq.map fst
     |> Seq.tryHead
 
-let registerSelectedItems putType (model: MainModel) =
+let yankSelectedItems putType (model: MainModel) =
     let itemsToRegister =
         model.ActionItems
         |> Seq.filter (fun item -> item.Type.CanModify)

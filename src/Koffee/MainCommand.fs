@@ -15,7 +15,7 @@ let toggleHidden (model: MainModel) =
         let items =
             model.Directory @ (model.SubDirectories |? [])
             |> filter
-            |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
+            |> model.SortItems
             |> model.ItemsOrEmpty
         { model with Items = items } |> Nav.moveCursor model.KeepCursorByPath
     | None ->

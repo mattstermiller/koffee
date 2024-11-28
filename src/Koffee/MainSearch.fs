@@ -95,7 +95,7 @@ let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyn
                 Items =
                     items
                     |> model.ItemsOrEmpty
-                    |> (model.Sort |> Option.map SortField.SortByTypeThen |? id)
+                    |> model.SortItems
                 Cursor = 0
             } |> Nav.moveCursor model.KeepCursorByPath
         let items = model.Directory |> filter
@@ -200,7 +200,7 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
         // when done searching, re-sort
         match! searchModels |> AsyncSeq.tryLast with
         | Some newModel ->
-            let items = newModel.Items |> (newModel.Sort |> Option.map SortField.SortByTypeThen |? id)
+            let items = newModel.Items |> newModel.SortItems
             yield { newModel with Items = items } |> Nav.moveCursor cursor
         | None -> ()
     | None ->

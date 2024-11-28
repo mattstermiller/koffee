@@ -55,7 +55,7 @@ let ``Register selected items with the same name returns error`` putType =
             SearchCurrent = Some ({ Search.Default with Terms = "file"; SubFolders = true })
         }
 
-    Action.registerSelectedItems putType model
+    Action.yankSelectedItems putType model
     |> shouldEqual (Error (MainStatus.CannotRegisterMultipleItemsWithSameName "file"))
 
 [<TestCaseSource(nameof putTypeAndBoolCases)>]

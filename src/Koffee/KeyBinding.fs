@@ -1,91 +1,88 @@
 module Koffee.KeyBinding
 
-let defaultsAsString = [
-    ("k", Cursor CursorUp)
-    ("j", Cursor CursorDown)
-    ("<c-k>", Cursor CursorUpHalfPage)
-    ("<c-u>", Cursor CursorUpHalfPage)
-    ("<c-j>", Cursor CursorDownHalfPage)
-    ("<c-d>", Cursor CursorDownHalfPage)
-    ("gg", Cursor CursorToFirst)
-    ("G", Cursor CursorToLast)
-    ("<space>", Cursor SelectToggle)
-    ("<s-space>", Cursor SelectRange)
-    ("<c-a>", Cursor SelectAll)
-    ("zt", Cursor (Scroll CursorTop))
-    ("zz", Cursor (Scroll CursorMiddle))
-    ("zb", Cursor (Scroll CursorBottom))
-    ("f", Cursor (StartFind false))
-    ("F", Cursor (StartFind true))
-    (";", Cursor FindNext)
+open System.Windows.Input
+open Koffee
 
-    ("l", Navigation OpenCursorItem)
-    ("<enter>", Navigation OpenSelected)
-    ("<s-enter>", Navigation OpenFileWith)
-    ("<c-enter>", Navigation OpenFileAndExit)
-    ("<a-enter>", Navigation OpenProperties)
-    ("<c-e>", Navigation OpenWithTextEditor)
-    ("<cs-t>", Navigation OpenTerminal)
-    ("<cs-e>", Navigation OpenExplorer)
-    ("h", Navigation OpenParent)
-    ("gr", Navigation OpenRoot)
-    ("gd", Navigation OpenDefault)
-    ("H", Navigation Back)
-    ("L", Navigation Forward)
-    ("r", Navigation Refresh)
-    ("<f5>", Navigation Refresh)
-    ("/", Navigation StartSearch)
-    ("n", Navigation RepeatPreviousSearch)
-    ("'", Navigation (PromptGoToMark Bookmark))
-    ("`", Navigation (PromptGoToMark SavedSearch))
-    ("m", Navigation PromptSetMark)
-    ("sn", Navigation (SortList Name))
-    ("sm", Navigation (SortList Modified))
-    ("ss", Navigation (SortList Size))
-    ("<f9>", Navigation ToggleHidden)
-    ("gh", Navigation ShowNavHistory)
-    ("gu", Navigation ShowUndoHistory)
-    ("gs", Navigation ShowStatusHistory)
+let noMod = ModifierKeys.None
+let shift = ModifierKeys.Shift
+let ctrl = ModifierKeys.Control
+let alt = ModifierKeys.Alt
 
-    ("o", ItemAction CreateFile)
-    ("O", ItemAction CreateFolder)
-    ("i", ItemAction (StartRename Begin))
-    ("a", ItemAction (StartRename EndName))
-    ("A", ItemAction (StartRename End))
-    ("c", ItemAction (StartRename ReplaceName))
-    ("C", ItemAction (StartRename ReplaceAll))
-    ("d", ItemAction (Yank Move))
-    ("y", ItemAction (Yank Copy))
-    ("Y", ItemAction (Yank Shortcut))
-    ("<a-y>", ItemAction ClearYank)
-    ("p", ItemAction Put)
-    ("<delete>", ItemAction Recycle)
-    ("<s-delete>", ItemAction ConfirmDelete)
-    ("<c-x>", ItemAction ClipboardCut)
-    ("<c-c>", ItemAction ClipboardCopy)
-    ("<cs-c>", ItemAction ClipboardCopyPaths)
-    ("<c-v>", ItemAction ClipboardPaste)
-    ("u", ItemAction Undo)
-    ("<c-z>", ItemAction Undo)
-    ("U", ItemAction Redo)
-    ("<cs-z>", ItemAction Redo)
+let defaults: (KeyCombo * MainCommand) list = [
+    ([noMod, Key.K], Cursor CursorUp)
+    ([noMod, Key.J], Cursor CursorDown)
+    ([ctrl, Key.K], Cursor CursorUpHalfPage)
+    ([ctrl, Key.U], Cursor CursorUpHalfPage)
+    ([ctrl, Key.J], Cursor CursorDownHalfPage)
+    ([ctrl, Key.D], Cursor CursorDownHalfPage)
+    ([noMod, Key.G; noMod, Key.G], Cursor CursorToFirst)
+    ([shift, Key.G], Cursor CursorToLast)
+    ([noMod, Key.Space], Cursor SelectToggle)
+    ([shift, Key.Space], Cursor SelectRange)
+    ([ctrl, Key.A], Cursor SelectAll)
+    ([noMod, Key.Z; noMod, Key.T], Cursor (Scroll CursorTop))
+    ([noMod, Key.Z; noMod, Key.Z], Cursor (Scroll CursorMiddle))
+    ([noMod, Key.Z; noMod, Key.B], Cursor (Scroll CursorBottom))
+    ([noMod, Key.F], Cursor (StartFind false))
+    ([shift, Key.F], Cursor (StartFind true))
+    ([noMod, Key.Oem1], Cursor FindNext)
 
-    ("<c-n>", Window OpenSplitScreenWindow)
-    ("?", Window OpenSettings)
-    ("<f1>", Window OpenSettings)
-    ("<c-w>", Window Exit)
+    ([noMod, Key.L], Navigation OpenCursorItem)
+    ([noMod, Key.Enter], Navigation OpenSelected)
+    ([shift, Key.Enter], Navigation OpenFileWith)
+    ([ctrl, Key.Enter], Navigation OpenFileAndExit)
+    ([alt, Key.Enter], Navigation OpenProperties)
+    ([ctrl, Key.E], Navigation OpenWithTextEditor)
+    ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
+    ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
+    ([noMod, Key.H], Navigation OpenParent)
+    ([noMod, Key.G; noMod, Key.R], Navigation OpenRoot)
+    ([noMod, Key.G; noMod, Key.D], Navigation OpenDefault)
+    ([shift, Key.H], Navigation Back)
+    ([shift, Key.L], Navigation Forward)
+    ([noMod, Key.R], Navigation Refresh)
+    ([noMod, Key.F5], Navigation Refresh)
+    ([noMod, Key.OemQuestion], Navigation StartSearch)
+    ([noMod, Key.N], Navigation RepeatPreviousSearch)
+    ([noMod, Key.OemQuotes], Navigation (PromptGoToMark Bookmark))
+    ([noMod, Key.Oem3], Navigation (PromptGoToMark SavedSearch))
+    ([noMod, Key.M], Navigation PromptSetMark)
+    ([noMod, Key.S; noMod, Key.N], Navigation (SortList Name))
+    ([noMod, Key.S; noMod, Key.M], Navigation (SortList Modified))
+    ([noMod, Key.S; noMod, Key.S], Navigation (SortList Size))
+    ([noMod, Key.F9], Navigation ToggleHidden)
+    ([noMod, Key.G; noMod, Key.H], Navigation ShowNavHistory)
+    ([noMod, Key.G; noMod, Key.U], Navigation ShowUndoHistory)
+    ([noMod, Key.G; noMod, Key.S], Navigation ShowStatusHistory)
+
+    ([noMod, Key.O], ItemAction CreateFile)
+    ([shift, Key.O], ItemAction CreateFolder)
+    ([noMod, Key.I], ItemAction (StartRename Begin))
+    ([noMod, Key.A], ItemAction (StartRename EndName))
+    ([shift, Key.A], ItemAction (StartRename End))
+    ([noMod, Key.C], ItemAction (StartRename ReplaceName))
+    ([shift, Key.C], ItemAction (StartRename ReplaceAll))
+    ([noMod, Key.D], ItemAction (Yank Move))
+    ([noMod, Key.Y], ItemAction (Yank Copy))
+    ([shift, Key.Y], ItemAction (Yank Shortcut))
+    ([alt, Key.Y], ItemAction ClearYank)
+    ([noMod, Key.P], ItemAction Put)
+    ([noMod, Key.Delete], ItemAction Recycle)
+    ([shift, Key.Delete], ItemAction ConfirmDelete)
+    ([ctrl, Key.X], ItemAction ClipboardCut)
+    ([ctrl, Key.C], ItemAction ClipboardCopy)
+    ([ctrl ||| shift, Key.C], ItemAction ClipboardCopyPaths)
+    ([ctrl, Key.V], ItemAction ClipboardPaste)
+    ([noMod, Key.U], ItemAction Undo)
+    ([ctrl, Key.Z], ItemAction Undo)
+    ([noMod, Key.U], ItemAction Redo)
+    ([ctrl ||| shift, Key.Z], ItemAction Redo)
+
+    ([ctrl, Key.N], Window OpenSplitScreenWindow)
+    ([shift, Key.OemQuestion], Window OpenSettings)
+    ([noMod, Key.F1], Window OpenSettings)
+    ([ctrl, Key.W], Window Exit)
 ]
-
-let private parseKey keyStr =
-    match KeyComboParser.Parse keyStr with
-    | Some keys -> keys
-    | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
-
-let defaults =
-    defaultsAsString
-    |> List.map (fun (keyStr, evt) -> (parseKey keyStr, evt))
-
-let getKeysString evt = defaultsAsString |> List.find (snd >> (=) evt) |> fst
 
 type KeyBindMatch<'a> =
     | Match of 'a
@@ -110,8 +107,6 @@ let getMatch (keyBindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
         match triggered with
         | Some (_, item) -> Match item
         | None -> PartialMatch
-
-open System.Windows.Input
 
 let keyDescription (modifiers: ModifierKeys, key: Key) =
     let isLetter = key >= Key.A && key <= Key.Z
@@ -171,3 +166,7 @@ let keyDescription (modifiers: ModifierKeys, key: Key) =
         keyStr
     else
         sprintf "<%s-%s>" (mods |> String.concat "") keyStr
+
+let getKeyCombo evt = defaults |> List.find (snd >> (=) evt) |> fst
+
+let getKeyComboDescription evt = getKeyCombo evt |> List.map keyDescription |> String.concat ""

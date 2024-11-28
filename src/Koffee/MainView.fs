@@ -360,7 +360,7 @@ module MainView =
                             }
                             |> Seq.toList
                         let formatStack evt items =
-                            let key = KeyBinding.getKeysString evt
+                            let key = KeyBinding.getKeyComboDescription evt
                             items |> List.truncate maxListSize |> List.mapi (fun i (name: string) ->
                                 let repeat = if i > 0 then i + 1 |> string else ""
                                 (repeat + key, name)
@@ -509,17 +509,25 @@ module MainView =
                 else None
             )
 
-            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> InputEvent InputSubmit)
-            window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
-                match keyEvt.Key with
-                | Key.Up -> Some (InputEvent (InputNavigateHistory InputBack))
-                | Key.Down -> Some (InputEvent (InputNavigateHistory InputForward))
-                | Key.Delete -> Some (InputEvent (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler)))
-                | _ -> None
+            window.InputBox.PreviewKeyDown |> Obs.map (fun evt ->
+                match evt.Key with
+                | Key.Enter ->
+                    evt.Handled <- true
+                    InputEvent InputSubmit
+                | Key.Up ->
+                    evt.Handled <- true
+                    InputEvent (InputNavigateHistory InputBack)
+                | Key.Down ->
+                    evt.Handled <- true
+                    InputEvent (InputNavigateHistory InputForward)
+                | Key.Delete ->
+                    InputEvent (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, evt.Handler))
+                | _ ->
+                    InputEvent (InputKeyPress (evt.Chord, evt.Handler))
             )
-            window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
-                match keyEvt.Text.ToCharArray() with
-                | [| c |] -> Some (InputEvent (InputCharTyped (c, keyEvt.Handler)))
+            window.InputBox.PreviewTextInput |> Obs.choose (fun evt ->
+                match evt.Text.ToCharArray() with
+                | [| c |] -> Some (InputEvent (InputCharTyped (c, evt.Handler)))
                 | _ -> None
             )
             window.InputBox.TextChanged |> Obs.mapTo (InputEvent InputChanged)

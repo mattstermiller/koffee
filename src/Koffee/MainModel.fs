@@ -62,6 +62,14 @@ with
         | FindNext -> "Go To Next Find Match"
 
 type NavigationCommand =
+    | OpenCursorItem
+    | OpenSelected
+    | OpenFileWith
+    | OpenFileAndExit
+    | OpenProperties
+    | OpenWithTextEditor
+    | OpenTerminal
+    | OpenExplorer
     | OpenParent
     | OpenRoot
     | OpenDefault
@@ -81,6 +89,14 @@ type NavigationCommand =
 with
     member this.Name =
         match this with
+        | OpenCursorItem -> "Open Cursor Item"
+        | OpenSelected -> "Open Selected Item(s)"
+        | OpenFileWith -> "Open File With..."
+        | OpenFileAndExit -> "Open Files and Exit"
+        | OpenProperties -> "Open Properties"
+        | OpenWithTextEditor -> "Open Selected File With Text Editor"
+        | OpenTerminal -> "Open Terminal at Current Location"
+        | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenParent -> "Open Parent Folder"
         | OpenRoot -> "Open Root Directory"
         | OpenDefault -> "Open Default Path"
@@ -99,14 +115,6 @@ with
         | ShowStatusHistory -> "Show Status History"
 
 type ItemActionCommand =
-    | OpenCursorItem
-    | OpenSelected
-    | OpenFileWith
-    | OpenFileAndExit
-    | OpenProperties
-    | OpenWithTextEditor
-    | OpenTerminal
-    | OpenExplorer
     | CreateFile
     | CreateFolder
     | StartRename of RenamePart
@@ -124,14 +132,6 @@ type ItemActionCommand =
 with
     member this.Name =
         match this with
-        | OpenCursorItem -> "Open Cursor Item"
-        | OpenSelected -> "Open Selected Item(s)"
-        | OpenFileWith -> "Open File With..."
-        | OpenFileAndExit -> "Open Files and Exit"
-        | OpenProperties -> "Open Properties"
-        | OpenWithTextEditor -> "Open Selected File With Text Editor"
-        | OpenTerminal -> "Open Terminal at Current Location"
-        | OpenExplorer -> "Open Windows Explorer at Current Location"
         | CreateFile -> "Create File"
         | CreateFolder -> "Create Folder"
         | StartRename Begin -> "Rename Item (Prepend)"
@@ -1206,6 +1206,7 @@ type MainModel = {
         let display = if this.HistoryDisplay = Some historyType then None else Some historyType
         { this with HistoryDisplay = display }
 
+    // TODO refactor to setInputMode?
     static member setHistoryDisplayForInputMode (prevInputMode: InputMode option) (this: MainModel) =
         match this.InputMode with
         | Some inputMode when this.HistoryDisplay <> inputMode.HistoryDisplay ->
@@ -1355,7 +1356,10 @@ type MainEvent =
     | WindowMaximizedChanged of bool
     | WindowActivated
 
-type Progress(evt: Event<float option>) =
+type Progress() =
+    let evt = Event<float option>()
+    let observable = evt.Publish
+
     member _.Start () =
         evt.Trigger (Some 0.0)
 
@@ -1368,3 +1372,5 @@ type Progress(evt: Event<float option>) =
 
     member _.Finish _ =
         evt.Trigger None
+
+    member _.Observable = observable

@@ -1,9 +1,9 @@
-module Koffee.MainSearchTests_Find
+module Koffee.CursorFindTests
 
 open NUnit.Framework
 open FsUnitTyped
 open Acadian.FSharp
-open Koffee.Main
+open Koffee
 
 let items names =
     let toItem name = Item.Basic Path.Root name Folder
@@ -22,9 +22,9 @@ let doFind next repeat findText cursorStart =
 
     let actual =
         if next then
-            Search.findNext model
+            CursorCommands.findNext model
         else
-            Search.find model
+            CursorCommands.find model
 
     let expected =
         { model with

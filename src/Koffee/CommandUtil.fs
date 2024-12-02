@@ -1,5 +1,8 @@
-module Koffee.Main.Util
+[<AutoOpen>]
+module Koffee.CommandUtil
 
+open FSharp.Control
+open VinylUI
 open Acadian.FSharp
 open Koffee
 
@@ -42,3 +45,22 @@ let clearSearchProps (model: MainModel) =
         SearchHistoryIndex = None
         SubDirectories = None
     }
+
+let SyncResult handler =
+    Sync (fun (model: MainModel) ->
+        match handler model with
+        | Ok newModel -> newModel
+        | Error e -> model |> MainModel.withError e
+    )
+
+let AsyncResult handler =
+    Async (fun (model: MainModel) -> asyncSeq {
+        let mutable last = model
+        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
+            match r with
+            | Ok newModel ->
+                last <- newModel
+                yield newModel
+            | Error e ->
+                yield last |> MainModel.withError e
+    })

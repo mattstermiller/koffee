@@ -491,7 +491,8 @@ module MainView =
                     grid.ItemContainerGenerator.ContainerFromIndex(visibleIndex) :?> DataGridRow |> Option.ofObj
                     |> Option.map (fun visibleRow  ->
                         let viewHeight = grid.ActualHeight - grid.ActualColumnHeaderHeight
-                        viewHeight / visibleRow.ActualHeight |> int |> PageSizeChanged
+                        let pageSize = viewHeight / visibleRow.ActualHeight |> int
+                        Background (PageSizeChanged pageSize)
                     )
                 else None
             )
@@ -522,15 +523,15 @@ module MainView =
             window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
             window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
                 if window.Left > -window.Width && window.Top > -window.Height then
-                    Some (WindowLocationChanged (int window.Left, int window.Top))
+                    Some (Background (WindowLocationChanged (int window.Left, int window.Top)))
                 else None
             )
             window.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.map (fun _ ->
-                WindowSizeChanged (int window.Width, int window.Height)
+                Background (WindowSizeChanged (int window.Width, int window.Height))
             )
             window.StateChanged |> Obs.choose (fun _ ->
                 if window.WindowState <> WindowState.Minimized then
-                    Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
+                    Some (Background (WindowMaximizedChanged (window.WindowState = WindowState.Maximized)))
                 else None
             )
             window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
@@ -552,6 +553,6 @@ module MainView =
                     e.Handled <- true
                     Some (DropIn (paths, DragInEvent e))
             )
-            config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
-            history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
+            config.FileChanged |> Obs.onCurrent |> Obs.map (ConfigFileChanged >> Background)
+            history.FileChanged |> Obs.onCurrent |> Obs.map (HistoryFileChanged >> Background)
         ]

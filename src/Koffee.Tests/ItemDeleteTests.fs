@@ -1,8 +1,7 @@
-module Koffee.MainActionTests_Delete
+module Koffee.ItemDeleteTests
 
 open NUnit.Framework
 open FsUnitTyped
-open Koffee.Main
 
 let testModelFromFs (fs: FakeFileSystem)  =
     let items = fs.ItemsIn "/c"
@@ -35,7 +34,7 @@ let ``Recycle NetHost path removes it from items and history`` () =
                 }
         }
 
-    let actual = seqResult (Action.recycle fs progress model.ActionItems) model
+    let actual = seqResult (ItemActionCommands.Delete.recycle fs progress model.ActionItems) model
 
     let expectedItems = items |> List.take 1
     let expected =
@@ -71,7 +70,7 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             item
         })
 
-    let testFunc = if permanent then Action.delete else Action.recycle
+    let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress [item]) model
 
     let expectedItems = [createFile "/c/other"]
@@ -135,7 +134,7 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
             yield! items
         })
 
-    let testFunc = if permanent then Action.delete else Action.recycle
+    let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress selected) model
 
     let expectedAction = DeletedItems (permanent, selected, false)
@@ -197,7 +196,7 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             "/c/folder/sub/sub file"
         })
 
-    let testFunc = if permanent then Action.delete else Action.recycle
+    let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress [item]) model
 
     let expectedItems = [createFile "/c/other"]
@@ -249,8 +248,8 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
 
     let testFunc =
         if isRedo
-        then Action.redo fs progress
-        else fun m -> Action.recycle fs progress m.SelectedItems m
+        then ItemActionCommands.Undo.redo fs progress
+        else fun m -> ItemActionCommands.Delete.recycle fs progress m.SelectedItems m
 
     // part one: recycle cancels correctly
     let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) testFunc model
@@ -336,8 +335,8 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
 
     let testFunc =
         if isRedo
-        then Action.redo fs progress
-        else Action.delete fs progress [item]
+        then ItemActionCommands.Undo.redo fs progress
+        else ItemActionCommands.Delete.delete fs progress [item]
 
     // part one: delete cancels correctly
     let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount 2) testFunc model
@@ -405,7 +404,7 @@ let ``Recycle or Delete folder does nothing when canceled immediately`` permanen
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let testFunc = if permanent then Action.delete else Action.recycle
+    let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (testFunc fs progress [item]) model
 
     let expectedTotal = if permanent then 0 else 1
@@ -440,7 +439,7 @@ let ``Recycle file or folder that does not fit in the Recycle Bin returns error`
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.recycle fs progress [item]) model
+    let actual = seqResult (ItemActionCommands.Delete.recycle fs progress [item]) model
 
     let expectedEx = FakeFileSystemErrors.cannotRecycleItemThatDoesNotFit 4L
     let expectedError = MainStatus.ActionError ("recycle", expectedEx)
@@ -470,7 +469,7 @@ let ``Recycle folder that contains folder that cannot be read returns error`` ()
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.recycle fs progress [item]) model
+    let actual = seqResult (ItemActionCommands.Delete.recycle fs progress [item]) model
 
     let expectedError = MainStatus.ActionError ("check folder content size", ex)
     let expected =
@@ -496,7 +495,7 @@ let ``Delete folder handles individual error and deletes other items and returns
     let item = fs.Item "/c/folder"
     let model = testModelFromFs fs
 
-    let actual = seqResult (Action.delete fs progress [item]) model
+    let actual = seqResult (ItemActionCommands.Delete.delete fs progress [item]) model
 
     let expectedErrorItems = [
         createPath "/c/folder/sub/sub file", ex
@@ -535,7 +534,7 @@ let ``Recycle or Delete item handles error by returning error`` permanent =
     let model = testModelFromFs fs
     let expectedFs = fs.Items
 
-    let testFunc = if permanent then Action.delete else Action.recycle
+    let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress [item]) model
 
     let expected =
@@ -570,7 +569,7 @@ let ``Recycle or Delete multiple items handles individual error and recycles or 
         testModelFromFs fs
         |> fun model -> { model with SelectedItems = items }
 
-    let testFunc = if permanent then Action.delete else Action.recycle
+    let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress items) model
 
     let expectedItems = [

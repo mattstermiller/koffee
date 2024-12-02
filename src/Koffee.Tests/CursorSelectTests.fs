@@ -1,8 +1,8 @@
-module Koffee.MainActionTests_Select
+module Koffee.CursorSelectTests
 
 open NUnit.Framework
 open Acadian.FSharp
-open Koffee.Main
+open Koffee
 
 type TestCase = {
     Cursor: int
@@ -25,7 +25,7 @@ let test case =
             SelectedItems = itemsFromIndexes case.SelectedIndexes
             PreviousSelectIndexAndToggle = case.PreviousSelect
         }
-    let actual = Action.selectRange model
+    let actual = CursorCommands.selectRange model
 
     let expected =
         { model with

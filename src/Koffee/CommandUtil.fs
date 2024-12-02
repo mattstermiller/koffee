@@ -1,5 +1,8 @@
-module Koffee.Main.Util
+[<AutoOpen>]
+module Koffee.CommandUtil
 
+open FSharp.Control
+open VinylUI
 open Acadian.FSharp
 open Koffee
 
@@ -8,6 +11,17 @@ type Key = System.Windows.Input.Key
 
 let actionError actionName = Result.mapError (fun e -> MainStatus.ActionError (actionName, e))
 let itemActionError action = Result.mapError (fun e -> MainStatus.ItemActionError (action, e))
+
+let performedAction action (model: MainModel) =
+    model
+    |> MainModel.pushUndo action
+    |> MainModel.withRedoStack []
+    |> MainModel.withMessage (MainStatus.ActionComplete action)
+
+let performedUndo undoIter action (model: MainModel) =
+    model
+    |> MainModel.pushRedo action
+    |> MainModel.withMessage (MainStatus.UndoAction (action, undoIter, model.RepeatCount))
 
 let parseSearchTerms searchInput =
     searchInput
@@ -42,3 +56,22 @@ let clearSearchProps (model: MainModel) =
         SearchHistoryIndex = None
         SubDirectories = None
     }
+
+let SyncResult handler =
+    Sync (fun (model: MainModel) ->
+        match handler model with
+        | Ok newModel -> newModel
+        | Error e -> model |> MainModel.withError e
+    )
+
+let AsyncResult handler =
+    Async (fun (model: MainModel) -> asyncSeq {
+        let mutable last = model
+        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
+            match r with
+            | Ok newModel ->
+                last <- newModel
+                yield newModel
+            | Error e ->
+                yield last |> MainModel.withError e
+    })

@@ -1,8 +1,7 @@
-module Koffee.MainActionTests_Create
+module Koffee.ItemCreateTests
 
 open NUnit.Framework
 open FsUnitTyped
-open Koffee.Main
 
 // create tests
 
@@ -14,7 +13,7 @@ let ``Create calls file sys create and openPath and sets status``() =
     let createItem = createFile "/c/file"
     let model = testModel
 
-    let actual = seqResult (Action.create fs File createItem.Name) model
+    let actual = seqResult (ItemActionCommands.Create.create fs File createItem.Name) model
 
     let expectedAction = CreatedItem createItem
     let expectedItems = [
@@ -47,7 +46,7 @@ let ``Create returns error when item already exists at path`` existingHidden =
     let existing = fs.Item "/c/file"
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.create fs Folder existing.Name) testModel
+    let actual = seqResult (ItemActionCommands.Create.create fs Folder existing.Name) testModel
 
     let expectedItems = [
         createFile "/c/another"
@@ -74,7 +73,7 @@ let ``Create handles error by returning error``() =
     let model = testModel
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.create fs File createItem.Name) model
+    let actual = seqResult (ItemActionCommands.Create.create fs File createItem.Name) model
 
     let expected = model |> MainModel.withError (MainStatus.ItemActionError ((CreatedItem createItem), ex))
     assertAreEqual expected actual
@@ -108,7 +107,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
                 createdItem.Path.Join "file", false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems =
         if curPathDifferent then
@@ -147,7 +146,7 @@ let ``Undo create non empty item returns error`` isFolder =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expected = model |> MainModel.withError (MainStatus.CannotUndoNonEmptyCreated createdItem) |> popUndo
     assertAreEqual expected actual
@@ -163,7 +162,7 @@ let ``Undo create handles delete error by returning error`` () =
     let action = CreatedItem createdItem
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedError = MainStatus.ItemActionError (DeletedItems (true, [createdItem], false), ex)
     let expected = model |> MainModel.withError expectedError |> popUndo
@@ -177,7 +176,7 @@ let ``Redo create creates item again`` () =
     let createItem = createFile "/c/file"
     let model = testModel |> pushRedo (CreatedItem createItem)
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expectedAction = CreatedItem createItem
     let expectedItems = [
@@ -210,7 +209,7 @@ let ``Redo create handles error by returning error``() =
     let model = testModel |> pushRedo (CreatedItem createItem)
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expected =
         model

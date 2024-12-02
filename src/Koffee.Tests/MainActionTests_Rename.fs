@@ -28,8 +28,7 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             item
         })
 
-    let actual = Action.rename fs item renamed.Name model
-                 |> assertOk
+    let actual = Action.rename fs item renamed.Name model |> assertOk
 
     let expectedItems = [
         createFile "/c/another"
@@ -81,8 +80,7 @@ let ``Rename folder calls file sys move and updates history`` () =
             item
         })
 
-    let actual = Action.rename fs item renamed.Name model
-                 |> assertOk
+    let actual = Action.rename fs item renamed.Name model |> assertOk
 
     let expectedItems = [
         items.[0]
@@ -130,8 +128,7 @@ let ``Rename in search result calls file sys move and sets status`` () =
             SearchCurrent = Some { Search.Default with Terms = "file" }
         }
 
-    let actual = Action.rename fs item renamed.Name model
-                 |> assertOk
+    let actual = Action.rename fs item renamed.Name model |> assertOk
 
     let expectedItems = [
         createFile "/c/another"
@@ -334,8 +331,7 @@ let renameTextSelection inputPosition itemType fileName =
     let inputMode = Input (Rename inputPosition)
     let fs = FakeFileSystem []
 
-    let actual = Action.startInput fs inputMode model
-                 |> assertOk
+    let actual = Action.startInput fs inputMode model |> assertOk
 
     actual.InputMode |> shouldEqual (Some inputMode)
     actual.InputText |> shouldEqual item.Name

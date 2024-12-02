@@ -4,7 +4,6 @@ open System.Collections.Generic
 open FSharp.Control
 open Acadian.FSharp
 open Koffee
-open Koffee.Main.Util
 open System.Threading
 
 let private performedAction action (model: MainModel) =
@@ -20,37 +19,6 @@ let private performedUndo undoIter action (model: MainModel) =
 
 let private ignoreError f model =
     f model |> Result.defaultValue model
-
-let selectToggle (model: MainModel) =
-    let cursorItem = model.CursorItem
-    let toggle, selectedItems =
-        match model.SelectedItems |> List.partition ((=) cursorItem) with
-        | [], _ -> (true, model.SelectedItems @ [cursorItem])
-        | _, withoutCursorItem -> (false, withoutCursorItem)
-    { model with
-        SelectedItems = selectedItems
-        PreviousSelectIndexAndToggle = Some (model.Cursor, toggle)
-    }
-
-let selectRange (model: MainModel) =
-    let items = model.Items |> List.toArray
-    match model.PreviousSelectIndexAndToggle with
-    | Some (prevIndex, toggle) ->
-        let rangeItems =
-            [prevIndex; model.Cursor]
-            |> List.sort
-            |> fun indexes -> items.[indexes.[0]..indexes.[1]]
-            |> Seq.toList
-        let selectedItems =
-            if toggle
-            then model.SelectedItems @ rangeItems |> List.distinct
-            else model.SelectedItems |> List.except rangeItems
-        { model with
-            SelectedItems = selectedItems
-            PreviousSelectIndexAndToggle = Some (model.Cursor, toggle)
-        }
-    | None ->
-        selectToggle model
 
 let private getInputSelection renamePart itemType (input: string) =
     let fullLen = input.Length
@@ -113,9 +81,9 @@ let create (fs: IFileSystem) itemType name model = asyncSeqResult {
         do! fs.Create itemType itemPath |> itemActionError action
         let model = model |> performedAction action
         yield model
-        yield! Nav.openPath fs model.Location (CursorToPath (itemPath, false)) model
+        yield! NavigationCommands.openPath fs model.Location (CursorToPath (itemPath, false)) model
     | Some existing ->
-        yield! Nav.openPath fs model.Location (CursorToPath (itemPath, true)) model
+        yield! NavigationCommands.openPath fs model.Location (CursorToPath (itemPath, true)) model
         return MainStatus.CannotUseNameAlreadyExists ("create", itemType, name, existing.IsHidden)
 }
 
@@ -129,7 +97,7 @@ let undoCreate (fs: IFileSystem) undoIter item (model: MainModel) = asyncSeqResu
         model
         |> MainModel.mapHistory (History.withoutPaths [item.Path])
         |> performedUndo undoIter (CreatedItem item)
-        |> applyIf (model.Location = item.Path.Parent) (ignoreError (Nav.refresh fs))
+        |> applyIf (model.Location = item.Path.Parent) (ignoreError (NavigationCommands.refresh fs))
 }
 
 let rename (fs: IFileSystem) item newName (model: MainModel) = result {
@@ -153,7 +121,7 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
                 |> fun model ->
                     if model.SearchCurrent.IsSome
                     then { model with Items = model.Items |> substitute }
-                    else Nav.listDirectory (CursorToPath (newPath, false)) model
+                    else NavigationCommands.listDirectory (CursorToPath (newPath, false)) model
                 |> performedAction action
         | Some existingItem ->
             return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", item.Type, newName, existingItem.IsHidden)
@@ -175,7 +143,7 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
             model
             |> MainModel.mapHistory (History.withPathReplaced item.Path oldItem.Path)
             |> performedUndo undoIter (RenamedItem (oldItem, currentName))
-            |> ignoreError (Nav.openPath fs parentPath (CursorToPath (oldItem.Path, false)))
+            |> ignoreError (NavigationCommands.openPath fs parentPath (CursorToPath (oldItem.Path, false)))
     | Some existingItem ->
         return! Error <| MainStatus.CannotUseNameAlreadyExists ("rename", oldItem.Type, oldItem.Name, existingItem.IsHidden)
 }
@@ -428,7 +396,7 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
                             else childOfDestParent path.Parent
                         [childOfDestParent succeeded.Head.Dest]
                     )
-            model |> ignoreError (Nav.openPath fs destPaths.Head.Parent (CursorToAndSelectPaths (destPaths, false)))
+            model |> ignoreError (NavigationCommands.openPath fs destPaths.Head.Parent (CursorToAndSelectPaths (destPaths, false)))
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errorPaths.IsEmpty then
@@ -507,7 +475,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
             return MainStatus.CouldNotReadItemsForOverwritePrompt
         // refresh item list to make sure we can see the existing file
         let existingPaths = srcExistingPairs |> List.map (fun (_, item) -> item.Path)
-        let! model = Nav.openPath fs model.Location (CursorToAndSelectPaths (existingPaths, true)) model
+        let! model = NavigationCommands.openPath fs model.Location (CursorToAndSelectPaths (existingPaths, true)) model
         yield
             { model with
                 InputMode = Some (Confirm (Overwrite (putType, srcExistingPairs)))
@@ -640,7 +608,7 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
         |> MainModel.pushRedo action
         |> MainModel.withStatus status
         |> MainModel.mapHistory (History.withoutPaths pathHistoryToRemove)
-        |> applyIf (model.Location = intent.DestParent) (ignoreError (Nav.refresh fs))
+        |> applyIf (model.Location = intent.DestParent) (ignoreError (NavigationCommands.refresh fs))
 }
 
 let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainModel) = result {
@@ -651,7 +619,7 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
         model
         |> MainModel.mapHistory (History.withoutPaths [shortcutPath])
         |> performedUndo undoIter oldAction
-        |> applyIf (model.Location = shortcutPath.Parent) (ignoreError (Nav.refresh fs))
+        |> applyIf (model.Location = shortcutPath.Parent) (ignoreError (NavigationCommands.refresh fs))
 }
 
 let private getActionItemPaths (model: MainModel) =
@@ -736,7 +704,7 @@ let dropIn (fs: IFileSystem) progress paths (event: DragInEvent) (model: MainMod
 let dropOut (fsReader: IFileSystemReader) (dragOutEvent: DragOutEvent) (model: MainModel) =
     match dragOutEvent.DoDropOut (getActionItemPaths model) with
     | Some putType when putType = Move ->
-        ignoreError (Nav.refresh fsReader) model
+        ignoreError (NavigationCommands.refresh fsReader) model
     | _ ->
         model
 
@@ -901,7 +869,7 @@ let rec private redoIter iter fs progress model = asyncSeqResult {
         let redoHead = model.RedoStack |> List.tryHead
         let openPath (path: Path) cursorMove =
             if path <> model.Location
-            then Nav.openPath fs path cursorMove model
+            then NavigationCommands.openPath fs path cursorMove model
             else Ok model
         let! model = asyncSeqResult {
             match action with

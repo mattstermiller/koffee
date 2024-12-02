@@ -24,7 +24,7 @@ let history =
     )
 
 let suggestPaths fsReader model =
-    Main.Nav.suggestPaths fsReader model
+    NavigationCommands.suggestPaths fsReader model
     |> AsyncSeq.lastOrDefault model
     |> Async.RunSynchronously
 

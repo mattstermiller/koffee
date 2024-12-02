@@ -17,7 +17,7 @@ let ``listDirectory populates items from directory and filters out hidden items 
         { testModel with Directory = directory }
         |> MainModel.mapConfig (fun config -> { config with ShowHidden = showHidden})
 
-    let actual = Nav.listDirectory CursorStay model
+    let actual = NavigationCommands.listDirectory CursorStay model
 
     let expectedItems = directory |> applyIf (not showHidden) (List.filter (fun i -> not i.IsHidden))
     let expected = { model with Items = expectedItems }
@@ -105,7 +105,7 @@ let ``listDirectory sets cursor and selection correctly`` case =
             SelectedItems = [cursorAndSelectionDirectory.[0]; cursorAndSelectionDirectory.[4]]
         }
 
-    let actual = Nav.listDirectory case.CursorMove model
+    let actual = NavigationCommands.listDirectory case.CursorMove model
 
     let pathsToShow =
         match case.CursorMove with

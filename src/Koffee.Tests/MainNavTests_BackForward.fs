@@ -45,10 +45,10 @@ let testHistory handler count backStack forwardStack =
       Error = actualError
     }
 
-let back = testHistory Nav.back None
-let forward = testHistory Nav.forward None
-let backCount count = testHistory Nav.back (Some count)
-let forwardCount count = testHistory Nav.forward (Some count)
+let back = testHistory NavigationCommands.back None
+let forward = testHistory NavigationCommands.forward None
+let backCount count = testHistory NavigationCommands.back (Some count)
+let forwardCount count = testHistory NavigationCommands.forward (Some count)
 
 [<Test>]
 let ``Back without history does nothing``() =

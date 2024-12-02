@@ -4,7 +4,6 @@ open FSharp.Control
 open VinylUI
 open Acadian.FSharp
 open Koffee.Main
-open Koffee.Main.Util
 open UIHelpers
 
 let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptions model =
@@ -40,7 +39,7 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
         match paths with
         | [] -> model |> withError
         | start :: paths ->
-            match Nav.openUserPath fsReader start model with
+            match NavigationCommands.openUserPath fsReader start model with
             | Ok model ->
                 let back =
                     (
@@ -75,7 +74,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
         match KeyBinding.getKeysString (Cursor FindNext) |> Seq.toList with
         | [nextKey] when char = nextKey ->
             cancelInput ()
-            yield Search.findNext model
+            yield CursorCommands.findNext model
         | _ when Path.InvalidNameChars |> String.contains (string char) ->
             cancelInput ()
         | _ -> ()
@@ -87,7 +86,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match model.Config.GetBookmark char with
             | Some path ->
                 yield model
-                yield! model |> MainModel.clearStatus |> Nav.openPath fs path CursorStay
+                yield! model |> MainModel.clearStatus |> NavigationCommands.openPath fs path CursorStay
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
         | SetBookmark ->
@@ -119,7 +118,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
                         SearchHistoryIndex = Some 0
                         History = model.History |> History.withSearch model.Config.Limits.PathHistory search
                     }
-                    |> Search.search fs subDirResults progress
+                    |> NavigationCommands.search fs subDirResults progress
                     |> AsyncSeq.map Ok
             | None ->
                 yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
@@ -166,7 +165,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             match confirmType with
             | Overwrite _ when not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) ->
                 // if we were temporarily showing a hidden file, refresh
-                yield! Nav.refresh fs model
+                yield! NavigationCommands.refresh fs model
             | _ ->
                 yield model
         | _ -> ()
@@ -176,15 +175,15 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
 let inputChanged fsReader subDirResults progress model = asyncSeq {
     match model.InputMode with
     | Some (Input (Find _)) ->
-        yield Search.find model
+        yield CursorCommands.find model
     | Some (Input Search) ->
-        yield! Search.search fsReader subDirResults progress model
+        yield! NavigationCommands.search fsReader subDirResults progress model
     | _ -> ()
 }
 
 let inputHistory offset model =
     match model.InputMode with
-    | Some (Input Search) -> Search.traverseSearchHistory offset model
+    | Some (Input Search) -> NavigationCommands.traverseSearchHistory offset model
     | _ -> model
 
 let inputDelete isShifted cancelInput model =
@@ -198,7 +197,7 @@ let inputDelete isShifted cancelInput model =
         cancelInput ()
         { model with InputMode = Some (Prompt DeleteSavedSearch) }
     | Some (Input Search) when isShifted && model.HistoryDisplay = Some SearchHistory ->
-        Search.deleteSearchHistory model
+        NavigationCommands.deleteSearchHistory model
     | _ ->
         model
 
@@ -211,7 +210,7 @@ let submitInput fs os model = asyncSeqResult {
                 InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
             }
         yield model
-        yield! Nav.openItems fs os [model.CursorItem] model
+        yield! NavigationCommands.openItems fs os [model.CursorItem] model
     | Some (Input Search) ->
         let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
         yield
@@ -240,7 +239,7 @@ let submitInput fs os model = asyncSeqResult {
 let cancelInput model =
     { model with InputMode = None; InputError = None }
     |> match model.InputMode with
-        | Some (Input Search) -> Search.clearSearch
+        | Some (Input Search) -> NavigationCommands.clearSearch
         | _ -> id
     |> MainModel.setHistoryDisplayForInputMode model.InputMode
 
@@ -255,26 +254,7 @@ let escape model =
         model |> MainModel.clearSelection
     else
         model.CancelToken.Cancel()
-        model |> MainModel.clearStatus |> Search.clearSearch
-
-let SyncResult handler =
-    Sync (fun (model: MainModel) ->
-        match handler model with
-        | Ok newModel -> newModel
-        | Error e -> model |> MainModel.withError e
-    )
-
-let AsyncResult handler =
-    Async (fun (model: MainModel) -> asyncSeq {
-        let mutable last = model
-        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
-            match r with
-            | Ok newModel ->
-                last <- newModel
-                yield newModel
-            | Error e ->
-                yield last |> MainModel.withError e
-    })
+        model |> MainModel.clearStatus |> NavigationCommands.clearSearch
 
 let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord handleKey model = asyncSeq {
     let evt, modelFunc =
@@ -333,9 +313,9 @@ let windowMaximized maximized model =
 let windowActivated fsReader subDirResults progress model = asyncSeqResult {
     if model.Config.Window.RefreshOnActivate then
         if model.IsSearchingSubFolders then
-            yield model |> Nav.refreshDirectory fsReader
+            yield model |> NavigationCommands.refreshDirectory fsReader
         else
-            yield! model |> Search.refreshOrResearch fsReader subDirResults progress
+            yield! model |> NavigationCommands.refreshOrResearch fsReader subDirResults progress
 }
 
 type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, history: HistoryFile, keyBindings,
@@ -348,44 +328,14 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
         let startInput inputMode =
             SyncResult (Action.startInput fs inputMode)
         match command with
-        | Cursor command ->
-            match command with
-            | CursorUp -> Sync (fun m -> m |> MainModel.withCursorRel (-1 * m.RepeatCount))
-            | CursorDown -> Sync (fun m -> m |> MainModel.withCursorRel (1 * m.RepeatCount))
-            | CursorUpHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (-m.PageSize/2 * m.RepeatCount))
-            | CursorDownHalfPage -> Sync (fun m -> m |> MainModel.withCursorRel (m.PageSize/2 * m.RepeatCount))
-            | CursorToFirst -> Sync (fun m -> m |> MainModel.withCursor 0)
-            | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
-            | SelectToggle -> Sync Action.selectToggle
-            | SelectRange -> Sync Action.selectRange
-            | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
-            | Scroll scrollType -> Sync (Nav.scrollView gridScroller scrollType)
-            | StartFind multi -> startInput (Input (Find multi))
-            | FindNext -> Sync Search.findNext
-        | Navigation command ->
-            match command with
-            | OpenParent -> SyncResult (Nav.openParent fs)
-            | OpenRoot -> SyncResult (Nav.openPath fs Path.Root CursorStay)
-            | OpenDefault -> SyncResult (fun m -> Nav.openPath fs m.Config.DefaultPath CursorStay m)
-            | Back -> Sync (Nav.back fs)
-            | Forward -> Sync (Nav.forward fs)
-            | Refresh -> AsyncResult (Search.refreshOrResearch fs subDirResults progress)
-            | StartSearch -> startInput (Input (Search))
-            | RepeatPreviousSearch -> Async (Search.repeatSearch fs subDirResults progress)
-            | PromptGoToBookmark -> startInput (Prompt GoToBookmark)
-            | PromptGoToSavedSearch -> startInput (Prompt GoToSavedSearch)
-            | PromptSetBookmarkOrSavedSearch -> startInput (Prompt SetBookmark)
-            | SortList field -> Sync (Nav.sortList field)
-            | ToggleHidden -> Sync Command.toggleHidden
-            | ShowNavHistory -> Sync (MainModel.toggleHistoryDisplay NavHistory)
-            | ShowUndoHistory -> Sync (MainModel.toggleHistoryDisplay UndoHistory)
-            | ShowStatusHistory -> Sync (MainModel.toggleHistoryDisplay StatusHistory)
+        | Cursor cursorCmd -> CursorCommands.handleCommand gridScroller cursorCmd
+        | Navigation navCmd -> NavigationCommands.handleCommand fs subDirResults progress navCmd
         | ItemAction command ->
             match command with
-            | OpenCursorItem -> AsyncResult (fun m -> Nav.openItems fs os [m.CursorItem] m)
-            | OpenSelected -> AsyncResult (fun m -> Nav.openItems fs os m.ActionItems m)
+            | OpenCursorItem -> AsyncResult (fun m -> NavigationCommands.openItems fs os [m.CursorItem] m)
+            | OpenSelected -> AsyncResult (fun m -> NavigationCommands.openItems fs os m.ActionItems m)
             | OpenFileWith -> SyncResult (Command.openFileWith os)
-            | OpenFileAndExit -> AsyncResult (Nav.openFilesAndExit fs os closeWindow)
+            | OpenFileAndExit -> AsyncResult (NavigationCommands.openFilesAndExit fs os closeWindow)
             | OpenProperties -> SyncResult (Command.openProperties os)
             | OpenWithTextEditor -> SyncResult (Command.openWithTextEditor os)
             | OpenTerminal -> SyncResult (Command.openTerminal os)
@@ -414,10 +364,10 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | KeyPress (chord, handler) -> Async (keyPress handleCommand keyBindings chord handler.Handle)
             | ItemDoubleClick -> handleCommand (ItemAction OpenCursorItem)
             | SettingsButtonClick -> handleCommand (Window OpenSettings)
-            | LocationInputChanged -> Async (Nav.suggestPaths fs)
-            | LocationInputSubmit (path, handler) -> SyncResult (Nav.openInputPath fs os path handler)
+            | LocationInputChanged -> Async (NavigationCommands.suggestPaths fs)
+            | LocationInputSubmit (path, handler) -> SyncResult (NavigationCommands.openInputPath fs os path handler)
             | LocationInputCancel -> Sync (fun m -> { m with LocationInput = m.LocationFormatted })
-            | DeletePathSuggestion path -> Sync (Nav.deletePathSuggestion path)
+            | DeletePathSuggestion path -> Sync (NavigationCommands.deletePathSuggestion path)
             | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs subDirResults progress handler.Handle c)
             | InputChanged -> Async (inputChanged fs subDirResults progress)
             | InputBack -> Sync (inputHistory 1)
@@ -425,7 +375,7 @@ type Controller(fs: IFileSystem, os, getScreenBounds, config: ConfigFile, histor
             | InputDelete (isShifted, handler) -> Sync (inputDelete isShifted handler.Handle)
             | InputSubmit -> AsyncResult (submitInput fs os)
             | InputCancel -> Sync cancelInput
-            | SubDirectoryResults items -> Sync (Search.addSubDirResults items)
+            | SubDirectoryResults items -> Sync (NavigationCommands.addSubDirResults items)
             | UpdateDropInPutType (paths, event) -> Sync (Action.updateDropInPutType paths event)
             | DropIn (paths, event) -> AsyncResult (Action.dropIn fs progress paths event)
             | DropOut event -> Sync (Action.dropOut fs event)

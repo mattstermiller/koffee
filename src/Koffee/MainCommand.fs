@@ -2,24 +2,6 @@ module Koffee.Main.Command
 
 open Acadian.FSharp
 open Koffee
-open Koffee.Main.Util
-
-let toggleHidden (model: MainModel) =
-    let show = not model.Config.ShowHidden
-    let model =
-        { model with
-            Config = { model.Config with ShowHidden = show }
-        } |> MainModel.withMessage (MainStatus.ToggleHidden show)
-    match model.SearchCurrent |> Option.bind (Search.getFilter model.Config.ShowHidden >> Result.toOption) with
-    | Some filter ->
-        let items =
-            model.Directory @ (model.SubDirectories |? [])
-            |> filter
-            |> model.SortItems
-            |> model.ItemsOrEmpty
-        { model with Items = items } |> Nav.moveCursor model.KeepCursorByPath
-    | None ->
-        model |> Nav.listDirectory model.KeepCursorByPath
 
 let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result {
     let fitRect = Rect.ofPairs model.WindowLocation (model.WindowSize |> mapFst ((*) 2))
@@ -104,5 +86,5 @@ let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
 
 let openSettings fsReader openSettings model = result {
     let config = openSettings model.Config
-    return! { model with Config = config } |> Nav.refresh fsReader
+    return! { model with Config = config } |> NavigationCommands.refresh fsReader
 }

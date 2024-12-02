@@ -1,4 +1,4 @@
-﻿module Koffee.MainLogicTests_InitModel
+﻿module Koffee.MainControllerInitModelTests
 
 open NUnit.Framework
 open FsUnitTyped
@@ -32,7 +32,7 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
     let options = { StartPath = startPath; StartLocation = None; StartSize = None }
     let screen = Rect.ofPairs (0, 0) (800, 600)
 
-    let actual = MainLogic.initModel fs screen options model
+    let actual = MainController.initModel fs screen options model
 
     actual.Items |> shouldNotEqual [Item.Empty]
     { Start = actual.LocationFormatted

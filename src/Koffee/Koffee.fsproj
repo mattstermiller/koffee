@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <TargetFramework>net481</TargetFramework>
@@ -19,7 +19,6 @@
     <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />
     <Compile Include="MainModel.fs" />
-    <Compile Include="PersistFile.fs" />
     <Compile Include="KeyBinding.fs" />
     <Compile Include="UIHelpers.fs" />
     <Compile Include="TextEdit.fs" />
@@ -27,14 +26,19 @@
     <Compile Include="OperatingSystem.fs" />
     <Compile Include="OsUtility.fs" />
     <Compile Include="FileSystem.fs" />
-    <Compile Include="ProgramOptions.fs" />
+    <Compile Include="CommandUtil.fs" />
+    <Compile Include="CursorCommands.fs" />
+    <Compile Include="NavigationCommands.fs" />
+    <Compile Include="ItemCreateCommands.fs" />
+    <Compile Include="ItemRenameCommands.fs" />
+    <Compile Include="ItemPutCommands.fs" />
+    <Compile Include="ItemDeleteCommands.fs" />
+    <Compile Include="ItemActionCommands.fs" />
+    <Compile Include="WindowCommands.fs" />
+    <Compile Include="PersistFile.fs" />
     <Compile Include="MainView.fs" />
-    <Compile Include="MainUtil.fs" />
-    <Compile Include="MainNav.fs" />
-    <Compile Include="MainSearch.fs" />
-    <Compile Include="MainAction.fs" />
-    <Compile Include="MainCommand.fs" />
-    <Compile Include="MainLogic.fs" />
+    <Compile Include="ProgramOptions.fs" />
+    <Compile Include="MainController.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

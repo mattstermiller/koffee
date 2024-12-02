@@ -1,8 +1,7 @@
-module Koffee.MainNavTests_SortHistory
+module Koffee.NavigationSortHistoryTests
 
 open FsUnitTyped
 open NUnit.Framework
-open Koffee.Main
 
 let historyWithPathSort location sort =
     { History.Default with
@@ -20,7 +19,7 @@ let ``Sorting changes stored sort`` () =
         }
         |> MainModel.withLocation location
 
-    let resultModel = Nav.sortList Name model
+    let resultModel = NavigationCommands.sortList Name model
 
     let resultSort = resultModel.History.PathSort.TryFind location
     resultSort |> shouldNotEqual (Some originalPathSort)
@@ -37,7 +36,7 @@ let ``Sorting on different folder leaves stored sort unchanged`` () =
         }
         |> MainModel.withLocation modelLocation
 
-    let resultModel = Nav.sortList Name model
+    let resultModel = NavigationCommands.sortList Name model
 
     let resultSort = resultModel.History.PathSort.TryFind pathSortLocation
     resultSort |> shouldEqual (Some originalPathSort)
@@ -54,7 +53,7 @@ let ``Toggling sort into default removes it from history`` () =
         }
         |> MainModel.withLocation location
 
-    let resultModel = Nav.sortList PathSort.Default.Sort model
+    let resultModel = NavigationCommands.sortList PathSort.Default.Sort model
 
     let resultSort = resultModel.History.PathSort.TryFind location
     resultSort |> shouldEqual expected
@@ -83,7 +82,7 @@ let ``openPath uses stored sort`` () =
         |> MainModel.withLocation location
     let fs = createFs()
 
-    let result = Nav.openPath fs storedLocation CursorStay model
+    let result = NavigationCommands.openPath fs storedLocation CursorStay model
 
     let resultModel = assertOk result
     resultModel.Sort |> shouldEqual (Some expected)
@@ -102,7 +101,7 @@ let ``openPath uses default sort when no stored sort`` () =
         |> MainModel.withLocation location
     let fs = createFs()
 
-    let result = Nav.openPath fs newLocation CursorStay model
+    let result = NavigationCommands.openPath fs newLocation CursorStay model
 
     let resultModel = assertOk result
     resultModel.Sort |> shouldEqual (Some expected)

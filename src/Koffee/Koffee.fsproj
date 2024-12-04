@@ -14,8 +14,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <None Include="App.config" />
-    <Content Include="paket.references" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
     <Compile Include="KeyComboParser.fs" />

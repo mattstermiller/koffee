@@ -396,7 +396,6 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
                 ]
             ]
         ]
-        printfn "part one: cancellation completed successfully"
     )
 
     // simulate external program creating new file in destination with same relative path as a remaining file
@@ -945,7 +944,6 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
                 file "other"
             ]
         ]
-        printfn "part one: cancellation completed successfully"
     )
 
     // part two: undo again resumes and completes the operation

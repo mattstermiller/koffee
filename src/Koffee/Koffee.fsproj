@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <TargetFramework>net481</TargetFramework>
@@ -41,11 +41,10 @@
     <ProjectReference Include="..\KoffeeUI\KoffeeUI.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="4.7.2" />
     <PackageReference Include="VinylUI" Version="3.0.2" />
     <PackageReference Include="System.Reactive" Version="4.4.1" />
-    <PackageReference Include="System.Management" Version="8.0.0" />
-    <PackageReference Include="Microsoft.VisualBasic" Version="10.3" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="Microsoft.VisualBasic" Version="10.3.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Acadian.FSharp" Version="1.2.23" />
   </ItemGroup>

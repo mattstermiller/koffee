@@ -281,7 +281,6 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
             createFolder "/c/folder"
             createFile "/c/file1"
         ]
-        printfn "part one: cancellation completed successfully"
     )
 
     // part two: delete or redo again completes the operation and merges undo item
@@ -360,7 +359,6 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
             file "other"
         ]
         fs.RecycleBin |> shouldEqual []
-        printfn "part one: cancellation completed successfully"
     )
 
     // part two: delete or redo again completes the operation and merges undo item

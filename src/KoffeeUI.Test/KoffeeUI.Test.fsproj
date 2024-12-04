@@ -16,7 +16,6 @@
     <ProjectReference Include="..\KoffeeUI\KoffeeUI.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Update="FSharp.Core" Version="4.7.2" />
     <PackageReference Include="PixiEditor.ColorPicker" Version="3.4.1" />
   </ItemGroup>
 </Project>

@@ -324,12 +324,16 @@ module MainView =
             )
             Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
-            Bind.modelMulti(<@ model.HistoryDisplay, model.Location, model.BackStack, model.ForwardStack,
+            Bind.modelMulti(<@ model.HistoryDisplay, model.InputMode, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
                                model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches, model.PathFormat @>)
-                .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses,
+                .toFunc(fun (historyType, inputMode, location, back, forward, undo, redo, searches, searchIndex, statuses,
                              bookmarks, savedSearches, pathFormat) ->
-                    match historyType with
+                    let showHistoryType =
+                        inputMode
+                        |> Option.map (fun input -> input.HistoryDisplay)
+                        |> Option.defaultValue historyType
+                    match showHistoryType with
                     | Some historyType ->
                         let maxStackSize = 6
                         let maxListSize = maxStackSize*2

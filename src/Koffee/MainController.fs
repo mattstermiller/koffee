@@ -77,7 +77,7 @@ let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqRe
             cancelInput()
     | Some (Prompt mode) ->
         cancelInput ()
-        let model = { model with InputMode = None } |> MainModel.setHistoryDisplayForInputMode model.InputMode
+        let model = { model with InputMode = None }
         match mode with
         | GoToBookmark ->
             match model.Config.GetBookmark char with
@@ -235,7 +235,6 @@ let submitInput fs os model = asyncSeqResult {
 let cancelInput model =
     { model with InputMode = None; InputError = None }
     |> applyIf (model.InputMode = Some (Input Search)) NavigationCommands.clearSearch
-    |> MainModel.setHistoryDisplayForInputMode model.InputMode
 
 let private escape model =
     if model.InputMode.IsSome then
@@ -263,7 +262,7 @@ let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord ha
             match KeyBinding.getMatch keyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
-                (Some newEvent, MainModel.withoutKeyCombo >> MainModel.setHistoryDisplayForInputMode model.InputMode)
+                (Some newEvent, MainModel.withoutKeyCombo)
             | KeyBinding.PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))

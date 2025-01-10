@@ -1206,16 +1206,6 @@ type MainModel = {
         let display = if this.HistoryDisplay = Some historyType then None else Some historyType
         { this with HistoryDisplay = display }
 
-    // TODO refactor to setInputMode?
-    static member setHistoryDisplayForInputMode (prevInputMode: InputMode option) (this: MainModel) =
-        match this.InputMode with
-        | Some inputMode when this.HistoryDisplay <> inputMode.HistoryDisplay ->
-            { this with HistoryDisplay = inputMode.HistoryDisplay }
-        | None when prevInputMode |> Option.exists (fun input -> input.HistoryDisplay.IsSome) ->
-            { this with HistoryDisplay = None }
-        | _ ->
-            this
-
     static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
         match actionStack with
         | PutItems (putType1, intent1, actual1, cancelled1) ::

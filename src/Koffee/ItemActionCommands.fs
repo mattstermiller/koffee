@@ -114,3 +114,42 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | ClipboardPaste -> AsyncResult (Put.clipboardPaste fs os progress)
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
+
+    member _.HandleNewItemInputEvent isFolder (evt: InputEvent) model = asyncSeq {
+        match evt with
+        | InputCharTyped (char, keyHandler) ->
+            suppressInvalidPathChar char keyHandler
+        | InputSubmit ->
+            let model = { model with InputMode = None }
+            yield model
+            let itemType = if isFolder then Folder else File
+            yield! model |> handleAsyncResult (Create.create fs itemType model.InputText)
+        | _ -> ()
+    }
+
+    member _.HandleRenameInputEvent (evt: InputEvent) model = asyncSeq {
+        match evt with
+        | InputCharTyped (char, keyHandler) ->
+            suppressInvalidPathChar char keyHandler
+        | InputSubmit ->
+            yield
+                { model with InputMode = None }
+                |> handleSyncResult (Rename.rename fs model.CursorItem model.InputText)
+        | _ -> ()
+    }
+
+    member _.ConfirmOverwrite putType (srcExistingPairs: (Item * Item) list) isYes model = asyncSeqResult {
+        if isYes then
+            let itemRefs = srcExistingPairs |> List.map (fun (src, _) -> src.Ref)
+            let! model = Put.putInLocation fs progress false true putType itemRefs model
+            yield { model with Config = { model.Config with YankRegister = None } }
+
+        else if not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) then
+            // if we were temporarily showing a hidden file, refresh
+            yield! NavigationCommands.refresh fs model
+    }
+
+    member _.ConfirmDelete isYes (model: MainModel) = asyncSeqResult {
+        if isYes then
+            yield! Delete.delete fs progress model.ActionItems model
+    }

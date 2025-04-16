@@ -5,10 +5,22 @@ open System.Windows
 open System.Windows.Input
 open Acadian.FSharp
 
+type ScrollType =
+    | CursorTop
+    | CursorMiddle
+    | CursorBottom
+
 type SortField =
     | Name
     | Modified
     | Size
+
+type MarkType =
+    | Bookmark
+    | SavedSearch
+with
+    member this.Name = this |> Reflection.unionCaseNameReadable
+    member this.NameLower = this.Name.ToLower()
 
 type RenamePart =
     | Begin
@@ -23,11 +35,6 @@ type PutType =
     | Shortcut
 with
     member this.ToLowerString() = this.ToString().ToLower()
-
-type ScrollType =
-    | CursorTop
-    | CursorMiddle
-    | CursorBottom
 
 type CursorCommand =
     | CursorUp
@@ -78,9 +85,8 @@ type NavigationCommand =
     | Refresh
     | StartSearch
     | RepeatPreviousSearch
-    | PromptGoToBookmark
-    | PromptGoToSavedSearch
-    | PromptSetBookmarkOrSavedSearch
+    | PromptGoToMark of MarkType
+    | PromptSetMark
     | SortList of SortField
     | ToggleHidden
     | ShowNavHistory
@@ -105,9 +111,8 @@ with
         | Refresh -> "Refresh Current Folder"
         | StartSearch -> "Search For Items"
         | RepeatPreviousSearch -> "Repeat Previous Search"
-        | PromptGoToBookmark -> "Go To Bookmark"
-        | PromptGoToSavedSearch -> "Go To Saved Search"
-        | PromptSetBookmarkOrSavedSearch -> "Set Bookmark/Saved Search"
+        | PromptGoToMark markType -> sprintf "Go To %s" markType.Name
+        | PromptSetMark -> "Set Bookmark/Saved Search"
         | SortList field -> sprintf "Sort by %O" field
         | ToggleHidden -> "Show/Hide Hidden Folders and Files"
         | ShowNavHistory -> "Show Navigation History"
@@ -361,13 +366,16 @@ type HistoryDisplayType =
     | Bookmarks
     | SavedSearches
 
-type PromptType =
-    | GoToBookmark
-    | SetBookmark
-    | DeleteBookmark
-    | GoToSavedSearch
-    | SetSavedSearch
-    | DeleteSavedSearch
+type MarkCommand =
+    | GoToMark
+    | SetMark
+    | DeleteMark
+with
+    override this.ToString() =
+        match this with
+        | GoToMark -> "Go To"
+        | SetMark -> "Set"
+        | DeleteMark -> "Delete"
 
 type ConfirmType =
     | Overwrite of PutType * srcExistingPairs: (Item * Item) list
@@ -383,25 +391,19 @@ type InputType =
     | Rename of RenamePart
 
 type InputMode =
-    | Prompt of PromptType
+    | MarkPrompt of MarkType * MarkCommand
     | Confirm of ConfirmType
     | Input of InputType
 with
     member this.HistoryDisplay =
         match this with
-        | Prompt GoToBookmark
-        | Prompt SetBookmark
-        | Prompt DeleteBookmark ->
-            Some Bookmarks
-        | Prompt GoToSavedSearch
-        | Prompt SetSavedSearch
-        | Prompt DeleteSavedSearch ->
-            Some SavedSearches
+        | MarkPrompt (markType, _) ->
+            match markType with
+            | Bookmark -> Some Bookmarks
+            | SavedSearch -> Some SavedSearches
         | _ -> None
 
     member this.GetPrompt pathFormat =
-        let caseName (case: obj) =
-            case |> Reflection.getUnionCaseName |> String.readableIdentifier |> sprintf "%s:"
         match this with
         | Confirm (Overwrite (putType, srcExistingPairs)) ->
             match srcExistingPairs with
@@ -442,8 +444,8 @@ with
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
             sprintf "Overwrite saved search \"%c\" currently set to \"%s\" y/n ?" char (string existingSearch)
-        | Prompt promptType ->
-            promptType |> caseName
+        | MarkPrompt (markType, markCommand) ->
+            sprintf "%O %s:" markCommand (markType |> Reflection.unionCaseNameReadable)
         | Input (Find multi) ->
             sprintf "Find item starting with%s:" (if multi then " (multi)" else "")
         | Input inputType ->
@@ -452,7 +454,7 @@ with
                 | NewFile -> File.Symbol + " "
                 | NewFolder -> Folder.Symbol + " "
                 | _ -> ""
-            symbol + (inputType |> caseName)
+            sprintf "%s%s:" symbol (inputType |> Reflection.unionCaseNameReadable)
 
 type PutItem = {
     ItemType: ItemType
@@ -1319,6 +1321,17 @@ type DragOutEvent(control) =
         |> DragDropEffects.toPutTypes
         |> List.tryHead
 
+type InputNavigateHistoryDirection =
+    | InputBack
+    | InputForward
+
+type InputEvent =
+    | InputCharTyped of char * keyHandler: KeyPressHandler
+    | InputChanged
+    | InputSubmit
+    | InputNavigateHistory of InputNavigateHistoryDirection
+    | InputDelete of isShifted: bool * keyHandler: KeyPressHandler
+
 type BackgroundEvent =
     | ConfigFileChanged of Config
     | HistoryFileChanged of History
@@ -1328,19 +1341,14 @@ type BackgroundEvent =
     | WindowMaximizedChanged of bool
 
 type MainEvent =
-    | KeyPress of (ModifierKeys * Key) * EvtHandler
+    | KeyPress of (ModifierKeys * Key) * KeyPressHandler
     | ItemDoubleClick
     | SettingsButtonClick
     | LocationInputChanged
-    | LocationInputSubmit of string * EvtHandler
+    | LocationInputSubmit of string * KeyPressHandler
     | LocationInputCancel
     | DeletePathSuggestion of HistoryPath
-    | InputCharTyped of char * EvtHandler
-    | InputChanged
-    | InputBack
-    | InputForward
-    | InputDelete of isShifted: bool * EvtHandler
-    | InputSubmit
+    | InputEvent of InputEvent
     | InputCancel
     | SubDirectoryResults of Item list
     | UpdateDropInPutType of Path list * DragInEvent

@@ -456,23 +456,27 @@ module MainView =
                 |> Obs.filter (fun evt -> evt.Chord = (ModifierKeys.None, Key.Escape))
                 |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
             window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
-                let keyPress = KeyPress (evt.Chord, evt.Handler)
                 let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
                 let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
                 let focusGrid () = window.ItemGrid.Focus() |> ignore
                 let selectedPath = window.PathSuggestions.SelectedItem |> unbox |> Option.ofString
                 let path = selectedPath |? window.PathBox.Text
                 match evt.Chord with
-                | (ModifierKeys.None, Key.Enter) -> Some (LocationInputSubmit (path, evt.HandlerWithEffect focusGrid))
-                | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some LocationInputCancel
+                | (ModifierKeys.None, Key.Enter) ->
+                    Some (LocationInputSubmit (path, evt.HandlerWithEffect focusGrid))
+                | (ModifierKeys.None, Key.Escape) ->
+                    focusGrid()
+                    Some LocationInputCancel
                 | (ModifierKeys.None, Key.Delete) ->
                     selectedPath
                     |> Option.bind HistoryPath.Parse
                     |> Option.map (tee (fun _ -> evt.Handled <- true) >> DeletePathSuggestion)
-                | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
-                | (modifier, _) when not (ignoreMods |> List.contains modifier) -> Some keyPress
-                | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
-                | _ -> None
+                | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key ->
+                    None
+                | (modifier, key) when not (ignoreMods |> List.contains modifier) || key >= Key.F1 && key <= Key.F12 ->
+                    Some (KeyPress (evt.Chord, evt.Handler))
+                | _ ->
+                    None
             )
             window.PathBox.TextChanged
                 |> Obs.filter (fun _ -> window.PathBox.IsFocused)
@@ -501,23 +505,23 @@ module MainView =
                 else None
             )
 
-            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> InputSubmit)
+            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> InputEvent InputSubmit)
             window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
                 match keyEvt.Key with
-                | Key.Up -> Some InputBack
-                | Key.Down -> Some InputForward
-                | Key.Delete -> Some (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler))
+                | Key.Up -> Some (InputEvent (InputNavigateHistory InputBack))
+                | Key.Down -> Some (InputEvent (InputNavigateHistory InputForward))
+                | Key.Delete -> Some (InputEvent (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler)))
                 | _ -> None
             )
             window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
                 match keyEvt.Text.ToCharArray() with
-                | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
+                | [| c |] -> Some (InputEvent (InputCharTyped (c, keyEvt.Handler)))
                 | _ -> None
             )
-            window.InputBox.TextChanged |> Obs.mapTo InputChanged
-            window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
-            window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
-            window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
+            window.InputBox.TextChanged |> Obs.mapTo (InputEvent InputChanged)
+            window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo (InputEvent InputChanged)
+            window.SearchRegex.CheckedChanged |> Obs.mapTo (InputEvent InputChanged)
+            window.SearchSubFolders.CheckedChanged |> Obs.mapTo (InputEvent InputChanged)
             subDirResults
                 |> Obs.buffer 0.3
                 |> Obs.onCurrent

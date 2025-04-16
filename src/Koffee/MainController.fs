@@ -54,184 +54,6 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
                 openPath (Some (error |? e)) paths
     openPath None paths
 
-let inputCharTyped fs subDirResults progress cancelInput char model = asyncSeqResult {
-    let withBookmark char model =
-        model
-        |> MainModel.mapConfig (Config.withBookmark char model.Location)
-        |> MainModel.withMessage (MainStatus.SetBookmark (char, model.Location))
-    let withSavedSearch char search model =
-        model
-        |> MainModel.mapConfig (Config.withSavedSearch char search)
-        |> MainModel.withMessage (MainStatus.SetSavedSearch (char, search))
-    match model.InputMode with
-    | Some (Input NewFile)
-    | Some (Input NewFolder)
-    | Some (Input (Rename _)) ->
-        if Path.InvalidNameChars |> String.contains (string char) then
-            cancelInput()
-    | Some (Input (Find _)) ->
-        if KeyBinding.getKeysString (Cursor FindNext) |> Seq.toList = [char] then
-            cancelInput ()
-            yield CursorCommands.findNext model
-        else if Path.InvalidNameChars |> String.contains (string char) then
-            cancelInput()
-    | Some (Prompt mode) ->
-        cancelInput ()
-        let model = { model with InputMode = None }
-        match mode with
-        | GoToBookmark ->
-            match model.Config.GetBookmark char with
-            | Some path ->
-                yield model
-                yield! model |> MainModel.clearStatus |> NavigationCommands.openPath fs path CursorStay
-            | None ->
-                yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
-        | SetBookmark ->
-            match model.Config.GetBookmark char with
-            | Some existingPath ->
-                yield
-                    { model with
-                        InputMode = Some (Confirm (OverwriteBookmark (char, existingPath)))
-                        InputText = ""
-                    }
-            | None ->
-                yield withBookmark char model
-        | DeleteBookmark ->
-            match model.Config.GetBookmark char with
-            | Some path ->
-                yield
-                    model
-                    |> MainModel.mapConfig (Config.withoutBookmark char)
-                    |> MainModel.withMessage (MainStatus.DeletedBookmark (char, path))
-            | None ->
-                yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
-        | GoToSavedSearch ->
-            match model.Config.GetSavedSearch char with
-            | Some search ->
-                yield!
-                    { model with
-                        InputText = search.Terms
-                        SearchInput = search
-                        SearchHistoryIndex = Some 0
-                        History = model.History |> History.withSearch model.Config.Limits.PathHistory search
-                    }
-                    |> NavigationCommands.search fs subDirResults progress
-                    |> AsyncSeq.map Ok
-            | None ->
-                yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
-        | SetSavedSearch ->
-            match model.SearchCurrent, model.Config.GetSavedSearch char with
-            | Some _, Some existingSearch ->
-                yield
-                    { model with
-                        InputMode = Some (Confirm (OverwriteSavedSearch (char, existingSearch)))
-                        InputText = ""
-                    }
-            | Some search, None ->
-                yield withSavedSearch char search model
-            | None, _ -> ()
-        | DeleteSavedSearch ->
-            match model.Config.GetSavedSearch char with
-            | Some search ->
-                yield
-                    model
-                    |> MainModel.mapConfig (Config.withoutSavedSearch char)
-                    |> MainModel.withMessage (MainStatus.DeletedSavedSearch (char, search))
-            | None ->
-                yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
-    | Some (Confirm confirmType) ->
-        cancelInput ()
-        let model = { model with InputMode = None }
-        match char with
-        | 'y' ->
-            match confirmType with
-            | Overwrite (putType, srcDestPairs) ->
-                let itemRefs = srcDestPairs |> List.map (fun (src, _) -> src.Ref)
-                let! model = ItemActionCommands.Put.putInLocation fs progress false true putType itemRefs model
-                yield { model with Config = { model.Config with YankRegister = None } }
-            | Delete ->
-                yield! ItemActionCommands.Delete.delete fs progress model.ActionItems model
-            | OverwriteBookmark (char, _) ->
-                yield withBookmark char model
-            | OverwriteSavedSearch (char, _) ->
-                match model.SearchCurrent with
-                | Some search -> yield withSavedSearch char search model
-                | None -> ()
-        | 'n' ->
-            let model = model |> MainModel.withMessage (MainStatus.CancelledConfirm confirmType)
-            match confirmType with
-            | Overwrite _ when not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) ->
-                // if we were temporarily showing a hidden file, refresh
-                yield! NavigationCommands.refresh fs model
-            | _ ->
-                yield model
-        | _ -> ()
-    | _ -> ()
-}
-
-let inputChanged fsReader subDirResults progress model = asyncSeq {
-    match model.InputMode with
-    | Some (Input (Find _)) ->
-        yield CursorCommands.find model
-    | Some (Input Search) ->
-        yield! NavigationCommands.search fsReader subDirResults progress model
-    | _ -> ()
-}
-
-let inputHistory offset model =
-    match model.InputMode with
-    | Some (Input Search) -> NavigationCommands.traverseSearchHistory offset model
-    | _ -> model
-
-let inputDelete isShifted cancelInput model =
-    match model.InputMode with
-    | Some (Prompt GoToBookmark)
-    | Some (Prompt SetBookmark) ->
-        cancelInput ()
-        { model with InputMode = Some (Prompt DeleteBookmark) }
-    | Some (Prompt GoToSavedSearch)
-    | Some (Prompt SetSavedSearch) ->
-        cancelInput ()
-        { model with InputMode = Some (Prompt DeleteSavedSearch) }
-    | Some (Input Search) when isShifted && model.HistoryDisplay = Some SearchHistory ->
-        NavigationCommands.deleteSearchHistory model
-    | _ ->
-        model
-
-let submitInput fs os model = asyncSeqResult {
-    match model.InputMode with
-    | Some (Input inputType) ->
-        match inputType with
-        | Find multi ->
-            let model =
-                { model with
-                    InputText = ""
-                    InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
-                }
-            yield model
-            yield! NavigationCommands.openItems fs os [model.CursorItem] model
-        | Search ->
-            let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
-            yield
-                { model with
-                    InputMode = None
-                    SearchCurrent = if search.IsNone then None else model.SearchCurrent
-                    SearchHistoryIndex = Some 0
-                    History = model.History |> Option.foldBack (History.withSearch model.Config.Limits.SearchHistory) search
-                    HistoryDisplay = None
-                }
-        | NewFile | NewFolder ->
-            let model = { model with InputMode = None }
-            yield model
-            let itemType = if inputType = NewFolder then Folder else File
-            yield! ItemActionCommands.Create.create fs itemType model.InputText model
-        | Rename _ ->
-            let model = { model with InputMode = None }
-            yield model
-            yield! ItemActionCommands.Rename.rename fs model.CursorItem model.InputText model
-    | _ -> ()
-}
-
 let cancelInput model =
     { model with InputMode = None; InputError = None }
     |> applyIf (model.InputMode = Some (Input Search)) NavigationCommands.clearSearch
@@ -309,7 +131,6 @@ type Controller(
     itemActionHandler: ItemActionCommands.Handler,
     windowHandler: WindowCommands.Handler,
     fs: IFileSystem,
-    os: IOperatingSystem,
     getScreenBounds: unit -> Rectangle,
     progress: Progress,
     subDirResults: Event<Item list>,
@@ -325,23 +146,72 @@ type Controller(
         | ItemAction command -> itemActionHandler.Handle command
         | Window command -> windowHandler.Handle command
 
+    let handleMarkPromptEvent markType markCommand evt model = asyncSeq {
+        match evt with
+        | InputCharTyped (char, keyHandler) ->
+            keyHandler.Handle()
+            let model = { model with InputMode = None }
+            let handler =
+                match markType with
+                | Bookmark -> navigationHandler.HandleBookmarkCommand
+                | SavedSearch -> navigationHandler.HandleSavedSearchCommand
+            yield! model |> handleAsyncResult (handler markCommand char)
+        | InputDelete (_, keyHandler) ->
+            keyHandler.Handle()
+            let prompt = MarkPrompt (markType, DeleteMark)
+            yield { model with InputMode = Some prompt }
+        | _ -> ()
+    }
+
+    let handleConfirmEvent confirmType evt model = asyncSeq {
+        match evt with
+        | InputCharTyped (char, keyHandler) ->
+            keyHandler.Handle()
+            let handler =
+                match confirmType with
+                | Overwrite (putType, srcExistingPairs) -> itemActionHandler.ConfirmOverwrite putType srcExistingPairs
+                | Delete -> itemActionHandler.ConfirmDelete
+                | OverwriteBookmark (char, _) -> navigationHandler.ConfirmOverwriteBookmark char
+                | OverwriteSavedSearch (char, _) -> navigationHandler.ConfirmOverwriteSavedSearch char
+            let model = { model with InputMode = None }
+            match char with
+            | 'y' ->
+                yield! model |> handleAsyncResult (handler true)
+            | 'n' ->
+                let model = model |> MainModel.withMessage (MainStatus.CancelledConfirm confirmType)
+                yield model
+                yield! model |> handleAsyncResult (handler false)
+            | _ -> ()
+        | _ -> ()
+    }
+
+    let handleInputEvent (evt: InputEvent) (model: MainModel) =
+        model.InputMode
+        |> Option.map (fun mode ->
+            match mode with
+            | MarkPrompt (markType, markCommand) -> handleMarkPromptEvent markType markCommand
+            | Confirm confirmType -> handleConfirmEvent confirmType
+            | Input (Find multi) -> navigationHandler.HandleFindInputEvent multi
+            | Input Search -> navigationHandler.HandleSearchInputEvent
+            | Input NewFile
+            | Input NewFolder -> itemActionHandler.HandleNewItemInputEvent (mode = Input NewFolder)
+            | Input (Rename _) -> itemActionHandler.HandleRenameInputEvent
+        )
+        |> function
+            | Some handler -> handler evt model
+            | None -> AsyncSeq.empty
+
     let dispatcher evt =
         let handler =
             match evt with
             | KeyPress (chord, handler) -> Async (keyPress handleCommand keyBindings chord handler.Handle)
             | ItemDoubleClick -> handleCommand (Navigation OpenCursorItem)
             | SettingsButtonClick -> handleCommand (Window OpenSettings)
-            | LocationInputChanged -> Async navigationHandler.SuggestPaths
-            | LocationInputSubmit (path, handler) -> SyncResult (navigationHandler.OpenInputPath path handler)
-            | LocationInputCancel -> Sync (fun m -> { m with LocationInput = m.LocationFormatted })
+            | LocationInputChanged -> Async navigationHandler.LocationInputChanged
+            | LocationInputSubmit (path, handler) -> SyncResult (navigationHandler.LocationInputSubmit path handler)
+            | LocationInputCancel -> Sync navigationHandler.LocationInputCancel
             | DeletePathSuggestion path -> Sync (navigationHandler.DeletePathSuggestion path)
-            // TODO: delegate input events to command handlers / create interface for input modes to handle char typed, submit, cancel etc
-            | InputCharTyped (c, handler) -> AsyncResult (inputCharTyped fs subDirResults progress handler.Handle c)
-            | InputChanged -> Async (inputChanged fs subDirResults progress)
-            | InputBack -> Sync (inputHistory 1)
-            | InputForward -> Sync (inputHistory -1)
-            | InputDelete (isShifted, handler) -> Sync (inputDelete isShifted handler.Handle)
-            | InputSubmit -> AsyncResult (submitInput fs os)
+            | InputEvent evt -> Async (handleInputEvent evt)
             | InputCancel -> Sync cancelInput
             | SubDirectoryResults items -> Sync (navigationHandler.AddSubDirResults items)
             | UpdateDropInPutType (paths, event) -> Sync (itemActionHandler.UpdateDropInPutType paths event)

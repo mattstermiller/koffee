@@ -23,6 +23,10 @@ let performedUndo undoIter action (model: MainModel) =
     |> MainModel.pushRedo action
     |> MainModel.withMessage (MainStatus.UndoAction (action, undoIter, model.RepeatCount))
 
+let suppressInvalidPathChar char (keyHandler: KeyPressHandler) =
+    if Path.InvalidNameChars |> String.contains (string char) then
+        keyHandler.Handle()
+
 let parseSearchTerms searchInput =
     searchInput
     |> String.trim
@@ -57,21 +61,21 @@ let clearSearchProps (model: MainModel) =
         SubDirectories = None
     }
 
-let SyncResult handler =
-    Sync (fun (model: MainModel) ->
-        match handler model with
-        | Ok newModel -> newModel
-        | Error e -> model |> MainModel.withError e
-    )
+let handleSyncResult (handler: MainModel -> Result<MainModel, _>) model =
+    match handler model with
+    | Ok newModel -> newModel
+    | Error e -> model |> MainModel.withError e
 
-let AsyncResult handler =
-    Async (fun (model: MainModel) -> asyncSeq {
-        let mutable last = model
-        for r in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
-            match r with
-            | Ok newModel ->
-                last <- newModel
-                yield newModel
-            | Error e ->
-                yield last |> MainModel.withError e
-    })
+let handleAsyncResult (handler: MainModel -> AsyncSeq<Result<MainModel, _>>) model = asyncSeq {
+    let mutable last = model
+    for res in handler model |> AsyncSeq.takeWhileInclusive Result.isOk do
+        match res with
+        | Ok newModel ->
+            last <- newModel
+            yield newModel
+        | Error e ->
+            yield last |> MainModel.withError e
+}
+
+let SyncResult handler = Sync (handleSyncResult handler)
+let AsyncResult handler = Async (handleAsyncResult handler)

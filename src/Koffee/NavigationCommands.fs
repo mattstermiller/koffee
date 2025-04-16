@@ -102,10 +102,10 @@ let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     | None ->
         Error <| MainStatus.InvalidPath pathStr
 
-let openInputPath fsReader os pathStr (evtHandler: EvtHandler) model = result {
+let openInputPath fsReader os pathStr (keyHandler: KeyPressHandler) model = result {
     let pathStr = OsUtility.subEnvVars os pathStr
     let! model = openUserPath fsReader pathStr model
-    evtHandler.Handle ()
+    keyHandler.Handle ()
     return model
 }
 
@@ -357,7 +357,7 @@ let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) 
     progress.Finish ()
 }
 
-let search fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyncSeq {
+let performSearch fsReader (subDirResults: Event<_>) progress (model: MainModel) = asyncSeq {
     let input = { model.SearchInput with Terms = model.InputText }
     let model = { model with SearchCurrent = Some input; InputError = None }
     let filterResult =
@@ -424,12 +424,17 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
                     InputText = prevSearch.Terms
                     SearchInput = prevSearch
                 }
-                |> search fsReader subDirResults progress
+                |> performSearch fsReader subDirResults progress
         | None ->
             yield model |> MainModel.withError MainStatus.NoPreviousSearch
 }
 
-let traverseSearchHistory offset model =
+let traverseSearchHistory direction model =
+    let offset =
+        match direction with
+        | Some InputBack -> 1
+        | Some InputForward -> -1
+        | None -> 0
     let index =
         (model.SearchHistoryIndex |? -1) + offset
         |> min (model.History.Searches.Length-1)
@@ -451,7 +456,7 @@ let deleteSearchHistory model =
     | Some index ->
         model
         |> MainModel.mapHistory (History.withoutSearchIndex index)
-        |> traverseSearchHistory 0
+        |> traverseSearchHistory None
     | None -> model
 
 let inputSearch (model: MainModel) =
@@ -461,6 +466,16 @@ let inputSearch (model: MainModel) =
         InputText = inputText
         InputTextSelection = (0, inputText.Length)
     }
+
+let withBookmark char model =
+    model
+    |> MainModel.mapConfig (Config.withBookmark char model.Location)
+    |> MainModel.withMessage (MainStatus.SetBookmark (char, model.Location))
+
+let withSavedSearch char search model =
+    model
+    |> MainModel.mapConfig (Config.withSavedSearch char search)
+    |> MainModel.withMessage (MainStatus.SetSavedSearch (char, search))
 
 let clearSearch (model: MainModel) =
     { model with HistoryDisplay = None }
@@ -478,7 +493,7 @@ let refreshOrResearch fsReader subDirResults progress model = asyncSeqResult {
                 SearchInput = current
                 SearchHistoryIndex = model.SearchHistoryIndex
             }
-            |> search fsReader subDirResults progress
+            |> performSearch fsReader subDirResults progress
             |> AsyncSeq.cache
         yield! searchModels |> AsyncSeq.map Ok
         // when done searching, re-sort
@@ -505,15 +520,18 @@ let sortList field model =
     |> MainModel.withMessage (MainStatus.Sort (field, desc))
     |> moveCursor cursor
 
-let private inputPrompt prompt (model: MainModel) =
-    let inputMode =
-        if prompt = SetBookmark && model.SearchCurrent.IsSome
-        then Prompt SetSavedSearch
-        else Prompt prompt
+let private promptMark markType markCommand (model: MainModel) =
     { model with
-        InputMode = Some inputMode
+        InputMode = Some (MarkPrompt (markType, markCommand))
         InputText = ""
     }
+
+let private promptSetMark (model: MainModel) =
+    let markType =
+        if model.SearchCurrent.IsSome
+        then SavedSearch
+        else Bookmark
+    promptMark markType SetMark model
 
 let toggleHidden (model: MainModel) =
     let show = not model.Config.ShowHidden
@@ -598,8 +616,9 @@ type Handler(
     subDirResults: Event<Item list>,
     closeWindow: unit -> unit
 ) =
-    member _.OpenInputPath path handler model = openInputPath fs os path handler model
-    member _.SuggestPaths model = suggestPaths fs model
+    member _.LocationInputChanged model = suggestPaths fs model
+    member _.LocationInputSubmit path handler model = openInputPath fs os path handler model
+    member _.LocationInputCancel (model: MainModel) = { model with LocationInput = model.LocationFormatted }
     member _.DeletePathSuggestion path model = deletePathSuggestion path model
     member _.AddSubDirResults items model = addSubDirResults items model
     member _.WindowActivated model = windowActivated fs subDirResults progress model
@@ -622,11 +641,134 @@ type Handler(
         | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)
         | StartSearch -> Sync inputSearch
         | RepeatPreviousSearch -> Async (repeatSearch fs subDirResults progress)
-        | PromptGoToBookmark -> Sync (inputPrompt GoToBookmark)
-        | PromptGoToSavedSearch -> Sync (inputPrompt GoToSavedSearch)
-        | PromptSetBookmarkOrSavedSearch -> Sync (inputPrompt SetBookmark)
+        | PromptGoToMark markType -> Sync (promptMark markType GoToMark)
+        | PromptSetMark -> Sync promptSetMark
         | SortList field -> Sync (sortList field)
         | ToggleHidden -> Sync toggleHidden
         | ShowNavHistory -> Sync (MainModel.toggleHistoryDisplay NavHistory)
         | ShowUndoHistory -> Sync (MainModel.toggleHistoryDisplay UndoHistory)
         | ShowStatusHistory -> Sync (MainModel.toggleHistoryDisplay StatusHistory)
+
+    member _.HandleFindInputEvent multi (evt: InputEvent) (model: MainModel) = asyncSeq {
+        match evt with
+        | InputChanged ->
+            yield CursorCommands.find model
+        | InputCharTyped (char, keyHandler) ->
+            if KeyBinding.getKeysString (Cursor FindNext) |> Seq.toList = [char] then
+                keyHandler.Handle()
+                yield CursorCommands.findNext model
+            else
+                suppressInvalidPathChar char keyHandler
+        | InputSubmit ->
+            let model =
+                { model with
+                    InputText = ""
+                    InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
+                }
+            yield model
+            yield! model |> handleAsyncResult (openItems fs os [model.CursorItem])
+        | _ -> ()
+    }
+
+    member _.HandleSearchInputEvent (evt: InputEvent) (model: MainModel) = asyncSeq {
+        match evt with
+        | InputChanged ->
+            yield! performSearch fs subDirResults progress model
+        | InputSubmit ->
+            let search = model.InputText |> Option.ofString |> Option.map (fun i -> { model.SearchInput with Terms = i })
+            yield
+                { model with
+                    InputMode = None
+                    SearchCurrent = if search.IsNone then None else model.SearchCurrent
+                    SearchHistoryIndex = Some 0
+                    History = model.History |> Option.foldBack (History.withSearch model.Config.Limits.SearchHistory) search
+                    HistoryDisplay = None
+                }
+        | InputNavigateHistory direction ->
+            yield traverseSearchHistory (Some direction) model
+        | InputDelete (isShifted, keyHandler) ->
+            if isShifted && model.HistoryDisplay = Some SearchHistory then
+                keyHandler.Handle()
+                yield deleteSearchHistory model
+        | _ -> ()
+    }
+
+    member _.HandleBookmarkCommand markCommand char (model: MainModel) = asyncSeqResult {
+        match markCommand with
+        | GoToMark ->
+            match model.Config.GetBookmark char with
+            | Some path ->
+                yield model
+                yield! model |> MainModel.clearStatus |> openPath fs path CursorStay
+            | None ->
+                yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
+        | SetMark ->
+            match model.Config.GetBookmark char with
+            | Some existingPath ->
+                yield
+                    { model with
+                        InputMode = Some (Confirm (OverwriteBookmark (char, existingPath)))
+                        InputText = ""
+                    }
+            | None ->
+                yield withBookmark char model
+        | DeleteMark ->
+            match model.Config.GetBookmark char with
+            | Some path ->
+                yield
+                    model
+                    |> MainModel.mapConfig (Config.withoutBookmark char)
+                    |> MainModel.withMessage (MainStatus.DeletedBookmark (char, path))
+            | None ->
+                yield model |> MainModel.withMessage (MainStatus.NoBookmark char)
+    }
+
+    member _.HandleSavedSearchCommand markCommand char (model: MainModel) = asyncSeqResult {
+        match markCommand with
+        | GoToMark ->
+            match model.Config.GetSavedSearch char with
+            | Some search ->
+                yield!
+                    { model with
+                        InputText = search.Terms
+                        SearchInput = search
+                        SearchHistoryIndex = Some 0
+                        History = model.History |> History.withSearch model.Config.Limits.PathHistory search
+                    }
+                    |> performSearch fs subDirResults progress
+                    |> AsyncSeq.map Ok
+            | None ->
+                yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
+        | SetMark ->
+            match model.SearchCurrent, model.Config.GetSavedSearch char with
+            | Some _, Some existingSearch ->
+                yield
+                    { model with
+                        InputMode = Some (Confirm (OverwriteSavedSearch (char, existingSearch)))
+                        InputText = ""
+                    }
+            | Some search, None ->
+                yield withSavedSearch char search model
+            | None, _ -> ()
+        | DeleteMark ->
+            match model.Config.GetSavedSearch char with
+            | Some search ->
+                yield
+                    model
+                    |> MainModel.mapConfig (Config.withoutSavedSearch char)
+                    |> MainModel.withMessage (MainStatus.DeletedSavedSearch (char, search))
+            | None ->
+                yield model |> MainModel.withMessage (MainStatus.NoSavedSearch char)
+    }
+
+    member _.ConfirmOverwriteBookmark char isYes model = asyncSeqResult {
+        if isYes then
+            withBookmark char model
+    }
+
+    member _.ConfirmOverwriteSavedSearch char isYes model = asyncSeqResult {
+        if isYes then
+            match model.SearchCurrent with
+            | Some search -> yield withSavedSearch char search model
+            | None -> ()
+    }

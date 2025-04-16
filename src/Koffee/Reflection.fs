@@ -4,9 +4,8 @@ open FSharp.Reflection
 open FSharp.Quotations.Patterns
 open FSharp.Quotations.Evaluator
 
-let getUnionCaseName value =
-    match FSharpValue.GetUnionFields(value, value.GetType()) with
-    | case, _ -> case.Name
+let unionCaseNameReadable value =
+    value |> Acadian.FSharp.Reflection.unionCaseName |> String.readableIdentifier
 
 let rec private enumerateUnionCaseValuesUntyped unionType =
     FSharpType.GetUnionCases unionType

@@ -280,28 +280,28 @@ module MainView =
             )
 
             // update UI for input mode
-            Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
+            Bind.view(<@ window.InputBox.Text @>).toModelOneWay(<@ model.InputText @>, OnChange)
+            Bind.modelMulti(<@ model.InputText, model.InputTextSelection @>)
+                .toFunc(fun (inputText, (selectStart, selectLen)) ->
+                    window.InputBox.Text <- inputText
+                    window.InputBox.Select(selectStart, selectLen)
+                )
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
-            Bind.modelMulti(<@ model.InputMode, model.InputTextSelection, model.PathFormat @>)
-                .toFunc(fun (inputMode, (selectStart, selectLen), pathFormat) ->
+            Bind.modelMulti(<@ model.InputMode, model.PathFormat @>).toFunc(fun (inputMode, pathFormat) ->
                     match inputMode with
                     | Some inputMode ->
                         window.SearchOptions.IsCollapsed <- inputMode <> Input Search
                         window.InputText.Text <- inputMode.GetPrompt pathFormat
                         if window.InputPanel.IsCollapsed then
                             window.InputPanel.IsCollapsed <- false
-                            window.InputBox.Select(selectStart, selectLen)
                             window.InputBox.Focus() |> ignore
                     | None ->
                         if not window.InputPanel.IsCollapsed then
                             window.InputPanel.IsCollapsed <- true
                             window.ItemGrid.Focus() |> ignore
                 )
-            Bind.model(<@ model.InputTextSelection @>).toFunc(fun (selectStart, selectLen) ->
-                window.InputBox.Select(selectStart, selectLen)
-            )
             Bind.model(<@ model.InputError @>).toFunc(function
                 | Some error ->
                     window.InputError.Text <- error.Message

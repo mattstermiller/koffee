@@ -92,7 +92,6 @@ module MainView =
         window.ItemGrid.Columns |> Seq.iter (fun c -> c.CanUserSort <- false)
         let sortColumnsIndex =
             function
-            | Type -> 0
             | Name -> 1
             | Modified -> 3
             | Size -> 4
@@ -325,12 +324,16 @@ module MainView =
             )
             Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
-            Bind.modelMulti(<@ model.HistoryDisplay, model.Location, model.BackStack, model.ForwardStack,
+            Bind.modelMulti(<@ model.HistoryDisplay, model.InputMode, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
                                model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches, model.PathFormat @>)
-                .toFunc(fun (historyType, location, back, forward, undo, redo, searches, searchIndex, statuses,
+                .toFunc(fun (historyType, inputMode, location, back, forward, undo, redo, searches, searchIndex, statuses,
                              bookmarks, savedSearches, pathFormat) ->
-                    match historyType with
+                    let showHistoryType =
+                        inputMode
+                        |> Option.map (fun input -> input.HistoryDisplay)
+                        |> Option.defaultValue historyType
+                    match showHistoryType with
                     | Some historyType ->
                         let maxStackSize = 6
                         let maxListSize = maxStackSize*2
@@ -361,16 +364,16 @@ module MainView =
                                 let format = List.map (fun (p: Path, _) -> p.Format pathFormat)
                                 let rows =
                                     traversableList
-                                        (back |> format |> formatStack Back)
-                                        (forward |> format |> formatStack Forward)
+                                        (back |> format |> formatStack (Navigation Back))
+                                        (forward |> format |> formatStack (Navigation Forward))
                                         (Some (location.Format pathFormat))
                                 ("Navigation History", rows)
                             | UndoHistory ->
                                 let format = List.map (fun (i: ItemAction) -> i.Description pathFormat)
                                 let rows =
                                     traversableList
-                                        (undo |> format |> formatStack Undo)
-                                        (redo |> format |> formatStack Redo)
+                                        (undo |> format |> formatStack (ItemAction Undo))
+                                        (redo |> format |> formatStack (ItemAction Redo))
                                         (if undo.IsEmpty && redo.IsEmpty then None else Some "---")
                                 ("Undo/Redo History", rows)
                             | SearchHistory ->
@@ -453,28 +456,32 @@ module MainView =
                 |> Obs.filter (fun evt -> evt.Chord = (ModifierKeys.None, Key.Escape))
                 |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
             window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
-                let keyPress = KeyPress (evt.Chord, evt.Handler)
                 let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
                 let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]
                 let focusGrid () = window.ItemGrid.Focus() |> ignore
                 let selectedPath = window.PathSuggestions.SelectedItem |> unbox |> Option.ofString
                 let path = selectedPath |? window.PathBox.Text
                 match evt.Chord with
-                | (ModifierKeys.None, Key.Enter) -> Some (OpenPath (path, evt.HandlerWithEffect focusGrid))
-                | (ModifierKeys.None, Key.Escape) -> focusGrid(); Some ResetLocationInput
+                | (ModifierKeys.None, Key.Enter) ->
+                    Some (LocationInputSubmit (path, evt.HandlerWithEffect focusGrid))
+                | (ModifierKeys.None, Key.Escape) ->
+                    focusGrid()
+                    Some LocationInputCancel
                 | (ModifierKeys.None, Key.Delete) ->
                     selectedPath
                     |> Option.bind HistoryPath.Parse
                     |> Option.map (tee (fun _ -> evt.Handled <- true) >> DeletePathSuggestion)
-                | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key -> None
-                | (modifier, _) when not (ignoreMods |> List.contains modifier) -> Some keyPress
-                | (_, key) when key >= Key.F1 && key <= Key.F12 -> Some keyPress
-                | _ -> None
+                | (ModifierKeys.Control, key) when ignoreCtrlKeys |> List.contains key ->
+                    None
+                | (modifier, key) when not (ignoreMods |> List.contains modifier) || key >= Key.F1 && key <= Key.F12 ->
+                    Some (KeyPress (evt.Chord, evt.Handler))
+                | _ ->
+                    None
             )
             window.PathBox.TextChanged
                 |> Obs.filter (fun _ -> window.PathBox.IsFocused)
                 |> Obs.mapTo LocationInputChanged
-            window.SettingsButton.Click |> Obs.mapTo OpenSettings
+            window.SettingsButton.Click |> Obs.mapTo SettingsButtonClick
 
             window.ItemGrid.PreviewKeyDown
                 |> Obs.filter isNotModifier
@@ -484,7 +491,7 @@ module MainView =
                     evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
                 None
             )
-            window.ItemGrid.MouseDoubleClick |> Obs.mapTo OpenSelected
+            window.ItemGrid.MouseDoubleClick |> Obs.mapTo ItemDoubleClick
             window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
                 let grid = window.ItemGrid
                 if grid.HasItems then
@@ -492,46 +499,47 @@ module MainView =
                     grid.ItemContainerGenerator.ContainerFromIndex(visibleIndex) :?> DataGridRow |> Option.ofObj
                     |> Option.map (fun visibleRow  ->
                         let viewHeight = grid.ActualHeight - grid.ActualColumnHeaderHeight
-                        viewHeight / visibleRow.ActualHeight |> int |> PageSizeChanged
+                        let pageSize = viewHeight / visibleRow.ActualHeight |> int
+                        Background (PageSizeChanged pageSize)
                     )
                 else None
             )
 
-            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> SubmitInput)
+            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> InputEvent InputSubmit)
             window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
                 match keyEvt.Key with
-                | Key.Up -> Some InputBack
-                | Key.Down -> Some InputForward
-                | Key.Delete -> Some (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler))
+                | Key.Up -> Some (InputEvent (InputNavigateHistory InputBack))
+                | Key.Down -> Some (InputEvent (InputNavigateHistory InputForward))
+                | Key.Delete -> Some (InputEvent (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler)))
                 | _ -> None
             )
             window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
                 match keyEvt.Text.ToCharArray() with
-                | [| c |] -> Some (InputCharTyped (c, keyEvt.Handler))
+                | [| c |] -> Some (InputEvent (InputCharTyped (c, keyEvt.Handler)))
                 | _ -> None
             )
-            window.InputBox.TextChanged |> Obs.mapTo InputChanged
-            window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo InputChanged
-            window.SearchRegex.CheckedChanged |> Obs.mapTo InputChanged
-            window.SearchSubFolders.CheckedChanged |> Obs.mapTo InputChanged
+            window.InputBox.TextChanged |> Obs.mapTo (InputEvent InputChanged)
+            window.SearchCaseSensitive.CheckedChanged |> Obs.mapTo (InputEvent InputChanged)
+            window.SearchRegex.CheckedChanged |> Obs.mapTo (InputEvent InputChanged)
+            window.SearchSubFolders.CheckedChanged |> Obs.mapTo (InputEvent InputChanged)
             subDirResults
                 |> Obs.buffer 0.3
                 |> Obs.onCurrent
                 |> Obs.map (List.concat >> SubDirectoryResults)
-            window.InputBox.LostFocus |> Obs.mapTo CancelInput
+            window.InputBox.LostFocus |> Obs.mapTo InputCancel
 
             window.Activated |> Obs.filter (fun _ -> window.IsLoaded) |> Obs.mapTo WindowActivated
             window.LocationChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
                 if window.Left > -window.Width && window.Top > -window.Height then
-                    Some (WindowLocationChanged (int window.Left, int window.Top))
+                    Some (Background (WindowLocationChanged (int window.Left, int window.Top)))
                 else None
             )
             window.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.map (fun _ ->
-                WindowSizeChanged (int window.Width, int window.Height)
+                Background (WindowSizeChanged (int window.Width, int window.Height))
             )
             window.StateChanged |> Obs.choose (fun _ ->
                 if window.WindowState <> WindowState.Minimized then
-                    Some (WindowMaximizedChanged (window.WindowState = WindowState.Maximized))
+                    Some (Background (WindowMaximizedChanged (window.WindowState = WindowState.Maximized)))
                 else None
             )
             window.ItemGrid.DragOver |> Obs.map (fun (e: DragEventArgs) ->
@@ -553,6 +561,6 @@ module MainView =
                     e.Handled <- true
                     Some (DropIn (paths, DragInEvent e))
             )
-            config.FileChanged |> Obs.onCurrent |> Obs.map ConfigFileChanged
-            history.FileChanged |> Obs.onCurrent |> Obs.map HistoryFileChanged
+            config.FileChanged |> Obs.onCurrent |> Obs.map (ConfigFileChanged >> Background)
+            history.FileChanged |> Obs.onCurrent |> Obs.map (HistoryFileChanged >> Background)
         ]

@@ -1,15 +1,14 @@
-module Koffee.MainActionTests_MoveCopy
+module Koffee.ItemPutTests
 
 open System
 open NUnit.Framework
 open FsUnitTyped
 open Acadian.FSharp
-open Koffee.Main
 
-let withReg reg model =
-    { model with Config = { model.Config with YankRegister = reg } }
+let withReg reg (model: MainModel) =
+    { model with MainModel.Config.YankRegister = reg }
 
-let getCopyName = Action.getCopyName
+let getCopyName = ItemActionCommands.Put.getCopyName
 
 let getCopyNames name num =
     List.init num (getCopyName name)
@@ -55,7 +54,7 @@ let ``Register selected items with the same name returns error`` putType =
             SearchCurrent = Some ({ Search.Default with Terms = "file"; SubFolders = true })
         }
 
-    Action.registerSelectedItems putType model
+    ItemActionCommands.Put.yankSelectedItems putType model
     |> shouldEqual (Error (MainStatus.CannotRegisterMultipleItemsWithSameName "file"))
 
 [<TestCaseSource(nameof putTypeAndBoolCases)>]
@@ -74,7 +73,7 @@ let ``Put item in different folder with item of same name prompts for overwrite`
     let model = testModel |> withReg (Some (putType, [src.Ref]))
     let expectedItems = fs.ItemsIn "/c"
 
-    let actual = seqResult (Action.put fs progress false) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
 
     let expected =
         { model with
@@ -96,7 +95,7 @@ let ``Put handles missing register item`` () =
     ]
     let model = testModel |> withReg (Some (Move, [src.Ref]))
 
-    let actual = seqResult (Action.put fs progress false) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
 
     let expectedEx = FakeFileSystemErrors.pathDoesNotExist src.Path
     let expected =
@@ -118,7 +117,7 @@ let ``Put item handles file system errors`` putType =
     let model = testModel |> withReg (Some (putType, [src.Ref]))
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.put fs progress false) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
 
     let expected =
         model
@@ -147,7 +146,7 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
         |> withReg (Some (putType, [src.Ref]))
         |> withHistoryPaths [src.HistoryPath]
 
-    let actual = seqResult (Action.put fs progress overwrite) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress overwrite) model
 
     let intent = { createPutIntent [src] model.Location with Overwrite = overwrite }
     let actualPut = [{ createPutItem src dest.Path with DestExists = overwrite }]
@@ -224,8 +223,8 @@ let ``Put or redo put folder handles partial success by updating undo and settin
         })
     let testFunc =
         if isRedo
-        then Action.redo fs progress
-        else Action.put fs progress false
+        then ItemActionCommands.Undo.redo fs progress
+        else ItemActionCommands.Put.put fs progress false
 
     let actual = seqResult testFunc model
 
@@ -338,8 +337,8 @@ let ``Put or redo put enumerated folder moves or copies until canceled, then put
 
     let testFunc isResume =
         if isRedo
-        then Action.redo fs progress
-        else Action.put fs progress isResume
+        then ItemActionCommands.Undo.redo fs progress
+        else ItemActionCommands.Put.put fs progress isResume
 
     // part one: put or redo cancels correctly
     let modelAfterCancel = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (testFunc false) model
@@ -545,8 +544,8 @@ let ``Put or redo put enumerated folder handles partial success with cancellatio
 
     let testFunc =
         if isRedo
-        then Action.redo fs progress
-        else Action.put fs progress false
+        then ItemActionCommands.Undo.redo fs progress
+        else ItemActionCommands.Put.put fs progress false
 
     let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) testFunc model
 
@@ -632,7 +631,7 @@ let ``Put enumerated folder does nothing when canceled immediately`` (copy: bool
     let model = testModel |> withLocation "/d" |> withReg (Some (putType, [src.Ref]))
     let expectedFs = fs.Items
 
-    let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (Action.put fs progress false) model
+    let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (ItemActionCommands.Put.put fs progress false) model
 
     let expected = model |> MainModel.withMessage (MainStatus.CancelledPut (putType, false, 0, 0))
     assertAreEqual expected actual
@@ -672,7 +671,7 @@ let ``Put folder where dest has folder with same name merges correctly`` (copy: 
     let putType = if copy then Copy else Move
     let model = testModel |> withLocation "/c/dest" |> withReg (Some (putType, [src.Ref]))
 
-    let actual = seqResult (Action.put fs progress true) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress true) model
 
     let intent = { createPutIntent [src] model.Location with Overwrite = true }
     let createPutItem = createPutItemFrom src.Path dest.Path
@@ -746,7 +745,7 @@ let ``Put items from different parents works correctly`` putType =
         |> withReg (Some (putType, sources |> List.map (fun i -> i.Ref)))
         |> withHistoryPaths (sources |> List.map (fun i -> i.HistoryPath))
 
-    let actual = seqResult (Action.put fs progress false) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
 
     let destParent = model.Location
     let destPath name = destParent.Join (name + if putType = Shortcut then ".lnk" else "")
@@ -828,7 +827,7 @@ let ``Put in location items with the same name from different parents returns er
 
     // test putInLocation because it is used by dropIn and paste where the item list is not restricted.
     // `put` could not trigger this because registering items with the same name is not allowed.
-    let actual = seqResult (Action.putInLocation fs progress false false putType itemRefs) model
+    let actual = seqResult (ItemActionCommands.Put.putInLocation fs progress false false putType itemRefs) model
 
     let expectedError = MainStatus.CannotPutMultipleItemsWithSameName (putType, "file")
     let expected = model |> MainModel.withError expectedError
@@ -884,7 +883,7 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
 
     // part one: undo cancels correctly
     let modelAfterCancel =
-        seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (Action.undo fs progress) model
+        seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedPutBeforeCancel, expectedPutAfterCancel =
         actualPut
@@ -949,7 +948,7 @@ let ``Undo put enumerated folder moves or deletes until canceled, then undo agai
     // part two: undo again resumes and completes the operation
     let actual =
         { modelAfterCancel with RepeatCommand = None }
-        |> seqResult (Action.undo fs progress)
+        |> seqResult (ItemActionCommands.Undo.undo fs progress)
 
     let expectedStatusAction = PutItems (putType, putItem, expectedPutAfterCancel, false)
     let expectedRedoAction = PutItems (putType, putItem, actualPut, false)
@@ -1016,7 +1015,7 @@ let ``Redo put performs move or copy of intent instead of actual`` (copy: bool) 
     let action = PutItems (putType, intent, actualPut, false)
     let model = testModel |> withLocation "/d" |> pushRedo action
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expectedActual = actualPut @ [
         createFile "/c/folder/new" |> createPutItemFrom src.Path dest
@@ -1086,7 +1085,7 @@ let ``Redo put item that was not an overwrite when path is occupied returns erro
     let model = testModel |> pushRedo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expectedError = MainStatus.PutError (false, putType, [src.Path, RedoPutBlockedByExistingItemException() :> exn], 1)
     let expectedItems = [
@@ -1147,7 +1146,7 @@ let ``Put folder to move deletes source folder after enumerated move and updates
             createFile "/c/folder/file" |> createPutItem
     ]
 
-    let actual = seqResult (Action.put fs progress enumerated) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress enumerated) model
 
     let expectedIntent = { createPutIntent [src] model.Location with Overwrite = enumerated }
     let expectedAction = PutItems (Move, expectedIntent, expectedPut, false)
@@ -1192,7 +1191,7 @@ let ``Put item to move in same folder returns error``() =
     let model = testModel |> withReg (Some (Move, [src.Ref]))
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.put fs progress false) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
 
     let expected = model |> MainModel.withError MainStatus.CannotMoveToSameFolder
     assertAreEqual expected actual
@@ -1217,7 +1216,7 @@ let ``Undo move item moves it back`` curPathDifferent =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest"
@@ -1283,7 +1282,7 @@ let ``Undo move of enumerated folder deletes original dest folder when empty`` d
                 moved.Path.Join "new", false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/another"
@@ -1360,7 +1359,7 @@ let ``Undo move copies back items that were overwrites and recreates empty folde
             actualMoved.[3].Dest, false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest"
@@ -1443,7 +1442,7 @@ let ``Undo move handles partial success by updating redo and setting error messa
             actualMoved.[2].Dest, false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/another"
@@ -1536,7 +1535,7 @@ let ``Undo move enumerated folder handles partial success with cancellation by u
         })
     let writesBeforeCancel = actualPut.Length - 1
 
-    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (Action.undo fs progress) model
+    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedUnsuccessful = [
         actualPut.[4]
@@ -1603,7 +1602,7 @@ let ``Undo move item when previous path is occupied returns error``() =
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedError = MainStatus.PutError (true, Move, [(moved.Path, UndoMoveBlockedByExistingItemException() :> exn)], 1)
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
@@ -1626,7 +1625,7 @@ let ``Undo move item handles move error by returning error``() =
     let model = testModel |> withLocation "/c/other" |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedError = MainStatus.PutError (true, Move, [(moved.Path, ex)], 1)
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
@@ -1661,7 +1660,7 @@ let ``Redo move folder that was an overwrite merges correctly``() =
     let action = PutItems (Move, intent, actualMoved, false)
     let model = testModel |> pushRedo action
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expectedItems = [
         createFolder "/c/dest/another"
@@ -1710,7 +1709,7 @@ let ``Put file to copy in same folder calls file sys copy with new name`` existi
     let src = fs.Item "/c/file"
     let model = testModel |> withReg (Some (Copy, [src.Ref]))
 
-    let actual = seqResult (Action.put fs progress false) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
 
     let expectedItems =
         [
@@ -1757,7 +1756,7 @@ let ``Redo copy item to same parent where copy already exists copies to next nam
     let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushRedo action
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expectedItems =
         [
@@ -1792,8 +1791,8 @@ let ``Redo copy item to same parent where copy already exists copies to next nam
 
 [<Test>]
 let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
-    let otherCopyName = Action.getCopyName "fruit" 0
-    let copyName = Action.getCopyName "fruit" 1
+    let otherCopyName = ItemActionCommands.Put.getCopyName "fruit" 0
+    let copyName = ItemActionCommands.Put.getCopyName "fruit" 1
     let fs = FakeFileSystem [
         folder "fruit" [
             folder "amazing" [
@@ -1830,7 +1829,7 @@ let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
         |> pushUndo (PutItems (Copy, intent, undoActualPut, true))
         |> pushRedo (PutItems (Copy, intent, redoActualPut, true))
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let expectedStatusAction = PutItems (Copy, intent, redoActualPut, false)
     let expectedMergedAction = PutItems (Copy, intent, undoActualPut @ redoActualPut, false)
@@ -1893,7 +1892,7 @@ let ``Undo copy file deletes it`` curPathDifferent =
     let location = if curPathDifferent then "/c/other" else "/c"
     let model = testModel |> withLocation location |> pushUndo action
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/other"
@@ -1936,7 +1935,7 @@ let ``Undo copy empty folder deletes it`` () =
     let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expected =
         { model with
@@ -1972,7 +1971,7 @@ let ``Undo copy empty folder that has new items in it returns error`` () =
     let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushUndo action
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedExn = FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     let expected =
@@ -2051,7 +2050,7 @@ let ``Undo copy folder deletes items that were copied and removes dest folders i
                 copied.Path.Join "new", false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems =
         if isLocationDest then
@@ -2147,7 +2146,7 @@ let ``Undo copy does nothing for items that were overwrites`` () =
             actualCopied.[1].Dest, false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedAction = PutItems (Copy, intent, actualCopied |> List.filter (fun pi -> not pi.DestExists), false)
     let expected =
@@ -2239,7 +2238,7 @@ let ``Undo copy handles partial success by updating redo and setting error messa
             actualCopied.[2].Dest, false
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedActual = [
         if isFolderError then
@@ -2337,7 +2336,7 @@ let ``Undo copy enumerated folder handles partial success with cancellation by u
         })
     let writesBeforeCancel = 4
 
-    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (Action.undo fs progress) model
+    let actual = seqResultWithCancelTokenCallback (fs.CancelAfterWriteCount writesBeforeCancel) (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedUnsuccessful = [
         actualPut.[0]
@@ -2410,7 +2409,7 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedError = MainStatus.PutError (true, Copy, [copied.Path, ex], 1)
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
@@ -2439,7 +2438,7 @@ let ``Put shortcut calls file sys create shortcut`` isFolder overwrite =
     let shortcut = createFile "/c/item.lnk"
     let model = testModel |> withReg (Some (Shortcut, [target.Ref]))
 
-    let actual = seqResult (Action.put fs progress overwrite) model
+    let actual = seqResult (ItemActionCommands.Put.put fs progress overwrite) model
 
     let expectedIntent = { createPutIntent [target] shortcut.Path.Parent with Overwrite = overwrite }
     let expectedPutItem = { createPutItem target shortcut.Path with DestExists = overwrite }
@@ -2484,7 +2483,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
         |> pushUndo action
         |> withHistoryPaths [shortcut.HistoryPath]
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/folder"
@@ -2528,7 +2527,7 @@ let ``Undo create shortcut handles errors by returning error and consuming actio
         |> pushUndo action
         |> withHistoryPaths [shortcut.HistoryPath]
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let statusAction = DeletedItems (true, [shortcut], false)
     let expected =
@@ -2560,7 +2559,7 @@ let ``Undo multiple actions using repeat count does each action and updates stat
         { testModel with UndoStack = (actions |> List.rev) @ testModel.UndoStack }
         |> withRepeat 3
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let undoStatus iterFromLatest action =
         let iter = actions.Length - iterFromLatest
@@ -2612,7 +2611,7 @@ let ``Redo multiple actions using repeat count does each action and updates stat
         { testModel with RedoStack = actions @ testModel.RedoStack }
         |> withRepeat 3
 
-    let actual = seqResult (Action.redo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.redo fs progress) model
 
     let redoStatus iterFromLatest action =
         let iter = actions.Length - iterFromLatest

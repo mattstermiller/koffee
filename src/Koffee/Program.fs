@@ -27,19 +27,30 @@ let logError isCrash (e: exn) =
     MessageBox.Show(msg, sprintf "Koffee %s!" typ, MessageBoxButton.OK, MessageBoxImage.Error) |> ignore
 
 let run args =
-    let options = parseArgs (Array.toList args)
     let dir = Path.KoffeeData.Format Windows
     if not (Directory.Exists dir) then
         Directory.CreateDirectory dir |> ignore
-    use config = new ConfigFile(Config.Default)
-    use history = new HistoryFile(History.Default)
-    let fileSys = FileSystem()
+
+    let options = parseArgs (Array.toList args)
+    use configFile = new ConfigFile(Config.Default)
+    use historyFile = new HistoryFile(History.Default)
+    let fs = FileSystem()
     let os = OperatingSystem()
     let window = KoffeeUI.MainWindow()
+    let getScreenBounds = window.GetScreenWorkingArea
+    let progress = Progress()
+    let subDirResults = Event<_>()
     let closeWindow () = window.Dispatcher.Invoke(window.Close)
+
     let controller =
-        MainLogic.Controller(fileSys, os, window.GetScreenWorkingArea, config, history, KeyBinding.defaults,
-            DataGridScroller(window.ItemGrid), Settings.showDialog window, closeWindow, options)
+        MainController.Controller(
+            CursorCommands.Handler(DataGridScroller(window.ItemGrid)),
+            NavigationCommands.Handler(fs, os, progress, subDirResults, closeWindow),
+            ItemActionCommands.Handler(fs, os, progress),
+            WindowCommands.Handler(fs, os, getScreenBounds, Settings.showDialog window, closeWindow),
+            fs, getScreenBounds, progress, subDirResults, KeyBinding.defaults, configFile, historyFile, options
+        )
+
     Application().Run(window, controller.Start) |> ignore
 
 [<EntryPoint>]

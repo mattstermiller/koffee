@@ -18,8 +18,8 @@ let (|DigitKey|_|) (key: Key) =
         None
 
 type RoutedEventArgs with
-    member this.Handler = EvtHandler(this)
-    member this.HandlerWithEffect f = EvtHandler(this, f)
+    member this.Handler = KeyPressHandler(this)
+    member this.HandlerWithEffect f = KeyPressHandler(this, f)
 
 type KeyEventArgs with
     member this.RealKey = if this.Key = Key.System then this.SystemKey else this.Key

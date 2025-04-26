@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <OutputType>Library</OutputType>
@@ -21,18 +21,18 @@
     <Compile Include="HistoryTests.fs" />
     <Compile Include="MainModelTests.fs" />
     <Compile Include="MainViewTests.fs" />
-    <Compile Include="MainNavTests_BackForward.fs" />
-    <Compile Include="MainNavTests_ListDirectory.fs" />
-    <Compile Include="MainNavTests_OpenPath.fs" />
-    <Compile Include="MainNavTests_SortHistory.fs" />
-    <Compile Include="MainNavTests_SuggestPaths.fs" />
-    <Compile Include="MainSearchTests_Find.fs" />
-    <Compile Include="MainLogicTests_InitModel.fs" />
-    <Compile Include="MainActionTests_Select.fs" />
-    <Compile Include="MainActionTests_Create.fs" />
-    <Compile Include="MainActionTests_Rename.fs" />
-    <Compile Include="MainActionTests_Delete.fs" />
-    <Compile Include="MainActionTests_MoveCopy.fs" />
+    <Compile Include="CursorSelectTests.fs" />
+    <Compile Include="CursorFindTests.fs" />
+    <Compile Include="NavigationBackForwardTests.fs" />
+    <Compile Include="NavigationListDirectoryTests.fs" />
+    <Compile Include="NavigationOpenPathTests.fs" />
+    <Compile Include="NavigationSortHistoryTests.fs" />
+    <Compile Include="NavigationSuggestPathsTests.fs" />
+    <Compile Include="ItemCreateTests.fs" />
+    <Compile Include="ItemRenameTests.fs" />
+    <Compile Include="ItemPutTests.fs" />
+    <Compile Include="ItemDeleteTests.fs" />
+    <Compile Include="MainControllerInitModelTests.fs" />
     <Compile Include="OsUtilityTests.fs" />
   </ItemGroup>
   <ItemGroup>

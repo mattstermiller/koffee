@@ -1,8 +1,7 @@
-module Koffee.MainActionTests_Rename
+module Koffee.ItemRenameTests
 
 open NUnit.Framework
 open FsUnitTyped
-open Koffee.Main
 
 // rename tests
 
@@ -28,8 +27,7 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             item
         })
 
-    let actual = Action.rename fs item renamed.Name model
-                 |> assertOk
+    let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
 
     let expectedItems = [
         createFile "/c/another"
@@ -81,8 +79,7 @@ let ``Rename folder calls file sys move and updates history`` () =
             item
         })
 
-    let actual = Action.rename fs item renamed.Name model
-                 |> assertOk
+    let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
 
     let expectedItems = [
         items.[0]
@@ -130,8 +127,7 @@ let ``Rename in search result calls file sys move and sets status`` () =
             SearchCurrent = Some { Search.Default with Terms = "file" }
         }
 
-    let actual = Action.rename fs item renamed.Name model
-                 |> assertOk
+    let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
 
     let expectedItems = [
         createFile "/c/another"
@@ -164,7 +160,7 @@ let ``Rename to path with existing item returns error`` existingHidden =
     let model = testModel
     let expectedFs = fs.Items
 
-    let actual = Action.rename fs item newName model
+    let actual = ItemActionCommands.Rename.rename fs item newName model
 
     actual |> shouldEqual (Error (MainStatus.CannotUseNameAlreadyExists ("rename", File, newName, existingHidden)))
     fs.Items |> shouldEqual expectedFs
@@ -180,7 +176,7 @@ let ``Rename handles error by returning error``() =
     fs.AddExn false ex ("/c/" + newName)
     let model = testModel
 
-    let actual = Action.rename fs item newName model
+    let actual = ItemActionCommands.Rename.rename fs item newName model
 
     let expectedAction = RenamedItem (item, newName)
     actual |> shouldEqual (Error (MainStatus.ItemActionError (expectedAction, ex)))
@@ -210,7 +206,7 @@ let ``Undo rename file changes name back to original and updates history`` curPa
             current
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFile "/c/another"
@@ -254,7 +250,7 @@ let ``Undo rename folder changes name back to original and updates history`` () 
             current
         })
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedItems = [
         createFolder "/c/another"
@@ -294,7 +290,7 @@ let ``Undo rename to path with existing item returns error`` existingHidden =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedError = MainStatus.CannotUseNameAlreadyExists ("rename", File, previous.Name, existingHidden)
     let expected = model |> MainModel.withError expectedError |> popUndo
@@ -313,7 +309,7 @@ let ``Undo rename item handles move error by returning error``() =
     let model = testModel |> pushUndo action
     let expectedFs = fs.Items
 
-    let actual = seqResult (Action.undo fs progress) model
+    let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
     let expectedError = MainStatus.ItemActionError (RenamedItem (current, previous.Name), ex)
     let expected = model |> MainModel.withError expectedError |> popUndo
@@ -322,7 +318,7 @@ let ``Undo rename item handles move error by returning error``() =
 
 // start rename selection tests
 
-let renameTextSelection inputPosition itemType fileName =
+let renameTextSelection renamePart itemType fileName =
     let item = { createFile ("/c/" + fileName) with Type = itemType }
     let items = [ createFile "/c/another"; item ]
     let model =
@@ -331,13 +327,10 @@ let renameTextSelection inputPosition itemType fileName =
             Cursor = items.Length - 1
             InputTextSelection = (1, 1)
         }
-    let inputMode = Input (Rename inputPosition)
-    let fs = FakeFileSystem []
 
-    let actual = Action.startInput fs inputMode model
-                 |> assertOk
+    let actual = ItemActionCommands.Rename.inputRename renamePart model
 
-    actual.InputMode |> shouldEqual (Some inputMode)
+    actual.InputMode |> shouldEqual (Some (Input (Rename renamePart)))
     actual.InputText |> shouldEqual item.Name
     actual.InputTextSelection
 

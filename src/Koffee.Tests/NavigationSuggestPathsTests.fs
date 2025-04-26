@@ -1,9 +1,8 @@
-﻿module Koffee.MainNavTests_SuggestPaths
+﻿module Koffee.NavigationSuggestPathsTests
 
 open NUnit.Framework
 open FsUnitTyped
 open FSharp.Control
-open Acadian.FSharp
 
 let fs = FakeFileSystem [
     folder "old projects" []
@@ -24,7 +23,7 @@ let history =
     )
 
 let suggestPaths fsReader model =
-    Main.Nav.suggestPaths fsReader model
+    NavigationCommands.suggestPaths fsReader model
     |> AsyncSeq.lastOrDefault model
     |> Async.RunSynchronously
 

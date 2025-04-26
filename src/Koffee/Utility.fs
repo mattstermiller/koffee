@@ -172,7 +172,7 @@ module Rect =
           Width = width
           Height = height }
 
-type EvtHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
-    member this.Handle () =
+type KeyPressHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
+    member _.Handle () =
         evt.Handled <- true
         effect |> Option.iter (fun f -> f ())

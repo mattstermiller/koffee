@@ -1,7 +1,6 @@
-module Koffee.MainNavTests_OpenPath
+module Koffee.NavigationOpenPathTests
 
 open NUnit.Framework
-open Koffee.Main
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -24,7 +23,7 @@ let ``Opening a valid path updates model correctly`` setCursor =
             SelectedItems = [items.[1]]
         }
 
-    let actual = Nav.openPath fs path cursor model |> assertOk
+    let actual = NavigationCommands.openPath fs path cursor model |> assertOk
 
     let expectedItems = fs.ItemsIn (string path)
     let expected =
@@ -58,7 +57,7 @@ let ``Opening same path does not modify navigation history or selected items`` s
             SelectedItems = [items.[1]]
         }
 
-    let actual = Nav.openPath fs path cursor model |> assertOk
+    let actual = NavigationCommands.openPath fs path cursor model |> assertOk
 
     let expectedItems = fs.ItemsIn "/c"
     let expected =
@@ -81,7 +80,7 @@ let ``Opening a path that throws on GetItems returns error``() =
     fs.AddExnPath false ex path
     let model = testModel
 
-    let res = Nav.openPath fs path CursorStay model
+    let res = NavigationCommands.openPath fs path CursorStay model
 
     let expected = Error (MainStatus.CouldNotOpenPath (path, ex))
     assertAreEqual expected res
@@ -102,7 +101,7 @@ let ``Opening same path that throws on GetItems sets empty item and error status
             SelectedItems = [items.[1]]
         }
 
-    let actual = Nav.openPath fs path CursorStay model |> assertOk
+    let actual = NavigationCommands.openPath fs path CursorStay model |> assertOk
 
     let expectedError = MainStatus.CouldNotOpenPath (path, ex)
     let expected =
@@ -128,8 +127,7 @@ let ``Open Parent when in folder opens parent and moves cursor to folder that wa
         |> withLocation "/c/folder"
     let expectedItems = fs.ItemsIn "/c"
 
-    let actual = Nav.openParent fs model
-                 |> assertOk
+    let actual = NavigationCommands.openParent fs model |> assertOk
 
     let expected =
         { testModel with
@@ -156,8 +154,7 @@ let ``Open Parent when in drive opens root and moves cursor to drive that was op
         |> withLocation "/d"
     let expectedItems = fs.ItemsIn Path.Root
 
-    let actual = Nav.openParent fs model
-                 |> assertOk
+    let actual = NavigationCommands.openParent fs model |> assertOk
 
     let expected =
         { testModel with

@@ -93,9 +93,8 @@ let private start (config: Config) view =
     let keyBinding (evt, name) = {
         EventName = name
         BoundKeys =
-            KeyBinding.defaults
-            |> List.filter (snd >> ((=) evt))
-            |> List.map (fst >> Seq.map KeyBinding.keyDescription >> String.concat "")
+            KeyBinding.getKeyCombos config.KeyBindings evt
+            |> List.map KeyBinding.keyComboDescription
             |> String.concat " OR "
     }
     let model = {

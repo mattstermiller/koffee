@@ -71,7 +71,7 @@ let private escape model =
         model.CancelToken.Cancel()
         model |> MainModel.clearStatus |> NavigationCommands.clearSearch
 
-let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord handleKey model = asyncSeq {
+let keyPress handleCommand chord handleKey model = asyncSeq {
     let evt, modelFunc =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
@@ -81,7 +81,7 @@ let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord ha
             (None, MainModel.appendRepeatDigit digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
-            match KeyBinding.getMatch keyBindings keyCombo with
+            match KeyBinding.getMatch model.Config.KeyBindings keyCombo with
             | KeyBinding.Match newEvent ->
                 handleKey ()
                 (Some newEvent, MainModel.withoutKeyCombo)
@@ -134,7 +134,6 @@ type Controller(
     getScreenBounds: unit -> Rectangle,
     progress: Progress,
     subDirResults: Event<Item list>,
-    keyBindings: (KeyCombo * MainCommand) list,
     configFile: ConfigFile,
     historyFile: HistoryFile,
     startOptions: StartOptions
@@ -204,7 +203,7 @@ type Controller(
     let dispatcher evt =
         let handler =
             match evt with
-            | KeyPress (chord, handler) -> Async (keyPress handleCommand keyBindings chord handler.Handle)
+            | KeyPress (chord, handler) -> Async (keyPress handleCommand chord handler.Handle)
             | ItemDoubleClick -> handleCommand (Navigation OpenCursorItem)
             | SettingsButtonClick -> handleCommand (Window OpenSettings)
             | LocationInputChanged -> Async navigationHandler.LocationInputChanged

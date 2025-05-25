@@ -48,7 +48,7 @@ let run args =
             NavigationCommands.Handler(fs, os, progress, subDirResults, closeWindow),
             ItemActionCommands.Handler(fs, os, progress),
             WindowCommands.Handler(fs, os, getScreenBounds, Settings.showDialog window, closeWindow),
-            fs, getScreenBounds, progress, subDirResults, KeyBinding.defaults, configFile, historyFile, options
+            fs, getScreenBounds, progress, subDirResults, configFile, historyFile, options
         )
 
     Application().Run(window, controller.Start) |> ignore

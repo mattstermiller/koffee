@@ -13,7 +13,6 @@
     <Compile Include="FakeFileSystemTests.fs" />
     <Compile Include="AsyncSeqResultBuilderTests.fs" />
     <Compile Include="RectTests.fs" />
-    <Compile Include="KeyComboParserTests.fs" />
     <Compile Include="PathTests.fs" />
     <Compile Include="SortFieldTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />

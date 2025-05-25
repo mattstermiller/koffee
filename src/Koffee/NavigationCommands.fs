@@ -656,9 +656,11 @@ type Handler(
         | InputCharTyped (char, keyHandler) ->
             suppressInvalidPathChar char keyHandler
         | InputKeyPress (keyChord, keyHandler) ->
-            if KeyBinding.getKeyCombo (Cursor FindNext) = [keyChord] then
+            match KeyBinding.getChordMatch model.Config.KeyBindings keyChord with
+            | Some (Cursor FindNext) ->
                 keyHandler.Handle()
                 yield CursorCommands.findNext model
+            | _ -> ()
         | InputSubmit ->
             let model =
                 { model with

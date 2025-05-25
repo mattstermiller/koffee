@@ -333,9 +333,10 @@ module MainView =
             // History display
             Bind.modelMulti(<@ model.HistoryDisplay, model.InputMode, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
-                               model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches, model.PathFormat @>)
+                               model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches,
+                               model.Config.KeyBindings, model.PathFormat @>)
                 .toFunc(fun (historyType, inputMode, location, back, forward, undo, redo, searches, searchIndex, statuses,
-                             bookmarks, savedSearches, pathFormat) ->
+                             bookmarks, savedSearches, keyBindings, pathFormat) ->
                     let showHistoryType =
                         inputMode
                         |> Option.bind (fun input -> input.HistoryDisplay)
@@ -360,10 +361,13 @@ module MainView =
                             }
                             |> Seq.toList
                         let formatStack evt items =
-                            let key = KeyBinding.getKeyComboDescription evt
+                            let keyDescr =
+                                KeyBinding.getKeyCombos keyBindings evt
+                                |> List.tryHead
+                                |> Option.map KeyBinding.keyComboDescription
                             items |> List.truncate maxListSize |> List.mapi (fun i (name: string) ->
-                                let repeat = if i > 0 then i + 1 |> string else ""
-                                (repeat + key, name)
+                                let repeat = if keyDescr.IsSome && i > 0 then i + 1 |> string else ""
+                                (repeat + (keyDescr |? ""), name)
                             )
                         let header, rows =
                             match historyType with

@@ -169,11 +169,21 @@ with
         | OpenSettings -> "Open Help/Settings"
         | Exit -> "Exit"
 
+type InputCommand =
+    | InputHistoryBack
+    | InputHistoryForward
+with
+    member this.Name =
+        match this with
+        | InputHistoryBack -> "Back in Input History"
+        | InputHistoryForward -> "Forward in Input History"
+
 type MainCommand =
     | Cursor of CursorCommand
     | Navigation of NavigationCommand
     | ItemAction of ItemActionCommand
     | Window of WindowCommand
+    | InputCommand of InputCommand
 with
     member this.Name =
         match this with
@@ -181,6 +191,7 @@ with
         | Navigation n -> n.Name
         | ItemAction a -> a.Name
         | Window w -> w.Name
+        | InputCommand i -> i.Name
 
     static member listWithNames =
         Reflection.enumerateUnionCaseValues<MainCommand>
@@ -962,6 +973,9 @@ module KeyBindingDefaults =
         ([shift, Key.OemQuestion], Window OpenSettings)
         ([noMod, Key.F1], Window OpenSettings)
         ([ctrl, Key.W], Window Exit)
+
+        ([noMod, Key.Up], InputCommand InputHistoryBack)
+        ([noMod, Key.Down], InputCommand InputHistoryForward)
     ]
 
 type Config = {
@@ -1409,18 +1423,11 @@ type DragOutEvent(control) =
         |> DragDropEffects.toPutTypes
         |> List.tryHead
 
-type InputNavigateHistoryDirection =
-    | InputBack
-    | InputForward
-
 type InputEvent =
     | InputCharTyped of char * KeyPressHandler
     | InputKeyPress of (ModifierKeys * Key) * KeyPressHandler
     | InputChanged
     | InputSubmit
-    // TODO: use KeyPress instead of these two. Also consider making these bindable?
-    | InputNavigateHistory of InputNavigateHistoryDirection
-    | InputDelete of isShifted: bool * KeyPressHandler
 
 type BackgroundEvent =
     | ConfigFileChanged of Config

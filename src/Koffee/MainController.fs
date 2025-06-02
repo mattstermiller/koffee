@@ -82,6 +82,8 @@ let keyPress handleCommand chord handleKey model = asyncSeq {
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBinding.getMatch model.Config.KeyBindings keyCombo with
+            | KeyBinding.Match (InputCommand _) ->
+                (None, MainModel.withoutKeyCombo)
             | KeyBinding.Match newEvent ->
                 handleKey ()
                 (Some newEvent, MainModel.withoutKeyCombo)
@@ -144,6 +146,7 @@ type Controller(
         | Navigation command -> navigationHandler.Handle command
         | ItemAction command -> itemActionHandler.Handle command
         | Window command -> windowHandler.Handle command
+        | InputCommand _ -> Sync id // input commands are only triggered and handled in InputKeyPress event handlers
 
     let handleMarkPromptEvent markType markCommand evt model = asyncSeq {
         match evt with
@@ -155,7 +158,7 @@ type Controller(
                 | Bookmark -> navigationHandler.HandleBookmarkCommand
                 | SavedSearch -> navigationHandler.HandleSavedSearchCommand
             yield! model |> handleAsyncResult (handler markCommand char)
-        | InputDelete (_, keyHandler) ->
+        | InputKeyPress ((_, Key.Delete), keyHandler) ->
             keyHandler.Handle()
             let prompt = MarkPrompt (markType, DeleteMark)
             yield { model with InputMode = Some prompt }

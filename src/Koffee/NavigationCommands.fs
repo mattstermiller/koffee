@@ -429,12 +429,7 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
             yield model |> MainModel.withError MainStatus.NoPreviousSearch
 }
 
-let traverseSearchHistory direction model =
-    let offset =
-        match direction with
-        | Some InputBack -> 1
-        | Some InputForward -> -1
-        | None -> 0
+let traverseSearchHistory offset model =
     let index =
         (model.SearchHistoryIndex |? -1) + offset
         |> min (model.History.Searches.Length-1)
@@ -456,7 +451,7 @@ let deleteSearchHistory model =
     | Some index ->
         model
         |> MainModel.mapHistory (History.withoutSearchIndex index)
-        |> traverseSearchHistory None
+        |> traverseSearchHistory 0
     | None -> model
 
 let inputSearch (model: MainModel) =
@@ -669,7 +664,6 @@ type Handler(
                 }
             yield model
             yield! model |> handleAsyncResult (openItems fs os [model.CursorItem])
-        | _ -> ()
     }
 
     member _.HandleSearchInputEvent (evt: InputEvent) (model: MainModel) = asyncSeq {
@@ -686,12 +680,20 @@ type Handler(
                     History = model.History |> Option.foldBack (History.withSearch model.Config.Limits.SearchHistory) search
                     HistoryDisplay = None
                 }
-        | InputNavigateHistory direction ->
-            yield traverseSearchHistory (Some direction) model
-        | InputDelete (isShifted, keyHandler) ->
-            if isShifted && model.HistoryDisplay = Some SearchHistory then
+        | InputKeyPress (keyChord, keyHandler) ->
+            if keyChord = (ModifierKeys.Shift, Key.Delete) && model.HistoryDisplay = Some SearchHistory then
                 keyHandler.Handle()
                 yield deleteSearchHistory model
+            else
+                match KeyBinding.getChordMatch model.Config.KeyBindings keyChord with
+                | Some (InputCommand cmd) ->
+                    keyHandler.Handle()
+                    match cmd with
+                    | InputHistoryBack ->
+                        yield traverseSearchHistory 1 model
+                    | InputHistoryForward ->
+                        yield traverseSearchHistory -1 model
+                | _ -> ()
         | _ -> ()
     }
 

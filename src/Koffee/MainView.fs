@@ -518,14 +518,6 @@ module MainView =
                 | Key.Enter ->
                     evt.Handled <- true
                     InputEvent InputSubmit
-                | Key.Up ->
-                    evt.Handled <- true
-                    InputEvent (InputNavigateHistory InputBack)
-                | Key.Down ->
-                    evt.Handled <- true
-                    InputEvent (InputNavigateHistory InputForward)
-                | Key.Delete ->
-                    InputEvent (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, evt.Handler))
                 | _ ->
                     InputEvent (InputKeyPress (evt.Chord, evt.Handler))
             )

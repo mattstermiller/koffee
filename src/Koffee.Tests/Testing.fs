@@ -143,6 +143,8 @@ let ignoreMembers memberNames (comparer: CompareLogic) =
 let assertAreEqualWith (expected: 'a) (actual: 'a) comparerSetup =
     let comparer = CompareLogic()
     comparer.Config.MaxDifferences <- 10
+    comparer.Config.CompareStaticFields <- false
+    comparer.Config.CompareStaticProperties <- false
     comparer.Config.CustomComparers.AddRange([
         OptionComparer()
         SimpleUnionComparer()

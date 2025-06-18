@@ -1,4 +1,4 @@
-﻿module Koffee.Settings
+module Koffee.Settings
 
 open System
 open System.Windows.Input
@@ -90,17 +90,17 @@ let private dispatcher evt =
     | EditSearchExclusions -> Sync <| editSearchExclusions
 
 let private start (config: Config) view =
-    let keyBinding (evt, name) = {
-        EventName = name
+    let keyBinding command = {
+        EventName = string command
         BoundKeys =
-            KeyBinding.getKeyCombos config.KeyBindings evt
-            |> List.map KeyBinding.keyComboDescription
+            KeyBindingLogic.getKeyCombos config.KeyBindings command
+            |> List.map KeyBindingLogic.keyComboDescription
             |> String.concat " OR "
     }
     let model = {
         Config = config
         DefaultPath = Ok config.DefaultPath
-        KeyBindings = MainCommand.listWithNames |> List.map keyBinding
+        KeyBindings = MainCommand.commandList |> List.map keyBinding
     }
     Framework.start binder events dispatcher view model
 

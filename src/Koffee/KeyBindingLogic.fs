@@ -1,4 +1,4 @@
-module Koffee.KeyBinding
+module Koffee.KeyBindingLogic
 
 open System.Windows.Input
 open Koffee
@@ -8,7 +8,7 @@ type KeyBindMatch<'a> =
     | PartialMatch
     | NoMatch
 
-let getMatch (bindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
+let getMatch (bindings: KeyBinding list) (keyCombo: KeyCombo) =
     // choose bindings where the next key/chord matches, selecting the remaining chords
     let rec startsWith l sw =
         match l, sw with
@@ -16,8 +16,9 @@ let getMatch (bindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
         | l, [] -> Some l
         | _ -> None
     let matches =
-        bindings |> List.choose (fun (kc, item) ->
-            startsWith kc keyCombo |> Option.map (fun rem -> (rem, item)))
+        bindings |> List.choose (fun binding ->
+            startsWith binding.KeyCombo keyCombo |> Option.map (fun rest -> (rest, binding.Command))
+        )
     match matches with
     | [] -> NoMatch
     | _ ->
@@ -27,16 +28,25 @@ let getMatch (bindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
         | Some (_, item) -> Match item
         | None -> PartialMatch
 
-let getChordMatch (bindings: (KeyCombo * _) list) (keyChord: ModifierKeys * Key) =
-    bindings
-    |> List.tryFind (fst >> (=) [keyChord])
-    |> Option.map snd
+let getChordMatch (bindings: KeyBinding list) (keyChord: ModifierKeys * Key) =
+    bindings |> List.tryPick (fun binding ->
+        if binding.KeyCombo = [keyChord]
+        then Some binding.Command
+        else None
+    )
 
-let keyDescription (modifiers: ModifierKeys, key: Key) =
+let private modifierStrings = [
+    ModifierKeys.Control, "c"
+    ModifierKeys.Shift, "s"
+    ModifierKeys.Alt, "a"
+    ModifierKeys.Windows, "m"
+]
+
+let chordDescription (modifiers: ModifierKeys, key: Key) =
     let isLetter = key >= Key.A && key <= Key.Z
-    let mutable showShift = false
+    let modIsOnlyShift = modifiers = ModifierKeys.Shift
     let keyStr =
-        match key, modifiers.HasFlag ModifierKeys.Shift with
+        match key, modIsOnlyShift with
         | key, false when isLetter -> (string key).ToLower()
         | key, true when isLetter -> string key
         | key, false when key >= Key.D0 && key <= Key.D9 -> (string key).Substring(1)
@@ -72,20 +82,15 @@ let keyDescription (modifiers: ModifierKeys, key: Key) =
         | Key.OemPeriod, true -> ">"
         | Key.OemQuestion, false -> "/"
         | Key.OemQuestion, true -> "?"
-        | Key.Return, shift ->
-            showShift <- shift
-            "Enter"
-        | _, shift ->
-            showShift <- shift
-            string key
+        | Key.Return, _ -> "Enter"
+        | _ -> string key
     let mods =
-        [ ModifierKeys.Control, "c"
-          ModifierKeys.Shift, "s"
-          ModifierKeys.Alt, "a"
-          ModifierKeys.Windows, "m"
-        ]
-        |> List.filter (fun (m, _) -> m <> ModifierKeys.Shift || showShift)
-        |> List.choose (fun (m, s) -> if modifiers.HasFlag m then Some s else None)
+        if modIsOnlyShift && keyStr.Length = 1 then
+            []
+        else
+            modifierStrings |> List.choose (fun (modifier, str) ->
+                if modifiers.HasFlag modifier then Some str else None
+            )
     if mods.IsEmpty then
         keyStr
     else
@@ -93,10 +98,12 @@ let keyDescription (modifiers: ModifierKeys, key: Key) =
 
 let keyComboDescription keyCombo =
     keyCombo
-    |> List.map keyDescription
+    |> List.map chordDescription
     |> String.concat ""
 
-let getKeyCombos (bindings: (KeyCombo * _) list) evt =
-    bindings
-    |> List.filter (snd >> (=) evt)
-    |> List.map fst
+let getKeyCombos (bindings: KeyBinding list) command =
+    bindings |> List.choose (fun binding ->
+        if binding.Command = command
+        then Some binding.KeyCombo
+        else None
+    )

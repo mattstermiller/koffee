@@ -193,9 +193,8 @@ with
         | Window w -> w.Name
         | InputCommand i -> i.Name
 
-    static member listWithNames =
+    static member commandList =
         Reflection.enumerateUnionCaseValues<MainCommand>
-        |> Seq.map (fun cmd -> (cmd, cmd.Name))
         |> Seq.toList
 
 type ItemType =
@@ -893,90 +892,98 @@ with
 
 type KeyCombo = (ModifierKeys * Key) list
 
-module KeyBindingDefaults =
-    let private noMod = ModifierKeys.None
-    let private shift = ModifierKeys.Shift
-    let private ctrl = ModifierKeys.Control
-    let private alt = ModifierKeys.Alt
+type KeyBinding = {
+    KeyCombo: KeyCombo
+    Command: MainCommand
+}
+with
+    static member ofTuple (keyCombo, command) =
+        { KeyCombo = keyCombo; Command = command }
 
-    let bindings: (KeyCombo * MainCommand) list = [
-        ([noMod, Key.K], Cursor CursorUp)
-        ([noMod, Key.J], Cursor CursorDown)
-        ([ctrl, Key.K], Cursor CursorUpHalfPage)
-        ([ctrl, Key.U], Cursor CursorUpHalfPage)
-        ([ctrl, Key.J], Cursor CursorDownHalfPage)
-        ([ctrl, Key.D], Cursor CursorDownHalfPage)
-        ([noMod, Key.G; noMod, Key.G], Cursor CursorToFirst)
-        ([shift, Key.G], Cursor CursorToLast)
-        ([noMod, Key.Space], Cursor SelectToggle)
-        ([shift, Key.Space], Cursor SelectRange)
-        ([ctrl, Key.A], Cursor SelectAll)
-        ([noMod, Key.Z; noMod, Key.T], Cursor (Scroll CursorTop))
-        ([noMod, Key.Z; noMod, Key.Z], Cursor (Scroll CursorMiddle))
-        ([noMod, Key.Z; noMod, Key.B], Cursor (Scroll CursorBottom))
-        ([noMod, Key.F], Cursor (StartFind false))
-        ([shift, Key.F], Cursor (StartFind true))
-        ([noMod, Key.Oem1], Cursor FindNext) // this is ;
+    static member Default =
+        let noMod = ModifierKeys.None
+        let shift = ModifierKeys.Shift
+        let ctrl = ModifierKeys.Control
+        let alt = ModifierKeys.Alt
 
-        ([noMod, Key.L], Navigation OpenCursorItem)
-        ([noMod, Key.Enter], Navigation OpenSelected)
-        ([shift, Key.Enter], Navigation OpenFileWith)
-        ([ctrl, Key.Enter], Navigation OpenFileAndExit)
-        ([alt, Key.Enter], Navigation OpenProperties)
-        ([ctrl, Key.E], Navigation OpenWithTextEditor)
-        ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
-        ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
-        ([noMod, Key.H], Navigation OpenParent)
-        ([noMod, Key.G; noMod, Key.R], Navigation OpenRoot)
-        ([noMod, Key.G; noMod, Key.D], Navigation OpenDefault)
-        ([shift, Key.H], Navigation Back)
-        ([shift, Key.L], Navigation Forward)
-        ([noMod, Key.R], Navigation Refresh)
-        ([noMod, Key.F5], Navigation Refresh)
-        ([noMod, Key.OemQuestion], Navigation StartSearch)
-        ([noMod, Key.N], Navigation RepeatPreviousSearch)
-        ([noMod, Key.OemQuotes], Navigation (PromptGoToMark Bookmark))
-        ([noMod, Key.Oem3], Navigation (PromptGoToMark SavedSearch)) // this is `
-        ([noMod, Key.M], Navigation PromptSetMark)
-        ([noMod, Key.S; noMod, Key.N], Navigation (SortList Name))
-        ([noMod, Key.S; noMod, Key.M], Navigation (SortList Modified))
-        ([noMod, Key.S; noMod, Key.S], Navigation (SortList Size))
-        ([noMod, Key.F9], Navigation ToggleHidden)
-        ([noMod, Key.G; noMod, Key.H], Navigation ShowNavHistory)
-        ([noMod, Key.G; noMod, Key.U], Navigation ShowUndoHistory)
-        ([noMod, Key.G; noMod, Key.S], Navigation ShowStatusHistory)
+        List.map KeyBinding.ofTuple [
+            ([noMod, Key.K], Cursor CursorUp)
+            ([noMod, Key.J], Cursor CursorDown)
+            ([ctrl, Key.K], Cursor CursorUpHalfPage)
+            ([ctrl, Key.U], Cursor CursorUpHalfPage)
+            ([ctrl, Key.J], Cursor CursorDownHalfPage)
+            ([ctrl, Key.D], Cursor CursorDownHalfPage)
+            ([noMod, Key.G; noMod, Key.G], Cursor CursorToFirst)
+            ([shift, Key.G], Cursor CursorToLast)
+            ([noMod, Key.Space], Cursor SelectToggle)
+            ([shift, Key.Space], Cursor SelectRange)
+            ([ctrl, Key.A], Cursor SelectAll)
+            ([noMod, Key.Z; noMod, Key.T], Cursor (Scroll CursorTop))
+            ([noMod, Key.Z; noMod, Key.Z], Cursor (Scroll CursorMiddle))
+            ([noMod, Key.Z; noMod, Key.B], Cursor (Scroll CursorBottom))
+            ([noMod, Key.F], Cursor (StartFind false))
+            ([shift, Key.F], Cursor (StartFind true))
+            ([noMod, Key.Oem1], Cursor FindNext) // this key is semicolon ;
 
-        ([noMod, Key.O], ItemAction CreateFile)
-        ([shift, Key.O], ItemAction CreateFolder)
-        ([noMod, Key.I], ItemAction (StartRename Begin))
-        ([noMod, Key.A], ItemAction (StartRename EndName))
-        ([shift, Key.A], ItemAction (StartRename End))
-        ([noMod, Key.C], ItemAction (StartRename ReplaceName))
-        ([shift, Key.C], ItemAction (StartRename ReplaceAll))
-        ([noMod, Key.D], ItemAction (Yank Move))
-        ([noMod, Key.Y], ItemAction (Yank Copy))
-        ([shift, Key.Y], ItemAction (Yank Shortcut))
-        ([alt, Key.Y], ItemAction ClearYank)
-        ([noMod, Key.P], ItemAction Put)
-        ([noMod, Key.Delete], ItemAction Recycle)
-        ([shift, Key.Delete], ItemAction ConfirmDelete)
-        ([ctrl, Key.X], ItemAction ClipboardCut)
-        ([ctrl, Key.C], ItemAction ClipboardCopy)
-        ([ctrl ||| shift, Key.C], ItemAction ClipboardCopyPaths)
-        ([ctrl, Key.V], ItemAction ClipboardPaste)
-        ([noMod, Key.U], ItemAction Undo)
-        ([ctrl, Key.Z], ItemAction Undo)
-        ([noMod, Key.U], ItemAction Redo)
-        ([ctrl ||| shift, Key.Z], ItemAction Redo)
+            ([noMod, Key.L], Navigation OpenCursorItem)
+            ([noMod, Key.Enter], Navigation OpenSelected)
+            ([shift, Key.Enter], Navigation OpenFileWith)
+            ([ctrl, Key.Enter], Navigation OpenFileAndExit)
+            ([alt, Key.Enter], Navigation OpenProperties)
+            ([ctrl, Key.E], Navigation OpenWithTextEditor)
+            ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
+            ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
+            ([noMod, Key.H], Navigation OpenParent)
+            ([noMod, Key.G; noMod, Key.R], Navigation OpenRoot)
+            ([noMod, Key.G; noMod, Key.D], Navigation OpenDefault)
+            ([shift, Key.H], Navigation Back)
+            ([shift, Key.L], Navigation Forward)
+            ([noMod, Key.R], Navigation Refresh)
+            ([noMod, Key.F5], Navigation Refresh)
+            ([noMod, Key.OemQuestion], Navigation StartSearch)
+            ([noMod, Key.N], Navigation RepeatPreviousSearch)
+            ([noMod, Key.OemQuotes], Navigation (PromptGoToMark Bookmark))
+            ([noMod, Key.Oem3], Navigation (PromptGoToMark SavedSearch)) // this key is backtick `
+            ([noMod, Key.M], Navigation PromptSetMark)
+            ([noMod, Key.S; noMod, Key.N], Navigation (SortList Name))
+            ([noMod, Key.S; noMod, Key.M], Navigation (SortList Modified))
+            ([noMod, Key.S; noMod, Key.S], Navigation (SortList Size))
+            ([noMod, Key.F9], Navigation ToggleHidden)
+            ([noMod, Key.G; noMod, Key.H], Navigation ShowNavHistory)
+            ([noMod, Key.G; noMod, Key.U], Navigation ShowUndoHistory)
+            ([noMod, Key.G; noMod, Key.S], Navigation ShowStatusHistory)
 
-        ([ctrl, Key.N], Window OpenSplitScreenWindow)
-        ([shift, Key.OemQuestion], Window OpenSettings)
-        ([noMod, Key.F1], Window OpenSettings)
-        ([ctrl, Key.W], Window Exit)
+            ([noMod, Key.Up], InputCommand InputHistoryBack)
+            ([noMod, Key.Down], InputCommand InputHistoryForward)
 
-        ([noMod, Key.Up], InputCommand InputHistoryBack)
-        ([noMod, Key.Down], InputCommand InputHistoryForward)
-    ]
+            ([noMod, Key.O], ItemAction CreateFile)
+            ([shift, Key.O], ItemAction CreateFolder)
+            ([noMod, Key.I], ItemAction (StartRename Begin))
+            ([noMod, Key.A], ItemAction (StartRename EndName))
+            ([shift, Key.A], ItemAction (StartRename End))
+            ([noMod, Key.C], ItemAction (StartRename ReplaceName))
+            ([shift, Key.C], ItemAction (StartRename ReplaceAll))
+            ([noMod, Key.D], ItemAction (Yank Move))
+            ([noMod, Key.Y], ItemAction (Yank Copy))
+            ([shift, Key.Y], ItemAction (Yank Shortcut))
+            ([alt, Key.Y], ItemAction ClearYank)
+            ([noMod, Key.P], ItemAction Put)
+            ([noMod, Key.Delete], ItemAction Recycle)
+            ([shift, Key.Delete], ItemAction ConfirmDelete)
+            ([ctrl, Key.X], ItemAction ClipboardCut)
+            ([ctrl, Key.C], ItemAction ClipboardCopy)
+            ([ctrl ||| shift, Key.C], ItemAction ClipboardCopyPaths)
+            ([ctrl, Key.V], ItemAction ClipboardPaste)
+            ([noMod, Key.U], ItemAction Undo)
+            ([ctrl, Key.Z], ItemAction Undo)
+            ([noMod, Key.U], ItemAction Redo)
+            ([ctrl ||| shift, Key.Z], ItemAction Redo)
+
+            ([ctrl, Key.N], Window OpenSplitScreenWindow)
+            ([shift, Key.OemQuestion], Window OpenSettings)
+            ([noMod, Key.F1], Window OpenSettings)
+            ([ctrl, Key.W], Window Exit)
+        ]
 
 type Config = {
     StartPath: StartPath
@@ -989,7 +996,7 @@ type Config = {
     SearchExclusions: string list
     YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
-    KeyBindings: (KeyCombo * MainCommand) list
+    KeyBindings: KeyBinding list
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
     Limits: Limits
@@ -1050,7 +1057,7 @@ with
             ShowFullPathInTitle = false
             RefreshOnActivate = true
         }
-        KeyBindings = KeyBindingDefaults.bindings
+        KeyBindings = KeyBinding.Default
         Bookmarks = []
         SavedSearches = []
         Limits = Limits.Default

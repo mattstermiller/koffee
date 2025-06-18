@@ -651,7 +651,7 @@ type Handler(
         | InputCharTyped (char, keyHandler) ->
             suppressInvalidPathChar char keyHandler
         | InputKeyPress (keyChord, keyHandler) ->
-            match KeyBinding.getChordMatch model.Config.KeyBindings keyChord with
+            match KeyBindingLogic.getChordMatch model.Config.KeyBindings keyChord with
             | Some (Cursor FindNext) ->
                 keyHandler.Handle()
                 yield CursorCommands.findNext model
@@ -685,7 +685,7 @@ type Handler(
                 keyHandler.Handle()
                 yield deleteSearchHistory model
             else
-                match KeyBinding.getChordMatch model.Config.KeyBindings keyChord with
+                match KeyBindingLogic.getChordMatch model.Config.KeyBindings keyChord with
                 | Some (InputCommand cmd) ->
                     keyHandler.Handle()
                     match cmd with

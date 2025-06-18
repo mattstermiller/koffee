@@ -72,7 +72,7 @@ let private escape model =
         model |> MainModel.clearStatus |> NavigationCommands.clearSearch
 
 let keyPress handleCommand chord handleKey model = asyncSeq {
-    let evt, modelFunc =
+    let command, modelFunc =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
@@ -81,20 +81,20 @@ let keyPress handleCommand chord handleKey model = asyncSeq {
             (None, MainModel.appendRepeatDigit digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
-            match KeyBinding.getMatch model.Config.KeyBindings keyCombo with
-            | KeyBinding.Match (InputCommand _) ->
+            match KeyBindingLogic.getMatch model.Config.KeyBindings keyCombo with
+            | KeyBindingLogic.Match (InputCommand _) ->
                 (None, MainModel.withoutKeyCombo)
-            | KeyBinding.Match newEvent ->
+            | KeyBindingLogic.Match newEvent ->
                 handleKey ()
                 (Some newEvent, MainModel.withoutKeyCombo)
-            | KeyBinding.PartialMatch ->
+            | KeyBindingLogic.PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
-            | KeyBinding.NoMatch ->
+            | KeyBindingLogic.NoMatch ->
                 (None, MainModel.withoutKeyCombo)
-    match evt with
-    | Some e ->
-        match handleCommand e with
+    match command with
+    | Some cmd ->
+        match handleCommand cmd with
         | Sync handler ->
             yield handler model |> modelFunc
         | Async handler ->

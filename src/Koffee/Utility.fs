@@ -172,6 +172,11 @@ module Rect =
           Width = width
           Height = height }
 
+/// Wrapper around values to use reference equality and always fire bindings to the view
+type SetValue<'a>(value: 'a) =
+    member _.Value = value
+    static member get (sv: SetValue<'a>) = sv.Value
+
 type KeyPressHandler(evt: RoutedEventArgs, ?effect: unit -> unit) =
     member _.Handle () =
         evt.Handled <- true

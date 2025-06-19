@@ -278,14 +278,9 @@ module MainView =
                 if wasBusy && not isBusy then
                     window.ItemGrid.Focus() |> ignore
             )
-
             // update UI for input mode
-            Bind.view(<@ window.InputBox.Text @>).toModelOneWay(<@ model.InputText @>, OnChange)
-            Bind.modelMulti(<@ model.InputText, model.InputTextSelection @>)
-                .toFunc(fun (inputText, (selectStart, selectLen)) ->
-                    window.InputBox.Text <- inputText
-                    window.InputBox.Select(selectStart, selectLen)
-                )
+            Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
+            Bind.model(<@ model.InputTextSelectionStartAndLength @>).toFunc(SetValue.get >> (fun (start, len) -> window.InputBox.Select(start, len)))
             Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
             Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)

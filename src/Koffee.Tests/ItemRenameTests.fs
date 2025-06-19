@@ -325,14 +325,14 @@ let renameTextSelection renamePart itemType fileName =
         { testModel with
             Items = items
             Cursor = items.Length - 1
-            InputTextSelection = (1, 1)
+            InputTextSelectionStartAndLength = SetValue (1, 1)
         }
 
     let actual = ItemActionCommands.Rename.inputRename renamePart model
 
     actual.InputMode |> shouldEqual (Some (Input (Rename renamePart)))
     actual.InputText |> shouldEqual item.Name
-    actual.InputTextSelection
+    actual.InputTextSelectionStartAndLength.Value
 
 [<Test>]
 let ``StartInput for rename at beginning sets InputText and selection``() =

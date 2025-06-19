@@ -445,7 +445,7 @@ let traverseSearchHistory direction model =
         | None -> Search.Default
     { model with
         InputText = search.Terms
-        InputTextSelection = (search.Terms.Length, 0)
+        InputTextSelectionStartAndLength = SetValue (search.Terms.Length, 0)
         SearchInput = search
         SearchHistoryIndex = index
         HistoryDisplay = index |> Option.map (cnst SearchHistory)
@@ -464,7 +464,7 @@ let inputSearch (model: MainModel) =
     { model with
         InputMode = Some (Input Search)
         InputText = inputText
-        InputTextSelection = (0, inputText.Length)
+        InputTextSelectionStartAndLength = SetValue (0, inputText.Length)
     }
 
 let withBookmark char model =

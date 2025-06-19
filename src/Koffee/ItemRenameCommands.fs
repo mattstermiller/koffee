@@ -22,7 +22,7 @@ let inputRename part (model: MainModel) =
         { model with
             InputMode = Some (Input (Rename part))
             InputText = item.Name
-            InputTextSelection = getInputSelection part item.Type item.Name
+            InputTextSelectionStartAndLength = SetValue (getInputSelection part item.Type item.Name)
         }
     else
         model

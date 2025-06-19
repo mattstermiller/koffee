@@ -1065,7 +1065,7 @@ type MainModel = {
     RepeatCommand: int option
     InputMode: InputMode option
     InputText: string
-    InputTextSelection: int * int
+    InputTextSelectionStartAndLength: (int * int) SetValue
     InputError: InputError option
     LastFind: string option
     SearchInput: Search
@@ -1151,7 +1151,7 @@ type MainModel = {
         RepeatCommand = None
         InputMode = None
         InputText = ""
-        InputTextSelection = 0, 0
+        InputTextSelectionStartAndLength = SetValue (0, 0)
         InputError = None
         LastFind = None
         SearchInput = Search.Default

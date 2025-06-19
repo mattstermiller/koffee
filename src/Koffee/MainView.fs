@@ -326,8 +326,8 @@ module MainView =
                              bookmarks, savedSearches, pathFormat) ->
                     let showHistoryType =
                         inputMode
-                        |> Option.map (fun input -> input.HistoryDisplay)
-                        |> Option.defaultValue historyType
+                        |> Option.bind (fun input -> input.HistoryDisplay)
+                        |> Option.orElse historyType
                     match showHistoryType with
                     | Some historyType ->
                         let maxStackSize = 6

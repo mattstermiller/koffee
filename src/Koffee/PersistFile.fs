@@ -8,17 +8,25 @@ open Newtonsoft.Json
 open Koffee
 
 module FSharpJsonConverters =
-    /// Serializes unions with no fields as just the case name
+    /// Serializes unions with no fields as just the case name and unions with one field as the case name, space, argument
     type UnionJsonConverter() =
         inherit JsonConverter() with
             override this.CanConvert typ =
                 FSharpType.IsUnion typ &&
-                FSharpType.GetUnionCases typ |> Seq.forall (fun c -> c.GetFields() |> Array.isEmpty)
+                FSharpType.GetUnionCases typ |> Seq.forall (fun c -> c.GetFields().Length < 2)
 
-            override this.ReadJson (reader, typ, _, _) =
-                let caseName = reader.Value :?> string
+            override this.ReadJson (reader, typ, _, serializer) =
+                let str = reader.Value :?> string
+                let (caseName, valueStr) =
+                    match str.IndexOf " " with
+                    | -1 -> (str, None)
+                    | i -> (str.Substring(0, i), Some (str.Substring(i + 1)))
                 let case = FSharpType.GetUnionCases(typ) |> Seq.find (fun c -> c.Name = caseName)
-                FSharpValue.MakeUnion(case, [||])
+                let value = valueStr |> Option.map (fun valueStr ->
+                    use valueReader = new StringReader(valueStr)
+                    serializer.Deserialize(valueReader, case.GetFields().[0].PropertyType)
+                )
+                FSharpValue.MakeUnion(case, value |> Option.toArray)
 
             override this.WriteJson (writer, value, _) =
                 sprintf "%A" value |> writer.WriteValue
@@ -68,11 +76,28 @@ module FSharpJsonConverters =
             override this.WriteJson (writer, value, _) =
                 (value :?> HistoryPath).Format Windows |> writer.WriteValue
 
+    type KeyComboConverter() =
+        inherit JsonConverter() with
+            override this.CanConvert typ = typ = typeof<KeyCombo>
+
+            override this.ReadJson (reader, _, _, _) =
+                reader.Value :?> string list
+                |> List.map (KeyBindingLogic.Serialization.parseChord)
+                |> box
+
+            override this.WriteJson (writer, value, serializer) =
+                let chords =
+                    (value :?> KeyCombo)
+                    |> Seq.map (KeyBindingLogic.Serialization.chordString)
+                    |> Seq.toArray
+                serializer.Serialize(writer, chords)
+
     let getAll () : JsonConverter[] = [|
         UnionJsonConverter()
         OptionJsonConverter()
         PathJsonConverter()
         HistoryPathJsonConverter()
+        KeyComboConverter()
     |]
 
 type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =

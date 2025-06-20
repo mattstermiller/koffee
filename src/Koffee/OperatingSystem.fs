@@ -147,7 +147,7 @@ type IOperatingSystem =
     abstract member OpenFileWith: Path -> Result<unit, exn>
     abstract member OpenProperties: Path seq -> Result<unit, exn>
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
-    abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
+    abstract member LaunchApp: hideWindow: bool -> exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
     abstract member Execute: command: string -> workingPath: Path -> args: string -> Result<string, exn>
     abstract member GetClipboardFileDrop: unit -> Result<PutType * Path list, exn>
     abstract member SetClipboardFileDrop: copy: bool -> Path seq -> Result<unit, exn>
@@ -181,9 +181,12 @@ type OperatingSystem() =
             tryResult <| fun () ->
                 OsInterop.openExplorerAndSelect (wpath location) (selectItemPaths |> Seq.map wpath) |> ignore
 
-        member _.LaunchApp exePath workingPath args =
+        member _.LaunchApp hideWindow exePath workingPath args =
             tryResult <| fun () ->
                 ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
+                |>! fun procInfo ->
+                    if hideWindow then
+                        procInfo.WindowStyle <- ProcessWindowStyle.Hidden
                 |> Process.Start |> ignore
 
         member _.Execute command workingPath args =

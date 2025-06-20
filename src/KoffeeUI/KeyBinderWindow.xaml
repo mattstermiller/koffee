@@ -1,0 +1,17 @@
+<Window x:Class="KoffeeUI.KeyBinderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Key Binding" Width="300" FontSize="15">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="AppStyles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+  <StackPanel Orientation="Vertical">
+    <Label Name="Header" x:FieldModifier="public" Content="Key Binding for Command"/>
+    <Label Name="KeyBinding" x:FieldModifier="public"/>
+    <TextBlock Name="Prompt" x:FieldModifier="public" Text="Press a key combination or Escape to cancel..."/>
+  </StackPanel>
+</Window>

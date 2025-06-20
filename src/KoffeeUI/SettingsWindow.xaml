@@ -25,6 +25,7 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <!-- Left column -->
@@ -86,16 +87,20 @@
               AutoGenerateColumns="False" CanUserResizeRows="False" GridLinesVisibility="None" RowHeaderWidth="0"
               ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
       <DataGrid.Resources>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
+        <!-- <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource Text}"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
-                         Color="{DynamicResource Text}"/>
+                         Color="{DynamicResource Text}"/> -->
         <Style TargetType="{x:Type DataGridCell}">
           <Setter Property="BorderThickness" Value="0"/>
           <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         </Style>
       </DataGrid.Resources>
     </DataGrid>
+
+    <Grid Grid.Row="8" Grid.ColumnSpan="4">
+      <Button Name="EditKeyBinding" x:FieldModifier="public" Content="Edit Key Binding"/>
+    </Grid>
   </Grid>
 </Window>

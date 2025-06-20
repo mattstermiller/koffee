@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <TargetFramework>net481</TargetFramework>
@@ -21,6 +21,7 @@
     <Compile Include="KeyBindingLogic.fs" />
     <Compile Include="UIHelpers.fs" />
     <Compile Include="TextEdit.fs" />
+    <Compile Include="KeyBinder.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="OperatingSystem.fs" />
     <Compile Include="OsUtility.fs" />

@@ -10,8 +10,9 @@ open UIHelpers
 open KoffeeUI
 
 type KeyBind = {
-    EventName: string
-    BoundKeys: string
+    CommandName: string
+    KeyCombo1: KeyCombo option
+    KeyCombo2: KeyCombo option
 }
 
 type Model = {
@@ -26,9 +27,13 @@ type Events =
     | PathFormatChanged of PathFormat
     | EditSearchExclusions
 
+let describeKeyCombo (combo: KeyCombo option) =
+    combo |> Option.map KeyBindingLogic.keyComboDescription |? ""
+
 let private binder (window: SettingsWindow) model =
-    window.KeyBindings.AddColumn(<@ fun k -> k.EventName @>, "Command", widthWeight = 3.0)
-    window.KeyBindings.AddColumn(<@ fun k -> k.BoundKeys @>, "Bound Keys")
+    window.KeyBindings.AddColumn(<@ fun k -> k.CommandName @>, "Command", widthWeight = 3.0)
+    window.KeyBindings.AddColumn(<@ fun k -> k.KeyCombo1 @>, "Key Combo 1", conversion = describeKeyCombo)
+    window.KeyBindings.AddColumn(<@ fun k -> k.KeyCombo2 @>, "Key Combo 2", conversion = describeKeyCombo)
 
     window.PreviewKeyDown.Add (onKey Key.Escape window.Close)
     window.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W window.Close)
@@ -50,7 +55,7 @@ let private binder (window: SettingsWindow) model =
         Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>).toModel(<@ model.Config.Window.ShowFullPathInTitle @>)
         Bind.view(<@ window.RefreshOnActivate.IsChecked @>).toModel(<@ model.Config.Window.RefreshOnActivate @>)
 
-        Bind.model(<@ model.KeyBindings @>).toItemsSource(window.KeyBindings, <@ fun kb -> kb.BoundKeys, kb.EventName @>)
+        Bind.model(<@ model.KeyBindings @>).toItemsSourceDirect(window.KeyBindings)
     ]
 
 module Obs = Observable
@@ -90,13 +95,13 @@ let private dispatcher evt =
     | EditSearchExclusions -> Sync <| editSearchExclusions
 
 let private start (config: Config) view =
-    let keyBinding command = {
-        EventName = string command
-        BoundKeys =
-            KeyBindingLogic.getKeyCombos config.KeyBindings command
-            |> List.map KeyBindingLogic.keyComboDescription
-            |> String.concat " OR "
-    }
+    let keyBinding command =
+        let bindings = KeyBindingLogic.getKeyCombos config.KeyBindings command
+        {
+            CommandName = command.Name
+            KeyCombo1 = bindings |> List.tryItem 0
+            KeyCombo2 = bindings |> List.tryItem 1
+        }
     let model = {
         Config = config
         DefaultPath = Ok config.DefaultPath

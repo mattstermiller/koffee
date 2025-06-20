@@ -22,7 +22,7 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
     let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
                       |> Result.ofOption MainStatus.CouldNotFindKoffeeExe
     let folder = koffeePath.Parent
-    do! os.LaunchApp (koffeePath.Format Windows) folder args
+    do! os.LaunchApp false (koffeePath.Format Windows) folder args
         |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Koffee", e))
     return model
 }

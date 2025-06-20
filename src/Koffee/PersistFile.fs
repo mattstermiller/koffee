@@ -8,21 +8,6 @@ open Newtonsoft.Json
 open Koffee
 
 module FSharpJsonConverters =
-    /// Serializes unions with no fields as just the case name
-    type UnionJsonConverter() =
-        inherit JsonConverter() with
-            override this.CanConvert typ =
-                FSharpType.IsUnion typ &&
-                FSharpType.GetUnionCases typ |> Seq.forall (fun c -> c.GetFields() |> Array.isEmpty)
-
-            override this.ReadJson (reader, typ, _, _) =
-                let caseName = reader.Value :?> string
-                let case = FSharpType.GetUnionCases(typ) |> Seq.find (fun c -> c.Name = caseName)
-                FSharpValue.MakeUnion(case, [||])
-
-            override this.WriteJson (writer, value, _) =
-                sprintf "%A" value |> writer.WriteValue
-
     /// Serializes option's 'Some' as just the wrapped value
     type OptionJsonConverter() =
         inherit JsonConverter() with
@@ -47,6 +32,41 @@ module FSharpJsonConverters =
                         fields.[0]
                 serializer.Serialize(writer, innerValue)
 
+    /// Serializes unions with no fields as just the case name and unions with one field as the case name, space, argument
+    type UnionJsonConverter() =
+        inherit JsonConverter() with
+            override this.CanConvert typ =
+                FSharpType.IsUnion typ &&
+                FSharpType.GetUnionCases typ |> Seq.forall (fun c -> c.GetFields().Length < 2)
+
+            let rec parseUnion (serializer: JsonSerializer) typ (str: string) =
+                let (caseName, valueStr) =
+                    match str.IndexOf " " with
+                    | -1 -> (str, None)
+                    | i -> (str.Substring(0, i), Some (str.Substring(i + 1)))
+                let case = FSharpType.GetUnionCases(typ) |> Seq.find (fun c -> c.Name = caseName)
+                let valueType = case.GetFields() |> Array.tryHead |> Option.map (fun field -> field.PropertyType)
+                let value =
+                    (valueType, valueStr) ||> Option.map2 (fun typ str ->
+                        if typ |> FSharpType.IsUnion then
+                            parseUnion serializer typ str
+                        else
+                            use reader = new StringReader(str)
+                            use jsonReader = new JsonTextReader(reader)
+                            serializer.Deserialize jsonReader
+                    )
+                FSharpValue.MakeUnion(case, value |> Option.toArray)
+
+            override this.ReadJson (reader, typ, _, serializer) =
+                reader.Value :?> string
+                |> parseUnion serializer typ
+
+            override this.WriteJson (writer, value, _) =
+                string value
+                |> String.replace "(" ""
+                |> String.replace ")" ""
+                |> writer.WriteValue
+
     type PathJsonConverter() =
         inherit JsonConverter() with
             override this.CanConvert typ = typ = typeof<Path>
@@ -68,11 +88,27 @@ module FSharpJsonConverters =
             override this.WriteJson (writer, value, _) =
                 (value :?> HistoryPath).Format Windows |> writer.WriteValue
 
+    type KeyChordConverter() =
+        inherit JsonConverter() with
+            override this.CanConvert typ = typ = typeof<ModifierKeys * Key>
+
+            override this.ReadJson (reader, _, _, _) =
+                reader.Value :?> string
+                |> KeyBindingLogic.Serialization.parseChord
+                |? (ModifierKeys.None, Key.None)
+                |> box
+
+            override this.WriteJson (writer, value, _) =
+                (value :?> ModifierKeys * Key)
+                |> KeyBindingLogic.Serialization.chordString
+                |> writer.WriteValue
+
     let getAll () : JsonConverter[] = [|
-        UnionJsonConverter()
         OptionJsonConverter()
+        UnionJsonConverter()
         PathJsonConverter()
         HistoryPathJsonConverter()
+        KeyChordConverter()
     |]
 
 type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =

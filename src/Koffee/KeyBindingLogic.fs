@@ -2,6 +2,7 @@ module Koffee.KeyBindingLogic
 
 open System.Windows.Input
 open Koffee
+open Acadian.FSharp
 
 type KeyBindMatch<'a> =
     | Match of 'a
@@ -107,3 +108,29 @@ let getKeyCombos (bindings: KeyBinding list) command =
         then Some binding.KeyCombo
         else None
     )
+
+module Serialization =
+    let chordString (modifiers: ModifierKeys, key: Key) =
+        let mods =
+            [
+                ModifierKeys.Control
+                ModifierKeys.Shift
+                ModifierKeys.Alt
+                ModifierKeys.Windows
+            ]
+            |> List.filter (modifiers.HasFlag)
+            |> List.map (fun modifier -> string modifier + "+")
+            |> String.concat ""
+        mods + string key
+
+    let parseChord str =
+        let parts = str |> String.split '+'
+        let mods =
+            parts
+            |> Seq.take (parts.Length - 1)
+            |> Seq.choose (Parse.enumValue<ModifierKeys>)
+            |> Seq.fold (|||) ModifierKeys.None
+        parts
+        |> Array.last
+        |> Parse.enumValue<Key>
+        |> Option.map (fun key -> (mods, key))

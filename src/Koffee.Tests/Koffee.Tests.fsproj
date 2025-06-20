@@ -16,7 +16,7 @@
     <Compile Include="PathTests.fs" />
     <Compile Include="SortFieldTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />
-    <Compile Include="ConfigTests.fs" />
+    <Compile Include="ConfigSerializationTests.fs" />
     <Compile Include="HistoryTests.fs" />
     <Compile Include="MainModelTests.fs" />
     <Compile Include="MainViewTests.fs" />

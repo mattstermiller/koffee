@@ -77,6 +77,7 @@ type NavigationCommand =
     | OpenWithTextEditor
     | OpenTerminal
     | OpenExplorer
+    | OpenInVsCode
     | OpenInDevOps
     | OpenParent
     | OpenRoot
@@ -105,6 +106,7 @@ with
         | OpenTerminal -> "Open Terminal at Current Location"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenParent -> "Open Parent Folder"
+        | OpenInVsCode -> "Open VS Code at Location and Open Selected Items"
         | OpenInDevOps -> "Open Cursor Item in Azure DevOps"
         | OpenRoot -> "Open Root Directory"
         | OpenDefault -> "Open Default Path"
@@ -616,6 +618,7 @@ module MainStatus =
         | OpenTextEditor of names: string list
         | OpenTerminal of Path
         | OpenExplorer
+        | OpenInVsCode of location: Path * names: string list * PathFormat
         | OpenInDevOps of repo: string * path: string
         | RemovedNetworkHosts of names: string list
 
@@ -702,6 +705,8 @@ module MainStatus =
                 sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
+            | OpenInVsCode (location, names, pathFormat) ->
+                sprintf "Opened VS Code to %s%s" (location.Format pathFormat) (describeList names)
             | OpenInDevOps (repo, path) ->
                 sprintf "Opened Azure DevOps to %s repo, path %s" repo path
             | RemovedNetworkHosts names ->

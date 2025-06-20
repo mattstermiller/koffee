@@ -27,6 +27,7 @@ let defaultsAsString = [
     ("<c-e>", Navigation OpenWithTextEditor)
     ("<cs-t>", Navigation OpenTerminal)
     ("<cs-e>", Navigation OpenExplorer)
+    ("<cs-s>", Navigation OpenInVsCode)
     ("<cs-d>", Navigation OpenInDevOps)
     ("h", Navigation OpenParent)
     ("gr", Navigation OpenRoot)

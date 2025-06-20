@@ -218,7 +218,7 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
         let pathArg (path: Path) = path.Format Windows |> sprintf "\"%s\""
         let paths = items |> List.map (fun i -> i.Path)
         let args = paths |> Seq.map pathArg |> String.concat " "
-        do! os.LaunchApp model.Config.TextEditor model.Location args
+        do! os.LaunchApp false model.Config.TextEditor model.Location args
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text editor", e))
         return
             model
@@ -228,7 +228,7 @@ let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
 
 let openTerminal (os: IOperatingSystem) model = result {
     if model.Location <> Path.Root then
-        do! os.LaunchApp model.Config.TerminalPath model.Location ""
+        do! os.LaunchApp false model.Config.TerminalPath model.Location ""
             |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Terminal", e))
         return model |> MainModel.withMessage (MainStatus.OpenTerminal model.Location)
     else return model
@@ -244,6 +244,19 @@ let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
     return model |> MainModel.withMessage MainStatus.OpenExplorer
 }
 
+let openInVsCode (os: IOperatingSystem) (model: MainModel) = result {
+    let args =
+        [
+            model.Location
+            yield! model.SelectedItems |> List.map (fun i -> i.Path)
+        ]
+        |> List.map (fun path -> path.Format Windows |> sprintf "\"%s\"")
+        |> String.concat " "
+    do! os.LaunchApp true "code" model.Location args |> actionError "open VS Code"
+    let selectedNames = model.SelectedItems |> List.map (fun i -> i.Name)
+    return model |> MainModel.withMessage (MainStatus.OpenInVsCode (model.Location, selectedNames, model.PathFormat))
+}
+
 let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
     let itemPath = model.CursorItem.Path
     let! gitRoot =
@@ -255,7 +268,7 @@ let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
         let pathStr = itemPath.FormatRelativeFolder model.PathFormat gitRoot
         let pathStr = pathStr |> String.substring 1 (pathStr.Length - 2)
         let devOpsPath = sprintf "https://dev.azure.com/osh-inc/Canopy/_git/%s?path=%s" gitRoot.Name pathStr
-        do! os.LaunchApp devOpsPath model.Location "" |> actionError "launch url"
+        do! os.LaunchApp false devOpsPath model.Location "" |> actionError "launch url"
         return model |> MainModel.withMessage (MainStatus.OpenInDevOps (gitRoot.Name, pathStr))
     | _ ->
         return model
@@ -650,6 +663,7 @@ type Handler(
         | OpenWithTextEditor -> SyncResult (openWithTextEditor os)
         | OpenTerminal -> SyncResult (openTerminal os)
         | OpenExplorer -> SyncResult (openExplorer os)
+        | OpenInVsCode -> SyncResult (openInVsCode os)
         | OpenInDevOps -> SyncResult (openInDevOps os)
         | OpenParent -> SyncResult (openParent fs)
         | OpenRoot -> SyncResult (openPath fs Path.Root CursorStay)

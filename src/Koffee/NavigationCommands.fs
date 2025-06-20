@@ -244,6 +244,23 @@ let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
     return model |> MainModel.withMessage MainStatus.OpenExplorer
 }
 
+let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
+    let itemPath = model.CursorItem.Path
+    let! gitRoot =
+        os.Execute "git" itemPath.Parent "rev-parse --show-toplevel"
+        |> Result.map Path.Parse
+        |> (actionError "find git root")
+    match gitRoot with
+    | Some gitRoot ->
+        let pathStr = itemPath.FormatRelativeFolder model.PathFormat gitRoot
+        let pathStr = pathStr |> String.substring 1 (pathStr.Length - 2)
+        let devOpsPath = sprintf "https://dev.azure.com/osh-inc/Canopy/_git/%s?path=%s" gitRoot.Name pathStr
+        do! os.LaunchApp devOpsPath model.Location "" |> actionError "launch url"
+        return model |> MainModel.withMessage (MainStatus.OpenInDevOps (gitRoot.Name, pathStr))
+    | _ ->
+        return model
+}
+
 let openParent fsReader (model: MainModel) =
     if model.SearchCurrent.IsSome then
         if model.CursorItem.Type = Empty then
@@ -628,6 +645,7 @@ type Handler(
         | OpenWithTextEditor -> SyncResult (openWithTextEditor os)
         | OpenTerminal -> SyncResult (openTerminal os)
         | OpenExplorer -> SyncResult (openExplorer os)
+        | OpenInDevOps -> SyncResult (openInDevOps os)
         | OpenParent -> SyncResult (openParent fs)
         | OpenRoot -> SyncResult (openPath fs Path.Root CursorStay)
         | OpenDefault -> SyncResult (fun m -> openPath fs m.Config.DefaultPath CursorStay m)

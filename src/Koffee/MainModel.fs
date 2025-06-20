@@ -77,6 +77,7 @@ type NavigationCommand =
     | OpenWithTextEditor
     | OpenTerminal
     | OpenExplorer
+    | OpenInDevOps
     | OpenParent
     | OpenRoot
     | OpenDefault
@@ -104,6 +105,7 @@ with
         | OpenTerminal -> "Open Terminal at Current Location"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenParent -> "Open Parent Folder"
+        | OpenInDevOps -> "Open Cursor Item in Azure DevOps"
         | OpenRoot -> "Open Root Directory"
         | OpenDefault -> "Open Default Path"
         | Back -> "Back in Navigation History"
@@ -614,6 +616,7 @@ module MainStatus =
         | OpenTextEditor of names: string list
         | OpenTerminal of Path
         | OpenExplorer
+        | OpenInDevOps of repo: string * path: string
         | RemovedNetworkHosts of names: string list
 
         static member private describePaths pathFormat (paths: Path list) =
@@ -699,6 +702,8 @@ module MainStatus =
                 sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
+            | OpenInDevOps (repo, path) ->
+                sprintf "Opened Azure DevOps to %s repo, path %s" repo path
             | RemovedNetworkHosts names ->
                 sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
 

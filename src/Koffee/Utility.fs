@@ -100,6 +100,12 @@ module Format =
         else if size > scale 1 then scaledStr size 1
         else scaledStr size 0
 
+module Parse =
+    let enumValue<'a when 'a: (new: unit -> 'a) and 'a: struct and 'a :> System.ValueType> str =
+        match System.Enum.TryParse<'a> str with
+        | true, value -> Some value
+        | _ -> None
+
 module Observable =
     let onCurrent (o: IObservable<_>) =
         o.ObserveOn(DispatcherScheduler.Current)

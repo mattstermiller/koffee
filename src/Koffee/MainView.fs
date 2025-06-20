@@ -40,7 +40,7 @@ module MainView =
         let sizeStr =
             items
             |> List.choose (fun n -> if n.Type = File then n.Size else None)
-            |> Option.ofCond (not << List.isEmpty)
+            |> Option.ofCond Seq.isNotEmpty
             |> Option.map (List.sum >> Format.fileSize >> sprintf ", %s")
             |> Option.toString
         sprintf "%i %s%s" items.Length name sizeStr
@@ -491,13 +491,10 @@ module MainView =
                 |> Obs.mapTo LocationInputChanged
             window.SettingsButton.Click |> Obs.mapTo SettingsButtonClick
 
-            window.ItemGrid.PreviewKeyDown
-                |> Obs.filter isNotModifier
-                |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
-            window.ItemGrid.PreviewKeyDown |> Obs.choose (fun evt ->
+            window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.map (fun evt ->
                 if evt.Chord = (ModifierKeys.Control, Key.C) then
                     evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
-                None
+                KeyPress (evt.Chord, evt.Handler)
             )
             window.ItemGrid.MouseDoubleClick |> Obs.mapTo ItemDoubleClick
             window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->

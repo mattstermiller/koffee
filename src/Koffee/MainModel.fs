@@ -64,8 +64,8 @@ with
         | Scroll CursorTop -> "Scroll View to Put Cursor at the Top"
         | Scroll CursorMiddle -> "Scroll View to Put Cursor at the Middle"
         | Scroll CursorBottom -> "Scroll View to Put Cursor at the Bottom"
-        | StartFind false -> "Find Item Starting With..."
-        | StartFind true -> "Find Item Starting With... (Multi)"
+        | StartFind false -> "Find Item Starting With"
+        | StartFind true -> "Find Item Starting With (Multi)"
         | FindNext -> "Go To Next Find Match"
 
 type NavigationCommand =
@@ -532,7 +532,7 @@ with
             let sizeDescr =
                 items
                 |> List.choose (fun item -> item.Size)
-                |> Option.ofCond (not << List.isEmpty)
+                |> Option.ofCond Seq.isNotEmpty
                 |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
                 |? ""
             sprintf "%s %s%s" action (Item.describeList items) sizeDescr
@@ -572,11 +572,6 @@ type RedoPutBlockedByExistingItemException() =
 
 [<RequireQualifiedAccess>]
 module MainStatus =
-    let private pluralS list =
-        match list with
-        | [_] -> ""
-        | _ -> "s"
-
     let private describeList strs =
         Seq.describeAndCount 3 id strs
 
@@ -591,7 +586,7 @@ module MainStatus =
         | PutItems (Copy, intent, _, _) ->
             sprintf "Copied %s" (intent.Description pathFormat)
         | PutItems (Shortcut, intent, _, _) ->
-            sprintf "Created shortcut%s to %s" (pluralS intent.Sources) (ItemRef.describeList intent.Sources)
+            sprintf "Created shortcut%s to %s" (Format.pluralS intent.Sources) (ItemRef.describeList intent.Sources)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
@@ -692,7 +687,7 @@ module MainStatus =
                 let action = if copy then "Copied" else "Cut"
                 sprintf "%s to clipboard: %s" action (Message.describePaths pathFormat paths)
             | ClipboardCopyPaths paths ->
-                sprintf "Copied path%s to clipboard: %s" (pluralS paths) (Message.describePaths pathFormat paths)
+                sprintf "Copied path%s to clipboard: %s" (Format.pluralS paths) (Message.describePaths pathFormat paths)
             | NoItemsToPaste ->
                 "No items in clipboard to paste"
             | Sort (field, desc) ->
@@ -700,7 +695,7 @@ module MainStatus =
             | ToggleHidden showing ->
                 sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | OpenFiles names ->
-                sprintf "Opened File%s: %s" (pluralS names) (describeList names)
+                sprintf "Opened File%s: %s" (Format.pluralS names) (describeList names)
             | OpenProperties names ->
                 sprintf "Opened Properties for: %s" (describeList names)
             | OpenTextEditor names ->
@@ -710,7 +705,7 @@ module MainStatus =
             | OpenExplorer ->
                 "Opened Windows Explorer"
             | RemovedNetworkHosts names ->
-                sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
+                sprintf "Removed network host%s: %s" (Format.pluralS names) (describeList names)
 
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent
@@ -891,6 +886,10 @@ with
     }
 
 type KeyCombo = (ModifierKeys * Key) list
+
+module KeyCombo =
+    let startsWith prefix (combo: KeyCombo) =
+        combo |> List.truncate (prefix |> List.length) = prefix
 
 type KeyBinding = {
     KeyCombo: KeyCombo

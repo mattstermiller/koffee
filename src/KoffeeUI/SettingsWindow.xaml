@@ -23,7 +23,6 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
@@ -77,25 +76,29 @@
             Grid.Column="3" Grid.Row="5"/>
 
     <!-- Key bindings -->
-    <Grid Grid.Row="6" Grid.ColumnSpan="4">
-      <Label Content="Key bindings:"/>
-      <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
-    </Grid>
+    <DockPanel Grid.Row="6" Grid.ColumnSpan="4">
+      <Grid DockPanel.Dock="Top">
+        <Label Content="Key bindings:"/>
+        <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
+      </Grid>
 
-    <DataGrid Name="KeyBindings" x:FieldModifier="public" IsReadOnly="True" AreRowDetailsFrozen="True"
-              AutoGenerateColumns="False" CanUserResizeRows="False" GridLinesVisibility="None" RowHeaderWidth="0"
-              ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
-      <DataGrid.Resources>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource Text}"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
-                         Color="{DynamicResource Text}"/>
-        <Style TargetType="{x:Type DataGridCell}">
-          <Setter Property="BorderThickness" Value="0"/>
-          <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-        </Style>
-      </DataGrid.Resources>
-    </DataGrid>
+      <Grid DockPanel.Dock="Bottom" Margin="0,6,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button Name="EditKeyBinding1" x:FieldModifier="public" Content="Edit Binding 1" Width="120" Margin="6,0,0,0"/>
+          <Button Name="EditKeyBinding2" x:FieldModifier="public" Content="Edit Binding 2" Width="120" Margin="6,0,0,0"/>
+        </StackPanel>
+      </Grid>
+
+      <DataGrid Name="KeyBindings" x:FieldModifier="public" AutoGenerateColumns="False" IsReadOnly="True"
+                SelectionMode="Single" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None"
+                RowHeaderWidth="0" ColumnWidth="*" HorizontalScrollBarVisibility="Hidden">
+        <DataGrid.Resources>
+          <Style TargetType="{x:Type DataGridCell}">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+          </Style>
+        </DataGrid.Resources>
+      </DataGrid>
+    </DockPanel>
   </Grid>
 </Window>

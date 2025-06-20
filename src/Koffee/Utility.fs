@@ -88,6 +88,11 @@ module Format =
     let count name count =
         sprintf "%i %s%s" count name (if count <> 1 then "s" else "")
 
+    let pluralS list =
+        match list with
+        | [_] -> ""
+        | _ -> "s"
+
     let fileSize size =
         let scaleNames = ["B";"KB";"MB";"GB"]
         let scale level = pown 1024L level

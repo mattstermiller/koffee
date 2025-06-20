@@ -84,6 +84,7 @@ let chordDescription (modifiers: ModifierKeys, key: Key) =
         | Key.OemQuestion, false -> "/"
         | Key.OemQuestion, true -> "?"
         | Key.Return, _ -> "Enter"
+        | Key.Back, _ -> "Backspace"
         | _ -> string key
     let mods =
         if modIsOnlyShift && keyStr.Length = 1 then

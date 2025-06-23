@@ -1,5 +1,9 @@
 # Release Notes
 
+### 0.8.0  (WIP)
+- Fixes copy names of folders to not use file extension logic
+- Fixes input text selection being reset to start when navigating search history with search strings of the same length
+
 ### 0.7.1  (2024-11-25)
 - Upgrades to .NET Framework 4.8.1
 - #140 Adds support for long file paths (requires LongPathsEnabled in registry)

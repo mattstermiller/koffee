@@ -30,8 +30,11 @@ let yankSelectedItems putType (model: MainModel) =
                 Status = None
             } |> Ok
 
-let getCopyName name i =
-    let (nameNoExt, ext) = Path.SplitName name
+let getCopyName itemType name i =
+    let (nameNoExt, ext) =
+        if itemType = File
+        then Path.SplitName name
+        else (name, "")
     let number = if i = 0 then "" else string (i+1)
     sprintf "%s copy%s%s" nameNoExt number ext
 
@@ -55,7 +58,7 @@ let rec private enumeratePutItems (fsReader: IFileSystemReader) (cancelToken: Ca
                         |> Map.tryFind src.Name
                         |> Option.map (fun name -> Ok (name, nameExists name))
                         |> Option.defaultWith (fun () ->
-                            Seq.init 99 (getCopyName src.Name)
+                            Seq.init 99 (getCopyName typ src.Name)
                             |> Seq.tryFind (not << nameExists)
                             |> function
                                 | Some name -> Ok (name, false)

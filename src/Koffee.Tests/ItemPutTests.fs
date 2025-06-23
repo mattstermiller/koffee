@@ -11,7 +11,7 @@ let withReg reg (model: MainModel) =
 let getCopyName = ItemActionCommands.Put.getCopyName
 
 let getCopyNames name num =
-    List.init num (getCopyName name)
+    List.init num (getCopyName File name)
 
 let assertAreEqual expected actual =
     assertAreEqualWith expected actual (fun comp -> comp.Config.MembersToIgnore.Remove "MainModel.History" |> ignore)
@@ -1718,7 +1718,7 @@ let ``Put file to copy in same folder calls file sys copy with new name`` existi
         ]
         |> List.map (fun name -> createFile ("/c/" + name))
         |> sortByPath
-    let expectedPath = createPath ("/c/" + getCopyName "file" existingCopies)
+    let expectedPath = createPath ("/c/" + getCopyName File "file" existingCopies)
     let intent, putItem = createPutIntentAndItem (createFile "/c/file") expectedPath
     let expectedAction = PutItems (Copy, intent, [putItem], false)
     let expected =
@@ -1742,16 +1742,17 @@ let ``Put file to copy in same folder calls file sys copy with new name`` existi
 
 [<Test>]
 let ``Redo copy item to same parent where copy already exists copies to next name`` () =
+    let getFileCopyName = getCopyName File "file"
     let fs = FakeFileSystem [
         folder "folder" [
             file "another"
             file "file"
-            file (getCopyName "file" 0)
+            file (getFileCopyName 0)
         ]
     ]
     let src = fs.Item "/c/folder/file"
-    let dest = createPath ("/c/folder/" + getCopyName "file" 0)
-    let expectedDest = createPath ("/c/folder/" + getCopyName "file" 1)
+    let dest = createPath ("/c/folder/" + getFileCopyName 0)
+    let expectedDest = createPath ("/c/folder/" + getFileCopyName 1)
     let intent, putItem = createPutIntentAndItem src dest
     let action = PutItems (Copy, intent, [putItem], false)
     let model = testModel |> pushRedo action
@@ -1762,8 +1763,8 @@ let ``Redo copy item to same parent where copy already exists copies to next nam
         [
             "another"
             "file"
-            getCopyName "file" 0
-            getCopyName "file" 1
+            getFileCopyName 0
+            getFileCopyName 1
         ]
         |> List.map (fun name -> createFile ("/c/folder/" + name))
         |> sortByPath
@@ -1784,15 +1785,15 @@ let ``Redo copy item to same parent where copy already exists copies to next nam
         folder "folder" [
             file "another"
             file "file"
-            file (getCopyName "file" 0)
-            file (getCopyName "file" 1)
+            file (getFileCopyName 0)
+            file (getFileCopyName 1)
         ]
     ]
 
 [<Test>]
 let ``Redo copy folder to same parent that was cancelled resumes copy`` () =
-    let otherCopyName = ItemActionCommands.Put.getCopyName "fruit" 0
-    let copyName = ItemActionCommands.Put.getCopyName "fruit" 1
+    let otherCopyName = getCopyName Folder "fruit" 0
+    let copyName = getCopyName Folder "fruit" 1
     let fs = FakeFileSystem [
         folder "fruit" [
             folder "amazing" [
@@ -2001,7 +2002,7 @@ let ``Undo copy empty folder that has new items in it returns error`` () =
 [<TestCase(true, true, true)>]
 let ``Undo copy folder deletes items that were copied and removes dest folders if empty`` sameParent isLocationDest hasNewItem =
     let original = createFolder "/c/folder"
-    let copied = createFolder (if sameParent then "/c/" + getCopyName "folder" 0 else "/c/dest/folder")
+    let copied = createFolder (if sameParent then "/c/" + getCopyName Folder "folder" 0 else "/c/dest/folder")
     let copiedTree =
         folder copied.Name [
             folder "sub" [

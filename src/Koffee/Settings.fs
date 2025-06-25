@@ -38,34 +38,31 @@ let private binder (window: SettingsWindow) model =
     check (if model.Config.StartPath = RestorePrevious then window.StartPathPrevious else window.StartPathDefault)
     check (if model.Config.PathFormat = Windows then window.PathFormatWindows else window.PathFormatUnix)
 
-    let isChecked (ic: bool Nullable) = ic.HasValue && ic.Value
     let validatePath = Path.Parse >> Result.ofOption "Invalid path format."
 
-    [   Bind.view(<@ window.DefaultPath.Text @>)
-            .toModelResult(<@ model.DefaultPath @>, validatePath, string)
+    [
+        Bind.view(<@ window.DefaultPath.Text @>).toModelResult(<@ model.DefaultPath @>, validatePath, string)
         Bind.view(<@ window.TerminalPath.Text @>).toModel(<@ model.Config.TerminalPath @>)
         Bind.view(<@ window.TextEditor.Text @>).toModel(<@ model.Config.TextEditor @>)
 
-        Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>)
-            .toModel(<@ model.Config.Window.ShowFullPathInTitle @>, isChecked, Nullable)
-        Bind.view(<@ window.ShowHidden.IsChecked @>)
-            .toModel(<@ model.Config.ShowHidden @>, isChecked, Nullable)
-        Bind.view(<@ window.RefreshOnActivate.IsChecked @>)
-            .toModel(<@ model.Config.Window.RefreshOnActivate @>, isChecked, Nullable)
+        Bind.view(<@ window.ShowHidden.IsChecked @>).toModel(<@ model.Config.ShowHidden @>)
+        Bind.view(<@ window.ShowNextUndoRedo.IsChecked @>).toModel(<@ model.Config.ShowNextUndoRedo @>)
+        Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>).toModel(<@ model.Config.Window.ShowFullPathInTitle @>)
+        Bind.view(<@ window.RefreshOnActivate.IsChecked @>).toModel(<@ model.Config.Window.RefreshOnActivate @>)
 
         Bind.model(<@ model.KeyBindings @>).toItemsSource(window.KeyBindings, <@ fun kb -> kb.BoundKeys, kb.EventName @>)
     ]
 
 module Obs = Observable
 
-let private events (window: SettingsWindow) =
-    [ window.StartPathPrevious.Checked |> Obs.mapTo (StartPathChanged RestorePrevious)
-      window.StartPathDefault.Checked |> Obs.mapTo (StartPathChanged DefaultPath)
-      window.DefaultPath.LostFocus |> Obs.mapTo DefaultPathChanged
-      window.EditSearchExclusions.Click |> Obs.mapTo EditSearchExclusions
-      window.PathFormatWindows.Checked |> Obs.mapTo (PathFormatChanged Windows)
-      window.PathFormatUnix.Checked |> Obs.mapTo (PathFormatChanged Unix)
-    ]
+let private events (window: SettingsWindow) = [
+    window.StartPathPrevious.Checked |> Obs.mapTo (StartPathChanged RestorePrevious)
+    window.StartPathDefault.Checked |> Obs.mapTo (StartPathChanged DefaultPath)
+    window.DefaultPath.LostFocus |> Obs.mapTo DefaultPathChanged
+    window.EditSearchExclusions.Click |> Obs.mapTo EditSearchExclusions
+    window.PathFormatWindows.Checked |> Obs.mapTo (PathFormatChanged Windows)
+    window.PathFormatUnix.Checked |> Obs.mapTo (PathFormatChanged Unix)
+]
 
 let updateConfig f (model: Model) =
     { model with Config = f model.Config }

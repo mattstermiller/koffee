@@ -17,48 +17,47 @@
       <TextBox Name="PathBox" x:FieldModifier="public" Text="/c/path"/>
     </DockPanel>
     <!-- Status bar -->
-    <Grid DockPanel.Dock="Bottom">
-      <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Margin="6,2"
-                 TextWrapping="Wrap" VerticalAlignment="Center"/>
-      <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Margin="6,2"
-                 TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{StaticResource ErrorBrush}"/>
-    </Grid>
-    <Border DockPanel.Dock="Bottom" BorderThickness="0,2">
-      <DockPanel Name="StatusItemPanel">
+    <Border DockPanel.Dock="Bottom" BorderThickness="0,2,0,0">
+      <DockPanel>
         <Border DockPanel.Dock="Left" BorderThickness="0,0,2,0">
           <TextBlock Name="DirectoryStatus" x:FieldModifier="public" Text="10 items, 100 KB" VerticalAlignment="Center"
-                     Margin="6,2,6,2"/>
+                     Margin="6,2"/>
         </Border>
         <Border Name="SelectedStatusPanel" x:FieldModifier="public" DockPanel.Dock="Left" BorderThickness="0,0,2,0"
                 Style="{StaticResource HighlightBorder}">
           <TextBlock Name="SelectedStatus" x:FieldModifier="public" Text="2 selected, 20 KB" VerticalAlignment="Center"
-                     Margin="6,2,6,2" Style="{StaticResource HighlightTextBlock}"/>
+                     Margin="6,2" Style="{StaticResource HighlightTextBlock}"/>
         </Border>
-        <Grid DockPanel.Dock="Right">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Name="UndoActionColumn" x:FieldModifier="public" Width="*"
-                              MaxWidth="{Binding ElementName=UndoActionText, Path=ActualWidth}"/>
-            <ColumnDefinition Name="RedoActionColumn" x:FieldModifier="public" Width="*"
-                              MaxWidth="{Binding ElementName=RedoActionText, Path=ActualWidth}"/>
-            <ColumnDefinition Name="YankRegisterColumn" x:FieldModifier="public" Width="*"
-                              MaxWidth="{Binding ElementName=YankRegisterText, Path=ActualWidth}"/>
-          </Grid.ColumnDefinitions>
-          <Border Name="UndoActionPanel" x:FieldModifier="public" Grid.Column="0" BorderThickness="2,0,0,0">
-            <TextBlock Name="UndoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
-                       VerticalAlignment="Center" Text="Undo: Move item 'C:\projects\koffee\dist\koffee.zip'"/>
-          </Border>
-          <Border Name="RedoActionPanel" x:FieldModifier="public" Grid.Column="1" BorderThickness="2,0,0,0">
-            <TextBlock Name="RedoActionText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
-                       VerticalAlignment="Center" Text="Redo: Copy item 'C:\projects\koffee\README.md'"/>
-          </Border>
-          <Border Name="YankRegisterPanel" x:FieldModifier="public" Grid.Column="2" BorderThickness="2,0,0,0">
-            <TextBlock Name="YankRegisterText" x:FieldModifier="public" Height="20" Padding="6,0,8,0"
-                       VerticalAlignment="Center" Text="Copy: file name"/>
-          </Border>
-        </Grid>
-        <!-- empty element to take the slack space -->
-        <Border/>
+        <Border Name="YankRegisterPanel" x:FieldModifier="public" DockPanel.Dock="Right" BorderThickness="2,0,0,0"
+                Visibility="Collapsed">
+          <TextBlock Name="YankRegisterText" x:FieldModifier="public" Text="Copy: file name" Margin="6,2"
+                     VerticalAlignment="Center"/>
+        </Border>
+        <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Margin="6,2" VerticalAlignment="Center"/>
+        <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Margin="6,2" VerticalAlignment="Center"
+                   Foreground="{StaticResource ErrorBrush}"/>
       </DockPanel>
+    </Border>
+    <!-- Next Undo/Redo bar -->
+    <Border Name="NextUndoRedoPanel" x:FieldModifier="public" DockPanel.Dock="Bottom" BorderThickness="0,2,0,0">
+      <Grid DockPanel.Dock="Right">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Border Grid.Column="0" BorderThickness="0,0,2,0" Padding="0,2">
+          <DockPanel>
+            <TextBlock Text="⭮ Undo:" DockPanel.Dock="Left" Padding="6,0"/>
+            <TextBlock Name="UndoActionText" x:FieldModifier="public" Text="Move item 'C:\koffee.zip'"/>
+          </DockPanel>
+        </Border>
+        <Border Grid.Column="1" BorderThickness="0" Padding="0,2">
+          <DockPanel>
+            <TextBlock Text="🡪 Redo:" DockPanel.Dock="Left" Padding="6,0"/>
+            <TextBlock Name="RedoActionText" x:FieldModifier="public" Text="Copy item 'C:\README.md'"/>
+          </DockPanel>
+        </Border>
+      </Grid>
     </Border>
     <!-- Search panel -->
     <DockPanel Name="SearchPanel" x:FieldModifier="public" DockPanel.Dock="Bottom" Visibility="Collapsed"

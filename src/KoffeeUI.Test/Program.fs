@@ -115,8 +115,6 @@ let setupWindow (window: MainWindow) =
 
     show window.InputPanel
     show window.YankRegisterPanel
-    show window.UndoActionPanel
-    show window.RedoActionPanel
 
     window.ErrorText.Margin <-
         let margin = window.ErrorText.Margin

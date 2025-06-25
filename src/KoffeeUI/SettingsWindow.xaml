@@ -1,7 +1,7 @@
 <Window x:Class="KoffeeUI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Koffee Settings" Width="650" Height="760" FontSize="15">
+        Title="Koffee Settings" Width="650" Height="700" FontSize="15">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -23,16 +23,17 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
+    <!-- Left column -->
     <Label Name="LabelStartPath" x:FieldModifier="public" Content="Startup path:" Grid.Column="0" Grid.Row="0"/>
     <RadioButton Name="StartPathPrevious" x:FieldModifier="public" GroupName="Start Path"
                  Content="Restore previous path" VerticalAlignment="Center" Grid.Column="1" Grid.Row="0"/>
     <DockPanel Grid.Column="1" Grid.Row="1">
       <RadioButton Name="StartPathDefault" x:FieldModifier="public" GroupName="Start Path" Content="Default:"
                    VerticalAlignment="Center" DockPanel.Dock="Left"/>
-
       <TextBox Name="DefaultPath" x:FieldModifier="public" Margin="5,0,0,0" Height="24" VerticalAlignment="Center"
                Validation.ErrorTemplate="{StaticResource ValidationTemplate}"/>
     </DockPanel>
@@ -56,32 +57,34 @@
                    VerticalAlignment="Center" Margin="10,0,10,0"/>
     </StackPanel>
 
-
+    <!-- Right column -->
     <TextBlock Grid.Column="3" Grid.Row="0">
       <Hyperlink Name="ReadmeLink" NavigateUri="https://github.com/mattstermiller/koffee#using-koffee">
         How To Use Koffee
       </Hyperlink>
     </TextBlock>
 
-    <CheckBox Name="ShowFullPathInTitleBar" x:FieldModifier="public" Content="Show full path in title bar"
-              VerticalAlignment="Center" Grid.Column="3" Grid.Row="1"/>
     <CheckBox Name="ShowHidden" x:FieldModifier="public" Content="Show hidden files and folders"
+              VerticalAlignment="Center" Grid.Column="3" Grid.Row="1"/>
+    <CheckBox Name="ShowNextUndoRedo" x:FieldModifier="public" Content="Show next Undo/Redo action"
               VerticalAlignment="Center" Grid.Column="3" Grid.Row="2"/>
-    <CheckBox Name="RefreshOnActivate" x:FieldModifier="public" Content="Refresh window on focus"
+    <CheckBox Name="ShowFullPathInTitleBar" x:FieldModifier="public" Content="Show full path in title bar"
               VerticalAlignment="Center" Grid.Column="3" Grid.Row="3"/>
+    <CheckBox Name="RefreshOnActivate" x:FieldModifier="public" Content="Refresh window on focus"
+              VerticalAlignment="Center" Grid.Column="3" Grid.Row="4"/>
 
     <Button Name="EditSearchExclusions" x:FieldModifier="public" Content="Recursive Search Exclusions..."
-            Grid.Column="3" Grid.Row="4"/>
+            Grid.Column="3" Grid.Row="5"/>
 
-
-    <Grid Grid.Row="5" Grid.ColumnSpan="4">
+    <!-- Key bindings -->
+    <Grid Grid.Row="6" Grid.ColumnSpan="4">
       <Label Content="Key bindings:"/>
       <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
     </Grid>
 
     <DataGrid Name="KeyBindings" x:FieldModifier="public" IsReadOnly="True" AreRowDetailsFrozen="True"
               AutoGenerateColumns="False" CanUserResizeRows="False" GridLinesVisibility="None" RowHeaderWidth="0"
-              ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="6" Grid.ColumnSpan="4">
+              ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
       <DataGrid.Resources>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource Text}"/>

@@ -213,8 +213,6 @@ module MainView =
             )
 
             // display yank register
-            let getToggledStarGridLength toggle =
-                if toggle then GridLength(1, GridUnitType.Star) else GridLength(0)
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
                     register |> Option.bind (fun (putType, itemRefs) ->
@@ -225,22 +223,20 @@ module MainView =
                         | [] -> None
                     )
                 window.YankRegisterText.Text <- text |? ""
-                window.YankRegisterColumn.Width <- getToggledStarGridLength text.IsSome
+                window.YankRegisterPanel.IsCollapsed <- text.IsNone
             )
 
             // display next undo and redo actions
-            let getUndoRedoDisplay prefix (actionStack: ItemAction list, pathFormat) =
+            let getUndoRedoDisplay (actionStack: ItemAction list, pathFormat) =
                 actionStack
                 |> List.tryHead
-                |> Option.map (fun action -> prefix + action.ShortDescription pathFormat)
-            Bind.modelMulti(<@ model.UndoStack, model.PathFormat @>).toFunc(getUndoRedoDisplay "⭮ Undo: " >> fun text ->
-                window.UndoActionText.Text <- text |? ""
-                window.UndoActionColumn.Width <- getToggledStarGridLength text.IsSome
-            )
-            Bind.modelMulti(<@ model.RedoStack, model.PathFormat @>).toFunc(getUndoRedoDisplay "🡪 Redo: " >> fun text ->
-                window.RedoActionText.Text <- text |? ""
-                window.RedoActionColumn.Width <- getToggledStarGridLength text.IsSome
-            )
+                |> Option.map (fun action -> action.ShortDescription pathFormat)
+                |? "<None>"
+            Bind.modelMulti(<@ model.UndoStack, model.PathFormat @>)
+                .toFunc(getUndoRedoDisplay >> window.UndoActionText.set_Text)
+            Bind.modelMulti(<@ model.RedoStack, model.PathFormat @>)
+                .toFunc(getUndoRedoDisplay >> window.RedoActionText.set_Text)
+            Bind.model(<@ model.Config.ShowNextUndoRedo @>).toFunc(not >> window.NextUndoRedoPanel.set_IsCollapsed)
 
             // update UI for status
             Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand, model.PathFormat @>)
@@ -280,10 +276,11 @@ module MainView =
             )
             // update UI for input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
-            Bind.model(<@ model.InputTextSelectionStartAndLength @>).toFunc(SetValue.get >> (fun (start, len) -> window.InputBox.Select(start, len)))
-            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>, ((=) (Nullable true)), Nullable)
-            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>, ((=) (Nullable true)), Nullable)
-            Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>, ((=) (Nullable true)), Nullable)
+            Bind.model(<@ model.InputTextSelectionStartAndLength @>)
+                .toFunc(SetValue.get >> (fun (start, len) -> window.InputBox.Select(start, len)))
+            Bind.view(<@ window.SearchCaseSensitive.IsChecked @>).toModel(<@ model.SearchInput.CaseSensitive @>)
+            Bind.view(<@ window.SearchRegex.IsChecked @>).toModel(<@ model.SearchInput.Regex @>)
+            Bind.view(<@ window.SearchSubFolders.IsChecked @>).toModel(<@ model.SearchInput.SubFolders @>)
             Bind.modelMulti(<@ model.InputMode, model.PathFormat @>).toFunc(fun (inputMode, pathFormat) ->
                     match inputMode with
                     | Some inputMode ->

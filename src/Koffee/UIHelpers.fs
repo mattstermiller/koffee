@@ -1,6 +1,7 @@
 module UIHelpers
 
 open System
+open System.Runtime.CompilerServices
 open System.Windows
 open System.Windows.Controls
 open System.Windows.Controls.Primitives
@@ -8,6 +9,8 @@ open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Media
 open System.Reactive.Linq
+open VinylUI
+open VinylUI.Wpf
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
 
@@ -108,6 +111,12 @@ type DataGridScroller(grid: DataGrid) =
         if scrollViewer.IsNone then
             scrollViewer <- grid.FindVisualChild<ScrollViewer>()
         scrollViewer |> Option.iter (fun sv -> sv.ScrollToVerticalOffset (float topIndex))
+
+[<Extension>]
+type BindViewPartExtensions() =
+    [<Extension>]
+    static member toModel(viewPart: BindViewPart<Control, bool Nullable>, modelProperty: Expr<bool>) =
+        viewPart.toModel(modelProperty, ((=) (Nullable true)), Nullable)
 
 let onKey key action (evt: KeyEventArgs) =
     if evt.Key = key then

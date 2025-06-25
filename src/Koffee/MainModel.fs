@@ -885,6 +885,7 @@ type Config = {
     DefaultPath: Path
     PathFormat: PathFormat
     ShowHidden: bool
+    ShowNextUndoRedo: bool
     TextEditor: string
     TerminalPath: string
     SearchExclusions: string list
@@ -927,6 +928,7 @@ with
         DefaultPath = Path.Root
         PathFormat = Windows
         ShowHidden = false
+        ShowNextUndoRedo = true
         TextEditor = "notepad.exe"
         TerminalPath = "cmd.exe"
         SearchExclusions = [

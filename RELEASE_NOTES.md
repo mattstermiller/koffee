@@ -2,6 +2,7 @@
 
 ### 0.8.0  (WIP)
 - #151 Moves next undo/redo actions to separate bar, adds setting to toggle showing it
+- Adds mouse tooltips to status, yank register, next undo/redo action
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length
 

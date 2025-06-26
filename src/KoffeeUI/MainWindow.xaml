@@ -31,11 +31,29 @@
         <Border Name="YankRegisterPanel" x:FieldModifier="public" DockPanel.Dock="Right" BorderThickness="2,0,0,0"
                 Visibility="Collapsed">
           <TextBlock Name="YankRegisterText" x:FieldModifier="public" Text="Copy: file name" Margin="6,2"
-                     VerticalAlignment="Center"/>
+                     VerticalAlignment="Center">
+            <TextBlock.ToolTip>
+              <ToolTip DataContext="{Binding Path=PlacementTarget, RelativeSource={x:Static RelativeSource.Self}}">
+                <TextBlock Text="{Binding Text}"/>
+              </ToolTip>
+            </TextBlock.ToolTip>
+          </TextBlock>
         </Border>
-        <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Margin="6,2" VerticalAlignment="Center"/>
+        <TextBlock Name="StatusText" x:FieldModifier="public" Text="status" Margin="6,2" VerticalAlignment="Center">
+          <TextBlock.ToolTip>
+            <ToolTip DataContext="{Binding Path=PlacementTarget, RelativeSource={x:Static RelativeSource.Self}}">
+              <TextBlock Text="{Binding Text}"/>
+            </ToolTip>
+          </TextBlock.ToolTip>
+        </TextBlock>
         <TextBlock Name="ErrorText" x:FieldModifier="public" Text="error" Margin="6,2" VerticalAlignment="Center"
-                   Foreground="{StaticResource ErrorBrush}"/>
+                   Foreground="{StaticResource ErrorBrush}">
+          <TextBlock.ToolTip>
+            <ToolTip DataContext="{Binding Path=PlacementTarget, RelativeSource={x:Static RelativeSource.Self}}">
+              <TextBlock Text="{Binding Text}"/>
+            </ToolTip>
+          </TextBlock.ToolTip>
+        </TextBlock>
       </DockPanel>
     </Border>
     <!-- Next Undo/Redo bar -->
@@ -45,16 +63,28 @@
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="*" Name="RedoActionColumn" x:FieldModifier="public"/>
         </Grid.ColumnDefinitions>
-        <Border Grid.Column="0" BorderThickness="0,0,2,0" Padding="0,2">
+        <Border Grid.Column="0" BorderThickness="0" Padding="0,2">
           <DockPanel>
             <TextBlock Text="⭮ Undo:" DockPanel.Dock="Left" Padding="6,0"/>
-            <TextBlock Name="UndoActionText" x:FieldModifier="public" Text="Move item 'C:\koffee.zip'"/>
+            <TextBlock Name="UndoActionText" x:FieldModifier="public" Text="Move item 'C:\koffee.zip'">
+              <TextBlock.ToolTip>
+                <ToolTip DataContext="{Binding Path=PlacementTarget, RelativeSource={x:Static RelativeSource.Self}}">
+                  <TextBlock Text="{Binding Text}"/>
+                </ToolTip>
+              </TextBlock.ToolTip>
+            </TextBlock>
           </DockPanel>
         </Border>
-        <Border Grid.Column="1" BorderThickness="0" Padding="0,2">
+        <Border Grid.Column="1" BorderThickness="2,0,0,0" Padding="0,2">
           <DockPanel>
             <TextBlock Text="🡪 Redo:" DockPanel.Dock="Left" Padding="6,0"/>
-            <TextBlock Name="RedoActionText" x:FieldModifier="public" Text="Copy item 'C:\README.md'"/>
+            <TextBlock Name="RedoActionText" x:FieldModifier="public" Text="Copy item 'C:\README.md'">
+              <TextBlock.ToolTip>
+                <ToolTip DataContext="{Binding Path=PlacementTarget, RelativeSource={x:Static RelativeSource.Self}}">
+                  <TextBlock Text="{Binding Text}"/>
+                </ToolTip>
+              </TextBlock.ToolTip>
+            </TextBlock>
           </DockPanel>
         </Border>
       </Grid>

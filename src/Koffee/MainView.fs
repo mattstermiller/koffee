@@ -45,15 +45,19 @@ module MainView =
             |> Option.toString
         sprintf "%i %s%s" items.Length name sizeStr
 
-    /// trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
+    /// Trim lists to the given stack size, but if a stack is smaller, allow other stack to grow up to stackSize*2
     let trimStacks stackSize prev next =
         let gap l = max 0 (stackSize - List.length l)
         let prev = prev |> List.truncate (stackSize + gap next)
         let next = next |> List.truncate (stackSize + gap prev)
         (prev, next)
 
+    /// Get a grid length that is either 1 star or zero according to the boolean toggle
+    let getToggledStarGridLength toggle =
+        if toggle then GridLength(1, GridUnitType.Star) else GridLength(0)
+
     let binder (config: ConfigFile) (history: HistoryFile) (progress: IObservable<_>) (window: MainWindow) model =
-        // path suggestions
+        // Path suggestions
         window.PathBox.PreviewKeyDown.Add (fun e ->
             let paths = window.PathSuggestions
             let items = paths.Items.Count
@@ -74,13 +78,13 @@ module MainView =
         )
         window.PathBox.LostFocus.Add (fun _ -> window.PathSuggestions.IsHidden <- true)
 
-        // scroll path to show the end when it overflows
+        // Scroll path to show the end when it overflows
         window.PathBox.TextChanged.Add (fun _ ->
             if not window.PathBox.IsFocused then
                 window.PathBox.ScrollToHorizontalOffset(window.PathBox.ActualWidth)
         )
 
-        // setup grid
+        // Set up grid
         let mutable relativePathFormat = string
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Type @>, "", conversion = (fun t -> t.Symbol))
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Name @>, widthWeight = 1.0)
@@ -102,20 +106,20 @@ module MainView =
                 | None -> string
             window.ItemGrid.Columns.[2].IsCollapsed <- relInfo.IsNone
 
-        // bind Tab key to switch focus
+        // Bind Tab key to switch focus
         window.ItemGrid.PreviewKeyDown.Add (onKey Key.Tab (fun () ->
             window.PathBox.SelectAll()
             window.PathBox.Focus()
         ))
 
-        // on selection change, keep selected item in view
+        // On selection change, keep selected item in view
         let keepSelectedInView _ =
             if window.ItemGrid.SelectedItem <> null then
                 window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
         window.ItemGrid.SelectedCellsChanged.Add keepSelectedInView
         window.ItemGrid.SizeChanged.Add keepSelectedInView
 
-        // keep grid in focus when user clicks a cell to prevent focus issue
+        // Keep grid in focus when user clicks a cell to prevent focus issue
         window.ItemGrid.SelectionChanged.Add (fun e ->
             if FocusManager.GetFocusedElement(window) :? DataGridCell then
                 window.ItemGrid.Focus() |> ignore
@@ -154,7 +158,7 @@ module MainView =
         let version = typeof<MainModel>.Assembly.GetName().Version
         let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
 
-        // history save buffering
+        // History save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
         (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
         window.Closed.Add (fun _ ->
@@ -162,7 +166,7 @@ module MainView =
             historyBuffer.Dispose()
         )
 
-        // bindings
+        // UI Bindings
         [
             Bind.view(<@ window.PathBox.Text @>).toModel(<@ model.LocationInput @>, OnChange)
             Bind.modelMulti(<@ model.PathSuggestions, model.PathFormat @>).toFunc(fun (paths, pathFormat) ->
@@ -183,7 +187,7 @@ module MainView =
                 if not <| obj.ReferenceEquals(window.ItemGrid.ItemsSource, items) then
                     window.ItemGrid.ItemsSource <- items
                 window.ItemGrid.SelectedIndex <- cursor
-                // sort indication
+                // Sort indication
                 let sortIndex, sortDir =
                     match sort with
                     | Some (field, desc) ->
@@ -207,12 +211,12 @@ module MainView =
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
 
-            // display path
+            // Location path
             Bind.model(<@ model.TitleLocation @>).toFunc(fun titleLoc ->
                 window.Title <- sprintf "%s  |  Koffee v%s" titleLoc versionStr
             )
 
-            // display yank register
+            // Yank register
             Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
                 let text =
                     register |> Option.bind (fun (putType, itemRefs) ->
@@ -226,19 +230,21 @@ module MainView =
                 window.YankRegisterPanel.IsCollapsed <- text.IsNone
             )
 
-            // display next undo and redo actions
+            // Next undo and redo actions
             let getUndoRedoDisplay (actionStack: ItemAction list, pathFormat) =
                 actionStack
                 |> List.tryHead
                 |> Option.map (fun action -> action.ShortDescription pathFormat)
-                |? "<None>"
             Bind.modelMulti(<@ model.UndoStack, model.PathFormat @>)
-                .toFunc(getUndoRedoDisplay >> window.UndoActionText.set_Text)
+                .toFunc(getUndoRedoDisplay >> Option.defaultValue "<None>" >> window.UndoActionText.set_Text)
             Bind.modelMulti(<@ model.RedoStack, model.PathFormat @>)
-                .toFunc(getUndoRedoDisplay >> window.RedoActionText.set_Text)
+                .toFunc(getUndoRedoDisplay >> fun redoText ->
+                    window.RedoActionText.Text <- redoText |? ""
+                    window.RedoActionColumn.Width <- getToggledStarGridLength redoText.IsSome
+                )
             Bind.model(<@ model.Config.ShowNextUndoRedo @>).toFunc(not >> window.NextUndoRedoPanel.set_IsCollapsed)
 
-            // update UI for status
+            // Status
             Bind.modelMulti(<@ model.Status, model.KeyCombo, model.RepeatCommand, model.PathFormat @>)
                 .toFunc(fun (status, keyCombo, repeatCommand, pathFormat) ->
                 let statusText, errorText =
@@ -274,7 +280,8 @@ module MainView =
                 if wasBusy && not isBusy then
                     window.ItemGrid.Focus() |> ignore
             )
-            // update UI for input mode
+
+            // Input mode
             Bind.view(<@ window.InputBox.Text @>).toModel(<@ model.InputText @>, OnChange)
             Bind.model(<@ model.InputTextSelectionStartAndLength @>)
                 .toFunc(SetValue.get >> (fun (start, len) -> window.InputBox.Select(start, len)))
@@ -316,6 +323,8 @@ module MainView =
             )
             Bind.modelMulti(<@ model.IsSearchingSubFolders, model.Location, model.PathFormat @>)
                 .toFunc(fun (sub, loc, fmt) -> setRelativePath (if sub then Some (loc, fmt) else None))
+
+            // History display
             Bind.modelMulti(<@ model.HistoryDisplay, model.InputMode, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
                                model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches, model.PathFormat @>)

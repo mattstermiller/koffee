@@ -43,7 +43,7 @@
       <Grid DockPanel.Dock="Right">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="*" Name="RedoActionColumn" x:FieldModifier="public"/>
         </Grid.ColumnDefinitions>
         <Border Grid.Column="0" BorderThickness="0,0,2,0" Padding="0,2">
           <DockPanel>

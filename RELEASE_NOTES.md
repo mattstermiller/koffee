@@ -1,8 +1,9 @@
 # Release Notes
 
-### 0.8.0  (WIP)
+### 0.8.0  Configure Key Bindings and External Tools (WIP)
 - #151 Moves next undo/redo actions to separate bar, adds setting to toggle showing it
 - Adds mouse tooltips to status, yank register, next undo/redo action
+- Changes recycle/delete to not push useless undo actions
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length
 

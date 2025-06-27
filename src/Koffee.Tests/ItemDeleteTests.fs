@@ -79,7 +79,6 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
         { model with
             Directory = expectedItems
             Items = expectedItems
-            UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
             CancelToken = CancelToken()
         }
@@ -148,7 +147,6 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
             ]
             Items = [createFile "/c/file4"]
             SelectedItems = []
-            UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
             CancelToken = CancelToken()
         }
@@ -205,7 +203,6 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
         { model with
             Directory = expectedItems
             Items = expectedItems
-            UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
             CancelToken = CancelToken()
         }
@@ -221,8 +218,7 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Recycle or Redo recycle multiple items recycles until canceled, then Recycle or Redo again resumes and merges undo item``
-        isRedo =
+let ``Recycle or Redo recycle multiple items recycles until canceled, then Recycle or Redo again resumes`` isRedo =
     let fs = FakeFileSystem [
         driveWithSize 'c' 100L [
             folder "folder" [
@@ -258,14 +254,12 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
 
     (
         let expectedItems = expectedCancelledItems @ [otherItem]
-        let expectedUndoAction = DeletedItems (false, items |> List.take 2, true)
         let expectedRedoAction = DeletedItems (false, expectedCancelledItems, true)
         let expected =
             { model with
                 Directory = expectedItems
                 Items = expectedItems
                 SelectedItems = expectedCancelledItems
-                UndoStack = expectedUndoAction :: testModel.UndoStack
                 RedoStack = expectedRedoAction :: if isRedo then testModel.RedoStack else []
             }
             |> MainModel.withMessage (MainStatus.CancelledDelete (false, 2, items.Length))
@@ -282,7 +276,7 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
         ]
     )
 
-    // part two: delete or redo again completes the operation and merges undo item
+    // part two: delete or redo again completes the operation
     let actual = modelAfterCancel |> seqResult testFunc
 
     let expectedItems = [otherItem]
@@ -292,7 +286,6 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
             Directory = expectedItems
             Items = expectedItems
             SelectedItems = []
-            UndoStack = action :: testModel.UndoStack
             RedoStack = if isRedo then testModel.RedoStack else []
             CancelToken = CancelToken()
         }
@@ -315,7 +308,7 @@ let ``Recycle or Redo recycle multiple items recycles until canceled, then Recyc
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Delete or Redo delete folder deletes items until canceled, then Delete or Redo again resumes and merges undo item``
+let ``Delete or Redo delete folder deletes items until canceled, then Delete or Redo again resumes``
         isRedo =
     let fs = FakeFileSystem [
         folder "folder" [
@@ -345,7 +338,6 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
         let cancelledAction = DeletedItems (true, [item], true)
         let expected =
             { model with
-                // no undo item because only items within the folder were deleted
                 RedoStack = cancelledAction :: if isRedo then testModel.RedoStack else []
             }
             |> MainModel.withMessage (MainStatus.CancelledDelete (true, 2, 5))
@@ -360,7 +352,7 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
         fs.RecycleBin |> shouldEqual []
     )
 
-    // part two: delete or redo again completes the operation and merges undo item
+    // part two: delete or redo again completes the operation
     let actual = modelAfterCancel |> seqResult testFunc
 
     let expectedItems = [
@@ -370,7 +362,6 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
         { model with
             Directory = expectedItems
             Items = expectedItems
-            UndoStack = action :: testModel.UndoStack
             RedoStack = if isRedo then testModel.RedoStack else []
             CancelToken = CancelToken()
         }
@@ -408,9 +399,7 @@ let ``Recycle or Delete folder does nothing when canceled immediately`` permanen
     let actual = seqResultWithCancelTokenCallback (fun ct -> ct.Cancel()) (testFunc fs progress [item]) model
 
     let expectedTotal = if permanent then 0 else 1
-    let expected =
-        model
-        |> MainModel.withMessage (MainStatus.CancelledDelete (permanent, 0, expectedTotal))
+    let expected = model |> MainModel.withMessage (MainStatus.CancelledDelete (permanent, 0, expectedTotal))
     assertAreEqual expected actual
     fs.ItemsShouldEqualList expectedFs
 
@@ -503,10 +492,7 @@ let ``Delete folder handles individual error and deletes other items and returns
         createPath "/c/folder", FakeFileSystemErrors.cannotDeleteNonEmptyFolder
     ]
     let expected =
-        { model with
-            // no undo item because only items within the folder were deleted
-            RedoStack = []
-        }
+        { model with RedoStack = [] }
         |> MainModel.withError (MainStatus.DeleteError (true, expectedErrorItems, 5))
         |> withNewCancelToken
     assertAreEqual expected actual
@@ -546,7 +532,8 @@ let ``Recycle or Delete item handles error by returning error`` permanent =
 
 [<TestCase(false)>]
 [<TestCase(true)>]
-let ``Recycle or Delete multiple items handles individual error and recycles or deletes other items and returns error`` permanent =
+let ``Recycle or Delete multiple items handles individual error and recycles or deletes other items and returns error``
+        permanent =
     let fs = FakeFileSystem [
         driveWithSize 'c' 100L [
             folder "folder" [
@@ -586,10 +573,9 @@ let ``Recycle or Delete multiple items handles individual error and recycles or 
             Items = expectedItems
             SelectedItems = [errorItem]
             Cursor = 0
+            RedoStack = []
             CancelToken = CancelToken()
         }
-        |> pushUndo (DeletedItems (permanent, expectedDeletedItems, false))
-        |> popRedo
         |> MainModel.withError expectedError
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

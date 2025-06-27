@@ -67,11 +67,6 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
     let actualDeletedPaths = actualDeleted |> Seq.map (fun i -> i.Path) |> Set
     let itemsDeleted = items |> List.filter (fun i -> actualDeletedPaths |> Set.contains i.Path)
 
-    let undoAction =
-        if not itemsDeleted.IsEmpty then
-            Some (DeletedItems (permanent, itemsDeleted, model.CancelToken.IsCancelled))
-        else
-            None
     let resumeAction =
         if model.CancelToken.IsCancelled && deletedCount > 0
         then Some (DeletedItems (permanent, items |> List.except itemsDeleted, true))
@@ -87,11 +82,8 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
     progress.Finish ()
     yield
         model
-        |> applyIf (deletedCount > 0) (
-            removeItems itemsDeleted
-            >> Option.foldBack MainModel.pushUndo undoAction
-            >> MainModel.withRedoStack (resumeAction |> Option.toList)
-        )
+        |> removeItems itemsDeleted
+        |> applyIf (deletedCount > 0) (MainModel.withRedoStack (resumeAction |> Option.toList))
         |> MainModel.withStatus status
 }
 

@@ -268,6 +268,7 @@ module MainView =
                         | Some (MainStatus.Error error) -> ("", error.Message pathFormat)
                         | None -> ("", "")
                 window.StatusText.Text <- statusText
+                window.StatusText.IsCollapsed <- statusText |> String.isEmpty
                 window.ErrorText.Text <- errorText
                 let isBusy =
                     match status with

@@ -9,27 +9,29 @@ type KeyBindMatch<'a> =
     | PartialMatch
     | NoMatch
 
-let getMatch (bindings: KeyBinding list) (keyCombo: KeyCombo) =
+let getMatch (bindings: KeyBinding<_> seq) (keyCombo: KeyCombo) =
     // choose bindings where the next key/chord matches, selecting the remaining chords
-    let rec startsWith l sw =
-        match l, sw with
-        | x :: l, y :: sw when x = y -> startsWith l sw
-        | l, [] -> Some l
+    let rec startsWith prefix lst =
+        match prefix, lst with
+        | p :: restP, l :: restL when p = l -> startsWith restP restL
+        | [], rest -> Some rest
         | _ -> None
     let matches =
-        bindings |> List.choose (fun binding ->
-            startsWith binding.KeyCombo keyCombo |> Option.map (fun rest -> (rest, binding.Command))
+        bindings
+        |> Seq.choose (fun binding ->
+            startsWith keyCombo binding.KeyCombo |> Option.map (fun rest -> (rest, binding.Command))
         )
-    match matches with
-    | [] -> NoMatch
-    | _ ->
-        // find last binding that had all chords matched
-        let triggered = matches |> List.tryFindBack (fst >> (=) [])
+        |> Seq.toList
+    if matches |> List.isEmpty then
+        NoMatch
+    else
+        // find binding that had all chords matched
+        let triggered = matches |> List.tryFind (fst >> (=) [])
         match triggered with
         | Some (_, item) -> Match item
         | None -> PartialMatch
 
-let getChordMatch (bindings: KeyBinding list) (keyChord: ModifierKeys * Key) =
+let getChordMatch (bindings: KeyBinding<_> list) (keyChord: ModifierKeys * Key) =
     bindings |> List.tryPick (fun binding ->
         if binding.KeyCombo = [keyChord]
         then Some binding.Command
@@ -43,6 +45,12 @@ let private modifierStrings = [
     ModifierKeys.Windows, "m"
 ]
 
+let (|DigitKey|_|) (key: Key) =
+    if key >= Key.D0 && key <= Key.D9 then
+        Some (int key - int Key.D0)
+    else
+        None
+
 let chordDescription (modifiers: ModifierKeys, key: Key) =
     let isLetter = key >= Key.A && key <= Key.Z
     let modIsOnlyShift = modifiers = ModifierKeys.Shift
@@ -50,7 +58,7 @@ let chordDescription (modifiers: ModifierKeys, key: Key) =
         match key, modIsOnlyShift with
         | key, false when isLetter -> (string key).ToLower()
         | key, true when isLetter -> string key
-        | key, false when key >= Key.D0 && key <= Key.D9 -> (string key).Substring(1)
+        | DigitKey digit, false -> string digit
         | Key.D1, true -> "!"
         | Key.D2, true -> "@"
         | Key.D3, true -> "#"
@@ -85,6 +93,7 @@ let chordDescription (modifiers: ModifierKeys, key: Key) =
         | Key.OemQuestion, true -> "?"
         | Key.Return, _ -> "Enter"
         | Key.Back, _ -> "Backspace"
+        | Key.Next, _ -> "PageDown"
         | _ -> string key
     let mods =
         if modIsOnlyShift && keyStr.Length = 1 then
@@ -93,17 +102,19 @@ let chordDescription (modifiers: ModifierKeys, key: Key) =
             modifierStrings |> List.choose (fun (modifier, str) ->
                 if modifiers.HasFlag modifier then Some str else None
             )
-    if mods.IsEmpty then
-        keyStr
-    else
+    if not mods.IsEmpty then
         sprintf "<%s-%s>" (mods |> String.concat "") keyStr
+    else if keyStr.Length > 1 then
+        sprintf "<%s>" keyStr
+    else
+        keyStr
 
 let keyComboDescription keyCombo =
     keyCombo
     |> List.map chordDescription
     |> String.concat ""
 
-let getKeyCombos (bindings: KeyBinding list) command =
+let getKeyCombos (bindings: KeyBinding<_> list) command =
     bindings |> List.choose (fun binding ->
         if binding.Command = command
         then Some binding.KeyCombo

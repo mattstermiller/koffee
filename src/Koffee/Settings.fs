@@ -1,6 +1,7 @@
 module Koffee.Settings
 
 open System
+open System.Windows
 open System.Windows.Input
 open System.Windows.Controls.Primitives
 open VinylUI
@@ -15,25 +16,46 @@ type Model = {
     DefaultPath: Result<Path, string>
     CommandBindings: CommandBinding list
     KeyBindingIndex: int
+    BindingsKeysPressed: KeyCombo
+    PageSize: int
 }
+with
+    static member create config commandBindings = {
+        Config = config
+        DefaultPath = Ok config.DefaultPath
+        CommandBindings = commandBindings
+        KeyBindingIndex = 0
+        BindingsKeysPressed = []
+        PageSize = 16
+    }
 
 type Events =
     | StartPathChanged of StartPath
     | DefaultPathChanged
     | PathFormatChanged of PathFormat
     | EditSearchExclusions
-    | EditKeyBinding of isSecondary: bool
-
-let describeKeyCombo (combo: KeyCombo option) =
-    combo |> Option.map KeyBindingLogic.keyComboDescription |? ""
+    | BindingsKeyPress of (ModifierKeys * Key) * KeyPressHandler
+    | EditKeyBindings
+    | ResetKeyBindings
+    | PageSizeChanged of int
 
 let private binder (window: SettingsWindow) model =
-    window.KeyBindings.AddColumn(<@ fun k -> k.Command @>, "Command", conversion = (fun cmd -> cmd.Name), widthWeight = 3.0)
-    window.KeyBindings.AddColumn(<@ fun k -> k.KeyCombo1 @>, "Key Combo 1", conversion = describeKeyCombo)
-    window.KeyBindings.AddColumn(<@ fun k -> k.KeyCombo2 @>, "Key Combo 2", conversion = describeKeyCombo)
-
     window.PreviewKeyDown.Add (onKey Key.Escape window.Close)
     window.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W window.Close)
+
+    window.KeyBindings.AddColumn(<@ fun cb -> cb.Command @>, "Command", conversion = (fun cmd -> cmd.Name), widthWeight = 3.0)
+    window.KeyBindings.AddColumn(<@ fun cb -> cb.KeyCombo1 @>, "Key Combo 1", conversion = KeyBindingLogic.keyComboDescription)
+    window.KeyBindings.AddColumn(<@ fun cb -> cb.KeyCombo2 @>, "Key Combo 2", conversion = KeyBindingLogic.keyComboDescription)
+
+    // fix tabbing into and out of grid to not focus cells
+    let prevElement = window.EditSearchExclusions
+    let nextElement = window.ResetKeyBindings
+    prevElement.PreviewKeyDown.Add (onKey Key.Tab window.KeyBindings.Focus)
+    window.KeyBindings.PreviewKeyDown.Add (onKey Key.Tab nextElement.Focus)
+    nextElement.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Shift Key.Tab window.KeyBindings.Focus)
+    window.KeyBindings.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Shift Key.Tab prevElement.Focus)
+
+    window.KeyBindings.KeepSelectedItemInView()
 
     let check (ctl: ToggleButton) =
         ctl.IsChecked <- Nullable true
@@ -52,8 +74,14 @@ let private binder (window: SettingsWindow) model =
         Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>).toModel(<@ model.Config.Window.ShowFullPathInTitle @>)
         Bind.view(<@ window.RefreshOnActivate.IsChecked @>).toModel(<@ model.Config.Window.RefreshOnActivate @>)
 
-        Bind.model(<@ model.CommandBindings @>).toItemsSourceDirect(window.KeyBindings)
-        Bind.view(<@ window.KeyBindings.SelectedIndex @>).toModel(<@ model.KeyBindingIndex @>)
+        Bind.modelMulti(<@ model.CommandBindings, model.KeyBindingIndex @>).toFunc(fun (bindings, index) ->
+            if not (obj.ReferenceEquals(window.KeyBindings.ItemsSource, bindings)) then
+                if window.KeyBindings.ItemsSource <> null then
+                    window.KeyBindings.Focus() |> ignore // focus grid when updating but not on initial load
+                window.KeyBindings.ItemsSource <- bindings
+            window.KeyBindings.SelectedIndex <- index
+        )
+        Bind.view(<@ window.KeyBindings.SelectedIndex @>).toModelOneWay(<@ model.KeyBindingIndex @>)
     ]
 
 module Obs = Observable
@@ -65,19 +93,27 @@ let private events (window: SettingsWindow) = [
     window.EditSearchExclusions.Click |> Obs.mapTo EditSearchExclusions
     window.PathFormatWindows.Checked |> Obs.mapTo (PathFormatChanged Windows)
     window.PathFormatUnix.Checked |> Obs.mapTo (PathFormatChanged Unix)
-    window.EditKeyBinding1.Click |> Obs.mapTo (EditKeyBinding false)
-    window.EditKeyBinding2.Click |> Obs.mapTo (EditKeyBinding true)
+
+    window.KeyBindings.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.map (fun evt ->
+        BindingsKeyPress (evt.Chord, evt.Handler)
+    )
+    window.KeyBindings.MouseDoubleClick |> Obs.mapTo EditKeyBindings
+    window.KeyBindings.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
+        window.KeyBindings.VisibleRowCount |> Option.map PageSizeChanged
+    )
+    window.EditKeyBindings.Click |> Obs.mapTo EditKeyBindings
+    window.ResetKeyBindings.Click |> Obs.mapTo ResetKeyBindings
 ]
 
-let updateConfig f (model: Model) =
+let private updateConfig f (model: Model) =
     { model with Config = f model.Config }
 
-let defaultPathChanged (model: Model) =
+let private defaultPathChanged (model: Model) =
     match model.DefaultPath with
     | Ok path -> model |> updateConfig (fun c -> { c with DefaultPath = path })
     | Error _ -> model
 
-let editSearchExclusions (textEdit: TextEdit.Dialog) (model: Model) =
+let private editSearchExclusions (textEdit: TextEdit.Dialog) (model: Model) =
     let searchExclusions =
         textEdit.Open
             "Recursive Search Exclusions"
@@ -87,25 +123,15 @@ let editSearchExclusions (textEdit: TextEdit.Dialog) (model: Model) =
         |> String.split '\n' |> Array.toList |> List.map String.trim
     model |> updateConfig (fun c -> { c with SearchExclusions = searchExclusions })
 
-let editKeyBinding (keyBinder: KeyBinder.Dialog) isSecondaryBinding (model: Model) =
+let private editKeyBinding (keyBinder: KeyBinder.Dialog) (model: Model) =
     let bindingToEdit = model.CommandBindings |> List.item model.KeyBindingIndex
-    let currentKeyCombo =
-        if isSecondaryBinding
-        then bindingToEdit.KeyCombo2
-        else bindingToEdit.KeyCombo1
-    match keyBinder.Open bindingToEdit.Command currentKeyCombo model.CommandBindings with
-    | Some keyCombo ->
-        let keyComboOption = keyCombo |> Option.ofCond Seq.isNotEmpty
-        let newBinding =
-            if isSecondaryBinding
-            then { bindingToEdit with KeyCombo2 = keyComboOption }
-            else { bindingToEdit with KeyCombo1 = keyComboOption }
-            |> CommandBinding.normalize
+    match keyBinder.Open bindingToEdit model.CommandBindings with
+    | Some newBinding ->
         let commandBindings =
             model.CommandBindings |> List.mapi (fun i binding ->
                 if i = model.KeyBindingIndex
                 then newBinding
-                else binding |> Option.foldBack CommandBinding.removeKeyCombo keyComboOption
+                else binding |> CommandBinding.removeConflictingKeyCombos newBinding
             )
         { model with
             CommandBindings = commandBindings
@@ -114,28 +140,70 @@ let editKeyBinding (keyBinder: KeyBinder.Dialog) isSecondaryBinding (model: Mode
     | None ->
         model
 
+let private getCommandBindings keyBindings =
+    MainCommand.commandList |> List.map (fun command ->
+        let bindings = KeyBindingLogic.getKeyCombos keyBindings command
+        {
+            Command = command
+            KeyCombo1 = bindings |> List.tryItem 0 |? []
+            KeyCombo2 = bindings |> List.tryItem 1 |? []
+        }
+    )
+
+let private resetKeyBinding (model: Model) =
+    let result = MessageBox.Show(
+        "Are you sure you want to reset all keybindings to defaults?",
+        "Reset all keybindings?",
+        MessageBoxButton.YesNo
+    )
+    if result = MessageBoxResult.Yes then
+        { model with
+            CommandBindings = KeyBinding.Default |> getCommandBindings
+            Config = { model.Config with KeyBindings = KeyBinding.Default }
+        }
+    else
+        model
+
+let private bindingsKeyPress keyBinder chord handleKey (model: Model) =
+    let keyCombo = List.append model.BindingsKeysPressed [chord]
+    // TODO: get match for command type (Input or not)
+    match KeyBindingLogic.getMatch model.Config.KeyBindings keyCombo with
+    | KeyBindingLogic.Match evt ->
+        handleKey ()
+        let model = { model with BindingsKeysPressed = [] }
+        let withCursor cursor =
+            { model with KeyBindingIndex = cursor }
+        let withCursorRel relValue =
+            withCursor (model.KeyBindingIndex + relValue |> clamp 0 (model.CommandBindings.Length - 1))
+        match evt with
+        | Cursor CursorUp -> withCursorRel -1
+        | Cursor CursorDown -> withCursorRel 1
+        | Cursor CursorUpHalfPage -> withCursorRel -(model.PageSize/2)
+        | Cursor CursorDownHalfPage -> withCursorRel (model.PageSize/2)
+        | Cursor CursorToFirst -> withCursor 0
+        | Cursor CursorToLast -> withCursor (model.CommandBindings.Length - 1)
+        | Navigation OpenCursorItem
+        | Navigation OpenSelected -> editKeyBinding keyBinder model
+        | _ -> model
+    | KeyBindingLogic.PartialMatch ->
+        handleKey ()
+        { model with BindingsKeysPressed = keyCombo }
+    | KeyBindingLogic.NoMatch ->
+        { model with BindingsKeysPressed = [] }
+
 let private dispatcher textEdit keyBinder evt =
     match evt with
     | StartPathChanged value -> Sync (updateConfig (fun c -> { c with StartPath = value }))
     | DefaultPathChanged -> Sync defaultPathChanged
     | PathFormatChanged value -> Sync (updateConfig (fun c -> { c with PathFormat = value}))
     | EditSearchExclusions -> Sync (editSearchExclusions textEdit)
-    | EditKeyBinding isSecondary -> Sync (editKeyBinding keyBinder isSecondary)
+    | BindingsKeyPress (chord, handler) -> Sync (bindingsKeyPress keyBinder chord handler.Handle)
+    | EditKeyBindings -> Sync (editKeyBinding keyBinder)
+    | ResetKeyBindings -> Sync resetKeyBinding
+    | PageSizeChanged pageSize -> Sync (fun m -> { m with PageSize = pageSize })
 
 let private start (config: Config) window =
-    let keyBinding command =
-        let bindings = KeyBindingLogic.getKeyCombos config.KeyBindings command
-        {
-            Command = command
-            KeyCombo1 = bindings |> List.tryItem 0
-            KeyCombo2 = bindings |> List.tryItem 1
-        }
-    let model = {
-        Config = config
-        DefaultPath = Ok config.DefaultPath
-        CommandBindings = MainCommand.commandList |> List.map keyBinding
-        KeyBindingIndex = 0
-    }
+    let model = Model.create config (getCommandBindings config.KeyBindings)
     let textEdit = TextEdit.Dialog(window)
     let keyBinder = KeyBinder.Dialog(window)
     Framework.start binder events (dispatcher textEdit keyBinder) window model

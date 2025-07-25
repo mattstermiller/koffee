@@ -42,7 +42,7 @@ let ``FSharpJsonConverters serializes and deserializes desired format for key bi
   }
 ]
 """
-    let keyBindings: KeyBinding list =
+    let keyBindings =
         [
             [ModifierKeys.None, Key.Oem1], Cursor FindNext
             [
@@ -50,10 +50,10 @@ let ``FSharpJsonConverters serializes and deserializes desired format for key bi
                 ModifierKeys.None, Key.T
             ], Cursor (Scroll CursorTop)
         ]
-        |> List.map KeyBinding.ofTuple
+        |> List.map KeyBinding<MainCommand>.ofTuple
 
     let serialized = serialize keyBindings
     serialized |> shouldEqual expectedJson
 
-    let deserialized = deserialize<KeyBinding list> serialized
+    let deserialized = deserialize<KeyBinding<MainCommand> list> serialized
     deserialized |> shouldEqual keyBindings

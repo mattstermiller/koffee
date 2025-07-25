@@ -77,7 +77,7 @@ let keyPress handleCommand chord handleKey model = asyncSeq {
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
             (None, escape)
-        | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
+        | (ModifierKeys.None, KeyBindingLogic.DigitKey digit) when model.KeyCombo = [] ->
             (None, MainModel.appendRepeatDigit digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]

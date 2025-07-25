@@ -1,7 +1,7 @@
 <Window x:Class="KoffeeUI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Koffee Settings" Width="650" Height="700" FontSize="15">
+        Title="Koffee Settings" Width="650" Height="650" FontSize="15">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -23,7 +23,9 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <!-- Left column -->
@@ -76,29 +78,27 @@
             Grid.Column="3" Grid.Row="5"/>
 
     <!-- Key bindings -->
-    <DockPanel Grid.Row="6" Grid.ColumnSpan="4">
-      <Grid DockPanel.Dock="Top">
-        <Label Content="Key bindings:"/>
-        <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
-      </Grid>
+    <Grid Grid.Row="6" Grid.ColumnSpan="4">
+      <Label Content="Key bindings:"/>
+      <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
+    </Grid>
 
-      <Grid DockPanel.Dock="Bottom" Margin="0,6,0,0">
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button Name="EditKeyBinding1" x:FieldModifier="public" Content="Edit Binding 1" Width="120" Margin="6,0,0,0"/>
-          <Button Name="EditKeyBinding2" x:FieldModifier="public" Content="Edit Binding 2" Width="120" Margin="6,0,0,0"/>
-        </StackPanel>
-      </Grid>
+    <DataGrid Name="KeyBindings" x:FieldModifier="public" AutoGenerateColumns="False" IsReadOnly="True"
+              SelectionMode="Single" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None"
+              RowHeaderWidth="0" ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
+      <DataGrid.Resources>
+        <Style TargetType="{x:Type DataGridCell}">
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        </Style>
+      </DataGrid.Resources>
+    </DataGrid>
 
-      <DataGrid Name="KeyBindings" x:FieldModifier="public" AutoGenerateColumns="False" IsReadOnly="True"
-                SelectionMode="Single" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None"
-                RowHeaderWidth="0" ColumnWidth="*" HorizontalScrollBarVisibility="Hidden">
-        <DataGrid.Resources>
-          <Style TargetType="{x:Type DataGridCell}">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-          </Style>
-        </DataGrid.Resources>
-      </DataGrid>
-    </DockPanel>
+    <Grid Margin="0,6,0,0" Grid.Row="8" Grid.ColumnSpan="4">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button Name="ResetKeyBindings" x:FieldModifier="public" Content="Reset to Defaults" Width="120"/>
+        <Button Name="EditKeyBindings" x:FieldModifier="public" Content="Edit Bindings" Width="120" Margin="6 0 0 0"/>
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>

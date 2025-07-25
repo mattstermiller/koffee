@@ -197,6 +197,9 @@ with
         Reflection.enumerateUnionCaseValues<MainCommand>
         |> Seq.toList
 
+    static member areInSameBindingSpace (a: MainCommand) (b: MainCommand) =
+        a.IsInputCommand = b.IsInputCommand
+
 type ItemType =
     | File
     | Folder
@@ -888,12 +891,15 @@ with
 type KeyCombo = (ModifierKeys * Key) list
 
 module KeyCombo =
-    let startsWith prefix (combo: KeyCombo) =
-        combo |> List.truncate (prefix |> List.length) = prefix
+    let rec intersectsWith (a: KeyCombo) (b: KeyCombo) =
+        match a, b with
+        | a :: restA, b :: restB when a = b -> intersectsWith restA restB
+        | [], _ | _, [] -> true
+        | _ -> false
 
-type KeyBinding = {
+type KeyBinding<'Command> = {
     KeyCombo: KeyCombo
-    Command: MainCommand
+    Command: 'Command
 }
 with
     static member ofTuple (keyCombo, command) =
@@ -995,7 +1001,7 @@ type Config = {
     SearchExclusions: string list
     YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
-    KeyBindings: KeyBinding list
+    KeyBindings: KeyBinding<MainCommand> list
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
     Limits: Limits

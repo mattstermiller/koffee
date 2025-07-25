@@ -112,12 +112,7 @@ module MainView =
             window.PathBox.Focus()
         ))
 
-        // On selection change, keep selected item in view
-        let keepSelectedInView _ =
-            if window.ItemGrid.SelectedItem <> null then
-                window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
-        window.ItemGrid.SelectedCellsChanged.Add keepSelectedInView
-        window.ItemGrid.SizeChanged.Add keepSelectedInView
+        window.ItemGrid.KeepSelectedItemInView()
 
         // When window comes back into focus with no valid focused element, focus on ItemGrid
         window.Activated.Add(fun _ ->
@@ -498,16 +493,7 @@ module MainView =
             )
             window.ItemGrid.MouseDoubleClick |> Obs.mapTo ItemDoubleClick
             window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
-                let grid = window.ItemGrid
-                if grid.HasItems then
-                    let visibleIndex = grid.SelectedIndex |> max 0
-                    grid.ItemContainerGenerator.ContainerFromIndex(visibleIndex) :?> DataGridRow |> Option.ofObj
-                    |> Option.map (fun visibleRow  ->
-                        let viewHeight = grid.ActualHeight - grid.ActualColumnHeaderHeight
-                        let pageSize = viewHeight / visibleRow.ActualHeight |> int
-                        Background (PageSizeChanged pageSize)
-                    )
-                else None
+                window.ItemGrid.VisibleRowCount |> Option.map (fun pageSize -> Background (PageSizeChanged pageSize))
             )
 
             window.InputBox.PreviewKeyDown |> Obs.map (fun evt ->

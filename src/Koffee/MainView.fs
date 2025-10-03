@@ -125,6 +125,12 @@ module MainView =
                 window.ItemGrid.Focus() |> ignore
         )
 
+        // Prevent loss of keyboard focus
+        InputManager.Current.PostProcessInput.Add (fun e ->
+            if e.StagingItem.Input.RoutedEvent = Keyboard.LostKeyboardFocusEvent && Keyboard.FocusedElement = null then
+                window.ItemGrid.Focus() |> ignore
+        )
+
         window.InputBox.PreviewKeyDown.Add (onKey Key.Escape window.ItemGrid.Focus)
         window.InputBox.PreviewKeyDown.Add (fun e ->
             if window.SearchOptions.IsVisible then
@@ -454,9 +460,6 @@ module MainView =
 
     let events (config: ConfigFile) (history: HistoryFile) (subDirResults: IObservable<_>) (window: MainWindow) =
         [
-            window.KeyDown
-                |> Obs.filter (fun evt -> evt.Chord = (ModifierKeys.None, Key.Escape))
-                |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
             window.PathBox.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.choose (fun evt ->
                 let ignoreMods = [ ModifierKeys.None; ModifierKeys.Shift ]
                 let ignoreCtrlKeys = [ Key.A; Key.Z; Key.X; Key.C; Key.V ]

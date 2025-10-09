@@ -77,13 +77,13 @@
     <Button Name="EditSearchExclusions" x:FieldModifier="public" Content="Recursive Search Exclusions..."
             Grid.Column="3" Grid.Row="5"/>
 
-    <!-- Key bindings -->
+    <!-- Commands / key bindings -->
     <Grid Grid.Row="6" Grid.ColumnSpan="4">
-      <Label Content="Key bindings:"/>
+      <Label Content="Commands:"/>
       <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
     </Grid>
 
-    <DataGrid Name="KeyBindings" x:FieldModifier="public" AutoGenerateColumns="False" IsReadOnly="True"
+    <DataGrid Name="Commands" x:FieldModifier="public" AutoGenerateColumns="False" IsReadOnly="True"
               SelectionMode="Single" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None"
               RowHeaderWidth="0" ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
       <DataGrid.Resources>
@@ -95,9 +95,11 @@
     </DataGrid>
 
     <Grid Margin="0,6,0,0" Grid.Row="8" Grid.ColumnSpan="4">
+      <Button Name="ResetAllKeyBindings" x:FieldModifier="public" Content="Reset All Bindings" Width="130"
+              HorizontalAlignment="Left"/>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-        <Button Name="ResetKeyBindings" x:FieldModifier="public" Content="Reset to Defaults" Width="120"/>
-        <Button Name="EditKeyBindings" x:FieldModifier="public" Content="Edit Bindings" Width="120" Margin="6 0 0 0"/>
+        <Button Name="ResetCommandBindings" x:FieldModifier="public" Content="Reset Selected" Width="130" Margin="6 0 0 0"/>
+        <Button Name="EditCommandBindings" x:FieldModifier="public" Content="Edit Bindings" Width="130" Margin="6 0 0 0"/>
       </StackPanel>
     </Grid>
   </Grid>

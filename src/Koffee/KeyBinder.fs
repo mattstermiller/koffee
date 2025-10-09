@@ -9,7 +9,7 @@ open UIHelpers
 open Koffee
 open KoffeeUI
 
-let private maxChords = 3
+let private maxChords = 2
 let private maxListedConflicts = 3
 
 type CommandBinding = {
@@ -46,6 +46,10 @@ with
         else
             false
 
+    static member conflictsWithBinding (other: CommandBinding) (binding: CommandBinding) =
+        CommandBinding.conflictsWith other.KeyCombo1 binding ||
+        CommandBinding.conflictsWith other.KeyCombo2 binding
+
     static member removeConflictingKeyCombos (newBinding: CommandBinding) (binding: CommandBinding) =
         if newBinding |> CommandBinding.conflictsWith binding.KeyCombo2 then
             { binding with KeyCombo2 = [] }
@@ -61,56 +65,54 @@ type ComboSelection =
 
 type Command =
     | SelectCombo of ComboSelection
-    | AddChord
-    | ReplaceChords
+    | ChangeCombo
     | ClearChords
-    | SaveBindings
-    | Cancel
+    | Undo
+    | Close
 with
     member this.Description =
         match this with
         | SelectCombo Combo1 -> "Select key combo 1"
         | SelectCombo Combo2 -> "Select key combo 2"
-        | AddChord -> "Add a key to the combo"
-        | ReplaceChords -> "Replace the combo"
+        | ChangeCombo -> "Change the combo"
         | ClearChords -> "Clear the combo"
-        | SaveBindings -> "Save command bindings"
-        | Cancel -> "Cancel"
+        | Undo -> "Undo the last change"
+        | Close -> "Save and close"
 
-    static member getAvailableCommands currentKeyComboLength = [
+    static member getAvailableCommands hasCurrentKeyCombo hasUndo = [
         SelectCombo Combo1
         SelectCombo Combo2
-        if currentKeyComboLength < maxChords then
-            AddChord
-        if currentKeyComboLength > 0 then
-            ReplaceChords
+        ChangeCombo
+        if hasCurrentKeyCombo then
             ClearChords
-        SaveBindings
-        Cancel
+        if hasUndo then
+            Undo
+        Close
     ]
 
     static member fromMainCommand (mainCommand: MainCommand) =
         match mainCommand with
         | Cursor CursorUp -> Some (SelectCombo Combo1)
         | Cursor CursorDown -> Some (SelectCombo Combo2)
-        | ItemAction (StartRename EndName) -> Some AddChord
+        | Navigation OpenCursorItem -> Some ChangeCombo
+        | Navigation OpenSelected -> Some ChangeCombo
         | ItemAction Recycle -> Some ClearChords
+        | ItemAction ItemActionCommand.Undo -> Some Undo
         | _ -> None
 
 module KeyBinderBinding =
     let private noMod = ModifierKeys.None
 
     let private staticBindings = List.map KeyBinding.ofTuple [
-        ([noMod, Key.Enter], SaveBindings)
-        ([noMod, Key.Escape], Cancel)
+        ([noMod, Key.Escape], Close)
     ]
 
     let private fallbackBindings = List.map KeyBinding.ofTuple [
         ([noMod, Key.Up], SelectCombo Combo1)
         ([noMod, Key.Down], SelectCombo Combo2)
-        ([noMod, Key.A], AddChord)
-        ([noMod, Key.C], ReplaceChords)
+        ([noMod, Key.Enter], ChangeCombo)
         ([noMod, Key.Delete], ClearChords)
+        ([noMod, Key.U], Undo)
     ]
 
     let getBindings mainBindings =
@@ -146,6 +148,7 @@ type State =
 type Model = {
     ExistingBindings: CommandBinding list
     Binding: CommandBinding
+    BindingUndoStack: CommandBinding list
     KeyBinderBindings: KeyBinding<Command> list
     ComboSelection: ComboSelection
     Combo1Conflicts: MainCommand list
@@ -153,7 +156,6 @@ type Model = {
     Combo2Conflicts: MainCommand list
     Combo2CannotBeUsedInInput: bool
     State: State
-    SaveBindings: bool
 }
 with
     member this.SelectedCombo =
@@ -164,6 +166,7 @@ with
     static member create editBinding commandBindings = {
         ExistingBindings = commandBindings
         Binding = editBinding
+        BindingUndoStack = []
         KeyBinderBindings = KeyBinderBinding.getBindings commandBindings
         ComboSelection = Combo1
         Combo1Conflicts = []
@@ -171,20 +174,46 @@ with
         Combo2Conflicts = []
         Combo2CannotBeUsedInInput = false
         State = WaitForCommand []
-        SaveBindings = false
     }
+
+    static member withComputedConflicts (comboSelection: ComboSelection) (model: Model) =
+        let combo =
+            match comboSelection with
+            | Combo1 -> model.Binding.KeyCombo1
+            | Combo2 -> model.Binding.KeyCombo2
+        let conflictsWithBindings =
+            model.ExistingBindings
+            |> Seq.filter (CommandBinding.conflictsWith combo)
+            |> Seq.map (fun cb -> cb.Command)
+            |> Seq.except [model.Binding.Command]
+            |> Seq.toList
+        let comboCannotBeUsedInInput =
+            model.Binding.Command = Cursor FindNext && not combo.IsEmpty && not (combo |> KeyCombo.isUsableInInputBox)
+        match comboSelection with
+        | Combo1 ->
+            { model with
+                Combo1Conflicts = conflictsWithBindings
+                Combo1CannotBeUsedInInput = comboCannotBeUsedInInput
+            }
+        | Combo2 ->
+            { model with
+                Combo2Conflicts = conflictsWithBindings
+                Combo2CannotBeUsedInInput = comboCannotBeUsedInInput
+            }
 
     static member clearSelectedCombo (model: Model) =
         match model.ComboSelection with
         | Combo1 ->
             { model with
                 Binding = { model.Binding with KeyCombo1 = [] }
+                BindingUndoStack = model.Binding :: model.BindingUndoStack
                 Combo1Conflicts = []
                 Combo1CannotBeUsedInInput = false
             }
         | Combo2 ->
             { model with
                 Binding = { model.Binding with KeyCombo2 = [] }
+                BindingUndoStack = model.Binding :: model.BindingUndoStack
                 Combo2Conflicts = []
                 Combo2CannotBeUsedInInput = false
             }
@@ -193,7 +222,7 @@ type Events =
     | KeyPress of KeyChord * KeyPressHandler
     | ComboFocused of ComboSelection
 
-let private binder (window: KeyBinderWindow) (model: Model) =
+let private viewBinder (window: KeyBinderWindow) (model: Model) =
     window.CommandName.Text <- model.Binding.Command.Name
 
     let selectedStyle = window.FindResource "Selected" :?> Style
@@ -211,7 +240,7 @@ let private binder (window: KeyBinderWindow) (model: Model) =
                     if names.Length > maxListedConflicts
                     then sprintf "and %i more" (names.Length - maxListedConflicts)
                     else ""
-                sprintf "Saving will clear existing binding%s for: %s%s"
+                sprintf "Closing will clear existing binding%s for: %s%s"
                     (Format.pluralS names) (names |> String.concat ", ") more
         ]
         |> String.concat "\n"
@@ -227,17 +256,18 @@ let private binder (window: KeyBinderWindow) (model: Model) =
             window.KeyComboPanel1.Style <- style1
             window.KeyComboPanel2.Style <- style2
         )
-        Bind.modelMulti(<@ model.State, model.SelectedCombo @>).toFunc(fun (state, keyCombo) ->
-            let promptText =
-                match state with
-                | WaitForCommand _ ->
-                    Command.getAvailableCommands keyCombo.Length
-                    |> Seq.map (KeyBinderBinding.getPrompt model.KeyBinderBindings)
-                    |> String.concat "\n"
-                | ListenForKey ->
-                    "Press a key combination or Escape to cancel..."
-            window.Prompt.Text <- promptText
-        )
+        Bind.modelMulti(<@ model.State, model.SelectedCombo, model.BindingUndoStack @>)
+            .toFunc(fun (state, keyCombo, undoStack) ->
+                let promptText =
+                    match state with
+                    | WaitForCommand _ ->
+                        Command.getAvailableCommands (not keyCombo.IsEmpty) (not undoStack.IsEmpty)
+                        |> Seq.map (KeyBinderBinding.getPrompt model.KeyBinderBindings)
+                        |> String.concat "\n"
+                    | ListenForKey ->
+                        "Press a key combination or Escape to finish..."
+                window.Prompt.Text <- promptText
+            )
         Bind.modelMulti(<@ model.Combo1Conflicts, model.Combo1CannotBeUsedInInput @>).toFunc(conflictText >> fun text ->
             window.Conflict1.Text <- text
             window.Conflict1.IsCollapsed <- text |> String.isEmpty
@@ -266,18 +296,22 @@ type EventHandler(closeWindow: unit -> unit) =
         match command with
         | SelectCombo selection ->
             { model with ComboSelection = selection }
-        | AddChord ->
-            if model.SelectedCombo.Length < maxChords
-            then { model with State = ListenForKey }
-            else model
-        | ReplaceChords ->
+        | ChangeCombo ->
             { model with State = ListenForKey } |> Model.clearSelectedCombo
         | ClearChords ->
             model |> Model.clearSelectedCombo
-        | SaveBindings ->
-            closeWindow()
-            { model with SaveBindings = true }
-        | Cancel ->
+        | Undo ->
+            match model.BindingUndoStack with
+            | undoBinding :: undoRest ->
+                let changedCombo = if undoBinding.KeyCombo1 <> model.Binding.KeyCombo1 then Combo1 else Combo2
+                { model with
+                    Binding = undoBinding
+                    BindingUndoStack = undoRest
+                }
+                |> Model.withComputedConflicts changedCombo
+            | [] ->
+                model
+        | Close ->
             closeWindow()
             model
 
@@ -297,36 +331,19 @@ type EventHandler(closeWindow: unit -> unit) =
         | ListenForKey ->
             keyPressHandler.Handle()
             match chord with
-            | (ModifierKeys.None, Key.Escape) ->
-                { model with State = WaitForCommand [] }
             | (ModifierKeys.None, DigitKey _) when model.SelectedCombo |> List.isEmpty ->
                 // prevent binding first chord to digit since that is for repeat feature
                 model
+            | (ModifierKeys.None, Key.Escape) ->
+                { model with State = WaitForCommand [] } |> Model.withComputedConflicts model.ComboSelection
             | _ ->
-                let keyCombo = model.SelectedCombo @ [chord]
-                let conflictsWithBindings =
-                    model.ExistingBindings
-                    |> Seq.filter (CommandBinding.conflictsWith keyCombo)
-                    |> Seq.map (fun cb -> cb.Command)
-                    |> Seq.except [model.Binding.Command]
-                    |> Seq.toList
-                let comboCannotBeUsedInInput =
-                    model.Binding.Command = Cursor FindNext && not (keyCombo |> KeyCombo.isUsableInInputBox)
+                let keyCombo =
+                    if model.SelectedCombo.Length >= maxChords
+                    then [chord]
+                    else model.SelectedCombo @ [chord]
                 match model.ComboSelection with
-                | Combo1 ->
-                    { model with
-                        State = WaitForCommand []
-                        Binding = { model.Binding with KeyCombo1 = keyCombo }
-                        Combo1Conflicts = conflictsWithBindings
-                        Combo1CannotBeUsedInInput = comboCannotBeUsedInInput
-                    }
-                | Combo2 ->
-                    { model with
-                        State = WaitForCommand []
-                        Binding = { model.Binding with KeyCombo2 = keyCombo }
-                        Combo2Conflicts = conflictsWithBindings
-                        Combo2CannotBeUsedInInput = comboCannotBeUsedInInput
-                    }
+                | Combo1 -> { model with Binding = { model.Binding with KeyCombo1 = keyCombo } }
+                | Combo2 -> { model with Binding = { model.Binding with KeyCombo2 = keyCombo } }
 
     member _.Handle (evt: Events) =
         match evt with
@@ -335,12 +352,12 @@ type EventHandler(closeWindow: unit -> unit) =
 
 let private start model (window: KeyBinderWindow) =
     let handler = EventHandler(fun () -> window.Close())
-    Framework.start binder events handler.Handle window model
+    Framework.start viewBinder events handler.Handle window model
 
 type Dialog(parent: Window) =
     member _.Open (editBinding: CommandBinding) commandBindings =
         let startModel = Model.create editBinding commandBindings
         let model = KeyBinderWindow(Owner = parent).ShowDialog(start startModel)
-        if model.SaveBindings
+        if model.Binding <> editBinding
         then Some model.Binding
         else None

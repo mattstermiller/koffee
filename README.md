@@ -31,9 +31,9 @@ Steps:
 - Open a terminal to the folder and run `.\build.cmd -t install`
 
 ## Using Koffee
-First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the hotkeys, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.
+First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the key bindings, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.
 
-#### The Basics
+### The Basics
 _A capital letter indicates that the letter key is combined with Shift._
 - `j` to move the cursor down
 - `k` to move the cursor up
@@ -45,11 +45,11 @@ _A capital letter indicates that the letter key is combined with Shift._
 - `L` to go forward in navigation history
 - `gr` to go to the root directory (Drives)
 - `Tab` to switch between the main view and the path box
-- `?` to open the Settings window, which displays the hotkeys for all commands.
+- `?` or click the `?` button to open the Settings window, which lists all commands and key bindings
 - `Esc` to cancel actions, searches, path input, etc.
 - `Ctrl + w` to exit
 
-#### Advanced Navigation
+### Advanced Navigation
 - **Scroll quickly**
     - `Ctrl + j` and `Ctrl + k` move the cursor by half-pages at a time.
     - `gg` (press `g` twice) jumps to the first item, and `G` jumps to the last item.
@@ -88,7 +88,7 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Tab` to fill in the path box with the selected suggestion and continue typing, or press `Enter` to open the selected suggestion.
     - When suggestions from history are shown, pressing `Delete` will remove it from the list and history.
 
-#### File & Folder Manipulation
+### File & Folder Manipulation
 - **Selecting**
     - If there is no selection, actions apply to the item under the cursor
     - Press `Space` to toggle whether the item under the cursor is selected
@@ -125,8 +125,9 @@ _A capital letter indicates that the letter key is combined with Shift._
     - You can cancel an undo or redo in progress by pressing `Esc`. You can resume the undo or redo by invoking it again.
     - Press `gu` to display undo / redo history. Press it again or `Esc` to close it.
 
-#### Other
+### Other
 - Repeat cursor, navigation and undo/redo commands by pressing numbers before the command. For example, pressing `4H` will go back 4 times.
+- Go to the Default path configured in Settings with `gd`
 - Display navigation history for Back/Forward with `gh`
 - Display status message history with `gs`
 - Open the selected files and exit with `Ctrl + Enter`
@@ -137,7 +138,7 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
 - Show/hide hidden files and folders with `F9`
 
-To see the full list of commands and their key bindings, open the Settings window with `?`.
+The full list of commands and their key bindings can be viewed and edited in the Settings window which can be opened with `?`.
 
 ## Contributing
 If you want to contribute to Koffee, thank you! Head to the [issues page](https://github.com/mattstermiller/koffee/issues).
@@ -150,7 +151,7 @@ If you want to contribute to Koffee, thank you! Head to the [issues page](https:
 
 Please read the [Development Guide](DEVGUIDE.md) to get started on Koffee code.
 
-## Future Planned Features
-- Configurable hotkeys
+## Planned Features
+- Re-designed keyboard-first Settings interface to match main interface
 - Theme selection and editor
 - And more... check out the [issues list](https://github.com/mattstermiller/koffee/issues) and please add your own ideas and contributions!

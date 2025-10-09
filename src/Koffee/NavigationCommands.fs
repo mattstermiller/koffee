@@ -651,11 +651,12 @@ type Handler(
         | InputCharTyped (char, keyHandler) ->
             suppressInvalidPathChar char keyHandler
         | InputKeyPress (keyChord, keyHandler) ->
-            match KeyBindingLogic.getChordMatch model.Config.KeyBindings keyChord with
-            | Some (Cursor FindNext) ->
-                keyHandler.Handle()
-                yield CursorCommands.findNext model
-            | _ -> ()
+            if not (keyChord |> KeyBindingLogic.isLetterChord) then
+                match KeyBindingLogic.getChordMatch model.Config.KeyBindings keyChord with
+                | Some (Cursor FindNext) ->
+                    keyHandler.Handle()
+                    yield CursorCommands.findNext model
+                | _ -> ()
         | InputSubmit ->
             let model =
                 { model with
@@ -681,19 +682,17 @@ type Handler(
                     HistoryDisplay = None
                 }
         | InputKeyPress (keyChord, keyHandler) ->
-            if keyChord = (ModifierKeys.Shift, Key.Delete) && model.HistoryDisplay = Some SearchHistory then
+            match keyChord with
+            | (ModifierKeys.Shift, Key.Delete) when model.HistoryDisplay = Some SearchHistory ->
                 keyHandler.Handle()
                 yield deleteSearchHistory model
-            else
-                match KeyBindingLogic.getChordMatch model.Config.KeyBindings keyChord with
-                | Some (InputCommand cmd) ->
-                    keyHandler.Handle()
-                    match cmd with
-                    | InputHistoryBack ->
-                        yield traverseSearchHistory 1 model
-                    | InputHistoryForward ->
-                        yield traverseSearchHistory -1 model
-                | _ -> ()
+            | (ModifierKeys.None, Key.Up) ->
+                keyHandler.Handle()
+                yield traverseSearchHistory 1 model
+            | (ModifierKeys.None, Key.Down) ->
+                keyHandler.Handle()
+                yield traverseSearchHistory -1 model
+            | _ -> ()
         | _ -> ()
     }
 

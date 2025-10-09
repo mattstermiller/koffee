@@ -45,19 +45,32 @@ let private modifierStrings = [
     ModifierKeys.Windows, "m"
 ]
 
+let isDigitKey key = key >= Key.D0 && key <= Key.D9
+
+let isDigitChord (modifiers: ModifierKeys, key: Key) =
+    modifiers = ModifierKeys.None && isDigitKey key
+
+let isLetterKey key = key >= Key.A && key <= Key.Z
+
+let isLetterChord (modifiers: ModifierKeys, key: Key) =
+    (modifiers = ModifierKeys.None || modifiers = ModifierKeys.Shift) && isLetterKey key
+
 let (|DigitKey|_|) (key: Key) =
-    if key >= Key.D0 && key <= Key.D9 then
-        Some (int key - int Key.D0)
-    else
-        None
+    if isDigitKey key
+    then Some (int key - int Key.D0)
+    else None
+
+let isComboUsableInInputBox keyCombo =
+    match keyCombo with
+    | [chord] when not (chord |> isLetterChord) -> true
+    | _ -> false
 
 let chordDescription (modifiers: ModifierKeys, key: Key) =
-    let isLetter = key >= Key.A && key <= Key.Z
     let modIsOnlyShift = modifiers = ModifierKeys.Shift
     let keyStr =
         match key, modIsOnlyShift with
-        | key, false when isLetter -> (string key).ToLower()
-        | key, true when isLetter -> string key
+        | key, false when isLetterKey key -> (string key).ToLower()
+        | key, true when isLetterKey key -> string key
         | DigitKey digit, false -> string digit
         | Key.D1, true -> "!"
         | Key.D2, true -> "@"

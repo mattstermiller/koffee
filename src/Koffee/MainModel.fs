@@ -169,21 +169,11 @@ with
         | OpenSettings -> "Open Help/Settings"
         | Exit -> "Exit"
 
-type InputCommand =
-    | InputHistoryBack
-    | InputHistoryForward
-with
-    member this.Name =
-        match this with
-        | InputHistoryBack -> "Back in Input History"
-        | InputHistoryForward -> "Forward in Input History"
-
 type MainCommand =
     | Cursor of CursorCommand
     | Navigation of NavigationCommand
     | ItemAction of ItemActionCommand
     | Window of WindowCommand
-    | InputCommand of InputCommand
 with
     member this.Name =
         match this with
@@ -191,14 +181,10 @@ with
         | Navigation n -> n.Name
         | ItemAction a -> a.Name
         | Window w -> w.Name
-        | InputCommand i -> i.Name
 
     static member commandList =
         Reflection.enumerateUnionCaseValues<MainCommand>
         |> Seq.toList
-
-    static member areInSameBindingSpace (a: MainCommand) (b: MainCommand) =
-        a.IsInputCommand = b.IsInputCommand
 
 type ItemType =
     | File
@@ -957,9 +943,6 @@ with
             ([noMod, Key.G; noMod, Key.H], Navigation ShowNavHistory)
             ([noMod, Key.G; noMod, Key.U], Navigation ShowUndoHistory)
             ([noMod, Key.G; noMod, Key.S], Navigation ShowStatusHistory)
-
-            ([noMod, Key.Up], InputCommand InputHistoryBack)
-            ([noMod, Key.Down], InputCommand InputHistoryForward)
 
             ([noMod, Key.O], ItemAction CreateFile)
             ([shift, Key.O], ItemAction CreateFolder)

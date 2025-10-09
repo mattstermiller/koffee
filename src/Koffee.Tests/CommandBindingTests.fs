@@ -46,12 +46,7 @@ let ``normalize with second combo returns binding with first combo`` () =
 [<Test>]
 let ``conflictsWith empty combo returns false`` () =
     createCmdBinding (Cursor CursorUp) comboA []
-    |> CommandBinding.conflictsWith (Navigation OpenParent) [] |> shouldEqual false
-
-[<Test>]
-let ``conflictsWith same combo but different command space returns false`` () =
-    createCmdBinding (Cursor CursorUp) comboA []
-    |> CommandBinding.conflictsWith (InputCommand InputHistoryBack) comboA |> shouldEqual false
+    |> CommandBinding.conflictsWith [] |> shouldEqual false
 
 [<TestCase(false)>]
 [<TestCase(true)>]
@@ -60,7 +55,7 @@ let ``conflictsWith same combo returns true`` isSecondCombo =
         if isSecondCombo
         then createCmdBinding (Cursor CursorUp) comboB comboA
         else createCmdBinding (Cursor CursorUp) comboA []
-    binding |> CommandBinding.conflictsWith (Navigation OpenParent) comboA |> shouldEqual true
+    binding |> CommandBinding.conflictsWith comboA |> shouldEqual true
 
 [<TestCase(false, false)>]
 [<TestCase(false, true)>]
@@ -78,7 +73,7 @@ let ``conflictsWith new prefix returns true`` isSecondCombo isLongCombo =
         if isSecondCombo
         then createCmdBinding (Cursor CursorUp) comboB  combo
         else createCmdBinding (Cursor CursorUp) combo []
-    binding |> CommandBinding.conflictsWith (Navigation OpenParent) newCombo |> shouldEqual true
+    binding |> CommandBinding.conflictsWith newCombo |> shouldEqual true
 
 [<TestCase(false, false)>]
 [<TestCase(false, true)>]
@@ -96,7 +91,7 @@ let ``conflictsWith existing prefix returns true`` isSecondCombo isLongCombo =
         if isSecondCombo
         then createCmdBinding (Cursor CursorUp) comboB  combo
         else createCmdBinding (Cursor CursorUp) combo []
-    binding |> CommandBinding.conflictsWith (Navigation OpenParent) newCombo |> shouldEqual true
+    binding |> CommandBinding.conflictsWith newCombo |> shouldEqual true
 
 [<TestCase(false, false)>]
 [<TestCase(false, true)>]
@@ -117,7 +112,7 @@ let ``conflictsWith different combos returns false`` isModDiff isLongCombo =
             noMod, Key.B
     ]
     let binding = createCmdBinding (Cursor CursorUp) combo []
-    binding |> CommandBinding.conflictsWith (Navigation OpenParent) newCombo |> shouldEqual false
+    binding |> CommandBinding.conflictsWith newCombo |> shouldEqual false
 
 
 [<Test>]
@@ -130,7 +125,6 @@ let ``removeConflictingKeyCombos works as expected`` () =
         createCmdBinding (Cursor CursorToLast) comboB [noMod, Key.Right]
         createCmdBinding (Cursor CursorUpHalfPage) comboA comboB
         createCmdBinding (Cursor CursorDownHalfPage) comboB comboA
-        createCmdBinding (InputCommand InputHistoryBack) comboA comboB
     ]
     |> List.map (CommandBinding.removeConflictingKeyCombos newBinding)
     |> shouldEqual [
@@ -140,5 +134,4 @@ let ``removeConflictingKeyCombos works as expected`` () =
         createCmdBinding (Cursor CursorToLast) [noMod, Key.Right] []
         createCmdBinding (Cursor CursorUpHalfPage) [] []
         createCmdBinding (Cursor CursorDownHalfPage) [] []
-        createCmdBinding (InputCommand InputHistoryBack) comboA comboB
     ]

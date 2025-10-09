@@ -166,7 +166,6 @@ let private resetKeyBinding (model: Model) =
 
 let private bindingsKeyPress keyBinder chord handleKey (model: Model) =
     let keyCombo = List.append model.BindingsKeysPressed [chord]
-    // TODO: get match for command type (Input or not)
     match KeyBindingLogic.getMatch model.Config.KeyBindings keyCombo with
     | KeyBindingLogic.Match evt ->
         handleKey ()

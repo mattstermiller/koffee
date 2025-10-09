@@ -82,8 +82,6 @@ let keyPress handleCommand chord handleKey model = asyncSeq {
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
             match KeyBindingLogic.getMatch model.Config.KeyBindings keyCombo with
-            | KeyBindingLogic.Match (InputCommand _) ->
-                (None, MainModel.withoutKeyCombo)
             | KeyBindingLogic.Match newEvent ->
                 handleKey ()
                 (Some newEvent, MainModel.withoutKeyCombo)
@@ -146,7 +144,6 @@ type Controller(
         | Navigation command -> navigationHandler.Handle command
         | ItemAction command -> itemActionHandler.Handle command
         | Window command -> windowHandler.Handle command
-        | InputCommand _ -> Sync id // input commands are only triggered and handled in InputKeyPress event handlers
 
     let handleMarkPromptEvent markType markCommand evt model = asyncSeq {
         match evt with

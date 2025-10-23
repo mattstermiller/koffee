@@ -34,7 +34,7 @@ type Events =
     | DefaultPathChanged
     | PathFormatChanged of PathFormat
     | EditSearchExclusions
-    | BindingsKeyPress of (ModifierKeys * Key) * KeyPressHandler
+    | BindingsKeyPress of KeyChord * KeyPressHandler
     | EditKeyBindings
     | ResetKeyBindings
     | PageSizeChanged of int
@@ -44,8 +44,8 @@ let private binder (window: SettingsWindow) model =
     window.PreviewKeyDown.Add (onKeyCombo ModifierKeys.Control Key.W window.Close)
 
     window.KeyBindings.AddColumn(<@ fun cb -> cb.Command @>, "Command", conversion = (fun cmd -> cmd.Name), widthWeight = 3.0)
-    window.KeyBindings.AddColumn(<@ fun cb -> cb.KeyCombo1 @>, "Key Combo 1", conversion = KeyBindingLogic.keyComboDescription)
-    window.KeyBindings.AddColumn(<@ fun cb -> cb.KeyCombo2 @>, "Key Combo 2", conversion = KeyBindingLogic.keyComboDescription)
+    window.KeyBindings.AddColumn(<@ fun cb -> cb.KeyCombo1 @>, "Key Combo 1", conversion = KeyCombo.displayString)
+    window.KeyBindings.AddColumn(<@ fun cb -> cb.KeyCombo2 @>, "Key Combo 2", conversion = KeyCombo.displayString)
 
     // fix tabbing into and out of grid to not focus cells
     let prevElement = window.EditSearchExclusions
@@ -142,7 +142,7 @@ let private editKeyBinding (keyBinder: KeyBinder.Dialog) (model: Model) =
 
 let private getCommandBindings keyBindings =
     MainCommand.commandList |> List.map (fun command ->
-        let bindings = KeyBindingLogic.getKeyCombos keyBindings command
+        let bindings = KeyBinding.getKeyCombos keyBindings command
         {
             Command = command
             KeyCombo1 = bindings |> List.tryItem 0 |? []
@@ -158,16 +158,16 @@ let private resetKeyBinding (model: Model) =
     )
     if result = MessageBoxResult.Yes then
         { model with
-            CommandBindings = KeyBinding.Default |> getCommandBindings
-            Config = { model.Config with KeyBindings = KeyBinding.Default }
+            CommandBindings = MainBindings.Default |> getCommandBindings
+            Config = { model.Config with KeyBindings = MainBindings.Default }
         }
     else
         model
 
 let private bindingsKeyPress keyBinder chord handleKey (model: Model) =
     let keyCombo = List.append model.BindingsKeysPressed [chord]
-    match KeyBindingLogic.getMatch model.Config.KeyBindings keyCombo with
-    | KeyBindingLogic.Match evt ->
+    match KeyBinding.getMatch model.Config.KeyBindings keyCombo with
+    | Match evt ->
         handleKey ()
         let model = { model with BindingsKeysPressed = [] }
         let withCursor cursor =
@@ -184,10 +184,10 @@ let private bindingsKeyPress keyBinder chord handleKey (model: Model) =
         | Navigation OpenCursorItem
         | Navigation OpenSelected -> editKeyBinding keyBinder model
         | _ -> model
-    | KeyBindingLogic.PartialMatch ->
+    | PartialMatch ->
         handleKey ()
         { model with BindingsKeysPressed = keyCombo }
-    | KeyBindingLogic.NoMatch ->
+    | NoMatch ->
         { model with BindingsKeysPressed = [] }
 
 let private dispatcher textEdit keyBinder evt =

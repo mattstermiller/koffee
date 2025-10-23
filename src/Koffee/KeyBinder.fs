@@ -100,12 +100,12 @@ with
 module KeyBinderBinding =
     let private noMod = ModifierKeys.None
 
-    let private staticBindings = List.map KeyBinding<Command>.ofTuple [
+    let private staticBindings = List.map KeyBinding.ofTuple [
         ([noMod, Key.Enter], SaveBindings)
         ([noMod, Key.Escape], Cancel)
     ]
 
-    let private fallbackBindings = List.map KeyBinding<Command>.ofTuple [
+    let private fallbackBindings = List.map KeyBinding.ofTuple [
         ([noMod, Key.Up], SelectCombo Combo1)
         ([noMod, Key.Down], SelectCombo Combo2)
         ([noMod, Key.A], AddChord)
@@ -120,7 +120,7 @@ module KeyBinderBinding =
             |> List.choose (fun keyBinding ->
                 keyBinding.Command
                 |> Command.fromMainCommand
-                |> Option.map (fun cmd -> (keyBinding.KeyCombo, cmd) |> KeyBinding<Command>.ofTuple)
+                |> Option.map (fun cmd -> (keyBinding.KeyCombo, cmd) |> KeyBinding.ofTuple)
             )
         let bindings = staticBindings @ mainCommandsTranslated
         let boundCommands = bindings |> List.map (fun b -> b.Command)
@@ -134,8 +134,8 @@ module KeyBinderBinding =
 
     let getPrompt (bindings: KeyBinding<Command> list) cmd =
         let combos =
-            KeyBindingLogic.getKeyCombos bindings cmd
-            |> Seq.map KeyBindingLogic.keyComboDescription
+            KeyBinding.getKeyCombos bindings cmd
+            |> Seq.map KeyCombo.displayString
             |> String.concat " or "
         sprintf "%s - %s" cmd.Description combos
 
@@ -190,16 +190,13 @@ with
             }
 
 type Events =
-    | KeyPress of (ModifierKeys * Key) * KeyPressHandler
+    | KeyPress of KeyChord * KeyPressHandler
     | ComboFocused of ComboSelection
 
 let private binder (window: KeyBinderWindow) (model: Model) =
     window.CommandName.Text <- model.Binding.Command.Name
 
     let selectedStyle = window.FindResource "Selected" :?> Style
-
-    let keyComboText keyCombo =
-        keyCombo |> KeyBindingLogic.keyComboDescription
 
     let conflictText (otherCommands: MainCommand list, comboCannotBeUsedInInput) =
         [
@@ -220,8 +217,8 @@ let private binder (window: KeyBinderWindow) (model: Model) =
         |> String.concat "\n"
 
     [
-        Bind.model(<@ model.Binding.KeyCombo1 @>).toFunc(keyComboText >> window.KeyCombo1.set_Text)
-        Bind.model(<@ model.Binding.KeyCombo2 @>).toFunc(keyComboText >> window.KeyCombo2.set_Text)
+        Bind.model(<@ model.Binding.KeyCombo1 @>).toFunc(KeyCombo.displayString >> window.KeyCombo1.set_Text)
+        Bind.model(<@ model.Binding.KeyCombo2 @>).toFunc(KeyCombo.displayString >> window.KeyCombo2.set_Text)
         Bind.model(<@ model.ComboSelection @>).toFunc(fun selection ->
             let style1, style2 =
                 match selection with
@@ -284,25 +281,25 @@ type EventHandler(closeWindow: unit -> unit) =
             closeWindow()
             model
 
-    let keyPress (chord: ModifierKeys * Key) (keyPressHandler: KeyPressHandler) (model: Model) =
+    let keyPress (chord: KeyChord) (keyPressHandler: KeyPressHandler) (model: Model) =
         match model.State with
         | WaitForCommand keyCombo ->
             let keyCombo = List.append keyCombo [chord]
-            match KeyBindingLogic.getMatch model.KeyBinderBindings keyCombo with
-            | KeyBindingLogic.Match command ->
+            match KeyBinding.getMatch model.KeyBinderBindings keyCombo with
+            | Match command ->
                 keyPressHandler.Handle()
                 { model with State = WaitForCommand [] } |> handleCommand command
-            | KeyBindingLogic.PartialMatch ->
+            | PartialMatch ->
                 keyPressHandler.Handle()
                 { model with State = WaitForCommand keyCombo }
-            | KeyBindingLogic.NoMatch ->
+            | NoMatch ->
                 { model with State = WaitForCommand [] }
         | ListenForKey ->
             keyPressHandler.Handle()
             match chord with
             | (ModifierKeys.None, Key.Escape) ->
                 { model with State = WaitForCommand [] }
-            | (ModifierKeys.None, KeyBindingLogic.DigitKey _) when model.SelectedCombo |> List.isEmpty ->
+            | (ModifierKeys.None, DigitKey _) when model.SelectedCombo |> List.isEmpty ->
                 // prevent binding first chord to digit since that is for repeat feature
                 model
             | _ ->
@@ -314,7 +311,7 @@ type EventHandler(closeWindow: unit -> unit) =
                     |> Seq.except [model.Binding.Command]
                     |> Seq.toList
                 let comboCannotBeUsedInInput =
-                    model.Binding.Command = Cursor FindNext && not (keyCombo |> KeyBindingLogic.isComboUsableInInputBox)
+                    model.Binding.Command = Cursor FindNext && not (keyCombo |> KeyCombo.isUsableInInputBox)
                 match model.ComboSelection with
                 | Combo1 ->
                     { model with

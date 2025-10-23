@@ -90,17 +90,17 @@ module FSharpJsonConverters =
 
     type KeyChordConverter() =
         inherit JsonConverter() with
-            override this.CanConvert typ = typ = typeof<ModifierKeys * Key>
+            override this.CanConvert typ = typ = typeof<KeyChord>
 
             override this.ReadJson (reader, _, _, _) =
                 reader.Value :?> string
-                |> KeyBindingLogic.Serialization.parseChord
+                |> KeyChord.deserialize
                 |? (ModifierKeys.None, Key.None)
                 |> box
 
             override this.WriteJson (writer, value, _) =
-                (value :?> ModifierKeys * Key)
-                |> KeyBindingLogic.Serialization.chordString
+                (value :?> KeyChord)
+                |> KeyChord.serialize
                 |> writer.WriteValue
 
     let getAll () : JsonConverter[] = [|

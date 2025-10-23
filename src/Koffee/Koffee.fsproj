@@ -17,8 +17,8 @@
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
     <Compile Include="Path.fs" />
+    <Compile Include="KeyBinding.fs" />
     <Compile Include="MainModel.fs" />
-    <Compile Include="KeyBindingLogic.fs" />
     <Compile Include="UIHelpers.fs" />
     <Compile Include="TextEdit.fs" />
     <Compile Include="KeyBinder.fs" />

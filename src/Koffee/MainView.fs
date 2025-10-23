@@ -251,7 +251,7 @@ module MainView =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
                             keyCombo
-                            |> Seq.map KeyBindingLogic.chordDescription
+                            |> Seq.map KeyChord.displayString
                             |> String.concat ""
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
@@ -357,9 +357,9 @@ module MainView =
                             |> Seq.toList
                         let formatStack evt items =
                             let keyDescr =
-                                KeyBindingLogic.getKeyCombos keyBindings evt
+                                KeyBinding.getKeyCombos keyBindings evt
                                 |> List.tryHead
-                                |> Option.map KeyBindingLogic.keyComboDescription
+                                |> Option.map KeyCombo.displayString
                             items |> List.truncate maxListSize |> List.mapi (fun i (name: string) ->
                                 let repeat = if keyDescr.IsSome && i > 0 then i + 1 |> string else ""
                                 (repeat + (keyDescr |? ""), name)

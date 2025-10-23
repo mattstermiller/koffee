@@ -77,18 +77,18 @@ let keyPress handleCommand chord handleKey model = asyncSeq {
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
             (None, escape)
-        | (ModifierKeys.None, KeyBindingLogic.DigitKey digit) when model.KeyCombo = [] ->
+        | (ModifierKeys.None, DigitKey digit) when model.KeyCombo = [] ->
             (None, MainModel.appendRepeatDigit digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
-            match KeyBindingLogic.getMatch model.Config.KeyBindings keyCombo with
-            | KeyBindingLogic.Match newEvent ->
+            match KeyBinding.getMatch model.Config.KeyBindings keyCombo with
+            | Match newEvent ->
                 handleKey ()
                 (Some newEvent, MainModel.withoutKeyCombo)
-            | KeyBindingLogic.PartialMatch ->
+            | PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
-            | KeyBindingLogic.NoMatch ->
+            | NoMatch ->
                 (None, MainModel.withoutKeyCombo)
     match command with
     | Some cmd ->

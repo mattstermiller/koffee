@@ -874,24 +874,8 @@ with
         StatusHistory = 20
     }
 
-type KeyCombo = (ModifierKeys * Key) list
-
-module KeyCombo =
-    let rec intersectsWith (a: KeyCombo) (b: KeyCombo) =
-        match a, b with
-        | a :: restA, b :: restB when a = b -> intersectsWith restA restB
-        | [], _ | _, [] -> true
-        | _ -> false
-
-type KeyBinding<'Command> = {
-    KeyCombo: KeyCombo
-    Command: 'Command
-}
-with
-    static member ofTuple (keyCombo, command) =
-        { KeyCombo = keyCombo; Command = command }
-
-    static member Default =
+module MainBindings =
+    let Default =
         let noMod = ModifierKeys.None
         let shift = ModifierKeys.Shift
         let ctrl = ModifierKeys.Control
@@ -1045,7 +1029,7 @@ with
             ShowFullPathInTitle = false
             RefreshOnActivate = true
         }
-        KeyBindings = KeyBinding.Default
+        KeyBindings = MainBindings.Default
         Bookmarks = []
         SavedSearches = []
         Limits = Limits.Default
@@ -1420,7 +1404,7 @@ type DragOutEvent(control) =
 
 type InputEvent =
     | InputCharTyped of char * KeyPressHandler
-    | InputKeyPress of (ModifierKeys * Key) * KeyPressHandler
+    | InputKeyPress of KeyChord * KeyPressHandler
     | InputChanged
     | InputSubmit
 
@@ -1433,7 +1417,7 @@ type BackgroundEvent =
     | WindowMaximizedChanged of bool
 
 type MainEvent =
-    | KeyPress of (ModifierKeys * Key) * KeyPressHandler
+    | KeyPress of KeyChord * KeyPressHandler
     | ItemDoubleClick
     | SettingsButtonClick
     | LocationInputChanged

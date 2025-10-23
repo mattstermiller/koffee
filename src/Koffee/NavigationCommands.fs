@@ -651,8 +651,8 @@ type Handler(
         | InputCharTyped (char, keyHandler) ->
             suppressInvalidPathChar char keyHandler
         | InputKeyPress (keyChord, keyHandler) ->
-            if not (keyChord |> KeyBindingLogic.isLetterChord) then
-                match KeyBindingLogic.getChordMatch model.Config.KeyBindings keyChord with
+            if not (keyChord |> KeyChord.isLetter) then
+                match KeyBinding.getChordMatch model.Config.KeyBindings keyChord with
                 | Some (Cursor FindNext) ->
                     keyHandler.Handle()
                     yield CursorCommands.findNext model

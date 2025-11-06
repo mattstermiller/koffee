@@ -13,7 +13,8 @@
   <DockPanel>
     <!-- Path bar -->
     <DockPanel DockPanel.Dock="Top">
-      <Button Name="SettingsButton" x:FieldModifier="public" DockPanel.Dock="Right" Content="?" Width="25" Height="25"/>
+      <Button Name="SettingsButton" x:FieldModifier="public" DockPanel.Dock="Right" Content="?" Width="25" Height="25"
+              Focusable="False"/>
       <TextBox Name="PathBox" x:FieldModifier="public" Text="/c/path"/>
     </DockPanel>
     <!-- Status bar -->

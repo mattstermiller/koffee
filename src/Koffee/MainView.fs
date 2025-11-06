@@ -119,15 +119,15 @@ module MainView =
         window.ItemGrid.SelectedCellsChanged.Add keepSelectedInView
         window.ItemGrid.SizeChanged.Add keepSelectedInView
 
-        // Keep grid in focus when user clicks a cell to prevent focus issue
-        window.ItemGrid.SelectionChanged.Add (fun e ->
-            if FocusManager.GetFocusedElement(window) :? DataGridCell then
-                window.ItemGrid.Focus() |> ignore
-        )
-
-        // Prevent loss of keyboard focus
-        InputManager.Current.PostProcessInput.Add (fun e ->
-            if e.StagingItem.Input.RoutedEvent = Keyboard.LostKeyboardFocusEvent && Keyboard.FocusedElement = null then
+        // When window comes back into focus with no valid focused element, focus on ItemGrid
+        window.Activated.Add(fun _ ->
+            let focusableControls = [
+                window.ItemGrid :> IInputElement
+                window.PathBox
+                window.InputBox
+            ]
+            if not (FocusManager.GetFocusedElement window |> Seq.containedIn focusableControls) then
+                printfn "Resetting focus"
                 window.ItemGrid.Focus() |> ignore
         )
 
@@ -158,7 +158,6 @@ module MainView =
         if model.Config.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
-        window.SettingsButton.Click.Add (fun _ -> window.ItemGrid.Focus() |> ignore)
         window.ItemGrid.Focus() |> ignore
 
         let version = typeof<MainModel>.Assembly.GetName().Version

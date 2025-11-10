@@ -1,7 +1,7 @@
 <Window x:Class="KoffeeUI.KeyBinderWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Key Binding" Width="500" Height="360" FontSize="15">
+        Title="Key Binding" Width="500" Height="360" FontSize="15" WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>

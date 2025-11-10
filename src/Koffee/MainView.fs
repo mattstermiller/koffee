@@ -40,7 +40,7 @@ module MainView =
         let sizeStr =
             items
             |> List.choose (fun n -> if n.Type = File then n.Size else None)
-            |> Option.ofCond (not << List.isEmpty)
+            |> Option.ofCond Seq.isNotEmpty
             |> Option.map (List.sum >> Format.fileSize >> sprintf ", %s")
             |> Option.toString
         sprintf "%i %s%s" items.Length name sizeStr
@@ -112,12 +112,7 @@ module MainView =
             window.PathBox.Focus()
         ))
 
-        // On selection change, keep selected item in view
-        let keepSelectedInView _ =
-            if window.ItemGrid.SelectedItem <> null then
-                window.ItemGrid.ScrollIntoView(window.ItemGrid.SelectedItem)
-        window.ItemGrid.SelectedCellsChanged.Add keepSelectedInView
-        window.ItemGrid.SizeChanged.Add keepSelectedInView
+        window.ItemGrid.KeepSelectedItemInView()
 
         // When window comes back into focus with no valid focused element, focus on ItemGrid
         window.Activated.Add(fun _ ->
@@ -256,7 +251,7 @@ module MainView =
                     if keyCombo |> Seq.isNotEmpty then
                         let msg =
                             keyCombo
-                            |> Seq.map KeyBinding.keyDescription
+                            |> Seq.map KeyChord.displayString
                             |> String.concat ""
                             |> sprintf "Pressed %s, waiting for another key..."
                         (msg, "")
@@ -333,9 +328,10 @@ module MainView =
             // History display
             Bind.modelMulti(<@ model.HistoryDisplay, model.InputMode, model.Location, model.BackStack, model.ForwardStack,
                                model.UndoStack, model.RedoStack, model.History.Searches, model.SearchHistoryIndex,
-                               model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches, model.PathFormat @>)
+                               model.StatusHistory, model.Config.Bookmarks, model.Config.SavedSearches,
+                               model.Config.KeyBindings, model.PathFormat @>)
                 .toFunc(fun (historyType, inputMode, location, back, forward, undo, redo, searches, searchIndex, statuses,
-                             bookmarks, savedSearches, pathFormat) ->
+                             bookmarks, savedSearches, keyBindings, pathFormat) ->
                     let showHistoryType =
                         inputMode
                         |> Option.bind (fun input -> input.HistoryDisplay)
@@ -360,10 +356,13 @@ module MainView =
                             }
                             |> Seq.toList
                         let formatStack evt items =
-                            let key = KeyBinding.getKeysString evt
+                            let keyDescr =
+                                KeyBinding.getKeyCombos keyBindings evt
+                                |> List.tryHead
+                                |> Option.map KeyCombo.displayString
                             items |> List.truncate maxListSize |> List.mapi (fun i (name: string) ->
-                                let repeat = if i > 0 then i + 1 |> string else ""
-                                (repeat + key, name)
+                                let repeat = if keyDescr.IsSome && i > 0 then i + 1 |> string else ""
+                                (repeat + (keyDescr |? ""), name)
                             )
                         let header, rows =
                             match historyType with
@@ -487,39 +486,27 @@ module MainView =
                 |> Obs.mapTo LocationInputChanged
             window.SettingsButton.Click |> Obs.mapTo SettingsButtonClick
 
-            window.ItemGrid.PreviewKeyDown
-                |> Obs.filter isNotModifier
-                |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
-            window.ItemGrid.PreviewKeyDown |> Obs.choose (fun evt ->
+            window.ItemGrid.PreviewKeyDown |> Obs.filter isNotModifier |> Obs.map (fun evt ->
                 if evt.Chord = (ModifierKeys.Control, Key.C) then
                     evt.Handled <- true // prevent Ctrl+C crash due to bug in WPF datagrid
-                None
+                KeyPress (evt.Chord, evt.Handler)
             )
             window.ItemGrid.MouseDoubleClick |> Obs.mapTo ItemDoubleClick
             window.ItemGrid.SizeChanged |> Obs.throttle 0.5 |> Obs.onCurrent |> Obs.choose (fun _ ->
-                let grid = window.ItemGrid
-                if grid.HasItems then
-                    let visibleIndex = grid.SelectedIndex |> max 0
-                    grid.ItemContainerGenerator.ContainerFromIndex(visibleIndex) :?> DataGridRow |> Option.ofObj
-                    |> Option.map (fun visibleRow  ->
-                        let viewHeight = grid.ActualHeight - grid.ActualColumnHeaderHeight
-                        let pageSize = viewHeight / visibleRow.ActualHeight |> int
-                        Background (PageSizeChanged pageSize)
-                    )
-                else None
+                window.ItemGrid.VisibleRowCount |> Option.map (fun pageSize -> Background (PageSizeChanged pageSize))
             )
 
-            window.InputBox.PreviewKeyDown |> onKeyFunc Key.Enter (fun () -> InputEvent InputSubmit)
-            window.InputBox.PreviewKeyDown |> Obs.choose (fun keyEvt ->
-                match keyEvt.Key with
-                | Key.Up -> Some (InputEvent (InputNavigateHistory InputBack))
-                | Key.Down -> Some (InputEvent (InputNavigateHistory InputForward))
-                | Key.Delete -> Some (InputEvent (InputDelete (Keyboard.Modifiers = ModifierKeys.Shift, keyEvt.Handler)))
-                | _ -> None
+            window.InputBox.PreviewKeyDown |> Obs.map (fun evt ->
+                match evt.Key with
+                | Key.Enter ->
+                    evt.Handled <- true
+                    InputEvent InputSubmit
+                | _ ->
+                    InputEvent (InputKeyPress (evt.Chord, evt.Handler))
             )
-            window.InputBox.PreviewTextInput |> Obs.choose (fun keyEvt ->
-                match keyEvt.Text.ToCharArray() with
-                | [| c |] -> Some (InputEvent (InputCharTyped (c, keyEvt.Handler)))
+            window.InputBox.PreviewTextInput |> Obs.choose (fun evt ->
+                match evt.Text.ToCharArray() with
+                | [| c |] -> Some (InputEvent (InputCharTyped (c, evt.Handler)))
                 | _ -> None
             )
             window.InputBox.TextChanged |> Obs.mapTo (InputEvent InputChanged)

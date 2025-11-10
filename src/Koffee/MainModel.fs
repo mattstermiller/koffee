@@ -64,8 +64,8 @@ with
         | Scroll CursorTop -> "Scroll View to Put Cursor at the Top"
         | Scroll CursorMiddle -> "Scroll View to Put Cursor at the Middle"
         | Scroll CursorBottom -> "Scroll View to Put Cursor at the Bottom"
-        | StartFind false -> "Find Item Starting With..."
-        | StartFind true -> "Find Item Starting With... (Multi)"
+        | StartFind false -> "Find Item Starting With"
+        | StartFind true -> "Find Item Starting With (Multi)"
         | FindNext -> "Go To Next Find Match"
 
 type NavigationCommand =
@@ -182,9 +182,8 @@ with
         | ItemAction a -> a.Name
         | Window w -> w.Name
 
-    static member listWithNames =
+    static member commandList =
         Reflection.enumerateUnionCaseValues<MainCommand>
-        |> Seq.map (fun cmd -> (cmd, cmd.Name))
         |> Seq.toList
 
 type ItemType =
@@ -522,7 +521,7 @@ with
             let sizeDescr =
                 items
                 |> List.choose (fun item -> item.Size)
-                |> Option.ofCond (not << List.isEmpty)
+                |> Option.ofCond Seq.isNotEmpty
                 |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
                 |? ""
             sprintf "%s %s%s" action (Item.describeList items) sizeDescr
@@ -562,11 +561,6 @@ type RedoPutBlockedByExistingItemException() =
 
 [<RequireQualifiedAccess>]
 module MainStatus =
-    let private pluralS list =
-        match list with
-        | [_] -> ""
-        | _ -> "s"
-
     let private describeList strs =
         Seq.describeAndCount 3 id strs
 
@@ -581,7 +575,7 @@ module MainStatus =
         | PutItems (Copy, intent, _, _) ->
             sprintf "Copied %s" (intent.Description pathFormat)
         | PutItems (Shortcut, intent, _, _) ->
-            sprintf "Created shortcut%s to %s" (pluralS intent.Sources) (ItemRef.describeList intent.Sources)
+            sprintf "Created shortcut%s to %s" (Format.pluralS intent.Sources) (ItemRef.describeList intent.Sources)
         | DeletedItems (false, items, _) ->
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
@@ -682,7 +676,7 @@ module MainStatus =
                 let action = if copy then "Copied" else "Cut"
                 sprintf "%s to clipboard: %s" action (Message.describePaths pathFormat paths)
             | ClipboardCopyPaths paths ->
-                sprintf "Copied path%s to clipboard: %s" (pluralS paths) (Message.describePaths pathFormat paths)
+                sprintf "Copied path%s to clipboard: %s" (Format.pluralS paths) (Message.describePaths pathFormat paths)
             | NoItemsToPaste ->
                 "No items in clipboard to paste"
             | Sort (field, desc) ->
@@ -690,7 +684,7 @@ module MainStatus =
             | ToggleHidden showing ->
                 sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | OpenFiles names ->
-                sprintf "Opened File%s: %s" (pluralS names) (describeList names)
+                sprintf "Opened File%s: %s" (Format.pluralS names) (describeList names)
             | OpenProperties names ->
                 sprintf "Opened Properties for: %s" (describeList names)
             | OpenTextEditor names ->
@@ -700,7 +694,7 @@ module MainStatus =
             | OpenExplorer ->
                 "Opened Windows Explorer"
             | RemovedNetworkHosts names ->
-                sprintf "Removed network host%s: %s" (pluralS names) (describeList names)
+                sprintf "Removed network host%s: %s" (Format.pluralS names) (describeList names)
 
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent
@@ -880,6 +874,89 @@ with
         StatusHistory = 20
     }
 
+module MainBindings =
+    let Default =
+        let noMod = ModifierKeys.None
+        let shift = ModifierKeys.Shift
+        let ctrl = ModifierKeys.Control
+        let alt = ModifierKeys.Alt
+
+        List.map KeyBinding.ofTuple [
+            ([noMod, Key.K], Cursor CursorUp)
+            ([noMod, Key.J], Cursor CursorDown)
+            ([ctrl, Key.K], Cursor CursorUpHalfPage)
+            ([ctrl, Key.U], Cursor CursorUpHalfPage)
+            ([ctrl, Key.J], Cursor CursorDownHalfPage)
+            ([ctrl, Key.D], Cursor CursorDownHalfPage)
+            ([noMod, Key.G; noMod, Key.G], Cursor CursorToFirst)
+            ([shift, Key.G], Cursor CursorToLast)
+            ([noMod, Key.Space], Cursor SelectToggle)
+            ([shift, Key.Space], Cursor SelectRange)
+            ([ctrl, Key.A], Cursor SelectAll)
+            ([noMod, Key.Z; noMod, Key.T], Cursor (Scroll CursorTop))
+            ([noMod, Key.Z; noMod, Key.Z], Cursor (Scroll CursorMiddle))
+            ([noMod, Key.Z; noMod, Key.B], Cursor (Scroll CursorBottom))
+            ([noMod, Key.F], Cursor (StartFind false))
+            ([shift, Key.F], Cursor (StartFind true))
+            ([noMod, Key.Oem1], Cursor FindNext) // this key is semicolon ;
+
+            ([noMod, Key.L], Navigation OpenCursorItem)
+            ([noMod, Key.Enter], Navigation OpenSelected)
+            ([shift, Key.Enter], Navigation OpenFileWith)
+            ([ctrl, Key.Enter], Navigation OpenFileAndExit)
+            ([alt, Key.Enter], Navigation OpenProperties)
+            ([ctrl, Key.E], Navigation OpenWithTextEditor)
+            ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
+            ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
+            ([noMod, Key.H], Navigation OpenParent)
+            ([noMod, Key.G; noMod, Key.R], Navigation OpenRoot)
+            ([noMod, Key.G; noMod, Key.D], Navigation OpenDefault)
+            ([shift, Key.H], Navigation Back)
+            ([shift, Key.L], Navigation Forward)
+            ([noMod, Key.R], Navigation Refresh)
+            ([noMod, Key.F5], Navigation Refresh)
+            ([noMod, Key.OemQuestion], Navigation StartSearch)
+            ([noMod, Key.N], Navigation RepeatPreviousSearch)
+            ([noMod, Key.OemQuotes], Navigation (PromptGoToMark Bookmark))
+            ([noMod, Key.Oem3], Navigation (PromptGoToMark SavedSearch)) // this key is backtick `
+            ([noMod, Key.M], Navigation PromptSetMark)
+            ([noMod, Key.S; noMod, Key.N], Navigation (SortList Name))
+            ([noMod, Key.S; noMod, Key.M], Navigation (SortList Modified))
+            ([noMod, Key.S; noMod, Key.S], Navigation (SortList Size))
+            ([noMod, Key.F9], Navigation ToggleHidden)
+            ([noMod, Key.G; noMod, Key.H], Navigation ShowNavHistory)
+            ([noMod, Key.G; noMod, Key.U], Navigation ShowUndoHistory)
+            ([noMod, Key.G; noMod, Key.S], Navigation ShowStatusHistory)
+
+            ([noMod, Key.O], ItemAction CreateFile)
+            ([shift, Key.O], ItemAction CreateFolder)
+            ([noMod, Key.I], ItemAction (StartRename Begin))
+            ([noMod, Key.A], ItemAction (StartRename EndName))
+            ([shift, Key.A], ItemAction (StartRename End))
+            ([noMod, Key.C], ItemAction (StartRename ReplaceName))
+            ([shift, Key.C], ItemAction (StartRename ReplaceAll))
+            ([noMod, Key.D], ItemAction (Yank Move))
+            ([noMod, Key.Y], ItemAction (Yank Copy))
+            ([shift, Key.Y], ItemAction (Yank Shortcut))
+            ([alt, Key.Y], ItemAction ClearYank)
+            ([noMod, Key.P], ItemAction Put)
+            ([noMod, Key.Delete], ItemAction Recycle)
+            ([shift, Key.Delete], ItemAction ConfirmDelete)
+            ([ctrl, Key.X], ItemAction ClipboardCut)
+            ([ctrl, Key.C], ItemAction ClipboardCopy)
+            ([ctrl ||| shift, Key.C], ItemAction ClipboardCopyPaths)
+            ([ctrl, Key.V], ItemAction ClipboardPaste)
+            ([noMod, Key.U], ItemAction Undo)
+            ([ctrl, Key.Z], ItemAction Undo)
+            ([noMod, Key.U], ItemAction Redo)
+            ([ctrl ||| shift, Key.Z], ItemAction Redo)
+
+            ([ctrl, Key.N], Window OpenSplitScreenWindow)
+            ([shift, Key.OemQuestion], Window OpenSettings)
+            ([noMod, Key.F1], Window OpenSettings)
+            ([ctrl, Key.W], Window Exit)
+        ]
+
 type Config = {
     StartPath: StartPath
     DefaultPath: Path
@@ -891,6 +968,7 @@ type Config = {
     SearchExclusions: string list
     YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
+    KeyBindings: KeyBinding<MainCommand> list
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
     Limits: Limits
@@ -951,6 +1029,7 @@ with
             ShowFullPathInTitle = false
             RefreshOnActivate = true
         }
+        KeyBindings = MainBindings.Default
         Bookmarks = []
         SavedSearches = []
         Limits = Limits.Default
@@ -1323,16 +1402,11 @@ type DragOutEvent(control) =
         |> DragDropEffects.toPutTypes
         |> List.tryHead
 
-type InputNavigateHistoryDirection =
-    | InputBack
-    | InputForward
-
 type InputEvent =
-    | InputCharTyped of char * keyHandler: KeyPressHandler
+    | InputCharTyped of char * KeyPressHandler
+    | InputKeyPress of KeyChord * KeyPressHandler
     | InputChanged
     | InputSubmit
-    | InputNavigateHistory of InputNavigateHistoryDirection
-    | InputDelete of isShifted: bool * keyHandler: KeyPressHandler
 
 type BackgroundEvent =
     | ConfigFileChanged of Config
@@ -1343,7 +1417,7 @@ type BackgroundEvent =
     | WindowMaximizedChanged of bool
 
 type MainEvent =
-    | KeyPress of (ModifierKeys * Key) * KeyPressHandler
+    | KeyPress of KeyChord * KeyPressHandler
     | ItemDoubleClick
     | SettingsButtonClick
     | LocationInputChanged

@@ -429,12 +429,7 @@ let repeatSearch fsReader subDirResults progress (model: MainModel) = asyncSeq {
             yield model |> MainModel.withError MainStatus.NoPreviousSearch
 }
 
-let traverseSearchHistory direction model =
-    let offset =
-        match direction with
-        | Some InputBack -> 1
-        | Some InputForward -> -1
-        | None -> 0
+let traverseSearchHistory offset model =
     let index =
         (model.SearchHistoryIndex |? -1) + offset
         |> min (model.History.Searches.Length-1)
@@ -456,7 +451,7 @@ let deleteSearchHistory model =
     | Some index ->
         model
         |> MainModel.mapHistory (History.withoutSearchIndex index)
-        |> traverseSearchHistory None
+        |> traverseSearchHistory 0
     | None -> model
 
 let inputSearch (model: MainModel) =
@@ -654,11 +649,14 @@ type Handler(
         | InputChanged ->
             yield CursorCommands.find model
         | InputCharTyped (char, keyHandler) ->
-            if KeyBinding.getKeysString (Cursor FindNext) |> Seq.toList = [char] then
-                keyHandler.Handle()
-                yield CursorCommands.findNext model
-            else
-                suppressInvalidPathChar char keyHandler
+            suppressInvalidPathChar char keyHandler
+        | InputKeyPress (keyChord, keyHandler) ->
+            if not (keyChord |> KeyChord.isLetter) then
+                match KeyBinding.getChordMatch model.Config.KeyBindings keyChord with
+                | Some (Cursor FindNext) ->
+                    keyHandler.Handle()
+                    yield CursorCommands.findNext model
+                | _ -> ()
         | InputSubmit ->
             let model =
                 { model with
@@ -667,7 +665,6 @@ type Handler(
                 }
             yield model
             yield! model |> handleAsyncResult (openItems fs os [model.CursorItem])
-        | _ -> ()
     }
 
     member _.HandleSearchInputEvent (evt: InputEvent) (model: MainModel) = asyncSeq {
@@ -684,12 +681,18 @@ type Handler(
                     History = model.History |> Option.foldBack (History.withSearch model.Config.Limits.SearchHistory) search
                     HistoryDisplay = None
                 }
-        | InputNavigateHistory direction ->
-            yield traverseSearchHistory (Some direction) model
-        | InputDelete (isShifted, keyHandler) ->
-            if isShifted && model.HistoryDisplay = Some SearchHistory then
+        | InputKeyPress (keyChord, keyHandler) ->
+            match keyChord with
+            | (ModifierKeys.Shift, Key.Delete) when model.HistoryDisplay = Some SearchHistory ->
                 keyHandler.Handle()
                 yield deleteSearchHistory model
+            | (ModifierKeys.None, Key.Up) ->
+                keyHandler.Handle()
+                yield traverseSearchHistory 1 model
+            | (ModifierKeys.None, Key.Down) ->
+                keyHandler.Handle()
+                yield traverseSearchHistory -1 model
+            | _ -> ()
         | _ -> ()
     }
 

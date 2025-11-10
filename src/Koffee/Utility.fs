@@ -88,6 +88,11 @@ module Format =
     let count name count =
         sprintf "%i %s%s" count name (if count <> 1 then "s" else "")
 
+    let pluralS list =
+        match list with
+        | [_] -> ""
+        | _ -> "s"
+
     let fileSize size =
         let scaleNames = ["B";"KB";"MB";"GB"]
         let scale level = pown 1024L level
@@ -99,6 +104,12 @@ module Format =
         else if size > scale 2 then scaledStr size 2
         else if size > scale 1 then scaledStr size 1
         else scaledStr size 0
+
+module Parse =
+    let enumValue<'a when 'a: (new: unit -> 'a) and 'a: struct and 'a :> System.ValueType> str =
+        match System.Enum.TryParse<'a> str with
+        | true, value -> Some value
+        | _ -> None
 
 module Observable =
     let onCurrent (o: IObservable<_>) =

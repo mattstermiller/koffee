@@ -248,7 +248,7 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
                     intent.FilterPutItemsToDestParent succeeded
                     |> Seq.map (fun putItem -> putItem.Dest)
                     |> Seq.toList
-                    |> Option.ofCond (not << List.isEmpty)
+                    |> Option.ofCond Seq.isNotEmpty
                     |> Option.defaultWith (fun () ->
                         let rec childOfDestParent (path: Path) =
                             if path.Parent = intent.DestParent then path

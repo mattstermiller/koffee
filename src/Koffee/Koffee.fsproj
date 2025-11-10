@@ -16,12 +16,12 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Utility.fs" />
     <Compile Include="Reflection.fs" />
-    <Compile Include="KeyComboParser.fs" />
     <Compile Include="Path.fs" />
-    <Compile Include="MainModel.fs" />
     <Compile Include="KeyBinding.fs" />
+    <Compile Include="MainModel.fs" />
     <Compile Include="UIHelpers.fs" />
     <Compile Include="TextEdit.fs" />
+    <Compile Include="KeyBinder.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="OperatingSystem.fs" />
     <Compile Include="OsUtility.fs" />

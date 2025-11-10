@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <OutputType>Library</OutputType>
@@ -13,12 +13,12 @@
     <Compile Include="FakeFileSystemTests.fs" />
     <Compile Include="AsyncSeqResultBuilderTests.fs" />
     <Compile Include="RectTests.fs" />
-    <Compile Include="KeyComboParserTests.fs" />
     <Compile Include="PathTests.fs" />
     <Compile Include="SortFieldTests.fs" />
     <Compile Include="ProgramOptionsTests.fs" />
-    <Compile Include="ConfigTests.fs" />
+    <Compile Include="ConfigSerializationTests.fs" />
     <Compile Include="HistoryTests.fs" />
+    <Compile Include="KeyComboTests.fs" />
     <Compile Include="MainModelTests.fs" />
     <Compile Include="MainViewTests.fs" />
     <Compile Include="CursorSelectTests.fs" />
@@ -34,6 +34,7 @@
     <Compile Include="ItemDeleteTests.fs" />
     <Compile Include="MainControllerInitModelTests.fs" />
     <Compile Include="OsUtilityTests.fs" />
+    <Compile Include="CommandBindingTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Koffee\Koffee.fsproj" />

@@ -1,7 +1,7 @@
 <Window x:Class="KoffeeUI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Koffee Settings" Width="650" Height="700" FontSize="15">
+        Title="Koffee Settings" Width="650" Height="650" FontSize="15" WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -25,6 +25,7 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <!-- Left column -->
@@ -76,26 +77,30 @@
     <Button Name="EditSearchExclusions" x:FieldModifier="public" Content="Recursive Search Exclusions..."
             Grid.Column="3" Grid.Row="5"/>
 
-    <!-- Key bindings -->
+    <!-- Commands / key bindings -->
     <Grid Grid.Row="6" Grid.ColumnSpan="4">
-      <Label Content="Key bindings:"/>
+      <Label Content="Commands:"/>
       <Label Content="Modifiers: c- Ctrl, s- Shift, a- Alt, m- Meta/Windows" HorizontalAlignment="Right"/>
     </Grid>
 
-    <DataGrid Name="KeyBindings" x:FieldModifier="public" IsReadOnly="True" AreRowDetailsFrozen="True"
-              AutoGenerateColumns="False" CanUserResizeRows="False" GridLinesVisibility="None" RowHeaderWidth="0"
-              ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
+    <DataGrid Name="Commands" x:FieldModifier="public" AutoGenerateColumns="False" IsReadOnly="True"
+              SelectionMode="Single" CanUserResizeRows="False" AreRowDetailsFrozen="True" GridLinesVisibility="None"
+              RowHeaderWidth="0" ColumnWidth="*" HorizontalScrollBarVisibility="Hidden" Grid.Row="7" Grid.ColumnSpan="4">
       <DataGrid.Resources>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource Text}"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
-                         Color="{DynamicResource Text}"/>
         <Style TargetType="{x:Type DataGridCell}">
           <Setter Property="BorderThickness" Value="0"/>
           <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         </Style>
       </DataGrid.Resources>
     </DataGrid>
+
+    <Grid Margin="0,6,0,0" Grid.Row="8" Grid.ColumnSpan="4">
+      <Button Name="ResetAllKeyBindings" x:FieldModifier="public" Content="Reset All Bindings" Width="130"
+              HorizontalAlignment="Left"/>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button Name="ResetCommandBindings" x:FieldModifier="public" Content="Reset Selected" Width="130" Margin="6 0 0 0"/>
+        <Button Name="EditCommandBindings" x:FieldModifier="public" Content="Edit Bindings" Width="130" Margin="6 0 0 0"/>
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>

@@ -1,173 +1,182 @@
-module Koffee.KeyBinding
+namespace Koffee
 
-let defaultsAsString = [
-    ("k", Cursor CursorUp)
-    ("j", Cursor CursorDown)
-    ("<c-k>", Cursor CursorUpHalfPage)
-    ("<c-u>", Cursor CursorUpHalfPage)
-    ("<c-j>", Cursor CursorDownHalfPage)
-    ("<c-d>", Cursor CursorDownHalfPage)
-    ("gg", Cursor CursorToFirst)
-    ("G", Cursor CursorToLast)
-    ("<space>", Cursor SelectToggle)
-    ("<s-space>", Cursor SelectRange)
-    ("<c-a>", Cursor SelectAll)
-    ("zt", Cursor (Scroll CursorTop))
-    ("zz", Cursor (Scroll CursorMiddle))
-    ("zb", Cursor (Scroll CursorBottom))
-    ("f", Cursor (StartFind false))
-    ("F", Cursor (StartFind true))
-    (";", Cursor FindNext)
+open System.Windows.Input
+open Acadian.FSharp
 
-    ("l", Navigation OpenCursorItem)
-    ("<enter>", Navigation OpenSelected)
-    ("<s-enter>", Navigation OpenFileWith)
-    ("<c-enter>", Navigation OpenFileAndExit)
-    ("<a-enter>", Navigation OpenProperties)
-    ("<c-e>", Navigation OpenWithTextEditor)
-    ("<cs-t>", Navigation OpenTerminal)
-    ("<cs-e>", Navigation OpenExplorer)
-    ("h", Navigation OpenParent)
-    ("gr", Navigation OpenRoot)
-    ("gd", Navigation OpenDefault)
-    ("H", Navigation Back)
-    ("L", Navigation Forward)
-    ("r", Navigation Refresh)
-    ("<f5>", Navigation Refresh)
-    ("/", Navigation StartSearch)
-    ("n", Navigation RepeatPreviousSearch)
-    ("'", Navigation (PromptGoToMark Bookmark))
-    ("`", Navigation (PromptGoToMark SavedSearch))
-    ("m", Navigation PromptSetMark)
-    ("sn", Navigation (SortList Name))
-    ("sm", Navigation (SortList Modified))
-    ("ss", Navigation (SortList Size))
-    ("<f9>", Navigation ToggleHidden)
-    ("gh", Navigation ShowNavHistory)
-    ("gu", Navigation ShowUndoHistory)
-    ("gs", Navigation ShowStatusHistory)
+module Key =
+    let isDigit key = key >= Key.D0 && key <= Key.D9
+    let isLetter key = key >= Key.A && key <= Key.Z
 
-    ("o", ItemAction CreateFile)
-    ("O", ItemAction CreateFolder)
-    ("i", ItemAction (StartRename Begin))
-    ("a", ItemAction (StartRename EndName))
-    ("A", ItemAction (StartRename End))
-    ("c", ItemAction (StartRename ReplaceName))
-    ("C", ItemAction (StartRename ReplaceAll))
-    ("d", ItemAction (Yank Move))
-    ("y", ItemAction (Yank Copy))
-    ("Y", ItemAction (Yank Shortcut))
-    ("<a-y>", ItemAction ClearYank)
-    ("p", ItemAction Put)
-    ("<delete>", ItemAction Recycle)
-    ("<s-delete>", ItemAction ConfirmDelete)
-    ("<c-x>", ItemAction ClipboardCut)
-    ("<c-c>", ItemAction ClipboardCopy)
-    ("<cs-c>", ItemAction ClipboardCopyPaths)
-    ("<c-v>", ItemAction ClipboardPaste)
-    ("u", ItemAction Undo)
-    ("<c-z>", ItemAction Undo)
-    ("U", ItemAction Redo)
-    ("<cs-z>", ItemAction Redo)
+[<AutoOpen>]
+module KeyPatterns =
+    let (|DigitKey|_|) (key: Key) =
+        if Key.isDigit key
+        then Some (int key - int Key.D0)
+        else None
 
-    ("<c-n>", Window OpenSplitScreenWindow)
-    ("?", Window OpenSettings)
-    ("<f1>", Window OpenSettings)
-    ("<c-w>", Window Exit)
-]
+type KeyChord = ModifierKeys * Key
 
-let private parseKey keyStr =
-    match KeyComboParser.Parse keyStr with
-    | Some keys -> keys
-    | None -> failwith (sprintf "Could not parse key string %s for binding" keyStr)
+module KeyChord =
+    let private modifierStrings = [
+        ModifierKeys.Control, "c"
+        ModifierKeys.Shift, "s"
+        ModifierKeys.Alt, "a"
+        ModifierKeys.Windows, "m"
+    ]
 
-let defaults =
-    defaultsAsString
-    |> List.map (fun (keyStr, evt) -> (parseKey keyStr, evt))
+    let isDigit (modifiers: ModifierKeys, key: Key) =
+        modifiers = ModifierKeys.None && Key.isDigit key
 
-let getKeysString evt = defaultsAsString |> List.find (snd >> (=) evt) |> fst
+    let isLetter (modifiers: ModifierKeys, key: Key) =
+        (modifiers = ModifierKeys.None || modifiers = ModifierKeys.Shift) && Key.isLetter key
+
+    let displayString (modifiers: ModifierKeys, key: Key) =
+        let modIsOnlyShift = modifiers = ModifierKeys.Shift
+        let keyStr =
+            match key, modIsOnlyShift with
+            | key, false when Key.isLetter key -> (string key).ToLower()
+            | key, true when Key.isLetter key -> string key
+            | DigitKey digit, false -> string digit
+            | Key.D1, true -> "!"
+            | Key.D2, true -> "@"
+            | Key.D3, true -> "#"
+            | Key.D4, true -> "$"
+            | Key.D5, true -> "%"
+            | Key.D6, true -> "^"
+            | Key.D7, true -> "&"
+            | Key.D8, true -> "*"
+            | Key.D9, true -> "("
+            | Key.D0, true -> ")"
+            | Key.Oem3, false -> "`"
+            | Key.Oem3, true -> "~"
+            | Key.OemMinus, false -> "-"
+            | Key.OemMinus, true -> "_"
+            | Key.OemPlus, false -> "="
+            | Key.OemPlus, true -> "+"
+            | Key.OemOpenBrackets, false -> "["
+            | Key.OemOpenBrackets, true -> "{"
+            | Key.Oem6, false -> "]"
+            | Key.Oem6, true -> "}"
+            | Key.Oem5, false -> "\\"
+            | Key.Oem5, true -> "|"
+            | Key.OemSemicolon, false -> ";"
+            | Key.OemSemicolon, true -> ":"
+            | Key.OemQuotes, false -> "'"
+            | Key.OemQuotes, true -> "\""
+            | Key.OemComma, false -> ","
+            | Key.OemComma, true -> "<"
+            | Key.OemPeriod, false -> "."
+            | Key.OemPeriod, true -> ">"
+            | Key.OemQuestion, false -> "/"
+            | Key.OemQuestion, true -> "?"
+            | Key.Return, _ -> "Enter"
+            | Key.Back, _ -> "Backspace"
+            | Key.Next, _ -> "PageDown"
+            | _ -> string key
+        let mods =
+            if modIsOnlyShift && keyStr.Length = 1 then
+                []
+            else
+                modifierStrings |> List.choose (fun (modifier, str) ->
+                    if modifiers.HasFlag modifier then Some str else None
+                )
+        if not mods.IsEmpty then
+            sprintf "<%s-%s>" (mods |> String.concat "") keyStr
+        else if keyStr.Length > 1 then
+            sprintf "<%s>" keyStr
+        else
+            keyStr
+
+    let serialize (modifiers: ModifierKeys, key: Key) =
+        let mods =
+            [
+                ModifierKeys.Control
+                ModifierKeys.Shift
+                ModifierKeys.Alt
+                ModifierKeys.Windows
+            ]
+            |> List.filter (modifiers.HasFlag)
+            |> List.map (fun modifier -> string modifier + "+")
+            |> String.concat ""
+        mods + string key
+
+    let deserialize str =
+        let parts = str |> String.split '+'
+        let mods =
+            parts
+            |> Seq.take (parts.Length - 1)
+            |> Seq.choose (Parse.enumValue<ModifierKeys>)
+            |> Seq.fold (|||) ModifierKeys.None
+        parts
+        |> Array.last
+        |> Parse.enumValue<Key>
+        |> Option.map (fun key -> (mods, key))
+
+type KeyCombo = KeyChord list
+
+module KeyCombo =
+    let displayString keyCombo =
+        keyCombo
+        |> List.map KeyChord.displayString
+        |> String.concat ""
+
+    let rec intersectsWith (a: KeyCombo) (b: KeyCombo) =
+        match a, b with
+        | a :: restA, b :: restB when a = b -> intersectsWith restA restB
+        | [], _ | _, [] -> true
+        | _ -> false
+
+    let isUsableInInputBox keyCombo =
+        match keyCombo with
+        | [chord] when not (chord |> KeyChord.isLetter) -> true
+        | _ -> false
 
 type KeyBindMatch<'a> =
     | Match of 'a
     | PartialMatch
     | NoMatch
 
-let getMatch (keyBindings: (KeyCombo * _) list) (keyCombo: KeyCombo) =
-    // choose bindings where the next key/chord matches, selecting the remaining chords
-    let rec startsWith l sw =
-        match l, sw with
-        | x :: l, y :: sw when x = y -> startsWith l sw
-        | l, [] -> Some l
-        | _ -> None
-    let matches =
-        keyBindings |> List.choose (fun (kc, item) ->
-            startsWith kc keyCombo |> Option.map (fun rem -> (rem, item)))
-    match matches with
-    | [] -> NoMatch
-    | _ ->
-        // find last binding that had all chords matched
-        let triggered = matches |> List.tryFindBack (fst >> (=) [])
-        match triggered with
-        | Some (_, item) -> Match item
-        | None -> PartialMatch
+type KeyBinding<'Command> = {
+    KeyCombo: KeyCombo
+    Command: 'Command
+}
 
-open System.Windows.Input
+module KeyBinding =
+    let ofTuple (keyCombo, command) =
+        { KeyCombo = keyCombo; Command = command }
 
-let keyDescription (modifiers: ModifierKeys, key: Key) =
-    let isLetter = key >= Key.A && key <= Key.Z
-    let mutable showShift = false
-    let keyStr =
-        match key, modifiers.HasFlag ModifierKeys.Shift with
-        | key, false when isLetter -> (string key).ToLower()
-        | key, true when isLetter -> string key
-        | key, false when key >= Key.D0 && key <= Key.D9 -> (string key).Substring(1)
-        | Key.D1, true -> "!"
-        | Key.D2, true -> "@"
-        | Key.D3, true -> "#"
-        | Key.D4, true -> "$"
-        | Key.D5, true -> "%"
-        | Key.D6, true -> "^"
-        | Key.D7, true -> "&"
-        | Key.D8, true -> "*"
-        | Key.D9, true -> "("
-        | Key.D0, true -> ")"
-        | Key.Oem3, false -> "`"
-        | Key.Oem3, true -> "~"
-        | Key.OemMinus, false -> "-"
-        | Key.OemMinus, true -> "_"
-        | Key.OemPlus, false -> "="
-        | Key.OemPlus, true -> "+"
-        | Key.OemOpenBrackets, false -> "["
-        | Key.OemOpenBrackets, true -> "{"
-        | Key.Oem6, false -> "]"
-        | Key.Oem6, true -> "}"
-        | Key.Oem5, false -> "\\"
-        | Key.Oem5, true -> "|"
-        | Key.OemSemicolon, false -> ";"
-        | Key.OemSemicolon, true -> ":"
-        | Key.OemQuotes, false -> "'"
-        | Key.OemQuotes, true -> "\""
-        | Key.OemComma, false -> ","
-        | Key.OemComma, true -> "<"
-        | Key.OemPeriod, false -> "."
-        | Key.OemPeriod, true -> ">"
-        | Key.OemQuestion, false -> "/"
-        | Key.OemQuestion, true -> "?"
-        | Key.Return, shift ->
-            showShift <- shift
-            "Enter"
-        | _, shift ->
-            showShift <- shift
-            string key
-    let mods =
-        [ ModifierKeys.Control, "c"
-          ModifierKeys.Shift, "s"
-          ModifierKeys.Alt, "a"
-          ModifierKeys.Windows, "m"
-        ]
-        |> List.filter (fun (m, _) -> m <> ModifierKeys.Shift || showShift)
-        |> List.choose (fun (m, s) -> if modifiers.HasFlag m then Some s else None)
-    if mods.IsEmpty then
-        keyStr
-    else
-        sprintf "<%s-%s>" (mods |> String.concat "") keyStr
+    let getKeyCombos (bindings: KeyBinding<_> list) command =
+        bindings |> List.choose (fun binding ->
+            if binding.Command = command
+            then Some binding.KeyCombo
+            else None
+        )
+
+    let getMatch (bindings: KeyBinding<_> seq) (keyCombo: KeyCombo) =
+        let rec startsWith prefix lst =
+            match prefix, lst with
+            | p :: restP, l :: restL when p = l -> startsWith restP restL
+            | [], rest -> Some rest
+            | _ -> None
+        // choose bindings where the next chord matches, selecting the remaining chords
+        let matches =
+            bindings
+            |> Seq.choose (fun binding ->
+                startsWith keyCombo binding.KeyCombo |> Option.map (fun restChords -> (restChords, binding.Command))
+            )
+            |> Seq.toList
+        if matches |> List.isEmpty then
+            NoMatch
+        else
+            // see if a binding had all chords matched
+            let triggered = matches |> List.tryFind (fst >> (=) [])
+            match triggered with
+            | Some (_, item) -> Match item
+            | None -> PartialMatch
+
+    let getChordMatch (bindings: KeyBinding<_> list) (keyChord: KeyChord) =
+        bindings |> List.tryPick (fun binding ->
+            if binding.KeyCombo = [keyChord]
+            then Some binding.Command
+            else None
+        )

@@ -14,12 +14,6 @@ open VinylUI.Wpf
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
 
-let (|DigitKey|_|) (key: Key) =
-    if key >= Key.D0 && key <= Key.D9 then
-        Some (int key - int Key.D0)
-    else
-        None
-
 type RoutedEventArgs with
     member this.Handler = KeyPressHandler(this)
     member this.HandlerWithEffect f = KeyPressHandler(this, f)
@@ -88,6 +82,24 @@ type DataGrid with
     member this.ActualColumnHeaderHeight =
         this.FindVisualChild<DataGridColumnHeadersPresenter>() |> Option.map (fun h -> h.ActualHeight) |? 0.0
 
+    member this.VisibleRowCount =
+        if this.HasItems then
+            let visibleIndex = this.SelectedIndex |> max 0
+            this.ItemContainerGenerator.ContainerFromIndex(visibleIndex) :?> DataGridRow |> Option.ofObj
+            |> Option.map (fun visibleRow  ->
+                let viewHeight = this.ActualHeight - this.ActualColumnHeaderHeight
+                viewHeight / visibleRow.ActualHeight |> int
+            )
+        else
+            None
+
+    member this.KeepSelectedItemInView () =
+        let scroll _ =
+            if this.SelectedItem <> null then
+                this.ScrollIntoView(this.SelectedItem)
+        this.SelectedCellsChanged.Add scroll
+        this.SizeChanged.Add scroll
+
 type DataGridColumn with
     member this.IsCollapsed
         with get () = this.Visibility = Visibility.Collapsed
@@ -118,15 +130,13 @@ type BindViewPartExtensions() =
     static member toModel(viewPart: BindViewPart<Control, bool Nullable>, modelProperty: Expr<bool>) =
         viewPart.toModel(modelProperty, ((=) (Nullable true)), Nullable)
 
-let onKey key action (evt: KeyEventArgs) =
-    if evt.Key = key then
-        evt.Handled <- true
-        action() |> ignore
-
 let onKeyCombo mods key action (evt: KeyEventArgs) =
     if Keyboard.Modifiers = mods && evt.Key = key then
         evt.Handled <- true
         action() |> ignore
+
+let onKey key action evt =
+    onKeyCombo ModifierKeys.None key action evt
 
 let onKeyFunc key resultFunc (keyEvent : IEvent<KeyEventHandler, KeyEventArgs>) =
     keyEvent |> Observable.choose (fun evt ->

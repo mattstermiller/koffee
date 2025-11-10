@@ -71,8 +71,8 @@ let private escape model =
         model.CancelToken.Cancel()
         model |> MainModel.clearStatus |> NavigationCommands.clearSearch
 
-let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord handleKey model = asyncSeq {
-    let evt, modelFunc =
+let keyPress handleCommand chord handleKey model = asyncSeq {
+    let command, modelFunc =
         match chord with
         | (ModifierKeys.None, Key.Escape) ->
             handleKey ()
@@ -81,18 +81,18 @@ let keyPress handleCommand (keyBindings: (KeyCombo * MainCommand) list) chord ha
             (None, MainModel.appendRepeatDigit digit)
         | _ ->
             let keyCombo = List.append model.KeyCombo [chord]
-            match KeyBinding.getMatch keyBindings keyCombo with
-            | KeyBinding.Match newEvent ->
+            match KeyBinding.getMatch model.Config.KeyBindings keyCombo with
+            | Match newEvent ->
                 handleKey ()
                 (Some newEvent, MainModel.withoutKeyCombo)
-            | KeyBinding.PartialMatch ->
+            | PartialMatch ->
                 handleKey ()
                 (None, (fun m -> { m with KeyCombo = keyCombo }))
-            | KeyBinding.NoMatch ->
+            | NoMatch ->
                 (None, MainModel.withoutKeyCombo)
-    match evt with
-    | Some e ->
-        match handleCommand e with
+    match command with
+    | Some cmd ->
+        match handleCommand cmd with
         | Sync handler ->
             yield handler model |> modelFunc
         | Async handler ->
@@ -134,7 +134,6 @@ type Controller(
     getScreenBounds: unit -> Rectangle,
     progress: Progress,
     subDirResults: Event<Item list>,
-    keyBindings: (KeyCombo * MainCommand) list,
     configFile: ConfigFile,
     historyFile: HistoryFile,
     startOptions: StartOptions
@@ -156,7 +155,7 @@ type Controller(
                 | Bookmark -> navigationHandler.HandleBookmarkCommand
                 | SavedSearch -> navigationHandler.HandleSavedSearchCommand
             yield! model |> handleAsyncResult (handler markCommand char)
-        | InputDelete (_, keyHandler) ->
+        | InputKeyPress ((_, Key.Delete), keyHandler) ->
             keyHandler.Handle()
             let prompt = MarkPrompt (markType, DeleteMark)
             yield { model with InputMode = Some prompt }
@@ -204,7 +203,7 @@ type Controller(
     let dispatcher evt =
         let handler =
             match evt with
-            | KeyPress (chord, handler) -> Async (keyPress handleCommand keyBindings chord handler.Handle)
+            | KeyPress (chord, handler) -> Async (keyPress handleCommand chord handler.Handle)
             | ItemDoubleClick -> handleCommand (Navigation OpenCursorItem)
             | SettingsButtonClick -> handleCommand (Window OpenSettings)
             | LocationInputChanged -> Async navigationHandler.LocationInputChanged

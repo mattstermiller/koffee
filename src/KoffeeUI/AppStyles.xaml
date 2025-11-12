@@ -43,10 +43,10 @@
   <SolidColorBrush x:Key="PanelTextBrush" Color="{DynamicResource HighlightText}"/>
   <SolidColorBrush x:Key="PopupBrush" Color="{DynamicResource Control}"/>
   <SolidColorBrush x:Key="PopupTextBrush" Color="{DynamicResource Text}"/>
-  <SolidColorBrush x:Key="SelectionBrush" Color="{DynamicResource Selection}"/>
-  <SolidColorBrush x:Key="SelectionTextBrush" Color="{DynamicResource SelectionText}"/>
+  <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource Selection}"/>
+  <SolidColorBrush x:Key="SelectionTextBrush" Color="{StaticResource SelectionText}"/>
   <SolidColorBrush x:Key="TextBrush" Color="{DynamicResource Text}"/>
-  <SolidColorBrush x:Key="TextDimmedBrush" Color="{DynamicResource TextDimmed}"/>
+  <SolidColorBrush x:Key="TextDimmedBrush" Color="{StaticResource TextDimmed}"/>
 
   <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="{DynamicResource Background}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="{DynamicResource Text}"/>
@@ -59,10 +59,6 @@
                        GradientStops="{Binding GradientStops, Source={StaticResource HighlightBrush}}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource Text}"/>
 
-  <Style TargetType="Window">
-    <Setter Property="Background" Value="{DynamicResource Background}"/>
-    <Setter Property="Foreground" Value="{DynamicResource Foreground}"/>
-  </Style>
   <Style TargetType="Border">
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
   </Style>

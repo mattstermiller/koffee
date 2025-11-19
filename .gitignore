@@ -1,3 +1,12 @@
+# build output
+bin/
+obj/
+test/
+dist/
+dist-staging/
+packages/
+*_wpftmp.csproj
+
 # Visual Studio code
 .ionide/
 
@@ -17,11 +26,3 @@ _ReSharper*/
 
 # FAKE
 .fake/
-
-# build output
-bin/
-obj/
-test/
-dist/
-dist-staging/
-packages/

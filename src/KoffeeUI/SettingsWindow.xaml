@@ -26,10 +26,11 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <!-- Left column -->
-    <Label Name="LabelStartPath" x:FieldModifier="public" Content="Startup path:" Grid.Column="0" Grid.Row="0"/>
+    <Label Name="LabelStartPath" Content="Startup path:" Grid.Column="0" Grid.Row="0"/>
     <RadioButton Name="StartPathPrevious" x:FieldModifier="public" GroupName="Start Path"
                  Content="Restore previous path" VerticalAlignment="Center" Grid.Column="1" Grid.Row="0"/>
     <DockPanel Grid.Column="1" Grid.Row="1">
@@ -39,18 +40,15 @@
                Validation.ErrorTemplate="{StaticResource ValidationTemplate}"/>
     </DockPanel>
 
-    <Label Name="LabelTextEditor" x:FieldModifier="public" Content="Text editor path:" VerticalAlignment="Center"
-           Grid.Row="2"/>
+    <Label Name="LabelTextEditor" Content="Text editor path:" VerticalAlignment="Center" Grid.Row="2"/>
     <TextBox Name="TextEditor" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
              Grid.Row="2"/>
 
-    <Label Name="LabelTerminalPath" x:FieldModifier="public" Content="Terminal path:" VerticalAlignment="Center"
-           Grid.Row="3"/>
+    <Label Name="LabelTerminalPath" Content="Terminal path:" VerticalAlignment="Center" Grid.Row="3"/>
     <TextBox Name="TerminalPath" x:FieldModifier="public" Height="24" VerticalAlignment="Center" Grid.Column="1"
              Grid.Row="3"/>
 
-    <Label Name="LabelPathFormat" x:FieldModifier="public" Content="Path format:" VerticalAlignment="Center"
-           Grid.Column="0" Grid.Row="4"/>
+    <Label Name="LabelPathFormat" Content="Path format:" VerticalAlignment="Center" Grid.Column="0" Grid.Row="4"/>
     <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="4">
       <RadioButton Name="PathFormatWindows" x:FieldModifier="public" Content="Windows" GroupName="PathFormat"
                    VerticalAlignment="Center"/>
@@ -94,12 +92,21 @@
       </DataGrid.Resources>
     </DataGrid>
 
-    <Grid Margin="0,6,0,0" Grid.Row="8" Grid.ColumnSpan="4">
-      <Button Name="ResetAllKeyBindings" x:FieldModifier="public" Content="Reset All Bindings" Width="130"
-              HorizontalAlignment="Left"/>
+    <Grid Margin="0,8,0,0" Grid.Row="8" Grid.ColumnSpan="4">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-        <Button Name="ResetCommandBindings" x:FieldModifier="public" Content="Reset Selected" Width="130" Margin="6 0 0 0"/>
-        <Button Name="EditCommandBindings" x:FieldModifier="public" Content="Edit Bindings" Width="130" Margin="6 0 0 0"/>
+        <TextBlock Text="Key Bindings:"/>
+        <Button Name="EditCommandBindings" x:FieldModifier="public" Content="Edit" Width="60" Margin="8 0 0 0"/>
+        <Button Name="ResetCommandBindings" x:FieldModifier="public" Content="Reset" Width="60" Margin="8 0 0 0"/>
+        <Button Name="ResetAllKeyBindings" x:FieldModifier="public" Content="Reset All" Width="80" Margin="8 0 0 0"/>
+      </StackPanel>
+    </Grid>
+
+    <Grid Margin="0,8,0,0" Grid.Row="9" Grid.ColumnSpan="4">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <TextBlock Text="Tools:"/>
+        <Button Name="EditTool" x:FieldModifier="public" Content="Edit" Width="60" Margin="8,0,0,0"/>
+        <Button Name="DeleteTool" x:FieldModifier="public" Content="Delete" Width="60" Margin="8,0,0,0"/>
+        <Button Name="AddTool" x:FieldModifier="public" Content="New Tool" Width="80" Margin="8,0,0,0"/>
       </StackPanel>
     </Grid>
   </Grid>

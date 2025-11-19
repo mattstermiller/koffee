@@ -147,7 +147,7 @@ type IOperatingSystem =
     abstract member OpenFileWith: Path -> Result<unit, exn>
     abstract member OpenProperties: Path seq -> Result<unit, exn>
     abstract member OpenExplorer: location: Path -> selectItemPaths: Path seq -> Result<unit, exn>
-    abstract member LaunchApp: exePath: string -> workingPath: Path -> args: string -> Result<unit, exn>
+    abstract member Execute: hideWindow: bool -> workingDir: Path -> executable: string -> args: string -> Result<unit, exn>
     abstract member GetClipboardFileDrop: unit -> Result<PutType * Path list, exn>
     abstract member SetClipboardFileDrop: copy: bool -> Path seq -> Result<unit, exn>
     abstract member SetClipboardText: string -> Result<unit, exn>
@@ -157,33 +157,41 @@ module DataFormats =
     let PreferredDropEffect = "Preferred DropEffect"
 
 type OperatingSystem() =
-    let wpath (path: Path) = path.Format Windows
-
     let setClipboardData data =
         Clipboard.SetDataObject(data, true, 3, 250)
 
     interface IOperatingSystem with
         member _.OpenFile path =
             tryResult <| fun () ->
-                ProcessStartInfo(wpath path, WorkingDirectory = wpath path.Parent)
+                ProcessStartInfo(string path, WorkingDirectory = string path.Parent)
                 |> Process.Start |> ignore
 
         member _.OpenFileWith path =
             tryResult <| fun () ->
-                OsInterop.openFileWith (wpath path) |> ignore
+                OsInterop.openFileWith (string path) |> ignore
 
         member _.OpenProperties paths =
             tryResult <| fun () ->
-                OsInterop.openProperties (paths |> Seq.map wpath) |> ignore
+                OsInterop.openProperties (paths |> Seq.map string) |> ignore
 
         member _.OpenExplorer location selectItemPaths =
             tryResult <| fun () ->
-                OsInterop.openExplorerAndSelect (wpath location) (selectItemPaths |> Seq.map wpath) |> ignore
+                OsInterop.openExplorerAndSelect (string location) (selectItemPaths |> Seq.map string) |> ignore
 
-        member _.LaunchApp exePath workingPath args =
+        member _.Execute hideWindow workingDir executable args =
             tryResult <| fun () ->
-                ProcessStartInfo(exePath, args, WorkingDirectory = wpath workingPath)
-                |> Process.Start |> ignore
+                ProcessStartInfo(
+                    executable,
+                    args,
+                    WorkingDirectory = string workingDir,
+                    UseShellExecute = true
+                )
+                |>! fun procInfo ->
+                    if hideWindow then
+                        procInfo.WindowStyle <- ProcessWindowStyle.Hidden
+                        procInfo.CreateNoWindow <- true
+                |> Process.Start
+                |> ignore
 
         member _.GetClipboardFileDrop () =
             tryResult <| fun () ->
@@ -216,7 +224,7 @@ type OperatingSystem() =
                     |> LanguagePrimitives.EnumToValue
                     |> BitConverter.GetBytes
                     |> fun bytes -> new IO.MemoryStream(bytes)
-                let winPaths = paths |> Seq.map wpath |> Seq.toArray
+                let winPaths = paths |> Seq.map string |> Seq.toArray
                 DataObject(DataFormats.FileDrop, winPaths)
                 |>! fun dataObj -> dataObj.SetData(DataFormats.PreferredDropEffect, dropEffectData)
                 |> setClipboardData

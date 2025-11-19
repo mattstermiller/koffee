@@ -21,6 +21,7 @@
     <Compile Include="MainModel.fs" />
     <Compile Include="UIHelpers.fs" />
     <Compile Include="TextEdit.fs" />
+    <Compile Include="ToolEdit.fs" />
     <Compile Include="KeyBinder.fs" />
     <Compile Include="Settings.fs" />
     <Compile Include="OperatingSystem.fs" />
@@ -33,6 +34,7 @@
     <Compile Include="ItemRenameCommands.fs" />
     <Compile Include="ItemPutCommands.fs" />
     <Compile Include="ItemDeleteCommands.fs" />
+    <Compile Include="ItemToolsCommands.fs" />
     <Compile Include="ItemActionCommands.fs" />
     <Compile Include="WindowCommands.fs" />
     <Compile Include="Persistence.fs" />

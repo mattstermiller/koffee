@@ -2,9 +2,7 @@ namespace Koffee.ItemActionCommands
 
 open VinylUI
 open FSharp.Control
-open Acadian.FSharp
 open Koffee
-open Koffee.ItemActionCommands
 
 module Undo =
     let rec private undoIter iter fs progress model = asyncSeqResult {
@@ -106,7 +104,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | Yank putType -> SyncResult (Put.yankSelectedItems putType)
         | ClearYank -> Sync (fun m -> { m with MainModel.History.YankRegister = None })
         | Put -> AsyncResult (Put.put fs progress false)
-        | Recycle -> AsyncResult (fun m -> Delete.recycle fs progress m.ActionItems m)
+        | Trash -> AsyncResult (fun m -> Delete.recycle fs progress m.ActionItems m)
         | ConfirmDelete -> Sync Delete.confirmDelete
         | ClipboardCut -> SyncResult (Put.yankToClipboard false os)
         | ClipboardCopy -> SyncResult (Put.yankToClipboard true os)
@@ -114,6 +112,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | ClipboardPaste -> AsyncResult (Put.clipboardPaste fs os progress)
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
+        | ExecuteTool toolName -> SyncResult (Tools.executeTool os fs toolName)
 
     member _.HandleNewItemInputEvent isFolder (evt: InputEvent) (model: MainModel) = asyncSeq {
         match evt with

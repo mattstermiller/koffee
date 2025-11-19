@@ -29,14 +29,20 @@ let rec private enumerateUnionCaseValuesUntyped unionType =
 let enumerateUnionCaseValues<'Union> =
     enumerateUnionCaseValuesUntyped typeof<'Union> |> Seq.cast<'Union>
 
-let private parseUnionCaseUntyped unionType caseName =
-    FSharpType.GetUnionCases unionType
-    |> Array.filter (fun uc -> uc.Name = caseName.ToString())
-    |> Array.tryHead
-    |> Option.map (fun case -> FSharpValue.MakeUnion(case, null, false))
+let enumerateUnionCaseNames<'Union> =
+    FSharpType.GetUnionCases typeof<'Union> |> Seq.map (fun case -> case.Name)
 
-let parseUnionCase<'Union> caseName =
-    parseUnionCaseUntyped typedefof<'Union> caseName |> Option.map unbox<'Union>
+let private makeUnionUntyped unionType caseName args =
+    FSharpType.GetUnionCases unionType
+    |> Array.filter (fun uc -> String.Equals(uc.Name, caseName, StringComparison.InvariantCultureIgnoreCase))
+    |> Array.tryHead
+    |> Option.map (fun case ->
+        let args = args |> Array.truncate (case.GetFields().Length)
+        FSharpValue.MakeUnion(case, args, false)
+    )
+
+let makeUnion<'Union> caseName args =
+    makeUnionUntyped typedefof<'Union> caseName args |> Option.map unbox<'Union>
 
 let isGenericType (genericT: Type) (t: Type) =
     t.IsGenericType && t.GetGenericTypeDefinition() = genericT

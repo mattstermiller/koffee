@@ -197,7 +197,6 @@ type Path private (path: string) =
 
     override this.GetHashCode() = this.Value.ToLower().GetHashCode()
 
-    // for debugging
     override this.ToString() = this.Format Windows
 
 // allows using Path as the key of Map/dictionary in Json.NET

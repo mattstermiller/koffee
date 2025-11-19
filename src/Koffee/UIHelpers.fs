@@ -153,3 +153,6 @@ let isNotModifier (evt: KeyEventArgs) =
         Key.LeftAlt; Key.RightAlt; Key.LWin; Key.RWin; Key.System
     ]
     not <| List.contains evt.RealKey modifierKeys
+
+let openConfirmationDialog title message =
+    MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) = MessageBoxResult.Yes

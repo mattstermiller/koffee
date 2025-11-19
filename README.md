@@ -28,7 +28,7 @@ You will need to have installed:
 
 Steps:
 - Clone this repository
-- Open a terminal to the folder and run `.\build.cmd -t install`
+- Open a terminal to the folder and run `.\build install`
 
 ## Using Koffee
 First of all, take your hand off of the mouse because this is a keyboard tool! Once you're familiar with the key bindings, you'll be navigating your files more quickly than you ever could with a mouse. If you're familiar with the text editor [VIM](http://www.vim.org/) which is popular among programmers, you should feel at home.
@@ -133,12 +133,40 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Open the selected files and exit with `Ctrl + Enter`
 - Open the selected items' properties with `Alt + Enter`
 - Open a second window for easier file comparison or moves with `Ctrl + n`
-- Open the selected files with your text editor (configured in the Settings window) with `Ctrl + e`
-- Open the terminal (configured in the Settings window) at your current location with `Ctrl + Shift + t`
+- Open the selected files with the Text Editor Tool (configured in the Settings window) with `Ctrl + e`
+- Open the Terminal Tool (configured in the Settings window) at your current location with `Ctrl + Shift + t`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`
 - Show/hide hidden files and folders with `F9`
 
 The full list of commands and their key bindings can be viewed and edited in the Settings window which can be opened with `?`.
+
+### Tools
+Tools are commands that can execute arbitrary programs or scripts. They are configured in the Commands list of Settings. The default Terminal and Text Editor tools can be changed or removed and new Tools can be added.
+
+Tool Exe can be a path to an executable or executable name on the PATH.
+- Tip: To run a powershell script, put `powershell` as the Exe, the full script path as the first argument, and the script arguments as subsequent arguments.
+
+Tool Arguments may contain pre-defined variables, surrounded in braces, which are substituted when executed.
+- The available variables are:
+    - `{selected_items}`
+    - `{selected_files}`
+    - `{selected_folders}`
+    - `{cursor_item}`
+    - `{cursor_file}`
+    - `{cursor_folder}`
+    - `{location}`
+    - `{git_root}`
+    - `{env:ENVIRONMENT_VARIABLE}`
+- **Optional argument**: Surround a variable and prefix/suffix arguments in brackets `[ ]` to make it optional and only included if the variable has a value when executed.
+    - Example: `[--select {selected_files}]`
+- **Fallback variables**: Add `?` and another variable name to use if the first variable does not have a value when executed. You can multiple fallback variables.
+    - Example: `{env:REPO_PATH?git_root?location}`
+- **Override delimiter**: The `selected_*` variables delimit items with a space character. This can be changed by adding colon and desired separator.
+    - Example: `{selected_items:,}`
+
+Example tool configuration for Visual Studio Code:
+- Exe: `code`
+- Arguments: `{git_root?location} [{selected_files}]`
 
 ## Contributing
 If you want to contribute to Koffee, thank you! Head to the [issues page](https://github.com/mattstermiller/koffee/issues).

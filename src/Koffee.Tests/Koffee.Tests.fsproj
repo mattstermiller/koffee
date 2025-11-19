@@ -32,9 +32,11 @@
     <Compile Include="ItemRenameTests.fs" />
     <Compile Include="ItemPutTests.fs" />
     <Compile Include="ItemDeleteTests.fs" />
+    <Compile Include="ItemToolsTests.fs" />
     <Compile Include="MainControllerInitModelTests.fs" />
     <Compile Include="OsUtilityTests.fs" />
     <Compile Include="CommandBindingTests.fs" />
+    <Compile Include="SettingsTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Koffee\Koffee.fsproj" />

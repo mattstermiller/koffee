@@ -74,8 +74,6 @@ type NavigationCommand =
     | OpenFileWith
     | OpenFileAndExit
     | OpenProperties
-    | OpenWithTextEditor
-    | OpenTerminal
     | OpenExplorer
     | OpenParent
     | OpenRoot
@@ -101,8 +99,6 @@ with
         | OpenFileWith -> "Open File With..."
         | OpenFileAndExit -> "Open Files and Exit"
         | OpenProperties -> "Open Properties"
-        | OpenWithTextEditor -> "Open Selected File With Text Editor"
-        | OpenTerminal -> "Open Terminal at Current Location"
         | OpenExplorer -> "Open Windows Explorer at Current Location"
         | OpenParent -> "Open Parent Folder"
         | OpenRoot -> "Open Root Directory"
@@ -128,7 +124,7 @@ type ItemActionCommand =
     | Yank of PutType
     | ClearYank
     | Put
-    | Recycle
+    | Trash
     | ConfirmDelete
     | ClipboardCut
     | ClipboardCopy
@@ -136,6 +132,7 @@ type ItemActionCommand =
     | ClipboardPaste
     | Undo
     | Redo
+    | ExecuteTool of toolName: string
 with
     member this.Name =
         match this with
@@ -151,7 +148,7 @@ with
         | Yank Shortcut -> "Start Create Shortcut to Item"
         | ClearYank -> "Clear Yank Register"
         | Put -> "Put Item to Move/Copy in Current Folder"
-        | Recycle -> "Send to Recycle Bin"
+        | Trash -> "Send to Recycle Bin"
         | ConfirmDelete -> "Delete Permanently"
         | ClipboardCut -> "Cut Items to Clipboard"
         | ClipboardCopy -> "Copy Items to Clipboard"
@@ -159,6 +156,7 @@ with
         | ClipboardPaste -> "Paste from Clipboard"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
+        | ExecuteTool toolName -> "Tool - " + toolName
 
 type WindowCommand =
     | OpenSplitScreenWindow
@@ -183,6 +181,11 @@ with
         | Navigation n -> n.Name
         | ItemAction a -> a.Name
         | Window w -> w.Name
+
+    member this.ToolName =
+        match this with
+        | ItemAction (ExecuteTool toolName) -> Some toolName
+        | _ -> None
 
     static member commandList =
         Reflection.enumerateUnionCaseValues<MainCommand>
@@ -516,6 +519,73 @@ with
     member this.Description pathFormat = this.Describe false pathFormat
     member this.ShortDescription pathFormat = this.Describe true pathFormat
 
+type ToolVariable =
+    | SelectedItems of separator: string option
+    | SelectedFiles of separator: string option
+    | SelectedFolders of separator: string option
+    | CursorItem
+    | CursorFile
+    | CursorFolder
+    | Location
+    | GitRoot
+    | Env of variableName: string
+with
+    static member private variableName caseName =
+        caseName |> String.readableIdentifier |> String.replace " " "_" |> String.toLower
+
+    static member private variableExample caseName =
+        if caseName = "Env"
+        then "{env:ENVIRONMENT_VARIABLE}"
+        else caseName |> ToolVariable.variableName |> sprintf "{%s}"
+
+    override this.ToString() =
+        let varName = Reflection.unionCaseName this |> ToolVariable.variableName
+        match this with
+        | SelectedItems (Some opt)
+        | SelectedFiles (Some opt)
+        | SelectedFolders (Some opt)
+        | Env opt ->
+            sprintf "{%s:%s}" varName opt
+        | _ ->
+            sprintf "{%s}" varName
+
+    static member names =
+        Reflection.enumerateUnionCaseNames<ToolVariable> |> Seq.map ToolVariable.variableName
+
+    static member examples =
+        Reflection.enumerateUnionCaseNames<ToolVariable> |> Seq.map ToolVariable.variableExample
+
+type Tool = {
+    ToolName: string
+    Exe: string
+    Arguments: string
+    HideWindow: bool
+}
+with
+    member this.GetCommand () = ItemAction (ExecuteTool this.ToolName)
+
+    static member DefaultTerminal = {
+        ToolName = "Terminal"
+        Exe = "powershell"
+        Arguments = String.Empty
+        HideWindow = false
+    }
+
+    static member DefaultTextEditor = {
+        ToolName = "Text Editor"
+        Exe = "notepad"
+        Arguments = SelectedFiles None |> string
+        HideWindow = false
+    }
+
+    static member DefaultList = [
+        Tool.DefaultTerminal
+        Tool.DefaultTextEditor
+    ]
+
+    static member isCustomTool toolName =
+        not (Tool.DefaultList |> List.exists (fun t -> t.ToolName = toolName))
+
 type CursorMoveType =
     | CursorStay
     | CursorToIndex of int
@@ -577,9 +647,12 @@ module MainStatus =
         | NoSavedSearch of Char
         | SetSavedSearch of Char * Search
         | DeletedSavedSearch of Char * Search
+        | Sort of field: obj * desc: bool
+        | ToggleHidden of showing: bool
 
         // Actions
         | ActionComplete of ItemAction
+        | RemovedNetworkHosts of names: string list
         | UndoAction of ItemAction * repeatIter: int * repeatCount: int
         | RedoAction of ItemAction * repeatIter: int * repeatCount: int
         | CancelledConfirm of ConfirmType
@@ -588,14 +661,10 @@ module MainStatus =
         | ClipboardYank of copy: bool * paths: Path list
         | ClipboardCopyPaths of paths: Path list
         | NoItemsToPaste
-        | Sort of field: obj * desc: bool
-        | ToggleHidden of showing: bool
         | OpenFiles of names: string list
         | OpenProperties of names: string list
-        | OpenTextEditor of names: string list
-        | OpenTerminal of Path
         | OpenExplorer
-        | RemovedNetworkHosts of names: string list
+        | ExecutedTool of toolName: string
 
         static member private describePaths pathFormat (paths: Path list) =
             match paths with
@@ -625,8 +694,14 @@ module MainStatus =
                 sprintf "Set saved search \"%c\" to \"%O\"" char search
             | DeletedSavedSearch (char, search) ->
                 sprintf "Deleted saved search \"%c\" that was set to \"%O\"" char search
+            | Sort (field, desc) ->
+                sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
+            | ToggleHidden showing ->
+                sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | ActionComplete action ->
                 actionCompleteMessage pathFormat action
+            | RemovedNetworkHosts names ->
+                sprintf "Removed network host%s: %s" (Format.pluralS names) (describeList names)
             | UndoAction (action, repeatIter, repeatCount) ->
                 let prefix =
                     if repeatCount = 1
@@ -666,22 +741,14 @@ module MainStatus =
                 sprintf "Copied path%s to clipboard: %s" (Format.pluralS paths) (Message.describePaths pathFormat paths)
             | NoItemsToPaste ->
                 "No items in clipboard to paste"
-            | Sort (field, desc) ->
-                sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
-            | ToggleHidden showing ->
-                sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | OpenFiles names ->
                 sprintf "Opened File%s: %s" (Format.pluralS names) (describeList names)
             | OpenProperties names ->
                 sprintf "Opened Properties for: %s" (describeList names)
-            | OpenTextEditor names ->
-                sprintf "Opened Text editor for: %s" (describeList names)
-            | OpenTerminal path ->
-                sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
-            | RemovedNetworkHosts names ->
-                sprintf "Removed network host%s: %s" (Format.pluralS names) (describeList names)
+            | ExecutedTool toolName ->
+                sprintf "Executed Tool: %s" toolName
 
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent
@@ -744,8 +811,10 @@ module MainStatus =
         | NoFilesSelected
         | CannotOpenWithMultiple
         | CouldNotOpenFiles of nameErrorPairs: (string * exn) list
-        | CouldNotOpenApp of app: string * exn
+        | CouldNotExecute of app: string * exn
         | CouldNotFindKoffeeExe
+        | ToolDoesNotExist of name: string
+        | ToolVariableRequired of toolName: string * variable: ToolVariable
 
         member private this.ItemErrorsDescription actionName (errorPaths: (Path * exn) list) totalItemCount =
             let actionMsg = "Could not " + actionName
@@ -823,10 +892,14 @@ module MainStatus =
                     sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
                 | [] ->
                     "Could not open files"
-            | CouldNotOpenApp (app, e) ->
-                sprintf "Could not open app %s: %s" app e.Message
+            | CouldNotExecute (app, e) ->
+                sprintf "Could not execute %s: %s" app e.Message
             | CouldNotFindKoffeeExe ->
                 "Could not determine Koffee.exe path"
+            | ToolDoesNotExist name ->
+                sprintf "Tool with name '%s' does not exist" name
+            | ToolVariableRequired (toolName, variable) ->
+                sprintf "Tool '%s' variable %O has no value and is required" toolName variable
 
     type StatusType =
         | Message of Message
@@ -841,6 +914,9 @@ module MainBindings =
         let alt = ModifierKeys.Alt
 
         List.map KeyBinding.ofTuple [
+            ([ctrl ||| shift, Key.T], Tool.DefaultTerminal.GetCommand())
+            ([ctrl, Key.E], Tool.DefaultTextEditor.GetCommand())
+
             ([noMod, Key.K], Cursor CursorUp)
             ([noMod, Key.J], Cursor CursorDown)
             ([ctrl, Key.K], Cursor CursorUpHalfPage)
@@ -864,8 +940,6 @@ module MainBindings =
             ([shift, Key.Enter], Navigation OpenFileWith)
             ([ctrl, Key.Enter], Navigation OpenFileAndExit)
             ([alt, Key.Enter], Navigation OpenProperties)
-            ([ctrl, Key.E], Navigation OpenWithTextEditor)
-            ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
             ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
             ([noMod, Key.H], Navigation OpenParent)
             ([noMod, Key.G; noMod, Key.R], Navigation OpenRoot)
@@ -900,7 +974,7 @@ module MainBindings =
             ([shift, Key.Y], ItemAction (Yank Shortcut))
             ([alt, Key.Y], ItemAction ClearYank)
             ([noMod, Key.P], ItemAction Put)
-            ([noMod, Key.Delete], ItemAction Recycle)
+            ([noMod, Key.Delete], ItemAction Trash)
             ([shift, Key.Delete], ItemAction ConfirmDelete)
             ([ctrl, Key.X], ItemAction ClipboardCut)
             ([ctrl, Key.C], ItemAction ClipboardCopy)
@@ -945,9 +1019,8 @@ type Config = {
     ShowNextUndoRedo: bool
     ShowFullPathInTitle: bool
     RefreshOnActivate: bool
-    TextEditor: string
-    TerminalPath: string
     SearchExclusions: string list
+    Tools: Tool list
     KeyBindings: KeyBinding<MainCommand> list
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
@@ -969,6 +1042,9 @@ with
     member this.GetSavedSearch char =
         this.SavedSearches |> List.tryFind (fst >> (=) char) |> Option.map snd
 
+    member this.FindTool toolName =
+        this.Tools |> List.tryFind (fun tool -> tool.ToolName = toolName)
+
     static member withBookmark char path (this: Config) =
         { this with Bookmarks = (char, path) |> Config.addRegister this.Bookmarks }
 
@@ -989,8 +1065,6 @@ with
         ShowNextUndoRedo = true
         ShowFullPathInTitle = false
         RefreshOnActivate = true
-        TextEditor = "notepad.exe"
-        TerminalPath = "cmd.exe"
         SearchExclusions = [
             ".git"
             ".svn"
@@ -1003,6 +1077,7 @@ with
             "packages"
             "node_modules"
         ]
+        Tools = Tool.DefaultList
         KeyBindings = MainBindings.Default
         Bookmarks = []
         SavedSearches = []
@@ -1045,7 +1120,7 @@ with
         | None -> PathSort.Default
 
     static member private pushDistinct max list items =
-        (items |> List.rev) @ (list |> List.except items) |> List.truncate max
+        Seq.append (items |> Seq.rev) list |> Seq.distinct |> Seq.truncate max |> Seq.toList
 
     static member withSearch searchLimit search (this: History) =
         { this with Searches = History.pushDistinct searchLimit this.Searches [search] }
@@ -1068,7 +1143,7 @@ with
         if paths |> List.isEmpty then
             this
         else
-            let histPaths = paths |> List.map (fun path -> { PathValue = path; IsDirectory = isDirectories })
+            let histPaths = paths |> Seq.map (fun path -> { PathValue = path; IsDirectory = isDirectories })
             { this with Paths = History.pushDistinct pathLimit this.Paths histPaths }
 
     static member withFilePaths pathLimit paths =

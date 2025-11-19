@@ -96,7 +96,7 @@ with
         | Cursor CursorDown -> Some (SelectCombo Combo2)
         | Navigation OpenCursorItem -> Some ChangeCombo
         | Navigation OpenSelected -> Some ChangeCombo
-        | ItemAction Recycle -> Some ClearChords
+        | ItemAction Trash -> Some ClearChords
         | ItemAction ItemActionCommand.Undo -> Some Undo
         | _ -> None
 

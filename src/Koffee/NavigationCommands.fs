@@ -198,30 +198,6 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
         return model |> MainModel.withMessage (MainStatus.OpenProperties (items |> List.map (fun i -> i.Name)))
 }
 
-let openWithTextEditor (os: IOperatingSystem) (model: MainModel) = result {
-    let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
-    if items.IsEmpty then
-        return model
-    else
-        let pathArg (path: Path) = path.Format Windows |> sprintf "\"%s\""
-        let paths = items |> List.map (fun i -> i.Path)
-        let args = paths |> Seq.map pathArg |> String.concat " "
-        do! os.LaunchApp model.Config.TextEditor model.Location args
-            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Text editor", e))
-        return
-            model
-            |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory paths)
-            |> MainModel.withMessage (MainStatus.OpenTextEditor (items |> List.map (fun i -> i.Name)))
-}
-
-let openTerminal (os: IOperatingSystem) model = result {
-    if model.Location <> Path.Root then
-        do! os.LaunchApp model.Config.TerminalPath model.Location ""
-            |> Result.mapError (fun e -> MainStatus.CouldNotOpenApp ("Terminal", e))
-        return model |> MainModel.withMessage (MainStatus.OpenTerminal model.Location)
-    else return model
-}
-
 let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
     let location = model.ActionItems |> List.tryHead |> Option.map (fun item -> item.Path.Parent) |? model.Location
     let selectPaths =
@@ -231,7 +207,6 @@ let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
     do! os.OpenExplorer location selectPaths |> actionError "open Explorer"
     return model |> MainModel.withMessage MainStatus.OpenExplorer
 }
-
 let openParent fsReader (model: MainModel) =
     if model.SearchCurrent.IsSome then
         match model.CursorItem with
@@ -602,8 +577,6 @@ type Handler(
         | OpenFileWith -> SyncResult (openFileWith os)
         | OpenFileAndExit -> AsyncResult (openFilesAndExit fs os closeWindow)
         | OpenProperties -> SyncResult (openProperties os)
-        | OpenWithTextEditor -> SyncResult (openWithTextEditor os)
-        | OpenTerminal -> SyncResult (openTerminal os)
         | OpenExplorer -> SyncResult (openExplorer os)
         | OpenParent -> SyncResult (openParent fs)
         | OpenRoot -> SyncResult (openPath fs Path.Root CursorStay)

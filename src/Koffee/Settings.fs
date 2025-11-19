@@ -1,4 +1,4 @@
-module Koffee.Settings
+﻿module Koffee.Settings
 
 open System
 open System.Windows
@@ -170,7 +170,7 @@ let private resetCommandBinding (model: Model) =
         |> String.concat ", "
     let message =
         sprintf "Are you sure you want to reset the keybindings for %s to its default?" selectedCommand.Name
-        + conflicts |> String.ifNotEmpty (fun s -> "\n\nWARNING: The following commands will have bindings cleared: " + s)
+        + (conflicts |> String.ifNotEmpty (fun s -> "\n\nWARNING: The following commands will have bindings cleared: " + s))
 
     let confirmed = openConfirmationDialog "Reset selected command keybindings?" message
     if confirmed then

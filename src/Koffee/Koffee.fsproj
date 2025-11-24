@@ -35,7 +35,7 @@
     <Compile Include="ItemDeleteCommands.fs" />
     <Compile Include="ItemActionCommands.fs" />
     <Compile Include="WindowCommands.fs" />
-    <Compile Include="PersistFile.fs" />
+    <Compile Include="Persistence.fs" />
     <Compile Include="MainView.fs" />
     <Compile Include="ProgramOptions.fs" />
     <Compile Include="MainController.fs" />

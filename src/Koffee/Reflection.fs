@@ -1,5 +1,6 @@
 ﻿module Reflection
 
+open System
 open FSharp.Reflection
 open FSharp.Quotations.Patterns
 open FSharp.Quotations.Evaluator
@@ -36,6 +37,9 @@ let private parseUnionCaseUntyped unionType caseName =
 
 let parseUnionCase<'Union> caseName =
     parseUnionCaseUntyped typedefof<'Union> caseName |> Option.map unbox<'Union>
+
+let isGenericType (genericT: Type) (t: Type) =
+    t.IsGenericType && t.GetGenericTypeDefinition() = genericT
 
 let (|PropertyExpression|_|) expr =
     match expr with

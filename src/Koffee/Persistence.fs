@@ -2,6 +2,7 @@ namespace Koffee
 
 open System
 open System.IO
+open System.Threading
 open FSharp.Reflection
 open Acadian.FSharp
 open Newtonsoft.Json
@@ -32,7 +33,8 @@ module FSharpJsonConverters =
                         fields.[0]
                 serializer.Serialize(writer, innerValue)
 
-    /// Serializes unions with no fields as just the case name and unions with one field as the case name, space, argument
+    /// Serializes unions with no fields as just the case name and unions with one field as the case name, space, argument.
+    /// Returns null when invalid (to be replaced with a default or filtered out later)
     type UnionJsonConverter() =
         inherit JsonConverter() with
             override this.CanConvert typ =
@@ -44,18 +46,26 @@ module FSharpJsonConverters =
                     match str.IndexOf " " with
                     | -1 -> (str, None)
                     | i -> (str.Substring(0, i), Some (str.Substring(i + 1)))
-                let case = FSharpType.GetUnionCases(typ) |> Seq.find (fun c -> c.Name = caseName)
-                let valueType = case.GetFields() |> Array.tryHead |> Option.map (fun field -> field.PropertyType)
-                let value =
-                    (valueType, valueStr) ||> Option.map2 (fun typ str ->
-                        if typ |> FSharpType.IsUnion then
-                            parseUnion serializer typ str
-                        else
-                            use reader = new StringReader(str)
-                            use jsonReader = new JsonTextReader(reader)
-                            serializer.Deserialize jsonReader
-                    )
-                FSharpValue.MakeUnion(case, value |> Option.toArray)
+                let cases = FSharpType.GetUnionCases(typ)
+                match cases |> Seq.tryFind (fun c -> c.Name = caseName) with
+                | Some case ->
+                    let valueType = case.GetFields() |> Array.tryHead |> Option.map (fun field -> field.PropertyType)
+                    let value =
+                        (valueType, valueStr) ||> Option.map2 (fun typ str ->
+                            if typ |> FSharpType.IsUnion then
+                                parseUnion serializer typ str
+                            else
+                                use reader = new StringReader(str)
+                                use jsonReader = new JsonTextReader(reader)
+                                serializer.Deserialize jsonReader
+                        )
+                    match valueType, value with
+                    | Some typ, Some null when not (typ |> Reflection.isGenericType typedefof<option<_>>) ->
+                        null // return null when value is an invalid null
+                    | _ ->
+                        FSharpValue.MakeUnion(case, value |> Option.toArray)
+                | None ->
+                    null // default to null
 
             override this.ReadJson (reader, typ, _, serializer) =
                 reader.Value :?> string
@@ -111,7 +121,39 @@ module FSharpJsonConverters =
         KeyChordConverter()
     |]
 
-type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =
+module Persistence =
+    let defaultNullProps (defaultValue: 'a) (obj: 'a) =
+        let isOption (t: Type) = t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<_ option>
+        let rec inner defaultValue obj =
+            let fields = FSharpType.GetRecordFields(obj.GetType())
+            let values = fields |> Array.map (fun field ->
+                let value = field.GetValue obj
+                if value = null && not (isOption field.PropertyType) then
+                    (field.GetValue defaultValue, true)
+                else if FSharpType.IsRecord field.PropertyType then
+                    inner (field.GetValue defaultValue) (field.GetValue obj)
+                else
+                    (value, false)
+            )
+            if values |> Array.exists snd then
+                (FSharpValue.MakeRecord(obj.GetType(), values |> Array.map fst), true)
+            else
+                (obj, false)
+        (inner defaultValue obj |> fst) :?> 'a
+
+    let runWithRetries baseDelayMs action =
+        let maxRetries = 3
+        Seq.init (maxRetries + 1) (fun retry ->
+            try
+                Some (action())
+            with _ when retry < maxRetries ->
+                if baseDelayMs > 0.0 then
+                    Thread.Sleep(baseDelayMs * Math.Pow(2, retry) |> int)
+                None
+        )
+        |> Seq.pick id
+
+type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) as this =
     let mutable value = defaultValue
     let mutable watcher = new FileSystemWatcher(IO.Path.GetDirectoryName filePath,
                                                 IO.Path.GetFileName filePath)
@@ -121,37 +163,35 @@ type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =
     let serialize a = JsonConvert.SerializeObject(a, Formatting.Indented, converters)
     let deserialize text = JsonConvert.DeserializeObject<'a>(text, converters)
 
-    let defaultNullProps o =
-        let isOption (t: Type) = t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<_ option>
-        let rec inner def o =
-            let fields = FSharpType.GetRecordFields(o.GetType())
-            let values = fields |> Array.map (fun field ->
-                let value = field.GetValue o
-                if value = null && not (isOption field.PropertyType) then
-                    (field.GetValue def, true)
-                else if FSharpType.IsRecord field.PropertyType then
-                    inner (field.GetValue def) (field.GetValue o)
-                else
-                    (value, false)
-            )
-            if values |> Array.exists snd then
-                (FSharpValue.MakeRecord(o.GetType(), values |> Array.map fst), true)
-            else
-                (o, false)
-        (inner defaultValue o |> fst) :?> 'a
+    let backUpFile backupType filePath =
+        try
+            let directory = Path.GetDirectoryName filePath
+            let fileName = Path.GetFileName filePath
+            let ext = Path.GetFileNameWithoutExtension filePath
+            let backupName = String.concat "_" [fileName; backupType; Path.GetTimestamp()] + ext
+            File.Copy(filePath, Path.Combine(directory, backupName))
+        with _ -> ()
+
+    let runWithRetries action = Persistence.runWithRetries 25.0 action
 
     let load () =
+        // if loading or deserialization fails, take a backup so it doesn't get overwritten
         try
-            value <- File.ReadAllText(filePath) |> deserialize |> defaultNullProps
-        with _ ->
+            let fileText = runWithRetries (fun () -> File.ReadAllText(filePath))
             try
-                File.Copy(filePath, filePath + ".invalid")
-            with _ -> ()
+                value <- fileText |> deserialize |> Persistence.defaultNullProps defaultValue |> this.Sanitize
+            with _ ->
+                backUpFile "invalid" filePath
+        with _ ->
+            backUpFile "unread" filePath
 
     let save () =
+        let serialized = serialize value
         watcher.EnableRaisingEvents <- false
-        File.WriteAllText(filePath, serialize value)
-        watcher.EnableRaisingEvents <- true
+        try
+            runWithRetries (fun () -> File.WriteAllText(filePath, serialized))
+        finally
+            watcher.EnableRaisingEvents <- true
 
     do
         if File.Exists filePath then
@@ -176,18 +216,30 @@ type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) =
 
     member this.FileChanged = fileChangedEvent.Publish
 
+    abstract member Sanitize : 'a -> 'a
+    default _.Sanitize value = value
+
     interface IDisposable with
         member this.Dispose () = watcher.Dispose()
 
 type ConfigFile(defaultValue) =
     inherit PersistFile<Config>(ConfigFile.FilePath, defaultValue)
-    static member FilePath = Path.KoffeeData.Join("config.json").Format Windows
 
-type HistoryFile(defaultValue) as this =
+    override _.Sanitize config = ConfigFile.Sanitize config
+
+    static member Sanitize config =
+        { config with
+            KeyBindings = config.KeyBindings |> List.filter (fun kb -> (box kb.Command) <> null)
+        }
+
+    static member FilePath = Path.KoffeeData.Join("config.json") |> string
+
+type HistoryFile(defaultValue) =
     inherit PersistFile<History>(HistoryFile.FilePath, defaultValue)
 
-    do
-        // filter out corrupt search entries loaded from previous version formats
-        this.Value <- { this.Value with Searches = this.Value.Searches |> List.filter (fun s -> s.Terms <> null) }
+    override _.Sanitize history =
+        { history with
+            Searches = history.Searches |> List.filter (fun s -> s.Terms <> null)
+        }
 
-    static member FilePath = Path.KoffeeData.Join("history.json").Format Windows
+    static member FilePath = Path.KoffeeData.Join("history.json") |> string

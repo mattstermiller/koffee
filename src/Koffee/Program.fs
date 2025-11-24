@@ -10,12 +10,11 @@ open UIHelpers
 
 let logError isCrash (e: exn) =
     let typ = if isCrash then "crash" else "error"
-    let timestamp = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
-    let logFile = Path.KoffeeData.Join(sprintf "%s_%s.log" typ timestamp).Format Windows
+    let logFilePath = Path.KoffeeData.Join(sprintf "%s_%s.log" typ (Path.GetTimestamp())) |> string
     let logWritten =
         try
-            File.WriteAllText(logFile, string e)
-            sprintf "This error has been logged to: \n%s\n\n" logFile
+            File.WriteAllText(logFilePath, string e)
+            sprintf "This error has been logged to: \n%s\n\n" logFilePath
         with _ -> ""
     let msg =
         sprintf "Sorry! An unexpected error %s:\n\n"

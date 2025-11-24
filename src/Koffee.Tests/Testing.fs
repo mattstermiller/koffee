@@ -11,9 +11,6 @@ open Acadian.FSharp
 open Koffee
 open Microsoft.FSharp.Reflection
 
-let private isGeneric (genericT: Type) (t: Type) =
-    t = null || t.IsGenericType && t.GetGenericTypeDefinition() = genericT
-
 [<AbstractClass>]
 type EqualityComparer() =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
@@ -25,7 +22,7 @@ type EqualityComparer() =
 type OptionComparer() =
     inherit BaseTypeComparer(RootComparerFactory.GetRootComparer())
 
-    let isOption = isGeneric typedefof<option<_>>
+    let isOption = Reflection.isGenericType typedefof<option<_>>
 
     let getValueOrNull (value: obj) =
         if value = null then
@@ -41,7 +38,7 @@ type OptionComparer() =
         else sprintf "Some (%s)" valueStr
 
     override _.IsTypeMatch(type1, type2) =
-        List.forall isOption [type1; type2]
+        [type1; type2] |> Seq.filter ((<>) null) |> Seq.forall isOption
 
     override this.CompareType parms =
         parms.Object1 <- getValueOrNull parms.Object1
@@ -68,7 +65,7 @@ type FSharpListComparer() as this =
 
     let listComparer = ListComparer(this.RootComparer)
 
-    let isList = isGeneric typedefof<list<_>>
+    let isList = Reflection.isGenericType typedefof<list<_>>
 
     let toList source =
         let genArg = source.GetType().GetGenericArguments().[0]
@@ -78,7 +75,7 @@ type FSharpListComparer() as this =
             .Invoke(null, [|source|])
 
     override _.IsTypeMatch(type1, type2) =
-        List.forall isList [type1; type2]
+        [type1; type2] |> Seq.filter ((<>) null) |> Seq.forall isList
 
     override _.CompareType parms =
         parms.Object1 <- toList parms.Object1

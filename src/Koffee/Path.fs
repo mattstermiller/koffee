@@ -71,6 +71,8 @@ type Path private (path: string) =
 
     static member InvalidNameChars = invalidChars + ":/\\"
 
+    static member GetTimestamp () = System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")
+
     static member Parse (s: string) =
         match s.Trim() with
         | RootPath p

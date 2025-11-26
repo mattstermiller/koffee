@@ -116,14 +116,12 @@ let ``KeyBindings with an invalid command can be deserialized without invalid bi
     deserializedConfig.KeyBindings |> shouldEqual expectedKeyBindings
 
 
-let maxRetries = 3 // same as definition in runWithRetries
-
 [<Test>]
 let ``runWithRetries recovers after max retry failures`` () =
     let mutable tryNumber = 0
     Persistence.runWithRetries 0 (fun () ->
         tryNumber <- tryNumber + 1
-        if tryNumber <= maxRetries then
+        if tryNumber <= Persistence.maxRetries then
             failwith "failure!"
     )
 
@@ -137,4 +135,4 @@ let ``runWithRetries throws last exception when exceeding max retries`` () =
         )
         failwith "This shouldn't execute"
     with e ->
-        e.Message |> shouldEqual (sprintf "failure %i!" (maxRetries + 1))
+        e.Message |> shouldEqual (sprintf "failure %i!" (Persistence.maxRetries + 1))

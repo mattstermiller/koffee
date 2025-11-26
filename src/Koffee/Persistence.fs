@@ -3,6 +3,7 @@ namespace Koffee
 open System
 open System.IO
 open System.Threading
+open System.Windows
 open FSharp.Reflection
 open Acadian.FSharp
 open Newtonsoft.Json
@@ -122,6 +123,19 @@ module FSharpJsonConverters =
     |]
 
 module Persistence =
+    let maxRetries = 3
+
+    let runWithRetries baseDelayMs action =
+        Seq.init (maxRetries + 1) (fun retry ->
+            try
+                Some (action())
+            with _ when retry < maxRetries ->
+                if baseDelayMs > 0.0 then
+                    Thread.Sleep(baseDelayMs * Math.Pow(2, retry) |> int)
+                None
+        )
+        |> Seq.pick id
+
     let defaultNullProps (defaultValue: 'a) (obj: 'a) =
         let isOption (t: Type) = t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<_ option>
         let rec inner defaultValue obj =
@@ -141,19 +155,24 @@ module Persistence =
                 (obj, false)
         (inner defaultValue obj |> fst) :?> 'a
 
-    let runWithRetries baseDelayMs action =
-        let maxRetries = 3
-        Seq.init (maxRetries + 1) (fun retry ->
+    let logAndShowError isCrash (e: exn) =
+        let typ = if isCrash then "crash" else "error"
+        let logFilePath = Path.KoffeeData.Join(sprintf "%s_%s.log" typ (Path.GetTimestamp())) |> string
+        let logWritten =
             try
-                Some (action())
-            with _ when retry < maxRetries ->
-                if baseDelayMs > 0.0 then
-                    Thread.Sleep(baseDelayMs * Math.Pow(2, retry) |> int)
-                None
-        )
-        |> Seq.pick id
+                File.WriteAllText(logFilePath, string e)
+                sprintf "This error has been logged to: \n%s\n\n" logFilePath
+            with _ -> ""
+        let msg =
+            sprintf "Sorry! An unexpected error %s:\n\n"
+                    (if isCrash then "caused Koffee to crash" else "occurred in Koffee") +
+            sprintf "%s\n\n" e.Message +
+            logWritten +
+            "Please report this as an issue on Koffee's GitHub project:\n" +
+            "https://github.com/mattstermiller/koffee/issues"
+        MessageBox.Show(msg, sprintf "Koffee %s!" typ, MessageBoxButton.OK, MessageBoxImage.Error) |> ignore
 
-type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) as this =
+type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a, sanitize: 'a -> 'a) =
     let mutable value = defaultValue
     let mutable watcher = new FileSystemWatcher(IO.Path.GetDirectoryName filePath,
                                                 IO.Path.GetFileName filePath)
@@ -166,8 +185,8 @@ type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) as t
     let backUpFile backupType filePath =
         try
             let directory = Path.GetDirectoryName filePath
-            let fileName = Path.GetFileName filePath
-            let ext = Path.GetFileNameWithoutExtension filePath
+            let fileName = Path.GetFileNameWithoutExtension filePath
+            let ext = Path.GetExtension filePath
             let backupName = String.concat "_" [fileName; backupType; Path.GetTimestamp()] + ext
             File.Copy(filePath, Path.Combine(directory, backupName))
         with _ -> ()
@@ -179,10 +198,12 @@ type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) as t
         try
             let fileText = runWithRetries (fun () -> File.ReadAllText(filePath))
             try
-                value <- fileText |> deserialize |> Persistence.defaultNullProps defaultValue |> this.Sanitize
-            with _ ->
+                value <- fileText |> deserialize |> Persistence.defaultNullProps defaultValue |> sanitize
+            with e ->
+                Persistence.logAndShowError false e
                 backUpFile "invalid" filePath
-        with _ ->
+        with e ->
+            Persistence.logAndShowError false e
             backUpFile "unread" filePath
 
     let save () =
@@ -216,16 +237,11 @@ type PersistFile<'a when 'a : equality>(filePath: string, defaultValue: 'a) as t
 
     member this.FileChanged = fileChangedEvent.Publish
 
-    abstract member Sanitize : 'a -> 'a
-    default _.Sanitize value = value
-
     interface IDisposable with
         member this.Dispose () = watcher.Dispose()
 
 type ConfigFile(defaultValue) =
-    inherit PersistFile<Config>(ConfigFile.FilePath, defaultValue)
-
-    override _.Sanitize config = ConfigFile.Sanitize config
+    inherit PersistFile<Config>(ConfigFile.FilePath, defaultValue, ConfigFile.Sanitize)
 
     static member Sanitize config =
         { config with
@@ -235,9 +251,9 @@ type ConfigFile(defaultValue) =
     static member FilePath = Path.KoffeeData.Join("config.json") |> string
 
 type HistoryFile(defaultValue) =
-    inherit PersistFile<History>(HistoryFile.FilePath, defaultValue)
+    inherit PersistFile<History>(HistoryFile.FilePath, defaultValue, HistoryFile.Sanitize)
 
-    override _.Sanitize history =
+    static member Sanitize history =
         { history with
             Searches = history.Searches |> List.filter (fun s -> s.Terms <> null)
         }

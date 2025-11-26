@@ -8,23 +8,6 @@ open Acadian.FSharp
 open Koffee
 open UIHelpers
 
-let logError isCrash (e: exn) =
-    let typ = if isCrash then "crash" else "error"
-    let logFilePath = Path.KoffeeData.Join(sprintf "%s_%s.log" typ (Path.GetTimestamp())) |> string
-    let logWritten =
-        try
-            File.WriteAllText(logFilePath, string e)
-            sprintf "This error has been logged to: \n%s\n\n" logFilePath
-        with _ -> ""
-    let msg =
-        sprintf "Sorry! An unexpected error %s:\n\n"
-                (if isCrash then "caused Koffee to crash" else "occurred in Koffee") +
-        sprintf "%s\n\n" e.Message +
-        logWritten +
-        "Please report this as an issue on Koffee's GitHub project:\n" +
-        "https://github.com/mattstermiller/koffee/issues"
-    MessageBox.Show(msg, sprintf "Koffee %s!" typ, MessageBoxButton.OK, MessageBoxImage.Error) |> ignore
-
 let run args =
     let dir = Path.KoffeeData.Format Windows
     if not (Directory.Exists dir) then
@@ -58,8 +41,8 @@ let main args =
 #if DEBUG
     run args
 #else
-    VinylUI.Framework.setErrorHandler (logError false)
+    VinylUI.Framework.setErrorHandler (Persistence.logAndShowError false)
     try run args
-    with e -> logError true e
+    with e -> Persistence.logAndShowError true e
 #endif
     0

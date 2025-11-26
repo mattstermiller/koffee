@@ -3,6 +3,7 @@
 ### 0.8.0  Configure Key Bindings and External Tools (WIP)
 - #137 Adds key binding editor
 - #151 Moves next undo/redo actions to separate bar, adds setting to toggle showing it
+- Adds Open Koffee Data Folder command
 - Adds mouse tooltips to status, yank register, next undo/redo action
 - Improves resiliency of loading and saving config and history
 - Changes recycle/delete to not push useless undo actions

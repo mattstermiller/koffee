@@ -80,6 +80,7 @@ type NavigationCommand =
     | OpenParent
     | OpenRoot
     | OpenDefault
+    | OpenKoffeeData
     | Back
     | Forward
     | Refresh
@@ -106,6 +107,7 @@ with
         | OpenParent -> "Open Parent Folder"
         | OpenRoot -> "Open Root Directory"
         | OpenDefault -> "Open Default Path"
+        | OpenKoffeeData -> "Open Koffee Data Folder"
         | Back -> "Back in Navigation History"
         | Forward -> "Forward in Navigation History"
         | Refresh -> "Refresh Current Folder"
@@ -911,6 +913,7 @@ module MainBindings =
             ([noMod, Key.H], Navigation OpenParent)
             ([noMod, Key.G; noMod, Key.R], Navigation OpenRoot)
             ([noMod, Key.G; noMod, Key.D], Navigation OpenDefault)
+            ([noMod, Key.G; noMod, Key.K], Navigation OpenKoffeeData)
             ([shift, Key.H], Navigation Back)
             ([shift, Key.L], Navigation Forward)
             ([noMod, Key.R], Navigation Refresh)

@@ -631,6 +631,7 @@ type Handler(
         | OpenParent -> SyncResult (openParent fs)
         | OpenRoot -> SyncResult (openPath fs Path.Root CursorStay)
         | OpenDefault -> SyncResult (fun m -> openPath fs m.Config.DefaultPath CursorStay m)
+        | OpenKoffeeData -> SyncResult (openPath fs Path.KoffeeData CursorStay)
         | Back -> Sync (back fs)
         | Forward -> Sync (forward fs)
         | Refresh -> AsyncResult (refreshOrResearch fs subDirResults progress)

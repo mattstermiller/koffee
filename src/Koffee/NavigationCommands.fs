@@ -257,15 +257,21 @@ let openInVsCode (os: IOperatingSystem) (model: MainModel) = result {
     return model |> MainModel.withMessage (MainStatus.OpenInVsCode (model.Location, selectedNames, model.PathFormat))
 }
 
-let openInDevOps (os: IOperatingSystem) (model: MainModel) = result {
-    let itemPath = model.CursorItem.Path
-    let! gitRoot =
-        os.Execute "git" itemPath.Parent "rev-parse --show-toplevel"
-        |> Result.map Path.Parse
-        |> (actionError "find git root")
-    match gitRoot with
+let private gitRoot (fsReader: IFileSystemReader) (model: MainModel) =
+    let rec findGit (path: Path) =
+        path.Join ".git"
+        |> fsReader.GetItem
+        |> Result.bind (function
+            | Some _ -> Ok (Some path)
+            | None when path.Parent <> Path.Root -> findGit path.Parent
+            | None -> Ok None
+        )
+    findGit model.Location
+
+let openInDevOps (os: IOperatingSystem) fsReader (model: MainModel) = result {
+    match! gitRoot fsReader model |> actionError "find git root" with
     | Some gitRoot ->
-        let pathStr = itemPath.FormatRelativeFolder model.PathFormat gitRoot
+        let pathStr = model.CursorItem.Path.FormatRelativeFolder model.PathFormat gitRoot
         let pathStr = pathStr |> String.substring 1 (pathStr.Length - 2)
         let devOpsPath = sprintf "https://dev.azure.com/osh-inc/Canopy/_git/%s?path=%s" gitRoot.Name pathStr
         do! os.LaunchApp false devOpsPath model.Location "" |> actionError "launch url"

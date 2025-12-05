@@ -32,6 +32,7 @@
     <Compile Include="ItemRenameTests.fs" />
     <Compile Include="ItemPutTests.fs" />
     <Compile Include="ItemDeleteTests.fs" />
+    <Compile Include="ItemToolTests.fs" />
     <Compile Include="MainControllerInitModelTests.fs" />
     <Compile Include="OsUtilityTests.fs" />
     <Compile Include="CommandBindingTests.fs" />

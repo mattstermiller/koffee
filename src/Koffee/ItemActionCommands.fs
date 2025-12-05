@@ -1,5 +1,6 @@
 namespace Koffee.ItemActionCommands
 
+open System.Text.RegularExpressions
 open VinylUI
 open FSharp.Control
 open Acadian.FSharp
@@ -93,6 +94,46 @@ module Undo =
 
     let redo fs = redoIter 1 fs
 
+module Tools =
+    let private variableRegex =
+        Reflection.enumerateUnionCaseValues<ToolArgument>
+        |> Seq.map (fun arg -> arg.Name)
+        |> String.concat "|"
+        |> sprintf @"\{(%s)(:?:\w)?\}"
+        |> fun regex -> Regex(regex, RegexOptions.Compiled)
+
+    let substituteArgumentVariables (model: MainModel) arguments =
+        let quote = String.replace "\"" "\\\"" >> sprintf "\"%s\""
+        let files =
+            model.ActionItems
+            |> Seq.filter (fun item -> item.Type = File)
+            |> Seq.map (fun item -> item.Path |> string |> quote)
+        let replaceVariable (str: string) (mtch: Match) =
+            str // TODO
+        variableRegex.Matches(arguments)
+        |> Seq.cast<Match>
+        |> Seq.rev
+        |> Seq.fold replaceVariable arguments
+
+    let executeTool (os: IOperatingSystem) toolName (model: MainModel) = result {
+        let! tool =
+            model.Config.Tools
+            |> List.tryFind (fun tool -> tool.ToolName = toolName)
+            |> Result.ofOption (MainStatus.ToolDoesNotExist toolName)
+        let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
+        if items.IsEmpty then
+            return model
+        else
+            let args = tool.Arguments |> substituteArgumentVariables model
+            do! os.Execute false model.Location tool.ExePath args
+                |> Result.mapError (fun e -> MainStatus.CouldNotExecute ("Tool - " + tool.ToolName, e))
+            return
+                model
+                // TODO: determine paths used from variables used
+                // |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory paths)
+                |> MainModel.withMessage (MainStatus.ExecutedTool tool.ToolName)
+    }
+
 type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
     member _.UpdateDropInPutType paths event model = Put.updateDropInPutType paths event model
     member _.DropIn paths event model = Put.dropIn fs progress paths event model
@@ -114,6 +155,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | ClipboardPaste -> AsyncResult (Put.clipboardPaste fs os progress)
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
+        | ExecuteTool toolName -> SyncResult (Tools.executeTool os toolName)
 
     member _.HandleNewItemInputEvent isFolder (evt: InputEvent) model = asyncSeq {
         match evt with

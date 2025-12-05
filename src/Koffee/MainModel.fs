@@ -140,6 +140,7 @@ type ItemActionCommand =
     | ClipboardPaste
     | Undo
     | Redo
+    | ExecuteTool of toolName: string
 with
     member this.Name =
         match this with
@@ -163,6 +164,7 @@ with
         | ClipboardPaste -> "Paste from Clipboard"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
+        | ExecuteTool toolName -> "Execute Tool - " + toolName
 
 type WindowCommand =
     | OpenSplitScreenWindow
@@ -535,6 +537,51 @@ with
     member this.Description pathFormat = this.Describe false pathFormat
     member this.ShortDescription pathFormat = this.Describe true pathFormat
 
+type ToolArgument =
+    | SelectedItems
+    | SelectedFiles
+    | SelectedFolders
+    | CursorItems
+    | CursorFiles
+    | CursorFolders
+    | Location
+    | GitRepoPath
+    | GitRepoRoot
+    | Env
+with
+    member this.Name = Reflection.unionCaseNameReadable this |> String.replace " " "_" |> String.toLower
+
+type Tool = {
+    ToolName: string
+    ExePath: string
+    Arguments: string
+    UseShell: bool
+    HideWindow: bool
+}
+with
+    member this.Command = ItemAction (ExecuteTool this.ToolName)
+
+    static member DefaultTerminal = {
+        ToolName = "Terminal"
+        ExePath = "powershell"
+        Arguments = String.Empty
+        UseShell = true
+        HideWindow = false
+    }
+
+    static member DefaultTextEditor = {
+        ToolName = "Text Editor"
+        ExePath = "notepad"
+        Arguments = sprintf "{%s}" ToolArgument.SelectedFiles.Name
+        UseShell = true
+        HideWindow = false
+    }
+
+    static member DefaultList = [
+        Tool.DefaultTerminal
+        Tool.DefaultTextEditor
+    ]
+
 type CursorMoveType =
     | CursorStay
     | CursorToIndex of int
@@ -596,6 +643,9 @@ module MainStatus =
         | NoSavedSearch of Char
         | SetSavedSearch of Char * Search
         | DeletedSavedSearch of Char * Search
+        | Sort of field: obj * desc: bool
+        | ToggleHidden of showing: bool
+        | RemovedNetworkHosts of names: string list
 
         // Actions
         | ActionComplete of ItemAction
@@ -607,16 +657,14 @@ module MainStatus =
         | ClipboardYank of copy: bool * paths: Path list
         | ClipboardCopyPaths of paths: Path list
         | NoItemsToPaste
-        | Sort of field: obj * desc: bool
-        | ToggleHidden of showing: bool
         | OpenFiles of names: string list
         | OpenProperties of names: string list
         | OpenTextEditor of names: string list
         | OpenTerminal of Path
         | OpenExplorer
+        | ExecutedTool of toolName: string
         | OpenInVsCode of location: Path * names: string list * PathFormat
         | OpenInDevOps of repo: string * path: string
-        | RemovedNetworkHosts of names: string list
 
         static member private describePaths pathFormat (paths: Path list) =
             match paths with
@@ -646,6 +694,12 @@ module MainStatus =
                 sprintf "Set saved search \"%c\" to \"%O\"" char search
             | DeletedSavedSearch (char, search) ->
                 sprintf "Deleted saved search \"%c\" that was set to \"%O\"" char search
+            | Sort (field, desc) ->
+                sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
+            | ToggleHidden showing ->
+                sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
+            | RemovedNetworkHosts names ->
+                sprintf "Removed network host%s: %s" (Format.pluralS names) (describeList names)
             | ActionComplete action ->
                 actionCompleteMessage pathFormat action
             | UndoAction (action, repeatIter, repeatCount) ->
@@ -687,10 +741,6 @@ module MainStatus =
                 sprintf "Copied path%s to clipboard: %s" (Format.pluralS paths) (Message.describePaths pathFormat paths)
             | NoItemsToPaste ->
                 "No items in clipboard to paste"
-            | Sort (field, desc) ->
-                sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
-            | ToggleHidden showing ->
-                sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | OpenFiles names ->
                 sprintf "Opened File%s: %s" (Format.pluralS names) (describeList names)
             | OpenProperties names ->
@@ -701,12 +751,12 @@ module MainStatus =
                 sprintf "Opened Terminal at: %s" (path.Format pathFormat)
             | OpenExplorer ->
                 "Opened Windows Explorer"
+            | ExecutedTool toolName ->
+                sprintf "Executed Tool %s" toolName
             | OpenInVsCode (location, names, pathFormat) ->
                 sprintf "Opened VS Code to %s%s" (location.Format pathFormat) (describeList names)
             | OpenInDevOps (repo, path) ->
                 sprintf "Opened Azure DevOps to %s repo, path %s" repo path
-            | RemovedNetworkHosts names ->
-                sprintf "Removed network host%s: %s" (Format.pluralS names) (describeList names)
 
     type Busy =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent
@@ -769,8 +819,9 @@ module MainStatus =
         | NoFilesSelected
         | CannotOpenWithMultiple
         | CouldNotOpenFiles of nameErrorPairs: (string * exn) list
-        | CouldNotOpenApp of app: string * exn
+        | CouldNotExecute of app: string * exn
         | CouldNotFindKoffeeExe
+        | ToolDoesNotExist of name: string
 
         member private this.ItemErrorsDescription actionName (errorPaths: (Path * exn) list) totalItemCount =
             let actionMsg = "Could not " + actionName
@@ -848,10 +899,12 @@ module MainStatus =
                     sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
                 | [] ->
                     "Could not open files"
-            | CouldNotOpenApp (app, e) ->
-                sprintf "Could not open app %s: %s" app e.Message
+            | CouldNotExecute (app, e) ->
+                sprintf "Could not execute %s: %s" app e.Message
             | CouldNotFindKoffeeExe ->
                 "Could not determine Koffee.exe path"
+            | ToolDoesNotExist name ->
+                sprintf "Tool with name '%s' does not exist" name
 
     type StatusType =
         | Message of Message
@@ -917,8 +970,6 @@ module MainBindings =
             ([shift, Key.Enter], Navigation OpenFileWith)
             ([ctrl, Key.Enter], Navigation OpenFileAndExit)
             ([alt, Key.Enter], Navigation OpenProperties)
-            ([ctrl, Key.E], Navigation OpenWithTextEditor)
-            ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
             ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
             ([ctrl ||| shift, Key.S], Navigation OpenInVsCode)
             ([ctrl ||| shift, Key.D], Navigation OpenInDevOps)
@@ -965,6 +1016,8 @@ module MainBindings =
             ([ctrl, Key.Z], ItemAction Undo)
             ([noMod, Key.U], ItemAction Redo)
             ([ctrl ||| shift, Key.Z], ItemAction Redo)
+            ([ctrl ||| shift, Key.T], Tool.DefaultTerminal.Command)
+            ([ctrl, Key.E], Tool.DefaultTextEditor.Command)
 
             ([ctrl, Key.N], Window OpenSplitScreenWindow)
             ([shift, Key.OemQuestion], Window OpenSettings)
@@ -981,6 +1034,7 @@ type Config = {
     TextEditor: string
     TerminalPath: string
     SearchExclusions: string list
+    Tools: Tool list
     YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
     KeyBindings: KeyBinding<MainCommand> list
@@ -1036,6 +1090,7 @@ with
             "packages"
             "node_modules"
         ]
+        Tools = Tool.DefaultList
         YankRegister = None
         Window = {
             IsMaximized = false
@@ -1183,6 +1238,7 @@ type MainModel = {
     member private this.ClampCursor index =
         index |> clamp 0 (this.Items.Length - 1)
 
+    // TODO: Refactor this to return Option and return None when cursor is on Empty item
     member this.CursorItem =
         this.Items.[this.Cursor |> this.ClampCursor]
 

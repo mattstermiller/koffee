@@ -140,6 +140,7 @@ type ItemActionCommand =
     | ClipboardPaste
     | Undo
     | Redo
+    | ExecuteTool of toolName: string
 with
     member this.Name =
         match this with
@@ -163,6 +164,7 @@ with
         | ClipboardPaste -> "Paste from Clipboard"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
+        | ExecuteTool toolName -> "Execute Tool - " + toolName
 
 type WindowCommand =
     | OpenSplitScreenWindow
@@ -535,6 +537,37 @@ with
     member this.Description pathFormat = this.Describe false pathFormat
     member this.ShortDescription pathFormat = this.Describe true pathFormat
 
+type Tool = {
+    ToolName: string
+    ExePath: string
+    Arguments: string
+    UseShell: bool
+    HideWindow: bool
+}
+with
+    member this.Command = ItemAction (ExecuteTool this.ToolName)
+
+    static member DefaultTerminal = {
+        ToolName = "Terminal"
+        ExePath = "powershell"
+        Arguments = String.Empty
+        UseShell = true
+        HideWindow = false
+    }
+
+    static member DefaultTextEditor = {
+        ToolName = "Text Editor"
+        ExePath = "notepad"
+        Arguments = "{selected_files}"
+        UseShell = true
+        HideWindow = false
+    }
+
+    static member DefaultList = [
+        Tool.DefaultTerminal
+        Tool.DefaultTextEditor
+    ]
+
 type CursorMoveType =
     | CursorStay
     | CursorToIndex of int
@@ -769,8 +802,9 @@ module MainStatus =
         | NoFilesSelected
         | CannotOpenWithMultiple
         | CouldNotOpenFiles of nameErrorPairs: (string * exn) list
-        | CouldNotOpenApp of app: string * exn
+        | CouldNotExecute of app: string * exn
         | CouldNotFindKoffeeExe
+        | ToolDoesNotExist of name: string
 
         member private this.ItemErrorsDescription actionName (errorPaths: (Path * exn) list) totalItemCount =
             let actionMsg = "Could not " + actionName
@@ -848,10 +882,12 @@ module MainStatus =
                     sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
                 | [] ->
                     "Could not open files"
-            | CouldNotOpenApp (app, e) ->
-                sprintf "Could not open app %s: %s" app e.Message
+            | CouldNotExecute (app, e) ->
+                sprintf "Could not execute %s: %s" app e.Message
             | CouldNotFindKoffeeExe ->
                 "Could not determine Koffee.exe path"
+            | ToolDoesNotExist name ->
+                sprintf "Tool with name '%s' does not exist" name
 
     type StatusType =
         | Message of Message
@@ -917,8 +953,6 @@ module MainBindings =
             ([shift, Key.Enter], Navigation OpenFileWith)
             ([ctrl, Key.Enter], Navigation OpenFileAndExit)
             ([alt, Key.Enter], Navigation OpenProperties)
-            ([ctrl, Key.E], Navigation OpenWithTextEditor)
-            ([ctrl ||| shift, Key.T], Navigation OpenTerminal)
             ([ctrl ||| shift, Key.E], Navigation OpenExplorer)
             ([ctrl ||| shift, Key.S], Navigation OpenInVsCode)
             ([ctrl ||| shift, Key.D], Navigation OpenInDevOps)
@@ -965,6 +999,8 @@ module MainBindings =
             ([ctrl, Key.Z], ItemAction Undo)
             ([noMod, Key.U], ItemAction Redo)
             ([ctrl ||| shift, Key.Z], ItemAction Redo)
+            ([ctrl ||| shift, Key.T], Tool.DefaultTerminal.Command)
+            ([ctrl, Key.E], Tool.DefaultTextEditor.Command)
 
             ([ctrl, Key.N], Window OpenSplitScreenWindow)
             ([shift, Key.OemQuestion], Window OpenSettings)
@@ -981,6 +1017,7 @@ type Config = {
     TextEditor: string
     TerminalPath: string
     SearchExclusions: string list
+    Tools: Tool list
     YankRegister: (PutType * ItemRef list) option
     Window: WindowConfig
     KeyBindings: KeyBinding<MainCommand> list
@@ -1036,6 +1073,7 @@ with
             "packages"
             "node_modules"
         ]
+        Tools = Tool.DefaultList
         YankRegister = None
         Window = {
             IsMaximized = false

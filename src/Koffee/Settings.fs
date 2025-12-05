@@ -153,8 +153,12 @@ let private getCommandBinding keyBindings command =
         KeyCombo2 = bindings |> List.tryItem 1 |? []
     }
 
-let private getCommandBindings keyBindings =
-    MainCommand.commandList |> List.map (getCommandBinding keyBindings)
+let private getCommandBindings (tools: Tool list) keyBindings =
+    Seq.append
+        MainCommand.commandList
+        (tools |> Seq.map (fun tool -> tool.Command))
+    |> Seq.map (getCommandBinding keyBindings)
+    |> Seq.toList
 
 let private openConfirmationDialog title message =
     MessageBox.Show(message, title, MessageBoxButton.YesNo) = MessageBoxResult.Yes
@@ -187,7 +191,7 @@ let private resetAllKeyBindings (model: Model) =
     let confirmed = openConfirmationDialog "Reset all keybindings?" "Are you sure you want to reset ALL keybindings to defaults?"
     if confirmed then
         { model with
-            CommandBindings = MainBindings.Default |> getCommandBindings
+            CommandBindings = MainBindings.Default |> getCommandBindings model.Config.Tools
             Config = { model.Config with KeyBindings = MainBindings.Default }
         }
     else
@@ -232,7 +236,7 @@ let private dispatcher textEdit keyBinder evt =
     | PageSizeChanged pageSize -> Sync (fun m -> { m with PageSize = pageSize })
 
 let private start (config: Config) window =
-    let model = Model.create config (getCommandBindings config.KeyBindings)
+    let model = Model.create config (getCommandBindings config.Tools config.KeyBindings)
     let textEdit = TextEdit.Dialog(window)
     let keyBinder = KeyBinder.Dialog(window)
     Framework.start binder events (dispatcher textEdit keyBinder) window model

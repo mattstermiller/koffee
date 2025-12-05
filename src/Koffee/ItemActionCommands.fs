@@ -93,6 +93,28 @@ module Undo =
 
     let redo fs = redoIter 1 fs
 
+module Tools =
+    let executeTool (os: IOperatingSystem) toolName (model: MainModel) = result {
+        let! tool =
+            model.Config.Tools
+            |> List.tryFind (fun tool -> tool.ToolName = toolName)
+            |> Result.ofOption (MainStatus.ToolDoesNotExist toolName)
+        // TODO let substituteArgVars
+        let items = model.ActionItems |> List.filter (fun i -> i.Type = File)
+        if items.IsEmpty then
+            return model
+        else
+            let pathArg (path: Path) = path.Format Windows |> sprintf "\"%s\""
+            let paths = items |> List.map (fun i -> i.Path)
+            let args = paths |> Seq.map pathArg |> String.concat " "
+            do! os.Execute false model.Location tool.ExePath args
+                |> Result.mapError (fun e -> MainStatus.CouldNotExecute ("Tool - " + tool.ToolName, e))
+            return
+                model
+                |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory paths)
+                |> MainModel.withMessage (MainStatus.OpenTextEditor (items |> List.map (fun i -> i.Name)))
+    }
+
 type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
     member _.UpdateDropInPutType paths event model = Put.updateDropInPutType paths event model
     member _.DropIn paths event model = Put.dropIn fs progress paths event model
@@ -114,6 +136,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | ClipboardPaste -> AsyncResult (Put.clipboardPaste fs os progress)
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
+        | ExecuteTool toolName -> SyncResult (Tools.executeTool os toolName)
 
     member _.HandleNewItemInputEvent isFolder (evt: InputEvent) model = asyncSeq {
         match evt with

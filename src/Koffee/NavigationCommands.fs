@@ -51,7 +51,6 @@ let listDirectory cursor model =
         model.Directory
         |> List.filter (fun i -> model.Config.ShowHidden || not i.IsHidden || possiblyHiddenPathsToSelect |> Set.contains i.Path)
         |> model.SortItems
-        |> model.ItemsOrEmpty
     { model with Items = items } |> setCursorAndSelected true cursor
 
 let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
@@ -66,8 +65,8 @@ let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
         |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, e))
 
 let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
-    match getDirectory fsReader model path with
-    | Ok directory ->
+    getDirectory fsReader model path
+    |> Result.map (fun directory ->
         { model with
             Directory = directory
             History = model.History |> History.withFolderPath model.Config.Limits.PathHistory path
@@ -77,17 +76,7 @@ let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
         |> clearSearchProps
         |> applyIf (path <> model.Location) MainModel.clearSelection
         |> listDirectory cursor
-        |> Ok
-    | Error e when path = model.Location ->
-        { model with
-            Directory = []
-            Items = Item.EmptyFolderWithMessage (e.Message model.PathFormat) path
-            SelectedItems = []
-        }
-        |> MainModel.withError e
-        |> Ok
-    | Error e ->
-        Error e
+    )
 
 let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
     match Path.Parse pathStr with
@@ -154,7 +143,6 @@ let openItems fsReader (os: IOperatingSystem) items (model: MainModel) = asyncSe
                 model
                 |> MainModel.mapHistory (History.withFilePaths model.Config.Limits.PathHistory [item.Path])
                 |> MainModel.withMessage (MainStatus.OpenFiles [item.Name])
-        | Empty -> ()
     | items ->
         let targets, targetErrors =
             items
@@ -265,10 +253,7 @@ let refresh fsReader (model: MainModel) =
 
 let refreshDirectory fsReader (model: MainModel) =
     getDirectory fsReader model model.Location
-    |> function
-        | Ok items -> items
-        | Error e -> Item.EmptyFolderWithMessage (e.Message model.PathFormat) model.Location
-    |> fun items -> { model with Directory = items }
+    |> Result.map (fun items -> { model with Directory = items })
 
 let private ignoreError f model =
     f model |> Result.defaultValue model
@@ -369,10 +354,7 @@ let performSearch fsReader (subDirResults: Event<_>) progress (model: MainModel)
     | Some (Ok filter) ->
         let withItems items model =
             { model with
-                Items =
-                    items
-                    |> model.ItemsOrEmpty
-                    |> model.SortItems
+                Items = items |> model.SortItems
                 Cursor = 0
             } |> moveCursor model.KeepCursorByPath
         let items = model.Directory |> filter
@@ -409,7 +391,6 @@ let addSubDirResults newItems model =
     let items =
         match filter newItems, model.Items with
         | [], _ -> model.Items
-        | matches, [item] when item.Type = Empty -> matches
         | matches, _ -> model.Items @ matches
     { model with
         SubDirectories = model.SubDirectories |> Option.map (flip (@) newItems)
@@ -541,7 +522,6 @@ let toggleHidden (model: MainModel) =
             model.Directory @ (model.SubDirectories |? [])
             |> filter
             |> model.SortItems
-            |> model.ItemsOrEmpty
         { model with Items = items } |> moveCursor model.KeepCursorByPath
     | None ->
         model |> listDirectory model.KeepCursorByPath
@@ -600,7 +580,7 @@ let deletePathSuggestion (path: HistoryPath) (model: MainModel) =
 let windowActivated fsReader subDirResults progress model = asyncSeqResult {
     if model.Config.Window.RefreshOnActivate then
         if model.IsSearchingSubFolders then
-            yield model |> refreshDirectory fsReader
+            yield! model |> refreshDirectory fsReader
         else
             yield! model |> refreshOrResearch fsReader subDirResults progress
 }

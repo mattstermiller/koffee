@@ -194,7 +194,6 @@ type ItemType =
     | Drive
     | NetHost
     | NetShare
-    | Empty
 
     member this.CanModify =
         match this with
@@ -210,7 +209,6 @@ type ItemType =
         match this with
         | NetHost -> "Network Host"
         | NetShare -> "Network Share"
-        | Empty -> ""
         | _ -> sprintf "%A" this
 
     member this.NameLower = this.Name.ToLower()
@@ -228,7 +226,6 @@ type ItemType =
         | Folder | NetShare -> "📂"
         | Drive -> "💿"
         | NetHost -> "💻"
-        | Empty -> ""
 
 [<CustomEquality; NoComparison>]
 type HistoryPath = {
@@ -289,26 +286,14 @@ with
 
     member this.HistoryPath = { PathValue = this.Path; IsDirectory = this.Type.IsDirectory }
 
-    static member Empty =
-        { Path = Path.Root; Name = ""; Type = Empty
-          Modified = None; Size = None; IsHidden = false
-        }
-
-    static member EmptyFolderWithMessage message path =
-        [ { Item.Empty with Name = sprintf "<%s>" message; Path = path } ]
-
-    static member EmptyFolder isSearching path =
-        let message =
-            if isSearching then "No search results"
-            else if path = Path.Network then "Remote hosts that you visit will appear here"
-            else "Empty folder"
-        Item.EmptyFolderWithMessage message path
-
     static member Basic path name itemType =
-        { Item.Empty with
+        {
             Path = path
             Name = name
             Type = itemType
+            Modified = None
+            Size = None
+            IsHidden = false
         }
 
     static member paths (items: Item list) =
@@ -1170,7 +1155,7 @@ type MainModel = {
 } with
     member this.CursorItem =
         if this.Cursor >= 0 && this.Cursor < this.Items.Length
-        then this.Items.[this.Cursor] |> Option.ofCond (fun i -> i.Type <> Empty)
+        then Some this.Items.[this.Cursor]
         else None
 
     member this.KeepCursorByPath =
@@ -1193,8 +1178,11 @@ type MainModel = {
 
     member this.RepeatCount = this.RepeatCommand |? 1
 
-    member this.ItemsOrEmpty =
-        Seq.ifEmpty (Item.EmptyFolder this.SearchCurrent.IsSome this.Location)
+    member this.EmptyItemsMessage =
+        if not this.Items.IsEmpty then None
+        else if this.SearchCurrent.IsSome then Some "No search results"
+        else if this.Location = Path.Network then Some "Remote hosts that you visit will appear here"
+        else Some "Empty folder"
 
     member this.IsStatusBusy =
         match this.Status with
@@ -1225,7 +1213,7 @@ type MainModel = {
         Status = None
         StatusHistory = []
         Directory = []
-        Items = [ Item.Empty ]
+        Items = []
         Sort = Some (Name, false)
         Cursor = 0
         SelectedItems = []

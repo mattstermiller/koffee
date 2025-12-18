@@ -181,6 +181,11 @@
           </Style>
         </DataGrid.RowStyle>
       </DataGrid>
+      <!-- Empty items message -->
+      <Border Name="EmptyItemsPanel" x:FieldModifier="public" HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderThickness="2" Background="{StaticResource BackgroundBrush}" Visibility="Collapsed">
+        <TextBlock Name="EmptyItemsMessage" x:FieldModifier="public" Margin="6,2" />
+      </Border>
       <!-- Popup panels -->
       <StackPanel VerticalAlignment="Bottom" Margin="32,0">
         <!-- History / Bookmarks panel -->

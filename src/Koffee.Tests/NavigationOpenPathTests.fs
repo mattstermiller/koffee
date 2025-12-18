@@ -101,17 +101,10 @@ let ``Opening same path that throws on GetItems sets empty item and error status
             SelectedItems = [items.[1]]
         }
 
-    let actual = NavigationCommands.openPath fs path CursorStay model |> assertOk
+    let actual = NavigationCommands.openPath fs path CursorStay model
 
     let expectedError = MainStatus.CouldNotOpenPath (path, ex)
-    let expected =
-        { model with
-            Directory = []
-            Items = Item.EmptyFolderWithMessage (expectedError.Message model.PathFormat) path
-            SelectedItems = []
-        }
-        |> MainModel.withError expectedError
-    assertAreEqual expected actual
+    assertAreEqual (Error expectedError) actual
 
 [<Test>]
 let ``Open Parent when in folder opens parent and moves cursor to folder that was open`` () =
@@ -122,7 +115,7 @@ let ``Open Parent when in folder opens parent and moves cursor to folder that wa
     let model =
         { testModel with
             Directory = []
-            Items = [Item.Empty]
+            Items = []
         }
         |> withLocation "/c/folder"
     let expectedItems = fs.ItemsIn "/c"
@@ -149,7 +142,7 @@ let ``Open Parent when in drive opens root and moves cursor to drive that was op
     let model =
         { testModel with
             Directory = []
-            Items = [Item.Empty]
+            Items = []
         }
         |> withLocation "/d"
     let expectedItems = fs.ItemsIn Path.Root

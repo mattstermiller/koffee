@@ -40,7 +40,7 @@ let selectRange (model: MainModel) =
         selectToggle model
 
 let selectAll (model: MainModel) =
-    { model with SelectedItems = model.Items |> List.filter (fun i -> i.Type <> Empty) }
+    { model with SelectedItems = model.Items }
 
 let scrollView (gridScroller: DataGridScroller) scrollType (model: MainModel) =
     let topIndex =

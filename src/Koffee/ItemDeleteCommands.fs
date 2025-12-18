@@ -41,7 +41,7 @@ let private removeItems (items: Item list) (model: MainModel) =
             else model.History |> History.withoutPaths (items |> Item.paths)
         { model with
             Directory = model.Directory |> List.except items
-            Items = model.Items |> List.except items |> model.ItemsOrEmpty
+            Items = model.Items |> List.except items
             SelectedItems = model.SelectedItems |> List.except items
             History = history
         }

@@ -21,6 +21,7 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
     let fs = FakeFileSystem (goodPaths |> List.map (fun p -> folder p []))
     for p in errorPaths do
         fs.AddExn false (exn p) p
+
     let config =
         { Config.Default with
             StartPath = configPath
@@ -28,19 +29,26 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
             PathFormat = Unix
         }
     let history = { History.Default with Paths = history |> List.map createHistoryPath }
-    let model = { MainModel.Default with Config = config; History = history }
+    let model =
+        { MainModel.Default with
+            Config = config
+            History = history
+            Items = [createFile "/c/dummy"]
+        }
     let options = { StartPath = startPath; StartLocation = None; StartSize = None }
     let screen = Rect.ofPairs (0, 0) (800, 600)
 
     let actual = MainController.initModel fs screen options model
 
-    actual.Items |> shouldNotEqual [Item.Empty]
-    { Start = actual.LocationFormatted
-      Back = actual.BackStack |> List.tryHead |> Option.map (fun (p, _) -> p.FormatFolder Unix)
-      Error =
-          match actual.Status with
-          | Some (MainStatus.Error e) -> Some e
-          | _ -> None
+    actual.Items |> shouldNotEqual model.Items
+
+    {
+        Start = actual.LocationFormatted
+        Back = actual.BackStack |> List.tryHead |> Option.map (fun (p, _) -> p.FormatFolder Unix)
+        Error =
+            match actual.Status with
+            | Some (MainStatus.Error e) -> Some e
+            | _ -> None
     }
 
 let openPathError p = MainStatus.ActionError ("open path", exn p)

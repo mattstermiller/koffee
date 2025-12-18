@@ -183,6 +183,7 @@ module MainView =
                     window.PathSuggestions.IsHidden <- not window.PathBox.IsFocused
             )
 
+            // Items
             Bind.modelMulti(<@ model.Items, model.Cursor, model.Sort @>).toFunc(fun (items, cursor, sort) ->
                 if not <| obj.ReferenceEquals(window.ItemGrid.ItemsSource, items) then
                     window.ItemGrid.ItemsSource <- items
@@ -210,6 +211,10 @@ module MainView =
                 window.DirectoryStatus.Text <- itemCountAndSize name items
             )
             Bind.view(<@ window.ItemGrid.SelectedIndex @>).toModelOneWay(<@ model.Cursor @>)
+            Bind.model(<@ model.EmptyItemsMessage @>).toFunc(fun message ->
+                window.EmptyItemsMessage.Text <- message |? String.Empty
+                window.EmptyItemsPanel.IsCollapsed <- message.IsNone
+            )
 
             // Location path
             Bind.model(<@ model.TitleLocation @>).toFunc(fun titleLoc ->

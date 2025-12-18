@@ -31,11 +31,12 @@ let private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: Can
     runSeqAsync (iter items)
 
 let private removeItems (items: Item list) (model: MainModel) =
-    if items.IsEmpty then
+    match items with
+    | [] ->
         model
-    else
+    | first :: _ ->
         let history =
-            if items.Head.Type = NetHost
+            if first.Type = NetHost
             then model.History |> History.withoutNetHosts (items |> List.map (fun i -> i.Name))
             else model.History |> History.withoutPaths (items |> Item.paths)
         { model with
@@ -110,18 +111,21 @@ let private calculateTotalSize (fsReader: IFileSystemReader) (cancelToken: Cance
     runAsync (fun () -> iter items)
 
 let recycle (fs: IFileSystem) (progress: Progress) (items: Item list) (model: MainModel) = asyncSeqResult {
-    if items.Head.Type = NetHost then
-        yield
-            model
-            |> removeItems items
-            |> MainModel.withMessage (MainStatus.RemovedNetworkHosts (items |> List.map (fun i -> i.Name)))
-    else
-        let items = items |> List.filter (fun i -> i.Type.CanModify)
-        let model = model |> MainModel.withNewCancelToken
-        yield model |> MainModel.withBusy MainStatus.CheckingIsRecyclable
-        progress.Start ()
-        let! totalSizeRes = calculateTotalSize fs model.CancelToken items
-        let! totalSize = totalSizeRes |> actionError "check folder content size"
-        do! fs.CheckRecyclable totalSize items.Head.Path |> actionError "recycle"
-        yield! performDelete fs progress false items items model
+    match items with
+    | [] -> ()
+    | first :: _ ->
+        if first.Type = NetHost then
+            yield
+                model
+                |> removeItems items
+                |> MainModel.withMessage (MainStatus.RemovedNetworkHosts (items |> List.map (fun i -> i.Name)))
+        else
+            let items = items |> List.filter (fun i -> i.Type.CanModify)
+            let model = model |> MainModel.withNewCancelToken
+            yield model |> MainModel.withBusy MainStatus.CheckingIsRecyclable
+            progress.Start ()
+            let! totalSizeRes = calculateTotalSize fs model.CancelToken items
+            let! totalSize = totalSizeRes |> actionError "check folder content size"
+            do! fs.CheckRecyclable totalSize first.Path |> actionError "recycle"
+            yield! performDelete fs progress false items items model
 }

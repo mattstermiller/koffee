@@ -17,14 +17,14 @@ let private getInputSelection renamePart itemType (input: string) =
     | ReplaceAll -> (0, fullLen)
 
 let inputRename part (model: MainModel) =
-    let item = model.CursorItem
-    if item.Type.CanModify then
+    match model.CursorItem with
+    | Some item when item.Type.CanModify ->
         { model with
             InputMode = Some (Input (Rename part))
             InputText = item.Name
             InputTextSelectionStartAndLength = SetValue (getInputSelection part item.Type item.Name)
         }
-    else
+    | _ ->
         model
 
 let rename (fs: IFileSystem) item newName (model: MainModel) = result {

@@ -115,7 +115,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
 
-    member _.HandleNewItemInputEvent isFolder (evt: InputEvent) model = asyncSeq {
+    member _.HandleNewItemInputEvent isFolder (evt: InputEvent) (model: MainModel) = asyncSeq {
         match evt with
         | InputCharTyped (char, keyHandler) ->
             suppressInvalidPathChar char keyHandler
@@ -127,18 +127,20 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | _ -> ()
     }
 
-    member _.HandleRenameInputEvent (evt: InputEvent) model = asyncSeq {
+    member _.HandleRenameInputEvent (evt: InputEvent) (model: MainModel) = asyncSeq {
         match evt with
         | InputCharTyped (char, keyHandler) ->
             suppressInvalidPathChar char keyHandler
         | InputSubmit ->
-            yield
-                { model with InputMode = None }
-                |> handleSyncResult (Rename.rename fs model.CursorItem model.InputText)
+            match model.CursorItem with
+            | Some item ->
+                yield { model with InputMode = None } |> handleSyncResult (Rename.rename fs item model.InputText)
+            | None ->
+                yield model
         | _ -> ()
     }
 
-    member _.ConfirmOverwrite putType (srcExistingPairs: (Item * Item) list) isYes model = asyncSeqResult {
+    member _.ConfirmOverwrite putType (srcExistingPairs: (Item * Item) list) isYes (model: MainModel) = asyncSeqResult {
         if isYes then
             let itemRefs = srcExistingPairs |> List.map (fun (src, _) -> src.Ref)
             let! model = Put.putInLocation fs progress false true putType itemRefs model

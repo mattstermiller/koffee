@@ -1168,16 +1168,16 @@ type MainModel = {
     Config: Config
     History: History
 } with
-    member private this.ClampCursor index =
-        index |> clamp 0 (this.Items.Length - 1)
-
     member this.CursorItem =
-        this.Items.[this.Cursor |> this.ClampCursor]
+        if this.Cursor >= 0 && this.Cursor < this.Items.Length
+        then this.Items.[this.Cursor] |> Option.ofCond (fun i -> i.Type <> Empty)
+        else None
 
-    member this.KeepCursorByPath = CursorToPath (this.CursorItem.Path, false)
+    member this.KeepCursorByPath =
+        this.CursorItem |> Option.map (fun item -> CursorToPath (item.Path, false)) |? CursorStay
 
     member this.ActionItems =
-        if not this.SelectedItems.IsEmpty then this.SelectedItems else [this.CursorItem]
+        if not this.SelectedItems.IsEmpty then this.SelectedItems else this.CursorItem |> Option.toList
 
     member this.PathFormat = this.Config.PathFormat
 
@@ -1271,7 +1271,7 @@ type MainModel = {
         model |> MainModel.withLocation path
 
     static member withCursor index (this: MainModel) =
-        { this with Cursor = index |> this.ClampCursor }
+        { this with Cursor = index |> clamp 0 (this.Items.Length - 1) }
 
     static member withCursorRel move (this: MainModel) =
         MainModel.withCursor (this.Cursor + move) this

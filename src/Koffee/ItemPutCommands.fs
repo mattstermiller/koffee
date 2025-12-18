@@ -483,7 +483,6 @@ let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainM
 
 let private getActionItemPaths (model: MainModel) =
     model.ActionItems
-    |> Seq.filter (fun item -> item.Type <> Empty)
     |> Seq.map (fun i -> i.Path)
     |> Seq.toList
 

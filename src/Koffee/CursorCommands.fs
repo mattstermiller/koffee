@@ -6,15 +6,18 @@ open Koffee
 open UIHelpers
 
 let selectToggle (model: MainModel) =
-    let cursorItem = model.CursorItem
-    let toggle, selectedItems =
-        match model.SelectedItems |> List.partition ((=) cursorItem) with
-        | [], _ -> (true, model.SelectedItems @ [cursorItem])
-        | _, withoutCursorItem -> (false, withoutCursorItem)
-    { model with
-        SelectedItems = selectedItems
-        PreviousSelectIndexAndToggle = Some (model.Cursor, toggle)
-    }
+    match model.CursorItem with
+    | Some cursorItem ->
+        let toggle, selectedItems =
+            match model.SelectedItems |> List.partition ((=) cursorItem) with
+            | [], _ -> (true, model.SelectedItems @ [cursorItem])
+            | _, withoutCursorItem -> (false, withoutCursorItem)
+        { model with
+            SelectedItems = selectedItems
+            PreviousSelectIndexAndToggle = Some (model.Cursor, toggle)
+        }
+    | None ->
+        model
 
 let selectRange (model: MainModel) =
     let items = model.Items |> List.toArray
@@ -35,6 +38,9 @@ let selectRange (model: MainModel) =
         }
     | None ->
         selectToggle model
+
+let selectAll (model: MainModel) =
+    { model with SelectedItems = model.Items |> List.filter (fun i -> i.Type <> Empty) }
 
 let scrollView (gridScroller: DataGridScroller) scrollType (model: MainModel) =
     let topIndex =
@@ -97,7 +103,7 @@ type Handler(gridScroller: DataGridScroller) =
         | CursorToLast -> Sync (fun m -> m |> MainModel.withCursor (m.Items.Length - 1))
         | SelectToggle -> Sync selectToggle
         | SelectRange -> Sync selectRange
-        | SelectAll -> Sync (fun m -> { m with SelectedItems = m.Items })
+        | SelectAll -> Sync selectAll
         | Scroll scrollType -> Sync (scrollView gridScroller scrollType)
         | StartFind multi -> Sync (inputFind multi)
         | FindNext -> Sync findNext

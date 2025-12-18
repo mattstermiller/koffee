@@ -235,23 +235,24 @@ let openTerminal (os: IOperatingSystem) model = result {
 }
 
 let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
-    let parent = model.ActionItems.Head.Path.Parent
+    let location = model.ActionItems |> List.tryHead |> Option.map (fun item -> item.Path.Parent) |? model.Location
     let selectPaths =
         model.ActionItems
-        |> Seq.filter (fun i -> i.Path.Parent = parent)
+        |> Seq.filter (fun i -> i.Path.Parent = location)
         |> Seq.map (fun i -> i.Path)
-    do! os.OpenExplorer parent selectPaths |> actionError "open Explorer"
+    do! os.OpenExplorer location selectPaths |> actionError "open Explorer"
     return model |> MainModel.withMessage MainStatus.OpenExplorer
 }
 
 let openParent fsReader (model: MainModel) =
     if model.SearchCurrent.IsSome then
-        if model.CursorItem.Type = Empty then
-            Ok (model |> clearSearchProps |> listDirectory CursorStay)
-        else
+        match model.CursorItem with
+        | Some item ->
             model
             |> MainModel.clearStatus
-            |> openPath fsReader model.CursorItem.Path.Parent model.KeepCursorByPath
+            |> openPath fsReader item.Path.Parent model.KeepCursorByPath
+        | None ->
+            Ok (model |> clearSearchProps |> listDirectory CursorStay)
     else
         let rec getParent n (path: Path) =
             if n < 1 || path.Parent = Path.Root then path
@@ -620,7 +621,7 @@ type Handler(
 
     member _.Handle (command: NavigationCommand) =
         match command with
-        | OpenCursorItem -> AsyncResult (fun m -> openItems fs os [m.CursorItem] m)
+        | OpenCursorItem -> AsyncResult (fun m -> openItems fs os (m.CursorItem |> Option.toList) m)
         | OpenSelected -> AsyncResult (fun m -> openItems fs os m.ActionItems m)
         | OpenFileWith -> SyncResult (openFileWith os)
         | OpenFileAndExit -> AsyncResult (openFilesAndExit fs os closeWindow)
@@ -659,13 +660,14 @@ type Handler(
                     yield CursorCommands.findNext model
                 | _ -> ()
         | InputSubmit ->
+            let keepOpen = multi && model.CursorItem |> Option.exists (fun item -> item.Type.IsDirectory)
             let model =
                 { model with
                     InputText = ""
-                    InputMode = if not multi || model.CursorItem.Type = File then None else model.InputMode
+                    InputMode = if keepOpen then model.InputMode else None
                 }
             yield model
-            yield! model |> handleAsyncResult (openItems fs os [model.CursorItem])
+            yield! model |> handleAsyncResult (openItems fs os (model.CursorItem |> Option.toList))
     }
 
     member _.HandleSearchInputEvent (evt: InputEvent) (model: MainModel) = asyncSeq {

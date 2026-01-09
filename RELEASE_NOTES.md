@@ -7,6 +7,7 @@
 - Adds centered message display for empty folders and search results instead of "empty" item
 - Adds mouse tooltips to status, yank register, next undo/redo action
 - Improves resiliency of loading and saving config and history
+- Increases default path and search history limits
 - Changes recycle/delete to not push useless undo actions
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length

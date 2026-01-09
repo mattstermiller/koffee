@@ -856,8 +856,8 @@ with
     static member Default: Limits = {
         Back = 100
         Undo = 50
-        PathHistory = 500
-        SearchHistory = 50
+        PathHistory = 2000
+        SearchHistory = 100
         StatusHistory = 20
     }
 

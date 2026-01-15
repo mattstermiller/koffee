@@ -23,8 +23,18 @@ let testConfig =
     { Config.Default with
         DefaultPath = createPath "/c/Documents and Settings/SomeUser/"
         PathFormat = Unix
-        YankRegister = Some (Move, [{ Path = createPath "/c/users/name"; Type = Folder }])
-        Bookmarks = [('a', createPath "/c/path1"); ('b', createPath "/c/path2")]
+        Bookmarks = [
+            'a', createPath "/c/path1"
+            'b', createPath "/c/path2"
+        ]
+        SavedSearches = [
+            'a', {
+                Terms = "apple"
+                CaseSensitive = true
+                Regex = true
+                SubFolders = true
+            }
+        ]
     }
 
 [<Test>]

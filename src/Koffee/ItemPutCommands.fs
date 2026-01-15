@@ -26,7 +26,7 @@ let yankSelectedItems putType (model: MainModel) =
             Error (MainStatus.CannotRegisterMultipleItemsWithSameName duplicateName)
         | None ->
             { model with
-                Config = { model.Config with YankRegister = Some (putType, itemsToRegister) }
+                MainModel.History.YankRegister = Some (putType, itemsToRegister)
                 Status = None
             } |> Ok
 
@@ -389,7 +389,7 @@ let putInLocation (fs: IFileSystem) progress isRedo overwrite putType (itemRefs:
 }
 
 let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult {
-    match model.Config.YankRegister with
+    match model.History.YankRegister with
     | None -> ()
     | Some (putType, itemRefs) ->
         let! model = putInLocation fs progress false overwrite putType itemRefs model
@@ -397,7 +397,7 @@ let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult
             match model.Status with Some (MainStatus.Message (MainStatus.CancelledPut (_, _, 0, _))) -> true | _ -> false
         // if not cancelled or opened input for confirmation, clear yank register
         if not wasImmediatelyCanceled && model.InputMode.IsNone then
-            yield { model with Config = { model.Config with YankRegister = None } }
+            yield { model with MainModel.History.YankRegister = None }
 }
 
 let undoMove (fs: IFileSystem) progress undoIter intent (moved: PutItem list) (model: MainModel) =

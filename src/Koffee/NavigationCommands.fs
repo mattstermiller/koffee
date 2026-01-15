@@ -578,7 +578,7 @@ let deletePathSuggestion (path: HistoryPath) (model: MainModel) =
         model
 
 let windowActivated fsReader subDirResults progress model = asyncSeqResult {
-    if model.Config.Window.RefreshOnActivate then
+    if model.Config.RefreshOnActivate then
         if model.IsSearchingSubFolders then
             yield! model |> refreshDirectory fsReader
         else

@@ -833,34 +833,6 @@ module MainStatus =
         | Error of Error
         | Busy of Busy
 
-type StartPath =
-    | RestorePrevious
-    | DefaultPath
-
-type WindowConfig = {
-    IsMaximized: bool
-    Location: int * int
-    Size: int * int
-    ShowFullPathInTitle: bool
-    RefreshOnActivate: bool
-}
-
-type Limits = {
-    Back: int
-    Undo: int
-    PathHistory: int
-    SearchHistory: int
-    StatusHistory: int
-}
-with
-    static member Default: Limits = {
-        Back = 100
-        Undo = 50
-        PathHistory = 2000
-        SearchHistory = 100
-        StatusHistory = 20
-    }
-
 module MainBindings =
     let Default =
         let noMod = ModifierKeys.None
@@ -945,17 +917,37 @@ module MainBindings =
             ([ctrl, Key.W], Window Exit)
         ]
 
+type StartPath =
+    | RestorePrevious
+    | DefaultPath
+
+type Limits = {
+    Back: int
+    Undo: int
+    PathHistory: int
+    SearchHistory: int
+    StatusHistory: int
+}
+with
+    static member Default: Limits = {
+        Back = 100
+        Undo = 50
+        PathHistory = 2000
+        SearchHistory = 100
+        StatusHistory = 20
+    }
+
 type Config = {
     StartPath: StartPath
     DefaultPath: Path
     PathFormat: PathFormat
     ShowHidden: bool
     ShowNextUndoRedo: bool
+    ShowFullPathInTitle: bool
+    RefreshOnActivate: bool
     TextEditor: string
     TerminalPath: string
     SearchExclusions: string list
-    YankRegister: (PutType * ItemRef list) option
-    Window: WindowConfig
     KeyBindings: KeyBinding<MainCommand> list
     Bookmarks: (char * Path) list
     SavedSearches: (char * Search) list
@@ -995,6 +987,8 @@ with
         PathFormat = Windows
         ShowHidden = false
         ShowNextUndoRedo = true
+        ShowFullPathInTitle = false
+        RefreshOnActivate = true
         TextEditor = "notepad.exe"
         TerminalPath = "cmd.exe"
         SearchExclusions = [
@@ -1009,14 +1003,6 @@ with
             "packages"
             "node_modules"
         ]
-        YankRegister = None
-        Window = {
-            IsMaximized = false
-            Location = (200, 200)
-            Size = (800, 800)
-            ShowFullPathInTitle = false
-            RefreshOnActivate = true
-        }
         KeyBindings = MainBindings.Default
         Bookmarks = []
         SavedSearches = []
@@ -1038,11 +1024,19 @@ with
 
     static member toTuple sort = (sort.Sort, sort.Descending)
 
+type WindowHistory = {
+    IsMaximized: bool
+    Location: int * int
+    Size: int * int
+}
+
 type History = {
-    Paths: HistoryPath list
+    YankRegister: (PutType * ItemRef list) option
+    Window: WindowHistory
     Searches: Search list
     NetHosts: string list
     PathSort: Map<Path, PathSort>
+    Paths: HistoryPath list
 }
 with
     member this.FindSortOrDefault path =
@@ -1105,10 +1099,16 @@ with
             { this with PathSort = this.PathSort.Add(path, sort) }
 
     static member Default = {
-        Paths = []
+        YankRegister = None
+        Window = {
+            IsMaximized = false
+            Location = (200, 200)
+            Size = (800, 800)
+        }
         Searches = []
         NetHosts = []
         PathSort = Map.empty
+        Paths = []
     }
 
 type CancelToken() =
@@ -1171,7 +1171,7 @@ type MainModel = {
     member this.IsSearchingSubFolders = this.SearchCurrent |> Option.exists (fun s -> s.SubFolders)
 
     member this.TitleLocation =
-        if this.Config.Window.ShowFullPathInTitle then
+        if this.Config.ShowFullPathInTitle then
             this.LocationFormatted
         else
             this.Location.Name |> String.ifEmpty this.LocationFormatted

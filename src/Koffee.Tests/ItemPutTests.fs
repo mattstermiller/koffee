@@ -6,7 +6,7 @@ open FsUnitTyped
 open Acadian.FSharp
 
 let withReg reg (model: MainModel) =
-    { model with MainModel.Config.YankRegister = reg }
+    { model with MainModel.History.YankRegister = reg }
 
 let getCopyName = ItemActionCommands.Put.getCopyName
 

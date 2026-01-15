@@ -150,7 +150,7 @@ module MainView =
                 window.Progress.IsCollapsed <- incr.IsNone
             )
 
-        if model.Config.Window.IsMaximized then
+        if model.History.Window.IsMaximized then
             window.WindowState <- WindowState.Maximized
 
         window.ItemGrid.Focus() |> ignore
@@ -222,7 +222,7 @@ module MainView =
             )
 
             // Yank register
-            Bind.model(<@ model.Config.YankRegister @>).toFunc(fun register ->
+            Bind.model(<@ model.History.YankRegister @>).toFunc(fun register ->
                 let text =
                     register |> Option.bind (fun (putType, itemRefs) ->
                         match itemRefs with

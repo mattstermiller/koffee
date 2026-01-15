@@ -6,7 +6,6 @@ open Acadian.FSharp
 open UIHelpers
 
 let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptions model =
-    let config = model.Config
     let windowRect =
         let location =
             startOptions.StartLocation |> Option.defaultWith (fun () ->
@@ -15,10 +14,10 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
                     |> Seq.where (fun p -> String.equalsIgnoreCase p.ProcessName "koffee")
                     |> Seq.length
                     |> (=) 1
-                let (left, top) = config.Window.Location
+                let (left, top) = model.History.Window.Location
                 if isFirstInstance then (left, top) else (left + 30, top + 30)
             )
-        let size = startOptions.StartSize |? config.Window.Size
+        let size = startOptions.StartSize |? model.History.Window.Size
         Rect.ofPairs location size |> Rect.fit screenBounds
     let model =
         { model with
@@ -29,9 +28,9 @@ let initModel (fsReader: IFileSystemReader) (screenBounds: Rectangle) startOptio
     let history = model.History.Paths |> List.filter (fun hp -> hp.IsDirectory) |> List.map (fun hp -> hp.PathValue)
     let prevPath = history |> List.truncate 1
     let configPaths =
-        match config.StartPath with
-        | RestorePrevious -> prevPath @ [config.DefaultPath]
-        | DefaultPath -> [config.DefaultPath] @ prevPath
+        match model.Config.StartPath with
+        | RestorePrevious -> prevPath @ [model.Config.DefaultPath]
+        | DefaultPath -> [model.Config.DefaultPath] @ prevPath
     let paths = (startOptions.StartPath |> Option.toList) @ (configPaths @ [Path.Root] |> List.map string)
     let rec openPath error (paths: string list) =
         let withError = Option.foldBack MainModel.withError error
@@ -101,29 +100,22 @@ let keyPress handleCommand chord handleKey model = asyncSeq {
         yield modelFunc model
 }
 
-let windowLocationChanged location model =
-    let config =
-        if model.SaveWindowSettings then
-            let window = { model.Config.Window with Location = location }
-            { model.Config with Window = window }
-        else model.Config
-    { model with WindowLocation = location; Config = config }
+let windowLocationChanged location (model: MainModel) =
+    { model with WindowLocation = location }
+    |> applyIf model.SaveWindowSettings (fun model ->
+        { model with MainModel.History.Window.Location = location }
+    )
 
 let windowSizeChanged size model =
-    let config =
-        if model.SaveWindowSettings then
-            let window = { model.Config.Window with Size = size }
-            { model.Config with Window = window }
-        else model.Config
-    { model with WindowSize = size; Config = config }
+    { model with WindowSize = size }
+    |> applyIf model.SaveWindowSettings (fun model ->
+        { model with MainModel.History.Window.Size = size }
+    )
 
 let windowMaximized maximized model =
-    let config =
-        if model.SaveWindowSettings then
-            let window = { model.Config.Window with IsMaximized = maximized }
-            { model.Config with Window = window }
-        else model.Config
-    { model with Config = config }
+    if model.SaveWindowSettings
+    then { model with MainModel.History.Window.IsMaximized = maximized }
+    else model
 
 type Controller(
     cursorHandler: CursorCommands.Handler,

@@ -80,8 +80,8 @@ let private binder (window: SettingsWindow) model =
 
         Bind.view(<@ window.ShowHidden.IsChecked @>).toModel(<@ model.Config.ShowHidden @>)
         Bind.view(<@ window.ShowNextUndoRedo.IsChecked @>).toModel(<@ model.Config.ShowNextUndoRedo @>)
-        Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>).toModel(<@ model.Config.Window.ShowFullPathInTitle @>)
-        Bind.view(<@ window.RefreshOnActivate.IsChecked @>).toModel(<@ model.Config.Window.RefreshOnActivate @>)
+        Bind.view(<@ window.ShowFullPathInTitleBar.IsChecked @>).toModel(<@ model.Config.ShowFullPathInTitle @>)
+        Bind.view(<@ window.RefreshOnActivate.IsChecked @>).toModel(<@ model.Config.RefreshOnActivate @>)
 
         Bind.modelMulti(<@ model.CommandBindings, model.CommandBindingIndex @>).toFunc(fun (bindings, index) ->
             if not (obj.ReferenceEquals(window.Commands.ItemsSource, bindings)) then

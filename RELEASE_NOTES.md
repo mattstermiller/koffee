@@ -12,6 +12,7 @@
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length
 - Fixes loss of keyboard focus
+- Moves yank, window location and size to history file instead of config
 
 ### 0.7.1  (2024-11-25)
 - Upgrades to .NET Framework 4.8.1

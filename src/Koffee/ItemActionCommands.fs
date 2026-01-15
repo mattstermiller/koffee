@@ -104,7 +104,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | CreateFolder -> SyncResult (Create.inputNewFolder fs)
         | StartRename part -> Sync (Rename.inputRename part)
         | Yank putType -> SyncResult (Put.yankSelectedItems putType)
-        | ClearYank -> Sync (fun m -> { m with Config = { m.Config with YankRegister = None } })
+        | ClearYank -> Sync (fun m -> { m with MainModel.History.YankRegister = None })
         | Put -> AsyncResult (Put.put fs progress false)
         | Recycle -> AsyncResult (fun m -> Delete.recycle fs progress m.ActionItems m)
         | ConfirmDelete -> Sync Delete.confirmDelete
@@ -144,7 +144,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         if isYes then
             let itemRefs = srcExistingPairs |> List.map (fun (src, _) -> src.Ref)
             let! model = Put.putInLocation fs progress false true putType itemRefs model
-            yield { model with Config = { model.Config with YankRegister = None } }
+            yield { model with MainModel.History.YankRegister = None }
 
         else if not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) then
             // if we were temporarily showing a hidden file, refresh

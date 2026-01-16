@@ -99,19 +99,21 @@ module FSharpJsonConverters =
             override this.WriteJson (writer, value, _) =
                 (value :?> HistoryPath).Format Windows |> writer.WriteValue
 
-    type KeyChordConverter() =
+    type KeyComboConverter() =
         inherit JsonConverter() with
-            override this.CanConvert typ = typ = typeof<KeyChord>
+            override this.CanConvert typ = typ = typeof<KeyCombo>
 
             override this.ReadJson (reader, _, _, _) =
                 reader.Value :?> string
-                |> KeyChord.deserialize
-                |? (ModifierKeys.None, Key.None)
+                |> String.split ' '
+                |> Seq.choose KeyChord.deserialize
+                |> Seq.toList
                 |> box
 
             override this.WriteJson (writer, value, _) =
-                (value :?> KeyChord)
-                |> KeyChord.serialize
+                (value :?> KeyCombo)
+                |> Seq.map KeyChord.serialize
+                |> String.concat " "
                 |> writer.WriteValue
 
     let getAll () : JsonConverter[] = [|
@@ -119,7 +121,7 @@ module FSharpJsonConverters =
         UnionJsonConverter()
         PathJsonConverter()
         HistoryPathJsonConverter()
-        KeyChordConverter()
+        KeyComboConverter()
     |]
 
 module Persistence =

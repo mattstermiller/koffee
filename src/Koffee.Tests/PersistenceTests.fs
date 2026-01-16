@@ -61,16 +61,11 @@ let ``Converters serialize and deserialize desired format for key bindings`` () 
     let expectedJson = String.trim """
 [
   {
-    "KeyCombo": [
-      "Oem1"
-    ],
+    "KeyCombo": "Oem1",
     "Command": "Cursor FindNext"
   },
   {
-    "KeyCombo": [
-      "Control+Shift+S",
-      "T"
-    ],
+    "KeyCombo": "Control+Shift+S T",
     "Command": "Cursor Scroll CursorTop"
   }
 ]
@@ -97,19 +92,19 @@ let ``KeyBindings with an invalid command can be deserialized without invalid bi
 {
   "KeyBindings": [
     {
-      "KeyCombo": ["J"],
+      "KeyCombo": "J",
       "Command": "Cursor CursorDown"
     },
     {
-      "KeyCombo": ["H"],
+      "KeyCombo": "H",
       "Command": "Cursor NotACommand"
     },
     {
-      "KeyCombo": ["H"],
+      "KeyCombo": "H",
       "Command": "NotAType NotACommand"
     },
     {
-      "KeyCombo": ["K"],
+      "KeyCombo": "K",
       "Command": "Cursor CursorUp"
     }
   ]

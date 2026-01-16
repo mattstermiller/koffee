@@ -9,6 +9,7 @@
 - Improves resiliency of loading and saving config and history
 - Increases default path and search history limits
 - Changes recycle/delete to not push useless undo actions
+- #152 Fixes yank register not being updated after renaming and deleting
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length
 - Fixes loss of keyboard focus

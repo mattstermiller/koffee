@@ -63,12 +63,15 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
         ]
     ]
     let item = fs.Item "/c/file"
+    let other = fs.Item "/c/other"
     let model =
-        testModelFromFs fs
-        |> withHistoryPaths (historyPaths {
-            "/c/folder2/unrelated"
-            item
-        })
+        { testModelFromFs fs with
+            MainModel.History.Paths = historyPaths {
+                "/c/folder2/unrelated"
+                item
+            }
+            MainModel.History.YankRegister = Some (Move, [item.Ref; other.Ref])
+        }
 
     let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress [item]) model
@@ -82,6 +85,7 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             RedoStack = []
             CancelToken = CancelToken()
             MainModel.History.Paths = model.History.Paths |> List.take 1
+            MainModel.History.YankRegister = Some (Move, [other.Ref])
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
     assertAreEqual expected actual
@@ -131,6 +135,7 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
                 "/c/folder1/"
                 yield! items
             }
+            MainModel.History.YankRegister = Some (Move, [createFile("/c/file3").Ref; createFile("/c/file4").Ref])
         }
 
     let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
@@ -153,6 +158,7 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
                 "/c/folder1/"
                 "/c/file4"
             }
+            MainModel.History.YankRegister = Some (Move, [createFile("/c/file4").Ref])
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
     assertAreEqual expected actual
@@ -186,13 +192,16 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
         ]
     ]
     let item = fs.Item "/c/folder"
+    let yankRef = fs.Item("/c/folder/file").Ref
     let model =
-        testModelFromFs fs
-        |> withHistoryPaths (historyPaths {
-            "/c/folder2/unrelated"
-            item
-            "/c/folder/sub/sub file"
-        })
+        { testModelFromFs fs with
+            MainModel.History.Paths = historyPaths {
+                "/c/folder2/unrelated"
+                item
+                "/c/folder/sub/sub file"
+            }
+            MainModel.History.YankRegister = Some (Move, [yankRef])
+        }
 
     let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress [item]) model
@@ -206,6 +215,7 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             RedoStack = []
             CancelToken = CancelToken()
             MainModel.History.Paths = model.History.Paths |> List.take 1
+            MainModel.History.YankRegister = None
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
     assertAreEqual expected actual

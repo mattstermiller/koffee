@@ -3,6 +3,8 @@ module Koffee.ItemRenameTests
 open NUnit.Framework
 open FsUnitTyped
 
+let createRef pathStr = createFile(pathStr).Ref
+
 // rename tests
 
 [<TestCase(false)>]
@@ -17,6 +19,7 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
     let newPath = if diffCaseOnly then "/c/My File" else "/c/renamed"
     let renamed = createFile newPath
     let items = fs.ItemsIn "/c"
+    let other = fs.Item "/c/another"
     let model =
         { testModel with
             Directory = items
@@ -26,6 +29,7 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
                 "/c/unrelated/file"
                 item
             }
+            MainModel.History.YankRegister = Some (Move, [other.Ref; item.Ref])
         }
 
     let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
@@ -47,6 +51,7 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
                 model.History.Paths.[0]
                 newPath
             }
+            MainModel.History.YankRegister = Some (Move, [other.Ref; renamed.Ref])
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
     assertAreEqual expected actual
@@ -79,6 +84,7 @@ let ``Rename folder calls file sys move and updates history`` () =
                 "/c/unrelated/file"
                 item
             }
+            MainModel.History.YankRegister = Some (Move, ["/c/folder/my file"; "/c/folder/your file"] |> List.map createRef)
         }
 
     let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
@@ -100,6 +106,7 @@ let ``Rename folder calls file sys move and updates history`` () =
                 model.History.Paths.[1]
                 newPath
             }
+            MainModel.History.YankRegister = Some (Move, ["/c/renamed/my file"; "/c/renamed/your file"] |> List.map createRef)
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
     assertAreEqual expected actual
@@ -205,6 +212,7 @@ let ``Undo rename file changes name back to original and updates history`` curPa
                 "/c/unrelated/file"
                 current
             }
+            MainModel.History.YankRegister = Some (Move, [current.Ref])
         }
         |> withLocation location
         |> pushUndo action
@@ -226,6 +234,7 @@ let ``Undo rename file changes name back to original and updates history`` curPa
                 model.History.Paths.[0]
                 previous
             }
+            MainModel.History.YankRegister = Some (Move, [previous.Ref])
         }
         |> MainModel.withMessage (MainStatus.UndoAction (action, 1, 1))
         |> withBackIf curPathDifferent (model.Location, 0)

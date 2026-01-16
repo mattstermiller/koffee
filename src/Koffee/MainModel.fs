@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -1082,15 +1082,31 @@ with
         History.withPathsReplaced (Map [oldPath, newPath])
 
     static member withPathsReplaced pathMap (this: History) =
-        let replaceOld hp =
-            match pathMap |> Map.tryPick (fun oldPath newPath -> hp.PathValue.TryReplace oldPath newPath) with
+        let tryUpdatePath (path: Path) =
+            pathMap |> Map.tryPick (fun oldPath newPath -> path.TryReplace oldPath newPath)
+        let updateHistory hp =
+            match tryUpdatePath hp.PathValue with
             | Some path -> { hp with PathValue = path }
             | None -> hp
-        { this with Paths = this.Paths |> List.map replaceOld |> List.distinct }
+        let updateRef (itemRef: ItemRef) =
+            match tryUpdatePath itemRef.Path with
+            | Some path -> { itemRef with Path = path }
+            | None -> itemRef
+        { this with
+            Paths = this.Paths |> List.map updateHistory |> List.distinct
+            YankRegister = this.YankRegister |> Option.map (mapSnd (List.map updateRef))
+        }
 
     static member withoutPaths (paths: Path list) (this: History) =
-        let isPathToRemove historyPath = paths |> List.exists historyPath.PathValue.IsWithin
-        { this with Paths = this.Paths |> List.filter (not << isPathToRemove) }
+        let isPathToKeep (path: Path) =
+            not (paths |> List.exists path.IsWithin)
+        { this with
+            Paths = this.Paths |> List.filter (fun hp -> isPathToKeep hp.PathValue)
+            YankRegister =
+                this.YankRegister
+                |> Option.map (mapSnd (List.filter (fun item -> isPathToKeep item.Path)))
+                |> Option.filter (snd >> Seq.isNotEmpty)
+        }
 
     static member withPathSort path sort (this: History) =
         if sort = PathSort.Default then

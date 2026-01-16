@@ -2,6 +2,7 @@ module Koffee.MainModelTests
 
 open NUnit.Framework
 open FsUnitTyped
+open Acadian.FSharp
 
 [<TestCase(5, 1, 51)>]
 [<TestCase(5, 0, 50)>]
@@ -21,3 +22,11 @@ let ``Append zero repeat digit to none does nothing`` () =
     let model = { MainModel.Default with RepeatCommand = None }
     let result = model |> MainModel.appendRepeatDigit 0
     result.RepeatCommand |> shouldEqual None
+
+
+[<Test>]
+let ``MainBindings.Default does not contain conflicting mappings`` () =
+    MainBindings.Default
+    |> List.groupBy (fun kb -> kb.KeyCombo)
+    |> List.filter (snd >> List.tail >> Seq.isNotEmpty)
+    |> shouldEqual []

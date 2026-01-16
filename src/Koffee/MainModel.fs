@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -908,7 +908,7 @@ module MainBindings =
             ([ctrl, Key.V], ItemAction ClipboardPaste)
             ([noMod, Key.U], ItemAction Undo)
             ([ctrl, Key.Z], ItemAction Undo)
-            ([noMod, Key.U], ItemAction Redo)
+            ([shift, Key.U], ItemAction Redo)
             ([ctrl ||| shift, Key.Z], ItemAction Redo)
 
             ([ctrl, Key.N], Window OpenSplitScreenWindow)

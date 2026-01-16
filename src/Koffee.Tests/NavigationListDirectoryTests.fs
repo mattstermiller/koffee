@@ -12,8 +12,10 @@ let ``listDirectory populates items from directory and filters out hidden items 
         createFile "/c/file4" |> hide true
     ]
     let model =
-        { testModel with Directory = directory }
-        |> MainModel.mapConfig (fun config -> { config with ShowHidden = showHidden})
+        { testModel with
+            Directory = directory
+            MainModel.Config.ShowHidden = showHidden
+        }
 
     let actual = NavigationCommands.listDirectory CursorStay model
 

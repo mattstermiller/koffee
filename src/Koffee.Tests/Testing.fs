@@ -226,8 +226,8 @@ type HistoryPathsBuilder() =
 
 let historyPaths = HistoryPathsBuilder()
 
-let withHistoryPaths historyPaths =
-    MainModel.mapHistory (fun hist -> { hist with Paths = historyPaths })
+let withHistoryPaths historyPaths model =
+    { model with MainModel.History.Paths = historyPaths }
 
 let withLocationOnHistory model =
     model |> MainModel.mapHistory (History.withFolderPath model.Config.Limits.PathHistory model.Location)
@@ -301,7 +301,7 @@ let testModel =
         UndoStack = [CreatedItem (createFile "/c/default-undo")]
         RedoStack = [RenamedItem (createFile "/c/default-redo", "item")]
         CancelToken = CancelToken() |>! fun ct -> ct.Cancel()
-        Config = { Config.Default with PathFormat = Unix }
+        MainModel.Config.PathFormat = Unix
     } |> withLocation "/c"
 
 let ex = System.UnauthorizedAccessException() :> exn

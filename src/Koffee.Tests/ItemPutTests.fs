@@ -163,9 +163,9 @@ let ``Put item in different folder calls file sys move or copy`` (copy: bool) (o
             UndoStack = expectedAction :: testModel.UndoStack
             RedoStack = []
             CancelToken = CancelToken()
+            MainModel.History.Paths = [if copy then src.HistoryPath else dest.HistoryPath]
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
-        |> withHistoryPaths [if copy then src.HistoryPath else dest.HistoryPath]
         |> withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

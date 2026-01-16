@@ -22,10 +22,11 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             Directory = items
             Items = items
             Cursor = 1
-        } |> withHistoryPaths (historyPaths {
-            "/c/unrelated/file"
-            item
-        })
+            MainModel.History.Paths = historyPaths {
+                "/c/unrelated/file"
+                item
+            }
+        }
 
     let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
 
@@ -42,12 +43,12 @@ let ``Rename file calls file sys move and openPath and updates history`` diffCas
             Cursor = if diffCaseOnly then 1 else 2
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
+            MainModel.History.Paths = historyPaths {
+                model.History.Paths.[0]
+                newPath
+            }
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
-        |> withHistoryPaths (historyPaths {
-            model.History.Paths.[0]
-            newPath
-        })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -73,11 +74,12 @@ let ``Rename folder calls file sys move and updates history`` () =
             Directory = items
             Items = items
             Cursor = 1
-        } |> withHistoryPaths (historyPaths {
-            "/c/folder/your file"
-            "/c/unrelated/file"
-            item
-        })
+            MainModel.History.Paths = historyPaths {
+                "/c/folder/your file"
+                "/c/unrelated/file"
+                item
+            }
+        }
 
     let actual = ItemActionCommands.Rename.rename fs item renamed.Name model |> assertOk
 
@@ -93,13 +95,13 @@ let ``Rename folder calls file sys move and updates history`` () =
             Cursor = 1
             UndoStack = expectedAction :: model.UndoStack
             RedoStack = []
+            MainModel.History.Paths = historyPaths {
+                newPath + "your file"
+                model.History.Paths.[1]
+                newPath
+            }
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
-        |> withHistoryPaths (historyPaths {
-            newPath + "your file"
-            model.History.Paths.[1]
-            newPath
-        })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "another" []
@@ -198,13 +200,14 @@ let ``Undo rename file changes name back to original and updates history`` curPa
     let location = if curPathDifferent then "/c/other" else "/c"
     let action = RenamedItem (previous, current.Name)
     let model =
-        testModel
+        { testModel with
+            MainModel.History.Paths = historyPaths {
+                "/c/unrelated/file"
+                current
+            }
+        }
         |> withLocation location
         |> pushUndo action
-        |> withHistoryPaths (historyPaths {
-            "/c/unrelated/file"
-            current
-        })
 
     let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
@@ -218,14 +221,14 @@ let ``Undo rename file changes name back to original and updates history`` curPa
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
+            MainModel.History.Paths = historyPaths {
+                previous.Path.Parent, true
+                model.History.Paths.[0]
+                previous
+            }
         }
         |> MainModel.withMessage (MainStatus.UndoAction (action, 1, 1))
         |> withBackIf curPathDifferent (model.Location, 0)
-        |> withHistoryPaths (historyPaths {
-            previous.Path.Parent, true
-            model.History.Paths.[0]
-            previous
-        })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         file "another"
@@ -242,13 +245,14 @@ let ``Undo rename folder changes name back to original and updates history`` () 
     let current = fs.Item "/c/renamed"
     let action = RenamedItem (previous, current.Name)
     let model =
-        testModel
+        { testModel with
+            MainModel.History.Paths = historyPaths {
+                current.Path.Join "file", false
+                "/c/unrelated/file"
+                current
+            }
+        }
         |> pushUndo action
-        |> withHistoryPaths (historyPaths {
-            current.Path.Join "file", false
-            "/c/unrelated/file"
-            current
-        })
 
     let actual = seqResult (ItemActionCommands.Undo.undo fs progress) model
 
@@ -262,14 +266,14 @@ let ``Undo rename folder changes name back to original and updates history`` () 
             Items = expectedItems
             Cursor = 1
             RedoStack = action :: model.RedoStack
+            MainModel.History.Paths = historyPaths {
+                previous.Path.Parent, true
+                previous.Path.Join "file", false
+                model.History.Paths.[1]
+                previous
+            }
         }
         |> MainModel.withMessage (MainStatus.UndoAction (action, 1, 1))
-        |> withHistoryPaths (historyPaths {
-            previous.Path.Parent, true
-            previous.Path.Join "file", false
-            model.History.Paths.[1]
-            previous
-        })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         folder "another" []

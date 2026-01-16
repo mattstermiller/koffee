@@ -120,9 +120,9 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
             Items = expectedItems
             UndoStack = model.UndoStack.Tail
             RedoStack = action :: model.RedoStack
+            MainModel.History.Paths = []
         }
         |> MainModel.withMessage (MainStatus.UndoAction (action, 1, 1))
-        |> withHistoryPaths []
         |> applyIf (not curPathDifferent) withLocationOnHistory
     assertAreEqual expected actual
     fs.ItemsShouldEqual [

@@ -1,4 +1,4 @@
-﻿module Koffee.Settings
+module Koffee.Settings
 
 open System
 open System.Windows
@@ -25,7 +25,7 @@ with
     member this.withCommandBindings commandBindings =
         { this with
             CommandBindings = commandBindings
-            Config = { this.Config with KeyBindings = commandBindings |> List.collect CommandBinding.keyBindings }
+            Model.Config.KeyBindings = commandBindings |> List.collect CommandBinding.keyBindings
         }
 
     static member create config commandBindings = {

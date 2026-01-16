@@ -513,9 +513,8 @@ let private promptSetMark (model: MainModel) =
 let toggleHidden (model: MainModel) =
     let show = not model.Config.ShowHidden
     let model =
-        { model with
-            Config = { model.Config with ShowHidden = show }
-        } |> MainModel.withMessage (MainStatus.ToggleHidden show)
+        { model with MainModel.Config.ShowHidden = show }
+        |> MainModel.withMessage (MainStatus.ToggleHidden show)
     match model.SearchCurrent |> Option.bind (getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
         let items =
@@ -571,7 +570,7 @@ let deletePathSuggestion (path: HistoryPath) (model: MainModel) =
     // if location input does not contain a slash, the suggestions are from history
     if not (model.LocationInput |> String.contains "/" || model.LocationInput |> String.contains @"\") then
         { model with
-            History = { model.History with Paths = model.History.Paths |> List.filter ((<>) path) }
+            MainModel.History.Paths = model.History.Paths |> List.filter ((<>) path)
             PathSuggestions = model.PathSuggestions |> Result.map (List.filter ((<>) path))
         }
     else

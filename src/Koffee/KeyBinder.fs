@@ -205,14 +205,14 @@ with
         match model.ComboSelection with
         | Combo1 ->
             { model with
-                Binding = { model.Binding with KeyCombo1 = [] }
+                Binding.KeyCombo1 = []
                 BindingUndoStack = model.Binding :: model.BindingUndoStack
                 Combo1Conflicts = []
                 Combo1CannotBeUsedInInput = false
             }
         | Combo2 ->
             { model with
-                Binding = { model.Binding with KeyCombo2 = [] }
+                Binding.KeyCombo2 = []
                 BindingUndoStack = model.Binding :: model.BindingUndoStack
                 Combo2Conflicts = []
                 Combo2CannotBeUsedInInput = false
@@ -342,8 +342,8 @@ type EventHandler(closeWindow: unit -> unit) =
                     then [chord]
                     else model.SelectedCombo @ [chord]
                 match model.ComboSelection with
-                | Combo1 -> { model with Binding = { model.Binding with KeyCombo1 = keyCombo } }
-                | Combo2 -> { model with Binding = { model.Binding with KeyCombo2 = keyCombo } }
+                | Combo1 -> { model with Binding.KeyCombo1 = keyCombo }
+                | Combo2 -> { model with Binding.KeyCombo2 = keyCombo }
 
     member _.Handle (evt: Events) =
         match evt with

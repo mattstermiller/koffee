@@ -67,7 +67,7 @@ let ``Path suggestions return expected results`` input expected =
     let model =
         { testModel with
             LocationInput = input
-            History = { testModel.History with Paths = history }
+            MainModel.History.Paths = history
         }
 
     let actual = suggestPaths fs model

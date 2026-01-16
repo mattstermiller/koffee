@@ -81,9 +81,9 @@ let ``Recycle or Delete file recycles or deletes it and updates path history`` p
             Items = expectedItems
             RedoStack = []
             CancelToken = CancelToken()
+            MainModel.History.Paths = model.History.Paths |> List.take 1
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
-        |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [
@@ -127,11 +127,11 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
             Items = items
             SelectedItems = selected
             SearchCurrent = Some { Terms = "file"; SubFolders = true; CaseSensitive = false; Regex = false }
+            MainModel.History.Paths = historyPaths {
+                "/c/folder1/"
+                yield! items
+            }
         }
-        |> withHistoryPaths (historyPaths {
-            "/c/folder1/"
-            yield! items
-        })
 
     let testFunc = if permanent then ItemActionCommands.Delete.delete else ItemActionCommands.Delete.recycle
     let actual = seqResult (testFunc fs progress selected) model
@@ -149,12 +149,12 @@ let ``Recycle or Delete multiple items from recursive search recycles or deletes
             SelectedItems = []
             RedoStack = []
             CancelToken = CancelToken()
+            MainModel.History.Paths = historyPaths {
+                "/c/folder1/"
+                "/c/file4"
+            }
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
-        |> withHistoryPaths (historyPaths {
-            "/c/folder1/"
-            "/c/file4"
-        })
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [
@@ -205,9 +205,9 @@ let ``Recycle or Delete folder recycles or deletes it and updates path history``
             Items = expectedItems
             RedoStack = []
             CancelToken = CancelToken()
+            MainModel.History.Paths = model.History.Paths |> List.take 1
         }
         |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
-        |> withHistoryPaths (model.History.Paths |> List.take 1)
     assertAreEqual expected actual
     fs.ItemsShouldEqual [
         driveWithSize 'c' 100L [

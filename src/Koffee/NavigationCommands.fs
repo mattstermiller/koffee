@@ -322,10 +322,7 @@ let private getFilter showHidden searchInput =
 
 let private enumerateSubDirs (fsReader: IFileSystemReader) (progress: Progress) isCancelled
                              (searchExclusions: string list) items = asyncSeq {
-    let getDirs =
-        List.filter (fun i ->
-            i.Type = Folder && not (searchExclusions |> List.exists (String.equalsIgnoreCase i.Name))
-        )
+    let getDirs = List.filter (fun i -> i.Type = Folder && not (searchExclusions |> List.contains i.Name))
     let rec enumerate progressFactor dirs = asyncSeq {
         for dir in dirs do
             if not <| isCancelled () then

@@ -10,6 +10,7 @@
 - Increases default path and search history limits
 - Changes recycle/delete to not push useless undo actions
 - Changes Recursive Search Exclusions to be case-sensitive
+- Changes messages describing item lists to give total count
 - #152 Fixes yank register not being updated after renaming and deleting
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length

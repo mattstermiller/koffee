@@ -263,7 +263,7 @@ with
         sprintf "%s \"%s\"" typ.NameLower path.Name
 
     static member describeList (itemRefs: ItemRef seq) =
-        itemRefs |> Seq.describeAndCount 3 (fun i -> i.Description)
+        itemRefs |> Seq.describeAndCount (fun i -> i.Description)
 
 type Item = {
     Path: Path
@@ -300,7 +300,7 @@ with
         items |> List.map (fun i -> i.Path)
 
     static member describeList (items: Item seq) =
-        items |> Seq.describeAndCount 3 (fun i -> i.Description)
+        items |> Seq.describeAndCount (fun i -> i.Description)
 
 module SortField =
     let sortByTypeThen field desc (items: Item list) =
@@ -549,7 +549,7 @@ type RedoPutBlockedByExistingItemException() =
 [<RequireQualifiedAccess>]
 module MainStatus =
     let private describeList strs =
-        Seq.describeAndCount 3 id strs
+        Seq.describeAndCount id strs
 
     let private actionCompleteMessage pathFormat action =
         match action with

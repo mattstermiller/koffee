@@ -80,10 +80,11 @@ let private binder existingToolNames (window: ToolEditWindow) (model: Model) =
             yield! ToolVariable.examples |> Seq.map (sprintf "- %s")
             ""
             "Surround in brackets [] to make optional."
-            "Override item delimiter by adding colon and desired separator."
+            "Override item delimiter by adding colon : and desired separator."
+            "Add fallback by adding question mark ? and another variable name."
             ""
             "Example:"
-            sprintf "%O [--select %O] --save-to %O" Location (SelectedFiles (Some ",")) (Env "USERPROFILE")
+            "{git_root?location} [--select {selected_files:,}] --save-to {env:USERPROFILE}"
         })
 
     window.PreviewKeyDown.Add (onKey Key.Escape window.Close)

@@ -486,7 +486,7 @@ let toggleHidden (model: MainModel) =
     let show = not model.Config.ShowHidden
     let model =
         { model with MainModel.Config.ShowHidden = show }
-        |> MainModel.withMessage (MainStatus.ToggleHidden show)
+        |> MainModel.withMessage (MainStatus.ToggleShowingHidden show)
     match model.SearchCurrent |> Option.bind (getFilter model.Config.ShowHidden >> Result.toOption) with
     | Some filter ->
         let items =
@@ -590,7 +590,7 @@ type Handler(
         | PromptGoToMark markType -> Sync (promptMark markType GoToMark)
         | PromptSetMark -> Sync promptSetMark
         | SortList field -> Sync (sortList field)
-        | ToggleHidden -> Sync toggleHidden
+        | ToggleShowHidden -> Sync toggleHidden
         | ShowNavHistory -> Sync (MainModel.toggleHistoryDisplay NavHistory)
         | ShowUndoHistory -> Sync (MainModel.toggleHistoryDisplay UndoHistory)
         | ShowStatusHistory -> Sync (MainModel.toggleHistoryDisplay StatusHistory)

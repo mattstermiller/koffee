@@ -4,6 +4,34 @@ open VinylUI
 open FSharp.Control
 open Koffee
 
+module Attributes =
+    let toggleHidden (fs: IFileSystem) (progress: Progress) (model: MainModel) = asyncSeqResult {
+        let hide = not (model.ActionItems |> List.forall _.IsHidden)
+        let items =
+            if hide
+            then model.ActionItems |> List.filter (fun item -> not item.IsHidden)
+            else model.ActionItems
+
+        if not items.IsEmpty then
+            let model = { model with CancelToken = CancelToken() }
+            // yield model |> MainModel.withBusy (MainStatus.PreparingPut (putType, intent.Sources))
+
+            let incrementProgress = progress.GetIncrementer items.Length
+            progress.Start ()
+            let! results = runAsync (fun () ->
+                items
+                |> Seq.takeWhile (fun _ -> not model.CancelToken.IsCancelled)
+                |> Seq.map (fun item ->
+                    fs.SetHidden hide item.Type item.Path
+                    // |>! incrementProgress
+                )
+                // |>! progress.Finish
+            )
+            // TODO: collect errors, check cancellation, update undo/redo, set status, update Directory and Items
+            // compare to performPut
+            yield model
+    }
+
 module Undo =
     let rec private undoIter iter fs progress model = asyncSeqResult {
         match model.UndoStack with
@@ -110,6 +138,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | ClipboardCopy -> SyncResult (Put.yankToClipboard true os)
         | ClipboardCopyPaths -> SyncResult (Put.copyPathsToClipboard os)
         | ClipboardPaste -> AsyncResult (Put.clipboardPaste fs os progress)
+        | ToggleHiddenAttribute -> AsyncResult (Attributes.toggleHidden fs progress)
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
         | ExecuteTool toolName -> SyncResult (Tools.executeTool os fs toolName)

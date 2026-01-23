@@ -132,7 +132,8 @@ _A capital letter indicates that the letter key is combined with Shift._
 - Display status message history with `gs`
 - Open the selected files and exit with `Ctrl + Enter`
 - Open the selected items' properties with `Alt + Enter`
-- Open a second window for easier file comparison or moves with `Ctrl + n`
+- Toggle the selected items' Hidden property with `Alt + h`
+- Open a second window for easier folder comparison or moves with `Ctrl + n`
 - Open the selected files with the Text Editor Tool (configured in the Settings window) with `Ctrl + e`
 - Open the Terminal Tool (configured in the Settings window) at your current location with `Ctrl + Shift + t`
 - Open Windows Explorer at your current location with `Ctrl + Shift + e`

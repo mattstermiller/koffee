@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <OutputType>Library</OutputType>
@@ -32,6 +32,7 @@
     <Compile Include="ItemRenameTests.fs" />
     <Compile Include="ItemPutTests.fs" />
     <Compile Include="ItemDeleteTests.fs" />
+    <Compile Include="ItemAttributesTests.fs" />
     <Compile Include="ItemToolsTests.fs" />
     <Compile Include="MainControllerInitModelTests.fs" />
     <Compile Include="OsUtilityTests.fs" />

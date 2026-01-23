@@ -122,6 +122,9 @@ type FakeFileSystem(treeItems) =
     let tryFindItem path =
         items |> List.tryFind (fun i -> i.Path = path)
 
+    let replace oldItem newItem =
+        items <- items |> List.map (fun i -> if i = oldItem then newItem else i)
+
     let remove path =
         items <- items |> List.filter (fun item -> not (item.Path.IsWithin path))
         shortcuts.Remove(path) |> ignore
@@ -209,6 +212,7 @@ type FakeFileSystem(treeItems) =
         member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
         member this.Recycle itemType path = this.Recycle itemType path
         member this.Delete itemType path = this.Delete itemType path
+        member this.SetHidden hide itemType path = this.SetHidden hide itemType path
 
     member this.GetItem path = result {
         do! checkExn false path
@@ -293,11 +297,9 @@ type FakeFileSystem(treeItems) =
 
     member this.Move itemType fromPath toPath = result {
         checkCancelToken ()
-        let substitute oldItem newItem =
-            items <- items |> List.map (fun i -> if i = oldItem then newItem else i)
         if String.equalsIgnoreCase (string fromPath) (string toPath) then
             let! item = this.AssertItem itemType fromPath
-            substitute item { item with Path = toPath; Name = toPath.Name }
+            replace item { item with Path = toPath; Name = toPath.Name }
         else
             do! checkExn true fromPath
             let! item = this.AssertItem itemType fromPath
@@ -309,7 +311,7 @@ type FakeFileSystem(treeItems) =
                 do! checkPathNotUsed toPath
             else
                 remove toPath
-            substitute item { item with Path = toPath; Name = toPath.Name }
+            replace item { item with Path = toPath; Name = toPath.Name }
 
             shortcuts.TryGetValueOption fromPath |> Option.iter (fun target ->
                 shortcuts.Remove(fromPath) |> ignore
@@ -363,4 +365,11 @@ type FakeFileSystem(treeItems) =
         if item.Type = Folder && hasChildren item.Path then
             return! Error cannotDeleteNonEmptyFolder
         remove path
+    }
+
+    member this.SetHidden hide itemType path = result {
+        checkCancelToken ()
+        let! item = this.AssertItem itemType path
+        do! checkExn true path
+        replace item { item with IsHidden = hide }
     }

@@ -87,7 +87,7 @@ type NavigationCommand =
     | PromptGoToMark of MarkType
     | PromptSetMark
     | SortList of SortField
-    | ToggleHidden
+    | ToggleShowHidden
     | ShowNavHistory
     | ShowUndoHistory
     | ShowStatusHistory
@@ -95,7 +95,7 @@ with
     member this.Name =
         match this with
         | OpenCursorItem -> "Open Cursor Item"
-        | OpenSelected -> "Open Selected Item(s)"
+        | OpenSelected -> "Open Selected Items"
         | OpenFileWith -> "Open File With..."
         | OpenFileAndExit -> "Open Files and Exit"
         | OpenProperties -> "Open Properties"
@@ -112,7 +112,7 @@ with
         | PromptGoToMark markType -> sprintf "Go To %s" markType.Name
         | PromptSetMark -> "Set Bookmark/Saved Search"
         | SortList field -> sprintf "Sort by %O" field
-        | ToggleHidden -> "Show/Hide Hidden Folders and Files"
+        | ToggleShowHidden -> "Show/Hide Hidden Folders and Files"
         | ShowNavHistory -> "Show Navigation History"
         | ShowUndoHistory -> "Show Undo/Redo History"
         | ShowStatusHistory -> "Show Status History"
@@ -130,6 +130,7 @@ type ItemActionCommand =
     | ClipboardCopy
     | ClipboardCopyPaths
     | ClipboardPaste
+    | ToggleHiddenAttribute
     | Undo
     | Redo
     | ExecuteTool of toolName: string
@@ -143,17 +144,18 @@ with
         | StartRename End -> "Rename Item (Append to Extension)"
         | StartRename ReplaceName -> "Rename Item (Replace Name)"
         | StartRename ReplaceAll -> "Rename Item (Replace Full Name)"
-        | Yank Move -> "Start Move Item"
-        | Yank Copy -> "Start Copy Item"
-        | Yank Shortcut -> "Start Create Shortcut to Item"
-        | ClearYank -> "Clear Yank Register"
-        | Put -> "Put Item to Move/Copy in Current Folder"
+        | Yank Move -> "Start Move Items"
+        | Yank Copy -> "Start Copy Items"
+        | Yank Shortcut -> "Start Create Shortcut to Items"
+        | ClearYank -> "Clear Move/Copy Register"
+        | Put -> "Put Items to Move/Copy in Current Folder"
         | Trash -> "Send to Recycle Bin"
         | ConfirmDelete -> "Delete Permanently"
         | ClipboardCut -> "Cut Items to Clipboard"
         | ClipboardCopy -> "Copy Items to Clipboard"
         | ClipboardCopyPaths -> "Copy Paths to Clipboard"
         | ClipboardPaste -> "Paste from Clipboard"
+        | ToggleHiddenAttribute -> "Toggle Items' Hidden Attribute"
         | Undo -> "Undo Action"
         | Redo -> "Redo Action"
         | ExecuteTool toolName -> "Tool - " + toolName
@@ -485,6 +487,7 @@ type ItemAction =
     | RenamedItem of Item * newName: string
     | PutItems of PutType * intent: PutIntent * actual: PutItem list * cancelled: bool
     | DeletedItems of permanent: bool * Item list * cancelled: bool
+    | ToggleHidden of hide: bool * Item list * cancelled: bool
 with
     member private this.Describe isShort pathFormat =
         match this with
@@ -515,6 +518,9 @@ with
                 |> Option.map (List.sum >> Format.fileSize >> sprintf " (%s)")
                 |? ""
             sprintf "%s %s%s" action (Item.describeList items) sizeDescr
+        | ToggleHidden (hide, items, _) ->
+            let action = if hide then "Set" else "Remove"
+            sprintf "%s hidden attribute on %s" action (Item.describeList items)
 
     member this.Description pathFormat = this.Describe false pathFormat
     member this.ShortDescription pathFormat = this.Describe true pathFormat
@@ -637,6 +643,9 @@ module MainStatus =
             sprintf "Sent %s to Recycle Bin" (items |> Item.describeList)
         | DeletedItems (true, items, _) ->
             sprintf "Deleted %s" (items |> Item.describeList)
+        | ToggleHidden (hide, items, _) ->
+            let action = if hide then "Set" else "Remove"
+            sprintf "%s hidden attribute on %s" action (Item.describeList items)
 
     type Message =
         // Navigation
@@ -648,7 +657,7 @@ module MainStatus =
         | SetSavedSearch of Char * Search
         | DeletedSavedSearch of Char * Search
         | Sort of field: obj * desc: bool
-        | ToggleHidden of showing: bool
+        | ToggleShowingHidden of showing: bool
 
         // Actions
         | ActionComplete of ItemAction
@@ -658,6 +667,7 @@ module MainStatus =
         | CancelledConfirm of ConfirmType
         | CancelledPut of PutType * isUndo: bool * completed: int * total: int
         | CancelledDelete of permanent: bool * completed: int * total: int
+        | CancelledToggleHidden of hide: bool * isUndo: bool * completed: int * total: int
         | ClipboardYank of copy: bool * paths: Path list
         | ClipboardCopyPaths of paths: Path list
         | NoItemsToPaste
@@ -696,7 +706,7 @@ module MainStatus =
                 sprintf "Deleted saved search \"%c\" that was set to \"%O\"" char search
             | Sort (field, desc) ->
                 sprintf "Sort by %A %s" field (if desc then "descending" else "ascending")
-            | ToggleHidden showing ->
+            | ToggleShowingHidden showing ->
                 sprintf "%s hidden files" (if showing then "Showing" else "Hiding")
             | ActionComplete action ->
                 actionCompleteMessage pathFormat action
@@ -734,6 +744,12 @@ module MainStatus =
             | CancelledDelete (permanent, completed, total) ->
                 let action = if permanent then "delete" else "recycle"
                 sprintf "Cancelled %s - %s" action (Message.describeCancelledProgress (action+"d") completed total)
+            | CancelledToggleHidden (hide, isUndo, completed, total) ->
+                let action =
+                    if hide then "setting" else "removing"
+                    |> applyIf isUndo (sprintf "undo %s")
+                let doneMsg = if hide <> isUndo then "hidden" else "unhidden"
+                sprintf "Cancelled %s hidden attribute - %s" action (Message.describeCancelledProgress doneMsg completed total)
             | ClipboardYank (copy, paths) ->
                 let action = if copy then "Copied" else "Cut"
                 sprintf "%s to clipboard: %s" action (Message.describePaths pathFormat paths)
@@ -759,6 +775,7 @@ module MainStatus =
         | UndoingCreate of Item
         | UndoingPut of isCopy: bool * PutIntent
         | RedoingDeleting of permanent: bool * Item list
+        | TogglingHidden of hide: bool * Item list
 
         member this.Message pathFormat =
             match this with
@@ -785,6 +802,9 @@ module MainStatus =
             | RedoingDeleting (permanent, items) ->
                 let action = if permanent then "deletion" else "recycle"
                 sprintf "Redoing %s of %s..." action (Item.describeList items)
+            | TogglingHidden (hide, items) ->
+                let action = if hide then "Setting" else "Removing"
+                sprintf "%s hidden attribute on %s..." action (Item.describeList items)
 
     type Error =
         | ActionError of actionName: string * exn
@@ -796,6 +816,7 @@ module MainStatus =
         | ShortcutTargetMissing of string
         | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
         | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
+        | ToggleHiddenError of hide: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotPutHere
         | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
         | CannotMoveToSameFolder
@@ -851,6 +872,9 @@ module MainStatus =
                 this.ItemErrorsDescription (undo + putType.ToLowerString()) errorPaths totalItems
             | DeleteError (permanent, errorPaths, totalItems) ->
                 let action = if permanent then "delete"  else "recycle"
+                this.ItemErrorsDescription action errorPaths totalItems
+            | ToggleHiddenError (hide, errorPaths, totalItems) ->
+                let action = (if hide then "set" else "remove") + " hidden attribute"
                 this.ItemErrorsDescription action errorPaths totalItems
             | CannotPutHere ->
                 "Cannot put items here"
@@ -957,7 +981,7 @@ module MainBindings =
             ([noMod, Key.S; noMod, Key.N], Navigation (SortList Name))
             ([noMod, Key.S; noMod, Key.M], Navigation (SortList Modified))
             ([noMod, Key.S; noMod, Key.S], Navigation (SortList Size))
-            ([noMod, Key.F9], Navigation ToggleHidden)
+            ([noMod, Key.F9], Navigation ToggleShowHidden)
             ([noMod, Key.G; noMod, Key.H], Navigation ShowNavHistory)
             ([noMod, Key.G; noMod, Key.U], Navigation ShowUndoHistory)
             ([noMod, Key.G; noMod, Key.S], Navigation ShowStatusHistory)
@@ -980,6 +1004,7 @@ module MainBindings =
             ([ctrl, Key.C], ItemAction ClipboardCopy)
             ([ctrl ||| shift, Key.C], ItemAction ClipboardCopyPaths)
             ([ctrl, Key.V], ItemAction ClipboardPaste)
+            ([alt, Key.H], ItemAction ToggleHiddenAttribute)
             ([noMod, Key.U], ItemAction Undo)
             ([ctrl, Key.Z], ItemAction Undo)
             ([shift, Key.U], ItemAction Redo)
@@ -1382,10 +1407,17 @@ type MainModel = {
                 |> Seq.sortBy (fun pi -> pi.Source)
                 |> Seq.toList
             PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
+
         | DeletedItems (permanent1, items1, cancelled1) ::
           DeletedItems (permanent2, items2, true) :: tail
                 when permanent1 = permanent2 && items1.Head.Path.Parent = items2.Head.Path.Parent ->
             DeletedItems (permanent1, items2 @ items1, cancelled1) :: tail
+
+        | ToggleHidden (hide1, items1, cancelled1) ::
+          ToggleHidden (hide2, items2, true) :: tail
+                when hide1 = hide2 && items1.Head.Path.Parent = items2.Head.Path.Parent ->
+            ToggleHidden (hide1, items2 @ items1, cancelled1) :: tail
+
         | _ ->
             actionStack
 

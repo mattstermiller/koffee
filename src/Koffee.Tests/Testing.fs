@@ -242,7 +242,7 @@ type FakeFileSystem with
     member this.AddExn writeOnly e path =
         createPath path |> this.AddExnPath writeOnly e
 
-    member this.ItemsShouldEqualList expectedItems =
+    member this.ItemsShouldEqualList (expectedItems: Item list) =
         let rec nestLevel level (path: Path) =
             if path.Parent = Path.Root then level else nestLevel (level+1) path.Parent
         let treeStr (items: Item list) =
@@ -257,7 +257,7 @@ type FakeFileSystem with
             )
             |> String.concat "\n"
             |> sprintf "\n%s\n"
-        this.Items |> treeStr |> shouldEqual (expectedItems |> treeStr)
+        this.Items |> treeStr |> assertAreEqual (expectedItems |> treeStr)
         this.Items |> assertAreEqual expectedItems
 
     member this.ItemsShouldEqual expectedTree =

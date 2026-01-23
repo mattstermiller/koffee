@@ -182,8 +182,9 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
         let enumeratedItemCount = putItems.Length + enumErrors.Length
 
         // if nothing succeeded, return error
+        let errorStatus = lazy MainStatus.PutError (isUndo, putType, errorPaths, enumeratedItemCount)
         if succeeded |> List.isEmpty then
-            return MainStatus.PutError (isUndo, putType, errorPaths, enumeratedItemCount)
+            return errorStatus.Value
 
         let! deleteFolderErrors = async {
             // for folders that were enumerated and their contents were moved, delete source folders
@@ -259,7 +260,7 @@ let private performPut (fs: IFileSystem) progress undoIter enumErrors putType in
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errorPaths.IsEmpty then
-                MainStatus.Error (MainStatus.PutError (isUndo, putType, errorPaths, enumeratedItemCount))
+                MainStatus.Error errorStatus.Value
             else if model.CancelToken.IsCancelled then
                 MainStatus.Message (MainStatus.CancelledPut (putType, isUndo, succeeded.Length, putItems.Length))
             else

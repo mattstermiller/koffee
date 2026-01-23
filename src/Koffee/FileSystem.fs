@@ -36,6 +36,8 @@ type IFileSystemWriter =
     /// Deletes a file or empty folder.
     abstract member Delete: ItemType -> Path -> Result<unit, exn>
 
+    abstract member SetHidden: hide: bool -> ItemType -> Path -> Result<unit, exn>
+
 type IFileSystem =
     inherit IFileSystemReader
     inherit IFileSystemWriter
@@ -192,6 +194,7 @@ type FileSystem() =
         member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
         member this.Recycle itemType path = this.Recycle itemType path
         member this.Delete itemType path = this.Delete itemType path
+        member this.SetHidden hide itemType path = this.SetHidden hide itemType path
 
     member this.Create itemType path =
         ensureFileOrFolder itemType "create"
@@ -290,3 +293,17 @@ type FileSystem() =
                     prepForOverwrite (FileInfo winPath)
                     File.Delete winPath
         )
+
+    member this.SetHidden hide itemType path =
+        let setHiddenFlag attr =
+            if hide
+            then attr ||| FileAttributes.Hidden
+            else attr &&& (~~~FileAttributes.Hidden)
+        tryResult <| fun () ->
+            let path = wpath path
+            if itemType = Folder then
+                let dir = DirectoryInfo(path)
+                dir.Attributes <- setHiddenFlag dir.Attributes
+            else
+                let attr = File.GetAttributes(path)
+                File.SetAttributes(path, setHiddenFlag attr)

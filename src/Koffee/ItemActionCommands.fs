@@ -2,7 +2,106 @@ namespace Koffee.ItemActionCommands
 
 open VinylUI
 open FSharp.Control
+open Acadian.FSharp
 open Koffee
+
+module Attributes =
+    let private performSetHidden (fs: IFileSystem) (progress: Progress) (cancelToken: CancelToken) hide (items: Item list) =
+        let incrementProgress = progress.GetIncrementer items.Length
+        progress.Start ()
+        runAsync (fun () ->
+            items
+            |> Seq.takeWhile (fun _ -> not cancelToken.IsCancelled)
+            |> Seq.map (fun item ->
+                fs.SetHidden hide item.Type item.Path
+                |> Result.map (fun () -> item)
+                |> Result.mapError (fun e -> (item.Path, e))
+                |>! incrementProgress
+            )
+            |> Seq.toList
+            |>! progress.Finish
+        )
+
+    let setHidden fs progress undoIter hide (items: Item list) (model: MainModel) = asyncSeqResult {
+        let isUndo = undoIter |> Option.isSome
+        let doHide = if isUndo then not hide else hide
+        let model = { model with CancelToken = CancelToken() }
+        yield model |> MainModel.withBusy (MainStatus.TogglingHidden (doHide, items))
+        let! results = performSetHidden fs progress model.CancelToken doHide items
+
+        let succeeded, errors = results |> Result.partition
+
+        // if nothing succeeded, return error
+        let errorStatus = lazy MainStatus.ToggleHiddenError (doHide, errors, items.Length)
+        if succeeded |> List.isEmpty then
+            return errorStatus.Value
+
+        let action = ToggleHidden (hide, succeeded, model.CancelToken.IsCancelled)
+        let unsuccessful =
+            if not (errors.IsEmpty) || model.CancelToken.IsCancelled
+            then items |> List.except succeeded
+            else []
+
+        let updateUndoRedo (model: MainModel) =
+            let cancelledAction =
+                if model.CancelToken.IsCancelled
+                then Some (ToggleHidden (hide, unsuccessful, true))
+                else None
+            if isUndo then
+                model
+                |> Option.foldBack MainModel.pushUndo cancelledAction
+                |> MainModel.pushRedo action
+            else
+                model
+                |> MainModel.pushUndo action
+                |> MainModel.withRedoStack (cancelledAction |> Option.toList)
+
+        let updateList model =
+            let cursorMove =
+                if doHide && not model.Config.ShowHidden && errors.IsEmpty
+                then model.KeepCursorByPath
+                else CursorToAndSelectPaths (items |> List.map _.Path, false)
+            let location = items.Head.Path.Parent
+            if location = model.Location then
+                let updatedPaths = succeeded |> Seq.map _.Path |> Set
+                let directory =
+                    model.Directory
+                    |> List.map (fun item ->
+                        if updatedPaths.Contains item.Path
+                        then { item with IsHidden = doHide }
+                        else item
+                    )
+                { model with Directory = directory }
+                |> NavigationCommands.listDirectory cursorMove
+            else
+                NavigationCommands.openPathIgnoreError fs location cursorMove model
+
+        let status =
+            // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
+            if not errors.IsEmpty then
+                MainStatus.Error errorStatus.Value
+            else if model.CancelToken.IsCancelled then
+                MainStatus.Message (MainStatus.CancelledToggleHidden (hide, isUndo, succeeded.Length, items.Length))
+            else
+                match undoIter with
+                | Some iter ->
+                    MainStatus.Message (MainStatus.UndoAction (action, iter, model.RepeatCount))
+                | None ->
+                    MainStatus.Message (MainStatus.ActionComplete action)
+
+        yield
+            model
+            |> updateUndoRedo
+            |> MainModel.withStatus status
+            |> updateList
+    }
+
+    let toggleHidden fs progress (model: MainModel) =
+        if model.ActionItems.IsEmpty then
+            AsyncSeq.empty
+        else
+            let hide = not (model.ActionItems |> List.forall _.IsHidden)
+            setHidden fs progress None hide model.ActionItems model
 
 module Undo =
     let rec private undoIter iter fs progress model = asyncSeqResult {
@@ -27,6 +126,8 @@ module Undo =
                 | DeletedItems (permanent, items, _) ->
                     Error (MainStatus.CannotUndoDelete (permanent, items))
                     |> AsyncSeq.singleton
+                | ToggleHidden (hide, items, _) ->
+                    Attributes.setHidden fs progress (Some iter) hide items model
             if iter < model.RepeatCount && not model.IsStatusCancelled then
                 yield! undoIter (iter + 1) fs progress model
             else
@@ -65,6 +166,8 @@ module Undo =
                     yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))
                     let deleteFunc = if permanent then Delete.delete else Delete.recycle
                     yield! deleteFunc fs progress items model
+                | ToggleHidden (hide, items, _) ->
+                    yield! Attributes.setHidden fs progress None hide items model
             }
             let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
             let status, statusHistory =
@@ -110,6 +213,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | ClipboardCopy -> SyncResult (Put.yankToClipboard true os)
         | ClipboardCopyPaths -> SyncResult (Put.copyPathsToClipboard os)
         | ClipboardPaste -> AsyncResult (Put.clipboardPaste fs os progress)
+        | ToggleHiddenAttribute -> AsyncResult (Attributes.toggleHidden fs progress)
         | Undo -> AsyncResult (Undo.undo fs progress)
         | Redo -> AsyncResult (Undo.redo fs progress)
         | ExecuteTool toolName -> SyncResult (Tools.executeTool os fs toolName)

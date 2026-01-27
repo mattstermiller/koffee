@@ -46,7 +46,7 @@ module Undo =
             let openPath (path: Path) cursorMove =
                 if path <> model.Location
                 then NavigationCommands.openPath fs path cursorMove model
-                else Ok model
+                else Ok (NavigationCommands.moveCursor cursorMove model)
             let! model = asyncSeqResult {
                 match action with
                 | CreatedItem item ->
@@ -64,7 +64,7 @@ module Undo =
                     let! model = openPath items.Head.Path.Parent cursor
                     yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))
                     let deleteFunc = if permanent then Delete.delete else Delete.recycle
-                    yield! deleteFunc fs progress model.ActionItems model
+                    yield! deleteFunc fs progress items model
             }
             let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
             let status, statusHistory =
@@ -150,7 +150,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
             yield! NavigationCommands.refresh fs model
     }
 
-    member _.ConfirmDelete isYes (model: MainModel) = asyncSeqResult {
+    member _.ConfirmDelete items isYes (model: MainModel) = asyncSeqResult {
         if isYes then
-            yield! Delete.delete fs progress model.ActionItems model
+            yield! Delete.delete fs progress items model
     }

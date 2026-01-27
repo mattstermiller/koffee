@@ -5,13 +5,14 @@ open Acadian.FSharp
 open Koffee
 
 let confirmDelete (model: MainModel) =
-    if model.ActionItems |> List.exists _.Type.CanModify then
+    match model.ActionItems |> List.filter _.Type.CanModify with
+    | [] ->
+        model
+    | items ->
         { model with
-            InputMode = Some (Confirm Delete)
+            InputMode = Some (Confirm (Delete items))
             InputText = ""
         }
-    else
-        model
 
 let private enumerateDeleteItems (fsReader: IFileSystemReader) (cancelToken: CancelToken) (items: Item seq) =
     let rec iter (items: Item seq) = asyncSeq {

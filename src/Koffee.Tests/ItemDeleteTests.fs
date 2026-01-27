@@ -363,7 +363,9 @@ let ``Delete or Redo delete folder deletes items until canceled, then Delete or 
     )
 
     // part two: delete or redo again completes the operation
-    let actual = modelAfterCancel |> seqResult testFunc
+    let actual =
+        { modelAfterCancel with SelectedItems = []; Cursor = 1 }
+        |> seqResult testFunc
 
     let expectedItems = [
         createFile "/c/other"

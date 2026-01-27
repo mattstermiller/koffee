@@ -13,6 +13,7 @@
 - Changes Recursive Search Exclusions to be case-sensitive
 - Changes messages describing item lists to give total count
 - #152 Fixes yank register not being updated after renaming and deleting
+- Fixes resuming recycle/delete to use original remaining items instead of current action items
 - Fixes copy names of folders to not use file extension logic
 - Fixes input text selection being reset to start when navigating search history with search strings of the same length
 - Fixes loss of keyboard focus

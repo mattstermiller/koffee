@@ -161,7 +161,7 @@ type Controller(
             let handler =
                 match confirmType with
                 | Overwrite (putType, srcExistingPairs) -> itemActionHandler.ConfirmOverwrite putType srcExistingPairs
-                | Delete -> itemActionHandler.ConfirmDelete
+                | Delete items -> itemActionHandler.ConfirmDelete items
                 | OverwriteBookmark (char, _) -> navigationHandler.ConfirmOverwriteBookmark char
                 | OverwriteSavedSearch (char, _) -> navigationHandler.ConfirmOverwriteSavedSearch char
             let model = { model with InputMode = None }

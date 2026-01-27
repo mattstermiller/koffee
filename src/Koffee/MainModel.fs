@@ -368,7 +368,7 @@ with
 
 type ConfirmType =
     | Overwrite of PutType * srcExistingPairs: (Item * Item) list
-    | Delete
+    | Delete of Item list
     | OverwriteBookmark of char * existingPath: Path
     | OverwriteSavedSearch of char * existingSearch: Search
 
@@ -427,8 +427,8 @@ with
                     then "Overwrite y/n ?"
                     else sprintf "%A anyway, merge folders and overwrite files y/n ?" putType
                 sprintf "%i %s already exist. %s" srcExistingPairs.Length typesString overwriteMessage
-        | Confirm Delete ->
-            "Permanently delete selected item(s) y/n ?"
+        | Confirm (Delete items) ->
+            sprintf "Permanently delete %s y/n ?" (Item.describeList items)
         | Confirm (OverwriteBookmark (char, existingPath)) ->
             sprintf "Overwrite bookmark \"%c\" currently set to \"%s\" y/n ?" char (existingPath.Format pathFormat)
         | Confirm (OverwriteSavedSearch (char, existingSearch)) ->
@@ -717,7 +717,7 @@ module MainStatus =
             | CancelledConfirm confirmType ->
                 let action =
                     match confirmType with
-                    | Delete -> "delete"
+                    | Delete _ -> "delete"
                     | Overwrite _ -> "overwrite item"
                     | OverwriteBookmark _ -> sprintf "overwrite bookmark"
                     | OverwriteSavedSearch _ -> sprintf "overwrite saved search"

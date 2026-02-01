@@ -393,7 +393,9 @@ let put (fs: IFileSystem) progress overwrite (model: MainModel) = asyncSeqResult
     match model.History.YankRegister with
     | None -> ()
     | Some (putType, itemRefs) ->
-        let! model = putInLocation fs progress false overwrite putType itemRefs model
+        let! model =
+            if overwrite then { model with InputMode = None } else model
+            |> putInLocation fs progress false overwrite putType itemRefs
         let wasImmediatelyCanceled =
             match model.Status with Some (MainStatus.Message (MainStatus.CancelledPut (_, _, 0, _))) -> true | _ -> false
         // if not cancelled or opened input for confirmation, clear yank register

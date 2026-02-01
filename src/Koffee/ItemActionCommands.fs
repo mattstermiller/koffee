@@ -243,15 +243,13 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | _ -> ()
     }
 
-    member _.ConfirmOverwrite putType (srcExistingPairs: (Item * Item) list) isYes (model: MainModel) = asyncSeqResult {
+    member _.ConfirmOverwrite isYes (model: MainModel) = asyncSeqResult {
         if isYes then
-            let itemRefs = srcExistingPairs |> List.map (fun (src, _) -> src.Ref)
-            let! model = Put.putInLocation fs progress false true putType itemRefs model
-            yield { model with MainModel.History.YankRegister = None }
+            yield! Put.put fs progress true model
 
         else if not model.Config.ShowHidden && model.ActionItems |> List.exists (fun i -> i.IsHidden) then
             // if we were temporarily showing a hidden file, refresh
-            yield! NavigationCommands.refresh fs model
+            yield NavigationCommands.listDirectory CursorStay model
     }
 
     member _.ConfirmDelete items isYes (model: MainModel) = asyncSeqResult {

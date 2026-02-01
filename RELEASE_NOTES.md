@@ -13,6 +13,7 @@
 - Changes recycle/delete to not push useless undo actions
 - Changes Recursive Search Exclusions to be case-sensitive
 - Changes messages describing item lists to give total count
+- Fixes move/copy after overwrite prompt only putting items that were overwrites
 - #152 Fixes yank register not being updated after renaming and deleting
 - Fixes resuming recycle/delete to use original remaining items instead of current action items
 - Fixes copy names of folders to not use file extension logic

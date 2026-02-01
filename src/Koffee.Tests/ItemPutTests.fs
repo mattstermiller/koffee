@@ -58,34 +58,87 @@ let ``Register selected items with the same name returns error`` putType =
     |> shouldEqual (Error (MainStatus.CannotRegisterMultipleItemsWithSameName "file"))
 
 [<TestCaseSource(nameof putTypeAndBoolCases)>]
-let ``Put item in different folder with item of same name prompts for overwrite`` putType existingHidden =
-    let destName = if putType = Shortcut then "file.lnk" else "file"
+let ``Put multiple items in different folder with one item of same name prompts for overwrite, then confirming puts all items``
+        putType existingHidden =
+    let destName name = name |> applyIf (putType = Shortcut) (sprintf "%s.lnk")
     let fs = FakeFileSystem [
-        folder "other" [
-            file "file"
+        folder "src" [
+            file "file1"
+            file "file2"
+            file "file3"
         ]
         file "another file"
-        fileWith (hide existingHidden) destName
+        fileWith (hide existingHidden) (destName "file2")
         fileWith (hide true) "hidden"
     ]
-    let src = fs.Item "/c/other/file"
-    let dest = fs.Item ("/c/" + destName)
-    let model = testModel |> withReg (Some (putType, [src.Ref]))
-    let expectedItems = fs.ItemsIn "/c"
+    let src = fs.ItemsIn "/c/src"
+    let model = testModel |> withReg (Some (putType, src |> List.map _.Ref))
+    let conflict = fs.Item "/c/src/file2"
+    let existing = fs.Item (destName "/c/file2")
+    let initialFsItems = fs.Items
+    let initialDestItems = fs.ItemsIn "/c"
 
-    let actual = seqResult (ItemActionCommands.Put.put fs progress false) model
+    let modelAfterPut = seqResult (ItemActionCommands.Put.put fs progress false) model
 
+    // part one: put prompts to confirm overwrite
+    (
+        let expected =
+            { model with
+                Directory = initialDestItems
+                Items = initialDestItems |> List.filter (fun i -> i.Name <> "hidden")
+                Cursor = 2
+                InputMode = Some (Confirm (Overwrite (putType, [conflict, existing])))
+                CancelToken = CancelToken()
+            }
+            |> withLocationOnHistory
+        modelAfterPut |> assertAreEqual expected
+        fs.Items |> shouldEqual initialFsItems
+    )
+
+    // part two: confirming puts all items
+    let actual = seqResult (ItemActionCommands.Put.put fs progress true) modelAfterPut
+
+    let expectedItems = [
+        createFolder "/c/src"
+        createFile "/c/another file"
+        createFile (destName "/c/file1")
+        createFile (destName "/c/file2")
+        createFile (destName "/c/file3")
+        createFile "/c/hidden" |> hide true
+    ]
+    let expectedDestItems = expectedItems |> List.filter (fun i -> i.Name.StartsWith "file")
+    let intent = { createPutIntent src model.Location with Overwrite = true }
+    let actualPut =
+        (src, expectedDestItems) ||> List.map2 (fun src dest ->
+            { createPutItem src dest.Path with DestExists = src.Name = "file2" }
+        )
+    let expectedAction = PutItems (putType, intent, actualPut, false)
     let expected =
-        { model with
+        { modelAfterPut with
             Directory = expectedItems
             Items = expectedItems |> List.filter (fun i -> i.Name <> "hidden")
+            SelectedItems = expectedDestItems
             Cursor = 2
-            InputMode = Some (Confirm (Overwrite (putType, [src, dest])))
-            CancelToken = CancelToken()
+            InputMode = None
+            UndoStack = expectedAction :: model.UndoStack
+            RedoStack = []
         }
-        |> withLocationOnHistory
-    assertAreEqual expected actual
-    fs.ItemsIn "/c" |> shouldEqual expectedItems
+        |> withReg None
+        |> MainModel.withMessage (MainStatus.ActionComplete expectedAction)
+    actual |> assertAreEqual expected
+    fs.ItemsShouldEqual [
+        folder "src" [
+            if putType <> Move then
+                file "file1"
+                file "file2"
+                file "file3"
+        ]
+        file "another file"
+        file (destName "file1")
+        file (destName "file2")
+        file (destName "file3")
+        fileWith (hide true) "hidden"
+    ]
 
 [<Test>]
 let ``Put handles missing register item`` () =

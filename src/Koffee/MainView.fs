@@ -155,9 +155,6 @@ module MainView =
 
         window.ItemGrid.Focus() |> ignore
 
-        let version = typeof<MainModel>.Assembly.GetName().Version
-        let versionStr = sprintf "%i.%i.%i" version.Major version.Minor version.Build
-
         // History save buffering
         let historyBuffer = new BehaviorSubject<History>(model.History)
         (historyBuffer |> Obs.throttle 3.0).Subscribe(history.set_Value) |> ignore
@@ -218,7 +215,7 @@ module MainView =
 
             // Location path
             Bind.model(<@ model.TitleLocation @>).toFunc(fun titleLoc ->
-                window.Title <- sprintf "%s  |  Koffee v%s" titleLoc versionStr
+                window.Title <- sprintf "%s  |  Koffee v%s" titleLoc Reflection.KoffeeExe.versionString
             )
 
             // Yank register

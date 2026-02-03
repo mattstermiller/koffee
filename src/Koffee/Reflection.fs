@@ -1,6 +1,7 @@
 ﻿module Reflection
 
 open System
+open System.Reflection
 open FSharp.Reflection
 open FSharp.Quotations.Patterns
 open FSharp.Quotations.Evaluator
@@ -58,3 +59,9 @@ let (|PropertySelector|_|) expr =
     | Lambda (_, PropertyGet (_, property, [])) ->
         Some property
     | _ -> None
+
+module KoffeeExe =
+    let private assembly = Assembly.GetExecutingAssembly()
+    let location = assembly.Location
+    let version = assembly.GetName().Version
+    let versionString = sprintf "%i.%i.%i" version.Major version.Minor version.Build

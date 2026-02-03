@@ -19,8 +19,10 @@ let openSplitScreenWindow (os: IOperatingSystem) getScreenBounds model = result 
     let args = sprintf "\"%s\" --location=%i,%i --size=%i,%i"
                        path (left + width) top width height
 
-    let! koffeePath = Path.Parse (System.Reflection.Assembly.GetExecutingAssembly().Location)
-                      |> Result.ofOption MainStatus.CouldNotFindKoffeeExe
+    let! koffeePath =
+        Reflection.KoffeeExe.location
+        |> Path.Parse
+        |> Result.ofOption MainStatus.CouldNotFindKoffeeExe
     do! os.Execute false koffeePath.Parent (string koffeePath) args
         |> Result.mapError (fun e -> MainStatus.CouldNotExecute ("Koffee", e))
     return model

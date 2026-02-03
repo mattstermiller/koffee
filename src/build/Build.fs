@@ -62,26 +62,21 @@ let initTargets () =
     )
 
     Target.create "install" (fun _ ->
-        let bin = Path.getFullName buildOutputDir
-        let progFiles = Environment.environVarOrDefault "ProgramFiles(x86)" (Environment.environVar "ProgramFiles")
-        let installDir = progFiles + @"\Koffee"
+        let bin = Path.getFullName(buildOutputDir).TrimEnd('\\')
+        let installDir = (Environment.environVar "LocalAppData") + @"\Programs\Koffee"
 
-        // copy files to program files
-        let execElevated cmd (args: string) =
-            Shell.Exec("powershell", sprintf @"start -verb runas %s -argumentlist '%s'" cmd args)
-        let innerQuote (s: string) =
-            s.Trim('\\') |> sprintf "\\\"%s\\\""
-        printfn "%s %s *.exe* *.dll" (innerQuote bin) (innerQuote installDir)
-        execElevated "robocopy" (sprintf "%s %s *.exe* *.dll" (innerQuote bin) (innerQuote installDir))
-        |> failIfNonZero
-        Trace.tracefn "Installed in: %s" installDir
-
-        // create shortcut
         let quote (s: string) =
             s.Replace("\"", "\\\"") |> sprintf "\"%s\""
         let execPowershell (command: string) =
             let command = command.Replace("\n", "; ")
             Shell.Exec("powershell", sprintf "-command %s" (quote command))
+
+        // copy files to install directory
+        Shell.Exec("robocopy", sprintf "/W:10 %s %s *.exe* *.dll" (quote bin) (quote installDir))
+        |> fun ret -> if ret >= 8 then failwith "Robocopy command failed."
+        Trace.tracefn "Installed in: %s" installDir
+
+        // create shortcut
         execPowershell (sprintf @"
             $lnkPath = ""$([Environment]::GetFolderPath('StartMenu'))\Programs\Koffee.lnk""
             $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnkPath)

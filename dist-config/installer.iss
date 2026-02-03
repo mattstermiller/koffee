@@ -12,7 +12,7 @@ AppPublisher=Matthew A. Miller
 AppPublisherURL=https://github.com/mattstermiller/koffee
 AppSupportURL=https://github.com/mattstermiller/koffee
 AppUpdatesURL=https://github.com/mattstermiller/koffee
-DefaultDirName={pf}\Koffee
+DefaultDirName={localappdata}\Programs\Koffee
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE.txt
 InfoAfterFile=..\README.md
@@ -34,9 +34,8 @@ Source: "Koffee\*.config"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{commonprograms}\Koffee"; Filename: "{app}\Koffee.exe"
-Name: "{commondesktop}\Koffee"; Filename: "{app}\Koffee.exe"; Tasks: desktopicon
+Name: "{userprograms}\Koffee"; Filename: "{app}\Koffee.exe"
+Name: "{userdesktop}\Koffee"; Filename: "{app}\Koffee.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Koffee.exe"; Description: "{cm:LaunchProgram,Koffee}"; Flags: nowait postinstall skipifsilent
-

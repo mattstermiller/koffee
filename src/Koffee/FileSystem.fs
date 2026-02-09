@@ -13,7 +13,7 @@ type IFileSystemReader =
     abstract member GetFolders: Path -> Result<Item list, exn>
     abstract member GetShortcutTarget: Path -> Result<string, exn>
     abstract member IsEmpty: Path -> bool
-    abstract member IsPathRecyclable: Path -> bool
+    abstract member CanPathBeSentToTrash: Path -> bool
 
 type IFileSystemWriter =
     abstract member Create: ItemType -> Path -> Result<unit, exn>
@@ -25,13 +25,13 @@ type IFileSystemWriter =
     /// Copies a file or empty folder.
     abstract member Copy: ItemType -> fromPath: Path -> toPath: Path -> Result<unit, exn>
 
-    /// Checks whether items at a given path can fit in the Recycle Bin.
-    /// totalSize should be the size of all files to be recycled, including those inside folder trees.
-    abstract member CheckRecyclable: totalSize: int64 -> Path -> Result<unit, exn>
+    /// Checks whether items at a given path can fit in the Trash/Recycle Bin.
+    /// totalSize should be the size of all files to be trashed, including those inside folder trees.
+    abstract member CanFitInTrash: totalSize: int64 -> Path -> Result<unit, exn>
 
-    /// Sends a file or folder and its contents to the recycle bin.
-    /// NOTE: Can permanently delete items if they won't fit in Recycle Bin. Call CheckRecyclable() first.
-    abstract member Recycle: ItemType -> Path -> Result<unit, exn>
+    /// Sends a file or folder and its contents to the trash/recycle bin.
+    /// NOTE: Can permanently delete items if they won't fit in Recycle Bin. Call CanFitInTrash() first.
+    abstract member Trash: ItemType -> Path -> Result<unit, exn>
 
     /// Deletes a file or empty folder.
     abstract member Delete: ItemType -> Path -> Result<unit, exn>
@@ -123,7 +123,7 @@ type FileSystem() =
         member this.GetFolders path = this.GetItems true path
         member this.GetShortcutTarget path = this.GetShortcutTarget path
         member this.IsEmpty path = this.IsEmpty path
-        member this.IsPathRecyclable path = this.IsPathRecyclable path
+        member this.CanPathBeSentToTrash path = this.CanPathBeSentToTrash path
 
     member this.GetItem path =
         tryResult <| fun () ->
@@ -182,7 +182,7 @@ type FileSystem() =
                 FileInfo(winPath).Length = 0L
         with _ -> false
 
-    member this.IsPathRecyclable path =
+    member this.CanPathBeSentToTrash path =
         getDriveSize path |> Option.isSome
 
 
@@ -191,8 +191,8 @@ type FileSystem() =
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
-        member this.Recycle itemType path = this.Recycle itemType path
+        member this.CanFitInTrash totalSize path = this.CanFitInTrash totalSize path
+        member this.Trash itemType path = this.Trash itemType path
         member this.Delete itemType path = this.Delete itemType path
         member this.SetHidden hide itemType path = this.SetHidden hide itemType path
 
@@ -253,7 +253,7 @@ type FileSystem() =
                     copyFile source dest
         )
 
-    member this.CheckRecyclable (totalSize: int64) path =
+    member this.CanFitInTrash (totalSize: int64) path =
         getDriveSize path
         |> Result.ofOption (exn "This drive does not have a recycle bin.")
         |> Result.bind (fun driveSize ->
@@ -272,7 +272,7 @@ type FileSystem() =
                 Ok ()
         )
 
-    member this.Recycle itemType path =
+    member this.Trash itemType path =
         ensureFileOrFolder itemType "recycle"
         |> Result.bind (fun () ->
             let winPath = wpath path

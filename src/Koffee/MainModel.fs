@@ -1,4 +1,4 @@
-﻿namespace Koffee
+namespace Koffee
 
 open System
 open System.Windows
@@ -149,7 +149,7 @@ with
         | Yank Shortcut -> "Start Create Shortcut to Items"
         | ClearYank -> "Clear Move/Copy Register"
         | Put -> "Put Items to Move/Copy in Current Folder"
-        | Trash -> "Send to Recycle Bin"
+        | Trash -> "Remove / Send to Recycle Bin"
         | ConfirmDelete -> "Delete Permanently"
         | ClipboardCut -> "Cut Items to Clipboard"
         | ClipboardCopy -> "Copy Items to Clipboard"
@@ -770,7 +770,7 @@ module MainStatus =
         | PuttingItem of isCopy: bool * isRedo: bool * PutIntent
         | DeletingItems of permanent: bool * Item list
         | PreparingPut of PutType * ItemRef list
-        | CheckingIsRecyclable
+        | CheckingSizeForTrash
         | PreparingDelete of Item list
         | UndoingCreate of Item
         | UndoingPut of isCopy: bool * PutIntent
@@ -790,7 +790,7 @@ module MainStatus =
                 sprintf "%s %s..." action (Item.describeList items)
             | PreparingPut (putType, itemRefs) ->
                 sprintf "Preparing to %O %s..." putType (ItemRef.describeList itemRefs)
-            | CheckingIsRecyclable ->
+            | CheckingSizeForTrash ->
                 "Determining if items will fit in Recycle Bin..."
             | PreparingDelete items ->
                 sprintf "Preparing to delete %s..." (items |> Seq.map (fun i -> i.Description) |> describeList)

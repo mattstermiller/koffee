@@ -128,7 +128,7 @@ let ``Undo create empty item calls delete`` curPathDifferent isFolder =
     fs.ItemsShouldEqual [
         file "another"
     ]
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 [<TestCase(false)>]
 [<TestCase(true)>]

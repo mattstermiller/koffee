@@ -164,7 +164,7 @@ module Undo =
                     let cursor = CursorToAndSelectPaths (items |> List.map (fun i -> i.Path), true)
                     let! model = openPath items.Head.Path.Parent cursor
                     yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))
-                    let deleteFunc = if permanent then Delete.delete else Delete.recycle
+                    let deleteFunc = if permanent then Delete.delete else Delete.trash
                     yield! deleteFunc fs progress items model
                 | ToggleHidden (hide, items, _) ->
                     yield! Attributes.setHidden fs progress None hide items model
@@ -207,7 +207,7 @@ type Handler(fs: IFileSystem, os: IOperatingSystem, progress: Progress) =
         | Yank putType -> SyncResult (Put.yankSelectedItems putType)
         | ClearYank -> Sync (fun m -> { m with MainModel.History.YankRegister = None })
         | Put -> AsyncResult (Put.put fs progress false)
-        | Trash -> AsyncResult (fun m -> Delete.recycle fs progress m.ActionItems m)
+        | Trash -> AsyncResult (fun m -> Delete.trash fs progress m.ActionItems m)
         | ConfirmDelete -> Sync Delete.confirmDelete
         | ClipboardCut -> SyncResult (Put.yankToClipboard false os)
         | ClipboardCopy -> SyncResult (Put.yankToClipboard true os)

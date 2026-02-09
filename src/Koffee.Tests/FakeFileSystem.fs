@@ -100,10 +100,10 @@ module FakeFileSystemErrors =
     let cannotCopyNonEmptyFolder =
         exn "Folder is not empty and cannot be copied"
 
-    let cannotRecycleItemOnDriveWithNoSize =
+    let cannotTrashItemOnDriveWithNoSize =
         exn "Item is on drive with no Recycle Bin"
 
-    let cannotRecycleItemThatDoesNotFit (totalSize: int64) =
+    let cannotTrashItemThatDoesNotFit (totalSize: int64) =
         exn (sprintf "Item size of %O is too large to fit in the Recycle Bin" totalSize)
 
     let cannotDeleteNonEmptyFolder =
@@ -114,7 +114,7 @@ open FakeFileSystemErrors
 type FakeFileSystem(treeItems) =
     let mutable items = treeItems |> TreeItem.build
     let shortcuts = Dictionary<Path, string>()
-    let mutable recycleBin = []
+    let mutable trashBin = []
     let exnPaths = Dictionary<Path, (exn * bool) list>()
     let mutable callsToGetItems = 0
     let mutable tokenToCancelAfterWrites: (CancelToken * int) option = None
@@ -178,7 +178,7 @@ type FakeFileSystem(treeItems) =
     member this.Item path =
         items |> List.find (fun i -> i.Path = path)
 
-    member this.RecycleBin = recycleBin |> List.rev
+    member this.TrashBin = trashBin |> List.rev
 
     member this.AddExnPath writeOnly e path =
         let exnItem = (e, writeOnly)
@@ -202,15 +202,15 @@ type FakeFileSystem(treeItems) =
         member this.GetFolders path = this.GetFolders path
         member this.GetShortcutTarget path = this.GetShortcutTarget path
         member this.IsEmpty path = this.IsEmpty path
-        member this.IsPathRecyclable path = this.IsPathRecyclable path
+        member this.CanPathBeSentToTrash path = this.CanPathBeSentToTrash path
 
     interface IFileSystemWriter with
         member this.Create itemType path = this.Create itemType path
         member this.CreateShortcut target path = this.CreateShortcut target path
         member this.Move itemType fromPath toPath = this.Move itemType fromPath toPath
         member this.Copy itemType fromPath toPath = this.Copy itemType fromPath toPath
-        member this.CheckRecyclable totalSize path = this.CheckRecyclable totalSize path
-        member this.Recycle itemType path = this.Recycle itemType path
+        member this.CanFitInTrash totalSize path = this.CanFitInTrash totalSize path
+        member this.Trash itemType path = this.Trash itemType path
         member this.Delete itemType path = this.Delete itemType path
         member this.SetHidden hide itemType path = this.SetHidden hide itemType path
 
@@ -256,7 +256,7 @@ type FakeFileSystem(treeItems) =
         | Some i when i.Type = File -> not (i.Size |> Option.exists (fun size -> size > 0L))
         | _ -> false
 
-    member this.IsPathRecyclable (path: Path) =
+    member this.CanPathBeSentToTrash (path: Path) =
         getDriveSize path
         |> Option.exists (fun size -> size > 0L)
 
@@ -341,20 +341,20 @@ type FakeFileSystem(treeItems) =
         )
     }
 
-    member this.CheckRecyclable (totalSize: int64) path =
-        getDriveSize path |> Result.ofOption cannotRecycleItemOnDriveWithNoSize
+    member this.CanFitInTrash (totalSize: int64) path =
+        getDriveSize path |> Result.ofOption cannotTrashItemOnDriveWithNoSize
         |> Result.bind (fun driveSize ->
             let ratio = float totalSize / float driveSize
             if ratio > 0.03
-            then Error (cannotRecycleItemThatDoesNotFit totalSize)
+            then Error (cannotTrashItemThatDoesNotFit totalSize)
             else Ok ()
         )
 
-    member this.Recycle itemType path = result {
+    member this.Trash itemType path = result {
         checkCancelToken ()
         let! item = this.AssertItem itemType path
         do! checkExn true path
-        recycleBin <- item :: recycleBin
+        trashBin <- item :: trashBin
         remove path
     }
 

@@ -1971,7 +1971,7 @@ let ``Undo copy file deletes it`` curPathDifferent =
             ]
         ]
     ]
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 [<Test>]
 let ``Undo copy empty folder deletes it`` () =
@@ -2005,7 +2005,7 @@ let ``Undo copy empty folder deletes it`` () =
             folder "folder" []
         ]
     ]
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 [<Test>]
 let ``Undo copy empty folder that has new items in it returns error`` () =
@@ -2045,7 +2045,7 @@ let ``Undo copy empty folder that has new items in it returns error`` () =
             folder "folder" []
         ]
     ]
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 [<TestCase(false, false, false)>]
 [<TestCase(false, false, true)>]
@@ -2164,7 +2164,7 @@ let ``Undo copy folder deletes items that were copied and removes dest folders i
                     ]
             ]
     ]
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 [<Test>]
 let ``Undo copy does nothing for items that were overwrites`` () =
@@ -2469,7 +2469,7 @@ let ``Undo copy item handles errors by returning error and consuming action`` ()
     let expected = model |> MainModel.withError expectedError |> popUndo |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 // shortcut tests
 
@@ -2564,7 +2564,7 @@ let ``Undo create shortcut deletes shortcut`` curPathDifferent =
             file "file"
         ]
     ]
-    fs.RecycleBin |> shouldEqual []
+    fs.TrashBin |> shouldEqual []
 
 [<Test>]
 let ``Undo create shortcut handles errors by returning error and consuming action`` () =

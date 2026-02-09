@@ -52,7 +52,7 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
     yield model |> MainModel.withBusy (MainStatus.DeletingItems (permanent, items))
     let totalCount = enumerated.Length
     let incrementProgress = progress.GetIncrementer totalCount
-    let deleteFunc = if permanent then fs.Delete else fs.Recycle
+    let deleteFunc = if permanent then fs.Delete else fs.Trash
     let! results = runAsync (fun () ->
         enumerated
         |> Seq.takeWhile (fun _ -> not model.CancelToken.IsCancelled)
@@ -111,7 +111,7 @@ let private calculateTotalSize (fsReader: IFileSystemReader) (cancelToken: Cance
             |> Seq.fold (Result.map2 (+)) (Ok 0L)
     runAsync (fun () -> iter items)
 
-let recycle (fs: IFileSystem) (progress: Progress) (items: Item list) (model: MainModel) = asyncSeqResult {
+let trash (fs: IFileSystem) (progress: Progress) (items: Item list) (model: MainModel) = asyncSeqResult {
     match items with
     | [] -> ()
     | first :: _ ->
@@ -123,10 +123,10 @@ let recycle (fs: IFileSystem) (progress: Progress) (items: Item list) (model: Ma
         else
             let items = items |> List.filter (fun i -> i.Type.CanModify)
             let model = model |> MainModel.withNewCancelToken
-            yield model |> MainModel.withBusy MainStatus.CheckingIsRecyclable
+            yield model |> MainModel.withBusy MainStatus.CheckingSizeForTrash
             progress.Start ()
             let! totalSizeRes = calculateTotalSize fs model.CancelToken items
             let! totalSize = totalSizeRes |> actionError "check folder content size"
-            do! fs.CheckRecyclable totalSize first.Path |> actionError "recycle"
+            do! fs.CanFitInTrash totalSize first.Path |> actionError "check recycle bin size"
             yield! performDelete fs progress false items items model
 }

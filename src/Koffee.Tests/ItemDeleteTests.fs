@@ -442,10 +442,9 @@ let ``Trash file or folder that does not fit in the Trash Bin returns error`` is
     let actual = seqResult (ItemActionCommands.Delete.trash fs progress [item]) model
 
     let expectedEx = FakeFileSystemErrors.cannotTrashItemThatDoesNotFit 4L
-    let expectedError = MainStatus.ActionError ("check recycle bin size", expectedEx)
     let expected =
         model
-        |> MainModel.withError expectedError
+        |> MainModel.withError (MainStatus.CouldNotCheckTrashBinSize expectedEx)
         |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs
@@ -471,10 +470,9 @@ let ``Trash folder that contains folder that cannot be read returns error`` () =
 
     let actual = seqResult (ItemActionCommands.Delete.trash fs progress [item]) model
 
-    let expectedError = MainStatus.ActionError ("check folder content size", ex)
     let expected =
         model
-        |> MainModel.withError expectedError
+        |> MainModel.withError (MainStatus.CouldNotCheckItemSizeForTrash ex)
         |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

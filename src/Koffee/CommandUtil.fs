@@ -9,8 +9,17 @@ open Koffee
 type ModifierKeys = System.Windows.Input.ModifierKeys
 type Key = System.Windows.Input.Key
 
-let actionError actionName = Result.mapError (fun e -> MainStatus.ActionError (actionName, e))
-let itemActionError action = Result.mapError (fun e -> MainStatus.ItemActionError (action, e))
+let mapOpenPathError path = Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, e))
+let mapActionError action = Result.mapError (fun e -> MainStatus.ItemActionError (action, e))
+
+let checkCanPutInLocation (fsReader: IFileSystemReader) (model: MainModel) =
+    result {
+        if model.IsSearchingSubFolders then
+            return! Error MainStatus.CannotPutHere
+        let! location = fsReader.GetItem model.Location |> mapOpenPathError model.Location
+        if not (location |> Option.exists (fun l -> l.Type.CanCreateIn)) then
+            return! Error MainStatus.CannotPutHere
+    }
 
 let performedAction action (model: MainModel) =
     model

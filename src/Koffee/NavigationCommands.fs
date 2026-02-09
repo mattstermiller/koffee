@@ -62,7 +62,7 @@ let private getDirectory (fsReader: IFileSystemReader) (model: MainModel) path =
         |> Ok
     else
         fsReader.GetItems path
-        |> Result.mapError (fun e -> MainStatus.CouldNotOpenPath (path, e))
+        |> mapOpenPathError path
 
 let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
     getDirectory fsReader model path
@@ -79,17 +79,16 @@ let openPath (fsReader: IFileSystemReader) path cursor (model: MainModel) =
     )
 
 let openUserPath (fsReader: IFileSystemReader) pathStr (model: MainModel) =
-    match Path.Parse pathStr with
-    | Some path ->
-        match fsReader.GetItem path with
-        | Ok (Some item) when item.Type = File ->
-            model |> MainModel.clearStatus |> openPath fsReader path.Parent (CursorToPath (item.Path, true))
-        | Ok _ ->
-            model |> MainModel.clearStatus |> openPath fsReader path CursorStay
-        | Error e ->
-            Error <| MainStatus.ActionError ("open path", e)
-    | None ->
-        Error <| MainStatus.InvalidPath pathStr
+    result {
+        let! path = Path.Parse pathStr |> Result.ofOption (MainStatus.InvalidPath pathStr)
+        let! pathItem = fsReader.GetItem path |> mapOpenPathError path
+        let pathIsFile = pathItem |> Option.exists (fun i -> i.Type = File)
+        let pathToOpen, cursor =
+            if pathIsFile
+            then (path.Parent, CursorToPath (path, true))
+            else (path, CursorStay)
+        return! model |> MainModel.clearStatus |> openPath fsReader pathToOpen cursor
+    }
 
 let openInputPath fsReader os pathStr (keyHandler: KeyPressHandler) model = result {
     let pathStr = OsUtility.subEnvVars os pathStr
@@ -177,7 +176,7 @@ let openFilesAndExit fsReader os exit (model: MainModel) = asyncSeqResult {
 let openFileWith (os: IOperatingSystem) (model: MainModel) = result {
     match model.ActionItems with
     | [item] when item.Type = File ->
-        do! os.OpenFileWith item.Path |> actionError "open file with"
+        do! os.OpenFileWith item.Path |> Result.mapError (fun ex -> MainStatus.CouldNotOpenFiles [item.Name, ex])
         return model |> MainModel.withMessage (MainStatus.OpenFiles [item.Name])
     | [_] ->
         return model
@@ -194,7 +193,8 @@ let openProperties (os: IOperatingSystem) (model: MainModel) = result {
     if items.IsEmpty then
         return model
     else
-        do! os.OpenProperties (items |> Seq.map (fun i -> i.Path)) |> actionError "open properties"
+        do! os.OpenProperties (items |> Seq.map (fun i -> i.Path))
+            |> Result.mapError MainStatus.CouldNotOpenProperties
         return model |> MainModel.withMessage (MainStatus.OpenProperties (items |> List.map (fun i -> i.Name)))
 }
 
@@ -204,7 +204,8 @@ let openExplorer (os: IOperatingSystem) (model: MainModel) = result {
         model.ActionItems
         |> Seq.filter (fun i -> i.Path.Parent = location)
         |> Seq.map (fun i -> i.Path)
-    do! os.OpenExplorer location selectPaths |> actionError "open Explorer"
+    do! os.OpenExplorer location selectPaths
+        |> Result.mapError (fun ex -> MainStatus.CouldNotExecute ("Windows Explorer", ex))
     return model |> MainModel.withMessage MainStatus.OpenExplorer
 }
 let openParent fsReader (model: MainModel) =

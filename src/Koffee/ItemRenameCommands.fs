@@ -34,10 +34,10 @@ let rename (fs: IFileSystem) item newName (model: MainModel) = result {
         let! existing =
             if String.equalsIgnoreCase item.Name newName
             then Ok None
-            else fs.GetItem newPath |> itemActionError action
+            else fs.GetItem newPath |> mapActionError action
         match existing with
         | None ->
-            do! fs.Move item.Type item.Path newPath |> itemActionError action
+            do! fs.Move item.Type item.Path newPath |> mapActionError action
             let newItem = { item with Name = newName; Path = newPath }
             let substitute = List.map (fun i -> if i = item then newItem else i)
             return
@@ -62,10 +62,10 @@ let undoRename (fs: IFileSystem) undoIter oldItem currentName (model: MainModel)
     let action = RenamedItem (item, oldItem.Name)
     let! existing =
         if String.equalsIgnoreCase oldItem.Name currentName then Ok None
-        else fs.GetItem oldItem.Path |> itemActionError action
+        else fs.GetItem oldItem.Path |> mapActionError action
     match existing with
     | None ->
-        do! fs.Move oldItem.Type currentPath oldItem.Path |> itemActionError action
+        do! fs.Move oldItem.Type currentPath oldItem.Path |> mapActionError action
         return
             model
             |> MainModel.mapHistory (History.withPathReplaced item.Path oldItem.Path)

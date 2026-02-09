@@ -372,12 +372,7 @@ let putToDestination (fs: IFileSystem) (progress: Progress) isRedo putType inten
 }
 
 let putInLocation (fs: IFileSystem) progress isRedo overwrite putType (itemRefs: ItemRef list) (model: MainModel) = asyncSeqResult {
-    if model.IsSearchingSubFolders then
-        return MainStatus.CannotPutHere
-    do! fs.GetItem model.Location
-        |> actionError "read put location"
-        |> Result.okIf (Option.exists (fun l -> l.Type.CanCreateIn)) MainStatus.CannotPutHere
-        |> Result.map ignore
+    do! checkCanPutInLocation fs model
     let itemRefs = itemRefs |> applyIf (putType = Move) (List.filter (fun itemRef -> itemRef.Path.Parent <> model.Location))
     if itemRefs.IsEmpty then
         return MainStatus.CannotMoveToSameFolder
@@ -476,7 +471,7 @@ let undoCopy fs progress undoIter intent copied (model: MainModel) = asyncSeqRes
 let undoShortcut (fs: IFileSystem) undoIter oldAction shortcutPath (model: MainModel) = result {
     let item = Item.Basic shortcutPath shortcutPath.Name File
     let action = DeletedItems (true, [item], false)
-    do! fs.Delete File shortcutPath |> itemActionError action
+    do! fs.Delete File shortcutPath |> mapActionError action
     return
         model
         |> MainModel.mapHistory (History.withoutPaths [shortcutPath])
@@ -494,7 +489,7 @@ let yankToClipboard copy (os: IOperatingSystem) (model: MainModel) = result {
     if paths.IsEmpty then
         return model
     else
-        do! os.SetClipboardFileDrop copy paths |> actionError "set clipboard file drop"
+        do! os.SetClipboardFileDrop copy paths |> Result.mapError MainStatus.CouldNotSetClipboard
         return model |> MainModel.withMessage (MainStatus.ClipboardYank (copy, paths))
 }
 
@@ -504,7 +499,7 @@ let copyPathsToClipboard (os: IOperatingSystem) (model: MainModel) = result {
         return model
     else
         let text = paths |> Seq.map string |> String.concat "\n"
-        do! os.SetClipboardText text |> actionError "set clipboard text"
+        do! os.SetClipboardText text |> Result.mapError MainStatus.CouldNotSetClipboard
         return model |> MainModel.withMessage (MainStatus.ClipboardCopyPaths paths)
 }
 
@@ -513,7 +508,7 @@ let private getItemRefs (fsReader: IFileSystemReader) paths = result {
     | [path] ->
         let! item =
             fsReader.GetItem path
-            |> actionError "read item"
+            |> mapOpenPathError path
             |> Result.bind (Result.ofOption (MainStatus.PathNotFound path))
         return [item.Ref]
     | _ ->
@@ -521,7 +516,7 @@ let private getItemRefs (fsReader: IFileSystemReader) paths = result {
             paths
             |> Seq.map (fun p -> p.Parent)
             |> Seq.distinct
-            |> Seq.map (fun parent -> fsReader.GetItems parent |> actionError "read parent of item")
+            |> Seq.map (fun parent -> fsReader.GetItems parent |> mapOpenPathError parent)
             |> Result.partition
         match errors with
         | error :: _ ->
@@ -532,7 +527,7 @@ let private getItemRefs (fsReader: IFileSystemReader) paths = result {
 }
 
 let clipboardPaste (fs: IFileSystem) (os: IOperatingSystem) progress (model: MainModel) = asyncSeqResult {
-    match! os.GetClipboardFileDrop () |> actionError "get from clipboard" with
+    match! os.GetClipboardFileDrop () |> Result.mapError MainStatus.CouldNotGetClipboard with
     | _, [] ->
         yield model |> MainModel.withMessage MainStatus.NoItemsToPaste
     | putType, paths ->
@@ -555,7 +550,8 @@ let dropIn (fs: IFileSystem) progress paths (event: DragInEvent) (model: MainMod
     match getDropInPutType event model.Location (paths |> List.head) with
     | Some putType ->
         match paths with
-        | [path] when path.Parent = model.Location -> ()
+        | [path] when path.Parent = model.Location ->
+            () // ignore accidental drag'n'drop
         | _ ->
             let! itemRefs = getItemRefs fs paths
             yield! putInLocation fs progress false false putType itemRefs model

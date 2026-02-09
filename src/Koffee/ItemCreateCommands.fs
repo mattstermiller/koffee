@@ -3,17 +3,8 @@ module Koffee.ItemActionCommands.Create
 open Acadian.FSharp
 open Koffee
 
-let private inputNewItem (inputType: InputType) (fsReader: IFileSystemReader) (model: MainModel) = result {
-    if model.IsSearchingSubFolders then
-        return! Error MainStatus.CannotPutHere
-    do!
-        match fsReader.GetItem model.Location with
-        | Ok (Some item) when item.Type.CanCreateIn ->
-            Ok ()
-        | Ok _ ->
-            Error MainStatus.CannotPutHere
-        | Error e ->
-            Error (MainStatus.ActionError ("create item", e))
+let private inputNewItem (fsReader: IFileSystemReader) (inputType: InputType) (model: MainModel) = result {
+    do! checkCanPutInLocation fsReader model
     return
         { model with
             InputMode = Some (Input inputType)
@@ -21,16 +12,16 @@ let private inputNewItem (inputType: InputType) (fsReader: IFileSystemReader) (m
         }
 }
 
-let inputNewFile fs = inputNewItem NewFile fs
-let inputNewFolder fs = inputNewItem NewFolder fs
+let inputNewFile fs = inputNewItem fs NewFile
+let inputNewFolder fs = inputNewItem fs NewFolder
 
 let create (fs: IFileSystem) itemType name model = asyncSeqResult {
     let itemPath = model.Location.Join name
     let action = CreatedItem (Item.Basic itemPath name itemType)
-    let! existing = fs.GetItem itemPath |> itemActionError action
+    let! existing = fs.GetItem itemPath |> mapActionError action
     match existing with
     | None ->
-        do! fs.Create itemType itemPath |> itemActionError action
+        do! fs.Create itemType itemPath |> mapActionError action
         let model = model |> performedAction action
         yield model
         yield! NavigationCommands.openPath fs model.Location (CursorToPath (itemPath, false)) model
@@ -44,7 +35,7 @@ let undoCreate (fs: IFileSystem) undoIter item (model: MainModel) = asyncSeqResu
         return MainStatus.CannotUndoNonEmptyCreated item
     yield model |> MainModel.withBusy (MainStatus.UndoingCreate item)
     let! res = runAsync (fun () -> fs.Delete item.Type item.Path)
-    do! res |> itemActionError (DeletedItems (true, [item], false))
+    do! res |> mapActionError (DeletedItems (true, [item], false))
     yield
         model
         |> MainModel.mapHistory (History.withoutPaths [item.Path])

@@ -20,7 +20,7 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
         |> List.partition (String.contains "error")
     let fs = FakeFileSystem (goodPaths |> List.map (fun p -> folder p []))
     for p in errorPaths do
-        fs.AddExn false (exn p) p
+        fs.AddExn false ex p
 
     let config =
         { Config.Default with
@@ -51,7 +51,7 @@ let test (startPath: string option) configPath (defaultPath: string) (history: s
             | _ -> None
     }
 
-let openPathError p = MainStatus.ActionError ("open path", exn p)
+let openPathError pathStr = MainStatus.CouldNotOpenPath (createPath pathStr, ex)
 
 [<Test>]
 let ``When all paths are good then opens start and back is prev folder`` () =

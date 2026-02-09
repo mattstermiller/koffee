@@ -1,4 +1,4 @@
-namespace Koffee
+﻿namespace Koffee
 
 open System
 open System.Windows
@@ -807,16 +807,13 @@ module MainStatus =
                 sprintf "%s hidden attribute on %s..." action (Item.describeList items)
 
     type Error =
-        | ActionError of actionName: string * exn
-        | ItemActionError of ItemAction * exn
         | InvalidPath of string
         | CouldNotOpenPath of Path * exn
         | PathNotFound of Path
         | NoPreviousSearch
         | ShortcutTargetMissing of string
+        | ItemActionError of ItemAction * exn
         | PutError of isUndo: bool * PutType * errorPaths: (Path * exn) list * totalItems: int
-        | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
-        | ToggleHiddenError of hide: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotPutHere
         | CannotUseNameAlreadyExists of actionName: string * itemType: ItemType * name: string * hidden: bool
         | CannotMoveToSameFolder
@@ -825,13 +822,20 @@ module MainStatus =
         | TooManyCopies of fileName: string
         | CouldNotReadItemsForOverwritePrompt
         | CouldNotDeleteMoveSource of name: string * exn
+        | CouldNotCheckItemSizeForTrash of exn
+        | CouldNotCheckTrashBinSize of exn
+        | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
+        | ToggleHiddenError of hide: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotUndoNonEmptyCreated of Item
         | CannotUndoDelete of permanent: bool * items: Item list
+        | CouldNotGetClipboard of exn
+        | CouldNotSetClipboard of exn
         | NoUndoActions
         | NoRedoActions
         | NoFilesSelected
         | CannotOpenWithMultiple
         | CouldNotOpenFiles of nameErrorPairs: (string * exn) list
+        | CouldNotOpenProperties of exn
         | CouldNotExecute of app: string * exn
         | CouldNotFindKoffeeExe
         | ToolDoesNotExist of name: string
@@ -849,14 +853,6 @@ module MainStatus =
 
         member this.Message pathFormat =
             match this with
-            | ActionError (action, e) ->
-                let msg =
-                    match e with
-                    | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
-                    | e -> e.Message
-                sprintf "Could not %s: %s" action msg
-            | ItemActionError (action, e) ->
-                (ActionError (action.Description pathFormat, e)).Message pathFormat
             | InvalidPath path ->
                 "Path format is invalid: " + path
             | CouldNotOpenPath (path, ex) ->
@@ -867,15 +863,15 @@ module MainStatus =
                 "No previous search to repeat"
             | ShortcutTargetMissing path ->
                 "Shortcut target does not exist: " + path
+            | ItemActionError (action, ex) ->
+                let exMsg =
+                    match ex with
+                    | :? AggregateException as agg -> agg.InnerExceptions.[0].Message
+                    | _ -> ex.Message
+                sprintf "Could not %s: %s" (action.Description pathFormat) exMsg
             | PutError (isUndo, putType, errorPaths, totalItems) ->
                 let undo = if isUndo then "undo " else ""
                 this.ItemErrorsDescription (undo + putType.ToLowerString()) errorPaths totalItems
-            | DeleteError (permanent, errorPaths, totalItems) ->
-                let action = if permanent then "delete"  else "recycle"
-                this.ItemErrorsDescription action errorPaths totalItems
-            | ToggleHiddenError (hide, errorPaths, totalItems) ->
-                let action = (if hide then "set" else "remove") + " hidden attribute"
-                this.ItemErrorsDescription action errorPaths totalItems
             | CannotPutHere ->
                 "Cannot put items here"
             | CannotUseNameAlreadyExists (actionName, itemType, name, hidden) ->
@@ -894,12 +890,26 @@ module MainStatus =
                 sprintf "There are already too many copies of \"%s\"" fileName
             | CouldNotDeleteMoveSource (name, ex) ->
                 sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
+            | CouldNotCheckItemSizeForTrash ex ->
+                sprintf "Could not check total size of items: %s" ex.Message
+            | CouldNotCheckTrashBinSize ex ->
+                sprintf "Could not check recycle bin size: %s" ex.Message
+            | DeleteError (permanent, errorPaths, totalItems) ->
+                let action = if permanent then "delete"  else "recycle"
+                this.ItemErrorsDescription action errorPaths totalItems
+            | ToggleHiddenError (hide, errorPaths, totalItems) ->
+                let action = (if hide then "set" else "remove") + " hidden attribute"
+                this.ItemErrorsDescription action errorPaths totalItems
             | CannotUndoNonEmptyCreated item ->
                 sprintf "Cannot undo creation of %s because it is no longer empty" item.Description
             | CannotUndoDelete (permanent, items) ->
                 if permanent
                 then sprintf "Cannot undo deletion of %s" (Item.describeList items)
                 else sprintf "Cannot undo recycling of %s. Please open the Recycle Bin in Windows Explorer to restore items" (Item.describeList items)
+            | CouldNotGetClipboard ex ->
+                sprintf "Could not read clipboard: %s" ex.Message
+            | CouldNotSetClipboard ex ->
+                sprintf "Could not set clipboard: %s" ex.Message
             | NoUndoActions ->
                 "No more actions to undo"
             | NoRedoActions ->
@@ -916,8 +926,10 @@ module MainStatus =
                     sprintf "Could not open %i files. First error: '%s' - %s" nameErrorPairs.Length name ex.Message
                 | [] ->
                     "Could not open files"
-            | CouldNotExecute (app, e) ->
-                sprintf "Could not execute %s: %s" app e.Message
+            | CouldNotOpenProperties ex ->
+                sprintf "Could not open properties: %s" ex.Message
+            | CouldNotExecute (app, ex) ->
+                sprintf "Could not execute %s: %s" app ex.Message
             | CouldNotFindKoffeeExe ->
                 "Could not determine Koffee.exe path"
             | ToolDoesNotExist name ->

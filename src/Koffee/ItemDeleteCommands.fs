@@ -50,6 +50,7 @@ let private removeItems (items: Item list) (model: MainModel) =
 
 let private performDelete (fs: IFileSystem) (progress: Progress) permanent items (enumerated: Item list) (model: MainModel) = asyncSeqResult {
     yield model |> MainModel.withBusy (MainStatus.DeletingItems (permanent, items))
+    progress.Start ()
     let totalCount = enumerated.Length
     let incrementProgress = progress.GetIncrementer totalCount
     let deleteFunc = if permanent then fs.Delete else fs.Trash
@@ -68,10 +69,12 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
     let deletedCount = actualDeleted.Length
     let actualDeletedPaths = actualDeleted |> Seq.map (fun i -> i.Path) |> Set
     let itemsDeleted = items |> List.filter (fun i -> actualDeletedPaths |> Set.contains i.Path)
+    let itemsNotDeleted = items |> List.except itemsDeleted
+    let cancelledImmediately = model.CancelToken.IsCancelled && actualDeleted |> Seq.isEmpty
 
     let resumeAction =
-        if model.CancelToken.IsCancelled && deletedCount > 0
-        then Some (DeletedItems (permanent, items |> List.except itemsDeleted, true))
+        if itemsNotDeleted |> Seq.isNotEmpty
+        then Some (DeletedItems (permanent, itemsNotDeleted, true))
         else None
     let status =
         if not errors.IsEmpty then
@@ -85,7 +88,7 @@ let private performDelete (fs: IFileSystem) (progress: Progress) permanent items
     yield
         model
         |> removeItems itemsDeleted
-        |> applyIf (deletedCount > 0) (MainModel.withRedoStack (resumeAction |> Option.toList))
+        |> applyIf (not cancelledImmediately) (MainModel.withRedoStack (resumeAction |> Option.toList))
         |> MainModel.withStatus status
 }
 
@@ -126,7 +129,13 @@ let trash (fs: IFileSystem) (progress: Progress) (items: Item list) (model: Main
             yield model |> MainModel.withBusy MainStatus.CheckingSizeForTrash
             progress.Start ()
             let! totalSizeRes = calculateTotalSize fs model.CancelToken items
-            let! totalSize = totalSizeRes |> Result.mapError MainStatus.CouldNotCheckItemSizeForTrash
-            do! fs.CanFitInTrash totalSize first.Path |> Result.mapError MainStatus.ItemsCannotFitInTrashBin
-            yield! performDelete fs progress false items items model
+            progress.Finish ()
+            match totalSizeRes with
+            | Error ex ->
+                yield model |> MainModel.withRedoStack [DeletedItems (false, items, true)]
+                return MainStatus.CouldNotCheckItemSizeForTrash ex
+            | Ok totalSize ->
+                if not model.CancelToken.IsCancelled then
+                    do! fs.CanFitInTrash totalSize first.Path |> Result.mapError MainStatus.ItemsCannotFitInTrashBin
+                yield! performDelete fs progress false items items model
 }

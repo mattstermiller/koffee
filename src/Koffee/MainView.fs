@@ -122,7 +122,6 @@ module MainView =
                 window.InputBox
             ]
             if not (FocusManager.GetFocusedElement window |> Seq.containedIn focusableControls) then
-                printfn "Resetting focus"
                 window.ItemGrid.Focus() |> ignore
         )
 

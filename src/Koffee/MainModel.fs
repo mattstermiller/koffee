@@ -485,9 +485,9 @@ with
 type ItemAction =
     | CreatedItem of Item
     | RenamedItem of Item * newName: string
-    | PutItems of PutType * intent: PutIntent * actual: PutItem list * cancelled: bool
-    | DeletedItems of permanent: bool * Item list * cancelled: bool
-    | ToggleHidden of hide: bool * Item list * cancelled: bool
+    | PutItems of PutType * intent: PutIntent * actual: PutItem list * incomplete: bool
+    | DeletedItems of permanent: bool * Item list * incomplete: bool
+    | ToggleHidden of hide: bool * Item list * incomplete: bool
 with
     member private this.Describe isShort pathFormat =
         match this with
@@ -1410,7 +1410,7 @@ type MainModel = {
 
     static member private mergeActionsWithSameIntent (actionStack: ItemAction list) =
         match actionStack with
-        | PutItems (putType1, intent1, actual1, cancelled1) ::
+        | PutItems (putType1, intent1, actual1, incomplete1) ::
           PutItems (putType2, intent2, actual2, true) :: tail
                 when putType1 = putType2 && PutIntent.equalSourceAndDest intent1 intent2 ->
             let mergedActual =
@@ -1418,17 +1418,17 @@ type MainModel = {
                 |> Seq.distinctBy (fun pi -> pi.Source)
                 |> Seq.sortBy (fun pi -> pi.Source)
                 |> Seq.toList
-            PutItems (putType1, intent2, mergedActual, cancelled1) :: tail
+            PutItems (putType1, intent2, mergedActual, incomplete1) :: tail
 
-        | DeletedItems (permanent1, items1, cancelled1) ::
+        | DeletedItems (permanent1, items1, incomplete1) ::
           DeletedItems (permanent2, items2, true) :: tail
-                when permanent1 = permanent2 && items1.Head.Path.Parent = items2.Head.Path.Parent ->
-            DeletedItems (permanent1, items2 @ items1, cancelled1) :: tail
+                when permanent1 = permanent2 ->
+            DeletedItems (permanent1, items2 @ items1, incomplete1) :: tail
 
-        | ToggleHidden (hide1, items1, cancelled1) ::
+        | ToggleHidden (hide1, items1, incomplete1) ::
           ToggleHidden (hide2, items2, true) :: tail
                 when hide1 = hide2 && items1.Head.Path.Parent = items2.Head.Path.Parent ->
-            ToggleHidden (hide1, items2 @ items1, cancelled1) :: tail
+            ToggleHidden (hide1, items2 @ items1, incomplete1) :: tail
 
         | _ ->
             actionStack

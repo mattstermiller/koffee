@@ -4,6 +4,7 @@
 - #16 Adds configurable Tools feature, replacing built-in terminal and text editor commands with equivalent Tools
 - #137 Adds key binding editor
 - #151 Moves next undo/redo actions to separate bar, adds setting to toggle showing it
+- #78 Allow retrying cancelled and failed operations with Redo
 - Adds Toggle Hidden Attribute command
 - Adds Open Koffee Data Folder command
 - Adds centered message display for empty folders and search results instead of "empty" item

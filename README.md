@@ -120,8 +120,8 @@ _A capital letter indicates that the letter key is combined with Shift._
     - Press `Shift + Delete` to delete items permanently. You will be prompted to make sure this is what you want to do; press `y` to proceed with deletion or press `n` to cancel.
     - You can cancel a recycle or delete in progress by pressing `Esc`.
 - **Undo / Redo Action**
-    - Press `u` to undo the last file or folder action (creating, renaming, moving, copying and deleting). The status bar will report the action that was undone. Since deletions cannot be undone, the status bar will simply report the deletion that cannot be undone.
-    - Press `U` to redo the last action that was undone or to resume a cancelled action. Note that performing any action after an undo will clear the redo list.
+    - Press `u` to undo the last file or folder action (except deletion). The status bar will report the action that was undone.
+    - Press `U` to redo the last action that was undone, resume a cancelled action, or retry a failed action. Note that performing another action will clear the redo list.
     - You can cancel an undo or redo in progress by pressing `Esc`. You can resume the undo or redo by invoking it again.
     - Press `gu` to display undo / redo history. Press it again or `Esc` to close it.
 

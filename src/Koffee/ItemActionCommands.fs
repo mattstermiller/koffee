@@ -31,32 +31,27 @@ module Attributes =
 
         let succeeded, errors = results |> Result.partition
 
-        // if nothing succeeded, return error
         let errorStatus = lazy MainStatus.ToggleHiddenError (doHide, errors, items.Length)
-        if succeeded |> List.isEmpty then
-            return errorStatus.Value
-
-        let action = ToggleHidden (hide, succeeded, model.CancelToken.IsCancelled)
         let unsuccessful =
-            if not (errors.IsEmpty) || model.CancelToken.IsCancelled
+            if not errors.IsEmpty || model.CancelToken.IsCancelled
             then items |> List.except succeeded
             else []
 
-        let updateUndoRedo (model: MainModel) =
-            let cancelledAction =
-                if model.CancelToken.IsCancelled
+        let pushResumeAction (model: MainModel) =
+            let resumeAction =
+                if not unsuccessful.IsEmpty
                 then Some (ToggleHidden (hide, unsuccessful, true))
                 else None
-            if isUndo then
-                model
-                |> Option.foldBack MainModel.pushUndo cancelledAction
-                |> MainModel.pushRedo action
-            else
-                model
-                |> MainModel.pushUndo action
-                |> MainModel.withRedoStack (cancelledAction |> Option.toList)
+            if isUndo
+            then model |> Option.foldBack MainModel.pushUndo resumeAction
+            else model |> MainModel.withRedoStack (resumeAction |> Option.toList)
 
-        let updateList model =
+        // if nothing succeeded, return error
+        if succeeded |> List.isEmpty then
+            yield model |> pushResumeAction
+            return errorStatus.Value
+
+        let updateItemList model =
             let cursorMove =
                 if doHide && not model.Config.ShowHidden && errors.IsEmpty
                 then model.KeepCursorByPath
@@ -76,6 +71,8 @@ module Attributes =
             else
                 NavigationCommands.openPathIgnoreError fs location cursorMove model
 
+        let action = ToggleHidden (hide, succeeded, not unsuccessful.IsEmpty)
+
         let status =
             // for partial success, set error message instead of returning Error so the caller flow is not short-circuited
             if not errors.IsEmpty then
@@ -89,11 +86,14 @@ module Attributes =
                 | None ->
                     MainStatus.Message (MainStatus.ActionComplete action)
 
+        let pushUndo = if isUndo then MainModel.pushRedo else MainModel.pushUndo
+
         yield
             model
-            |> updateUndoRedo
+            |> pushUndo action
+            |> pushResumeAction
             |> MainModel.withStatus status
-            |> updateList
+            |> updateItemList
     }
 
     let toggleHidden fs progress (model: MainModel) =
@@ -148,41 +148,49 @@ module Undo =
                 if path <> model.Location
                 then NavigationCommands.openPath fs path cursorMove model
                 else Ok (NavigationCommands.moveCursor cursorMove model)
+            let restoreRedoStack model =
+                if obj.ReferenceEquals(model.RedoStack, rest) then
+                    model
+                else
+                    let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
+                    { model with RedoStack = (newRedoItem |> Option.toList) @ rest }
             let! model = asyncSeqResult {
                 match action with
                 | CreatedItem item ->
                     let! model = openPath item.Path.Parent CursorStay
                     yield! Create.create fs item.Type item.Name model
+                        |> AsyncSeq.map (Result.map restoreRedoStack)
                 | RenamedItem (item, newName) ->
                     let! model = openPath item.Path.Parent CursorStay
                     yield! Rename.rename fs item newName model
+                        |> Result.map restoreRedoStack
                 | PutItems (putType, intent, _, _) ->
                     let! model = openPath intent.DestParent CursorStay
                     yield! Put.putToDestination fs progress true putType intent model
+                        |> AsyncSeq.map (Result.map restoreRedoStack)
                 | DeletedItems (permanent, items, _) ->
-                    // normally, redo of delete is impossible because undo is impossible, but cancellation pushes redo action for resuming
+                    // normally, redo of delete is impossible because undo is impossible, but cancellation and partial success push redo action for resuming
                     let cursor = CursorToAndSelectPaths (items |> List.map (fun i -> i.Path), true)
                     let! model = openPath items.Head.Path.Parent cursor
                     yield model |> MainModel.withBusy (MainStatus.RedoingDeleting (permanent, items))
                     let deleteFunc = if permanent then Delete.delete else Delete.trash
                     yield! deleteFunc fs progress items model
+                        |> AsyncSeq.map (Result.map restoreRedoStack)
                 | ToggleHidden (hide, items, _) ->
                     yield! Attributes.setHidden fs progress None hide items model
+                        |> AsyncSeq.map (Result.map restoreRedoStack)
             }
-            let newRedoItem = model.RedoStack |> List.tryHead |> Option.filter (fun action -> Some action <> redoHead)
-            let status, statusHistory =
+            // convert action complete status to redo action status
+            let model =
                 match model.Status with
                 | Some (MainStatus.Message (MainStatus.ActionComplete action)) ->
                     let status = MainStatus.Message (MainStatus.RedoAction (action, iter, model.RepeatCount))
-                    (Some status, status :: model.StatusHistory.Tail)
-                | status -> (status, model.StatusHistory)
-            let model =
-                { model with
-                    // restore redo stack after operation with new item if present
-                    RedoStack = (newRedoItem |> Option.toList) @ rest
-                    Status = status
-                    StatusHistory = statusHistory
-                }
+                    { model with
+                        Status = Some status
+                        StatusHistory = status :: model.StatusHistory.Tail
+                    }
+                | _ ->
+                    model
             if iter < model.RepeatCount && not model.IsStatusCancelled then
                 yield! redoIter (iter + 1) fs progress model
             else

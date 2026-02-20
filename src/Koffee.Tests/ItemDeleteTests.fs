@@ -444,7 +444,7 @@ let ``Trash file or folder that does not fit in the Trash Bin returns error`` is
     let expectedEx = FakeFileSystemErrors.cannotTrashItemThatDoesNotFit 4L
     let expected =
         model
-        |> MainModel.withError (MainStatus.CouldNotCheckTrashBinSize expectedEx)
+        |> MainModel.withError (MainStatus.ItemsCannotFitInTrashBin expectedEx)
         |> withNewCancelToken
     assertAreEqual expected actual
     fs.Items |> shouldEqual expectedFs

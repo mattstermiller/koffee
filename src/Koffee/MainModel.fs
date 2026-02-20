@@ -823,7 +823,7 @@ module MainStatus =
         | CouldNotReadItemsForOverwritePrompt
         | CouldNotDeleteMoveSource of name: string * exn
         | CouldNotCheckItemSizeForTrash of exn
-        | CouldNotCheckTrashBinSize of exn
+        | ItemsCannotFitInTrashBin of exn
         | DeleteError of permanent: bool * errorPaths: (Path * exn) list * totalItems: int
         | ToggleHiddenError of hide: bool * errorPaths: (Path * exn) list * totalItems: int
         | CannotUndoNonEmptyCreated of Item
@@ -892,8 +892,8 @@ module MainStatus =
                 sprintf "Could not delete source folder \"%s\" after moving: %s" name ex.Message
             | CouldNotCheckItemSizeForTrash ex ->
                 sprintf "Could not check total size of items: %s" ex.Message
-            | CouldNotCheckTrashBinSize ex ->
-                sprintf "Could not check recycle bin size: %s" ex.Message
+            | ItemsCannotFitInTrashBin ex ->
+                sprintf "Items cannot fit in recycle bin: %s" ex.Message
             | DeleteError (permanent, errorPaths, totalItems) ->
                 let action = if permanent then "delete"  else "recycle"
                 this.ItemErrorsDescription action errorPaths totalItems

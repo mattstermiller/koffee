@@ -127,6 +127,6 @@ let trash (fs: IFileSystem) (progress: Progress) (items: Item list) (model: Main
             progress.Start ()
             let! totalSizeRes = calculateTotalSize fs model.CancelToken items
             let! totalSize = totalSizeRes |> Result.mapError MainStatus.CouldNotCheckItemSizeForTrash
-            do! fs.CanFitInTrash totalSize first.Path |> Result.mapError MainStatus.CouldNotCheckTrashBinSize
+            do! fs.CanFitInTrash totalSize first.Path |> Result.mapError MainStatus.ItemsCannotFitInTrashBin
             yield! performDelete fs progress false items items model
 }

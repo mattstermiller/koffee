@@ -497,6 +497,11 @@ module MainView =
                 window.ItemGrid.VisibleRowCount |> Option.map (fun pageSize -> Background (PageSizeChanged pageSize))
             )
 
+            // Capture Escape KeyPress when grid is disabled to allow cancelling
+            window.KeyDown
+                |> Obs.filter (fun evt -> evt.Chord = (ModifierKeys.None, Key.Escape))
+                |> Obs.map (fun evt -> KeyPress (evt.Chord, evt.Handler))
+
             window.InputBox.PreviewKeyDown |> Obs.map (fun evt ->
                 match evt.Key with
                 | Key.Enter ->

@@ -1,4 +1,4 @@
-﻿module Koffee.MainController
+module Koffee.MainController
 
 open FSharp.Control
 open VinylUI
@@ -57,8 +57,11 @@ let cancelInput model =
     { model with InputMode = None; InputError = None }
     |> applyIf (model.InputMode = Some (Input Search)) NavigationCommands.clearSearch
 
-let private escape model =
-    if model.InputMode.IsSome then
+let private escape (model: MainModel) =
+    if model.IsStatusBusy then
+        model.CancelToken.Cancel()
+        model
+    else if model.InputMode.IsSome then
         cancelInput model
     else if not model.KeyCombo.IsEmpty || model.RepeatCommand.IsSome then
         model |> MainModel.withoutKeyCombo
@@ -67,7 +70,6 @@ let private escape model =
     else if not model.SelectedItems.IsEmpty then
         model |> MainModel.clearSelection
     else
-        model.CancelToken.Cancel()
         model |> MainModel.clearStatus |> NavigationCommands.clearSearch
 
 let keyPress handleCommand chord handleKey model = asyncSeq {
@@ -216,7 +218,7 @@ type Controller(
             | Background (WindowSizeChanged (w, h)) -> Sync (windowSizeChanged (w, h))
             | Background (WindowMaximizedChanged maximized) -> Sync (windowMaximized maximized)
 
-        if evt.IsBackground then
+        if evt.IsKeyPress || evt.IsBackground then
             handler
         else
             match handler with

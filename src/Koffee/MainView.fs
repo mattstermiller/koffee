@@ -86,7 +86,7 @@ module MainView =
 
         // Set up grid
         let mutable relativePathFormat = string
-        window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Type @>, "", conversion = (fun t -> t.Symbol))
+        window.ItemGrid.AddIconColumn(<@ fun (i: Item) -> i.HistoryPath @>)
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Name @>, widthWeight = 1.0)
         window.ItemGrid.AddColumn(<@ fun (i: Item) -> i.Path @>, "Relative Path", widthWeight = 1.0,
                                   conversion = (fun p -> p.Parent |> relativePathFormat))

@@ -1,6 +1,8 @@
 module UIHelpers
 
 open System
+open System.IO
+open System.Drawing
 open System.Runtime.CompilerServices
 open System.Windows
 open System.Windows.Controls
@@ -8,11 +10,13 @@ open System.Windows.Controls.Primitives
 open System.Windows.Data
 open System.Windows.Input
 open System.Windows.Media
+open System.Windows.Media.Imaging
 open System.Reactive.Linq
 open VinylUI
 open VinylUI.Wpf
 open Microsoft.FSharp.Quotations
 open Acadian.FSharp
+open Koffee
 
 type RoutedEventArgs with
     member this.Handler = KeyPressHandler(this)
@@ -50,17 +54,47 @@ type CheckBox with
             this.Indeterminate
         ] |> Seq.cast<IObservable<_>>).Merge()
 
+module IconHelper =
+    let private cache = System.Collections.Generic.Dictionary<string, BitmapImage>(StringComparer.CurrentCultureIgnoreCase)
+
+    let getIconBitmap (historyPath: HistoryPath) =
+        if historyPath.IsDirectory then
+            None // TODO
+        else
+            let path = historyPath.PathValue
+            let cacheKey = if path.Extension |> String.equalsIgnoreCase ".exe" then string path else path.Extension
+            cache.TryGetValueOption cacheKey
+            |> Option.orElseWith (fun () ->
+                let pathStr = string path
+                if File.Exists pathStr then
+                    use icon = Icon.ExtractAssociatedIcon(pathStr)
+                    use stream = new MemoryStream()
+                    icon.Save(stream)
+                    stream.Position <- 0
+                    let bitmap = new BitmapImage()
+                    bitmap.BeginInit()
+                    bitmap.StreamSource <- stream
+                    bitmap.CacheOption <- BitmapCacheOption.OnLoad
+                    bitmap.EndInit()
+                    // bitmap.Freeze()
+                    cache.Add(cacheKey, bitmap)
+                    Some bitmap
+                else
+                    None // TODO generic file icon?
+            )
+
 type DataGrid with
+    member this.gridLengthFromWeight weight =
+        match weight with
+        | Some weight -> DataGridLength(weight, DataGridLengthUnitType.Star)
+        | None -> DataGridLength(1.0, DataGridLengthUnitType.Auto)
+
     member this.AddColumn (projection: Expr<'a -> 'v>, ?header: string, ?widthWeight, ?alignRight,
                            ?conversion: 'v -> _, ?format: string) =
-        let propName =
-            match projection with
-            | Reflection.PropertySelector prop -> prop.Name
-            | _ -> failwith "Projection expression must be a function that returns a property from an item."
+        let propName = Reflection.getPropertyFromSelector projection |> _.Name
         let col = DataGridTextColumn()
         col.Header <- header |? propName
-        let widthType = if widthWeight.IsSome then DataGridLengthUnitType.Star else DataGridLengthUnitType.Auto
-        col.Width <- DataGridLength(widthWeight |? 1.0, widthType)
+        col.Width <- this.gridLengthFromWeight widthWeight
         if alignRight = Some true then
             col.ElementStyle <- Style(typedefof<TextBlock>)
             col.ElementStyle.Setters.Add(Setter(FrameworkElement.HorizontalAlignmentProperty,
@@ -76,6 +110,27 @@ type DataGrid with
         )
         format |> Option.iter binding.set_StringFormat
         col.Binding <- binding
+
+        this.Columns.Add col
+
+    member this.AddIconColumn (projection: Expr<'a -> HistoryPath>, ?widthWeight) =
+        let propName = Reflection.getPropertyFromSelector projection |> _.Name
+        let col = DataGridTemplateColumn()
+        col.Width <- DataGridLength(24, DataGridLengthUnitType.Pixel)
+
+        let binding = Binding(propName)
+        binding.Converter <-
+            { new IValueConverter with
+                member this.Convert(value, _, _, _) = value |> unbox<HistoryPath> |> IconHelper.getIconBitmap |> Option.toObj |> box
+                member this.ConvertBack(value, _, _, _) = value
+            }
+
+        let factory = FrameworkElementFactory(typeof<Image>)
+        factory.SetValue(Image.SourceProperty, binding)
+
+        let cellTemplate = DataTemplate()
+        cellTemplate.VisualTree <- factory
+        col.CellTemplate <- cellTemplate
 
         this.Columns.Add col
 

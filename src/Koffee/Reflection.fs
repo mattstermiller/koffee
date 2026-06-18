@@ -5,6 +5,7 @@ open System.Reflection
 open FSharp.Reflection
 open FSharp.Quotations.Patterns
 open FSharp.Quotations.Evaluator
+open Microsoft.FSharp.Quotations
 
 let unionCaseNameReadable value =
     value |> Acadian.FSharp.Reflection.unionCaseName |> String.readableIdentifier
@@ -59,6 +60,11 @@ let (|PropertySelector|_|) expr =
     | Lambda (_, PropertyGet (_, property, [])) ->
         Some property
     | _ -> None
+
+let getPropertyFromSelector (projection: Expr<_ -> _>) =
+    match projection with
+    | PropertySelector prop -> prop
+    | _ -> failwith "Projection expression must be a function that returns a property from an item."
 
 module KoffeeExe =
     let private assembly = Assembly.GetExecutingAssembly()

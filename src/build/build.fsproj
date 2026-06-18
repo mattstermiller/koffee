@@ -18,6 +18,7 @@
     <PackageReference Include="Fake.IO.FileSystem" Version="6.1.4" />
     <PackageReference Include="Fake.IO.Zip" Version="6.1.4" />
     <PackageReference Include="MSBuild.StructuredLogger" Version="2.2.386" />
+    <PackageReference Include="NuGet.Protocol" Version="7.6.0" />
   </ItemGroup>
 
 </Project>

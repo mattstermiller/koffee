@@ -1,6 +1,6 @@
 # Release Notes
 
-### 0.8.0  Configure Key Bindings and External Tools (WIP)
+### 0.8.0  Configure Key Bindings and External Tools (2026-08-13)
 - #16 Adds configurable Tools feature, replacing built-in terminal and text editor commands with equivalent Tools
 - #137 Adds key binding editor
 - #151 Moves next undo/redo actions to separate bar, adds setting to toggle showing it

@@ -160,7 +160,7 @@ Tool Arguments may contain pre-defined variables, surrounded in braces, which ar
     - `{env:ENVIRONMENT_VARIABLE}`
 - **Optional argument**: Surround a variable and prefix/suffix arguments in brackets `[ ]` to make it optional and only included if the variable has a value when executed.
     - Example: `[--select {selected_files}]`
-- **Fallback variables**: Add `?` and another variable name to use if the first variable does not have a value when executed. You can multiple fallback variables.
+- **Fallback variables**: Add `?` and another variable name to use if the first variable does not have a value when executed. You can add multiple fallback variables.
     - Example: `{env:REPO_PATH?git_root?location}`
 - **Override delimiter**: The `selected_*` variables delimit items with a space character. This can be changed by adding colon and desired separator.
     - Example: `{selected_items:,}`

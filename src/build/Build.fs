@@ -146,7 +146,7 @@ let initTargets () =
         let githubToken =
             Environment.environVarOrNone "koffee_deploy_token"
             |> Option.defaultWith (fun () ->
-                failwith "Set the 'koffee_deploy_token' environment variable to a github personal access token with 'repo' access."
+                failwith "Set the 'koffee_deploy_token' environment variable to a github personal access token (fine-grained) with Contents read and write permission."
             )
         let chocoApiKey =
             Environment.environVarOrNone "choco_api_key"
